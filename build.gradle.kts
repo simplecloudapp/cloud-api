@@ -1,5 +1,4 @@
 import org.jetbrains.kotlin.gradle.dsl.JvmTarget
-import org.jetbrains.kotlin.gradle.tasks.KotlinCompile
 
 plugins {
     id("java")
@@ -19,24 +18,23 @@ allprojects {
         maven("https://repo.simplecloud.app/snapshots")
         maven("https://buf.build/gen/maven")
     }
+
 }
 
 subprojects {
-
     apply {
         plugin(rootProject.libs.plugins.shadow.get().pluginId)
         plugin(rootProject.libs.plugins.kotlin.jvm.get().pluginId)
     }
-
     java {
         toolchain.languageVersion.set(JavaLanguageVersion.of(21))
     }
 
     kotlin {
         jvmToolchain(21)
-    }
-
-    tasks.withType<KotlinCompile> {
-        compilerOptions.jvmTarget.set(JvmTarget.JVM_21)
+        compilerOptions {
+            apiVersion.set(org.jetbrains.kotlin.gradle.dsl.KotlinVersion.KOTLIN_2_0)
+            jvmTarget.set(JvmTarget.JVM_21)
+        }
     }
 }

@@ -1,0 +1,10 @@
+{
+  "id": "api-provider",
+  "name": "SimpleCloud API",
+  "version": "1.0",
+  "authors": [
+    "ugede"
+  ],
+  "main": "app.simplecloud.api.platform.velocity.VelocityApiProvider",
+  "dependencies": []
+}

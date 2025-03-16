@@ -1,6 +1,6 @@
 name: simplecloud-api
 version: "1.0"
-main: app.simplecloud.api.provider.spigot.SpigotApiProvider
+main: app.simplecloud.api.platform.spigot.SpigotApiProvider
 api-version: "1.21"
 
 libraries:

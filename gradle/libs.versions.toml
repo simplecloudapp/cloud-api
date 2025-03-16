@@ -1,5 +1,8 @@
 [versions]
 kotlin = "2.0.20"
+kotlin-coroutines = "1.9.0"
+velocity = "3.4.0-SNAPSHOT"
+bungeecord = "1.20-R0.2-SNAPSHOT"
 shadow = "8.3.3"
 simplecloud-controller = "0.0.30-SNAPSHOT.2660ec8"
 simplecloud-player = "0.0.1-SNAPSHOT.d490b2f"
@@ -8,9 +11,12 @@ paper = "1.21.4-R0.1-SNAPSHOT"
 [libraries]
 kotlin-stdlib = { module = "org.jetbrains.kotlin:kotlin-stdlib", version.ref = "kotlin" }
 kotlin-reflect = { module = "org.jetbrains.kotlin:kotlin-reflect", version.ref = "kotlin" }
+kotlin-coroutines = { module = "org.jetbrains.kotlinx:kotlinx-coroutines-core", version.ref = "kotlin-coroutines" }
 simplecloud-controller = { module = "app.simplecloud.controller:controller-api", version.ref = "simplecloud-controller" }
 simplecloud-player = { module = "app.simplecloud.droplet.player:player-api", version.ref = "simplecloud-player" }
 paper-api = { module = "io.papermc.paper:paper-api", version.ref = "paper" }
+velocity = { module = "com.velocitypowered:velocity-api", version.ref = "velocity" }
+bungeecord = { module = "net.md-5:bungeecord-api", version.ref = "bungeecord" }
 
 [plugins]
 kotlin-jvm = { id = "org.jetbrains.kotlin.jvm", version.ref = "kotlin" }

@@ -1,0 +1,4 @@
+name: api-provider
+main: app.simplecloud.api.platform.bungeecord.BungeeCordApiProvider
+version: 1.0
+author: ugede

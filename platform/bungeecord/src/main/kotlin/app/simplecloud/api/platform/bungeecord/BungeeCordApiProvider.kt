@@ -1,8 +1,8 @@
-package app.simplecloud.api.provider.paper
+package app.simplecloud.api.platform.bungeecord
 
-import org.bukkit.plugin.java.JavaPlugin
+import net.md_5.bungee.api.plugin.Plugin
 
-class PaperApiProvider : JavaPlugin() {
+class BungeeCordApiProvider : Plugin() {
     override fun onEnable() {
         logger.info("SimpleCloud v3 API provider initialized!")
     }
