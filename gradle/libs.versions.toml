@@ -1,0 +1,17 @@
+[versions]
+kotlin = "2.0.20"
+shadow = "8.3.3"
+simplecloud-controller = "0.0.30-SNAPSHOT.2660ec8"
+simplecloud-player = "0.0.1-SNAPSHOT.d490b2f"
+paper = "1.21.4-R0.1-SNAPSHOT"
+
+[libraries]
+kotlin-stdlib = { module = "org.jetbrains.kotlin:kotlin-stdlib", version.ref = "kotlin" }
+kotlin-reflect = { module = "org.jetbrains.kotlin:kotlin-reflect", version.ref = "kotlin" }
+simplecloud-controller = { module = "app.simplecloud.controller:controller-api", version.ref = "simplecloud-controller" }
+simplecloud-player = { module = "app.simplecloud.droplet.player:player-api", version.ref = "simplecloud-player" }
+paper-api = { module = "io.papermc.paper:paper-api", version.ref = "paper" }
+
+[plugins]
+kotlin-jvm = { id = "org.jetbrains.kotlin.jvm", version.ref = "kotlin" }
+shadow = { id = "com.gradleup.shadow", version.ref = "shadow" }
