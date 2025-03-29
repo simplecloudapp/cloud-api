@@ -38,34 +38,52 @@ Just include the platform jar as a plugin and use the dependency as described be
 - [x] **Supported Server Software**: Supports Spigot & Forks, BungeeCord and Velocity.
 - [ ] **Easy API access**: Use every api method we provide, just from one interface.
 
-## Dependency
+## Usage
 
+### 1. Depend on `simplecloud-api`
+
+### 2. Use APIs 
 > For always up-to-date artifacts visit [dev artifacts][dev-artifacts] or [artifacts][artifacts].
 
 > Note: If you want to use the dev version, you have to use the [snapshot repository][snapshots].
 
-### Gradle Kotlin
+#### Gradle Kotlin
 
 ```kt
-compileOnly("app.simplecloud.api:cloud-api:VERSION")
+// Use Controller API if you want
+compileOnly("app.simplecloud.controller:controller-api:VERSION")
+// Use Player API if you want
+compileOnly("app.simplecloud.controller:controller-api:VERSION")
 ```
 
-### Gradle Groovy
+#### Gradle Groovy
 
 ```groovy
-compileOnly 'app.simplecloud.api:cloud-api:VERSION'
+// Use Controller API if you want
+compileOnly 'app.simplecloud.controller:controller-api:VERSION'
+// Use Player API if you want
+compileOnly 'app.simplecloud.controller:controller-api:VERSION'
 ```
 
-### Maven
+#### Maven
 
 ```xml
-
-<dependency>
-    <groupId>app.simplecloud.api</groupId>
-    <artifactId>cloud-api</artifactId>
-    <version>VERSION</version>
-    <scope>provided</scope>
-</dependency>
+<dependencies>
+    <!-- Use Controller API if you want -->
+    <dependency>
+        <groupId>app.simplecloud.controller</groupId>
+        <artifactId>controller-api</artifactId>
+        <version>VERSION</version>
+        <scope>provided</scope>
+    </dependency>
+    <!-- Use Player API if you want -->
+    <dependency>
+        <groupId>app.simplecloud.droplet.player</groupId>
+        <artifactId>player-api</artifactId>
+        <version>VERSION</version>
+        <scope>provided</scope>
+    </dependency>
+</dependencies>
 ```
 
 ## Contributing
