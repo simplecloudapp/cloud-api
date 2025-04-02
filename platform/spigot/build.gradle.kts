@@ -1,5 +1,9 @@
 import com.github.jengelman.gradle.plugins.shadow.tasks.ShadowJar
 
+plugins {
+    alias(libs.plugins.minotaur)
+}
+
 dependencies {
     compileOnly(rootProject.libs.kotlin.stdlib)
     compileOnly(rootProject.libs.kotlin.reflect)
