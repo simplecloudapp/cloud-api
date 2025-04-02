@@ -4,6 +4,7 @@ plugins {
     id("java")
     alias(libs.plugins.shadow)
     alias(libs.plugins.kotlin.jvm)
+    alias(libs.plugins.minotaur)
 }
 
 group = "app.simplecloud.api"
@@ -25,6 +26,7 @@ subprojects {
     apply {
         plugin(rootProject.libs.plugins.shadow.get().pluginId)
         plugin(rootProject.libs.plugins.kotlin.jvm.get().pluginId)
+        plugin(rootProject.libs.plugins.minotaur.get().pluginId)
     }
     java {
         toolchain.languageVersion.set(JavaLanguageVersion.of(21))
