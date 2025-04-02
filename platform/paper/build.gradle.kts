@@ -12,7 +12,7 @@ sourceSets.main {
 tasks.named("shadowJar", ShadowJar::class) {
     mergeServiceFiles()
 
-    archiveFileName.set("${rootProject.name}.jar")
+    archiveFileName.set("${project.name}.jar")
 }
 
 tasks.named("compileKotlin") {

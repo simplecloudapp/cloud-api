@@ -1,3 +1,4 @@
+import com.github.jengelman.gradle.plugins.shadow.tasks.ShadowJar
 import org.jetbrains.kotlin.gradle.dsl.JvmTarget
 
 plugins {
@@ -19,6 +20,10 @@ allprojects {
         maven("https://buf.build/gen/maven")
     }
 
+}
+
+tasks.named("shadowJar", ShadowJar::class).configure {
+    enabled = false
 }
 
 subprojects {

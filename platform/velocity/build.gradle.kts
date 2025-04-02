@@ -30,7 +30,7 @@ tasks.named("shadowJar", ShadowJar::class) {
     relocate("com.google.common", "app.simplecloud.relocate.google.common")
     relocate("io.grpc", "app.simplecloud.relocate.io.grpc")
 
-    archiveFileName.set("${rootProject.name}.jar")
+    archiveFileName.set("${project.name}.jar")
 }
 
 modrinth {
