@@ -60,7 +60,7 @@ jobs:
           release_name: v${{ env.GRADLE_VERSION }}-dev.${{ env.COMMIT_HASH }}
           draft: false
           prerelease: true
-          commitish: develop
+          commitish: main
           body: |
             This release contains dev builds for all Gradle modules.
         env:
