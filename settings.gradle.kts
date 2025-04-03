@@ -1,3 +1,8 @@
 rootProject.name = "cloud-api"
 
-include("platform:spigot", "platform:paper", "platform:bungeecord", "platform:velocity", "platform:spigot")
+include(
+    "platform:spigot",
+    "platform:paper",
+    "platform:bungeecord",
+    "platform:velocity"
+)

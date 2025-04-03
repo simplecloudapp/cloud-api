@@ -15,7 +15,7 @@ val timestamp = System.currentTimeMillis() // Temporary to be able to build and 
 val snapshotVersion = "${baseVersion}-dev.${timestamp}-${commitHash}"
 
 allprojects {
-    group = "app.simplecloud.plugin"
+    group = "app.simplecloud.api"
     version = if (commitHash != null) snapshotVersion else baseVersion
 
     repositories {
@@ -33,6 +33,10 @@ tasks.named("shadowJar", ShadowJar::class).configure {
 }
 
 subprojects {
+    if (project.path.startsWith(":platform:")) {
+        group = "app.simplecloud.app.platform"
+    }
+
     apply {
         plugin(rootProject.libs.plugins.shadow.get().pluginId)
         plugin(rootProject.libs.plugins.kotlin.jvm.get().pluginId)
