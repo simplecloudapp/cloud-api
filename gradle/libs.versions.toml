@@ -1,6 +1,6 @@
 [versions]
-kotlin = "2.0.20"
-kotlin-coroutines = "1.9.0"
+kotlin = "2.1.20"
+kotlin-coroutines = "1.10.1"
 velocity = "3.4.0-SNAPSHOT"
 bungeecord = "1.20-R0.2-SNAPSHOT"
 shadow = "8.3.3"
