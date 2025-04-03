@@ -8,6 +8,7 @@ simplecloud-controller = "0.0.30-SNAPSHOT.2660ec8"
 simplecloud-player = "0.0.1-SNAPSHOT.d490b2f"
 paper = "1.21.4-R0.1-SNAPSHOT"
 minotaur = "2.8.7"
+sonatype-central-portal-publisher = "1.2.3"
 
 [libraries]
 kotlin-stdlib = { module = "org.jetbrains.kotlin:kotlin-stdlib", version.ref = "kotlin" }
@@ -22,4 +23,5 @@ bungeecord = { module = "net.md-5:bungeecord-api", version.ref = "bungeecord" }
 [plugins]
 kotlin-jvm = { id = "org.jetbrains.kotlin.jvm", version.ref = "kotlin" }
 shadow = { id = "com.gradleup.shadow", version.ref = "shadow" }
+sonatype-central-portal-publisher = { id = "net.thebugmc.gradle.sonatype-central-portal-publisher", version.ref = "sonatype-central-portal-publisher" }
 minotaur = { id = "com.modrinth.minotaur", version.ref = "minotaur" }
