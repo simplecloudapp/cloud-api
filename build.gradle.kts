@@ -34,7 +34,7 @@ tasks.named("shadowJar", ShadowJar::class).configure {
 
 subprojects {
     if (project.path.startsWith(":platform:")) {
-        group = "app.simplecloud.app.platform"
+        group = "app.simplecloud.api.platform"
     }
 
     apply {
