@@ -9,21 +9,7 @@ on:
 env:
   APP_SLUG: cloud-api-plugin
   REGISTRY_URL: https://registry.simplecloud.app
-  MINECRAFT_VERSIONS: >-
-    [
-      "1.20",
-      "1.20.1",
-      "1.20.2",
-      "1.20.3",
-      "1.20.4",
-      "1.20.5",
-      "1.20.6",
-      "1.21",
-      "1.21.1",
-      "1.21.2",
-      "1.21.3",
-      "1.21.4"
-    ]
+  MINECRAFT_VERSIONS: '["1.20","1.20.1","1.20.2","1.20.3","1.20.4","1.20.5","1.20.6","1.21","1.21.1","1.21.2","1.21.3","1.21.4"]'
 
 jobs:
   build:
@@ -63,13 +49,18 @@ jobs:
           echo "commit_hash=$(git rev-parse --short HEAD)" >> $GITHUB_OUTPUT
 
       - name: Build ShadowJars
-        run: ./gradlew clean build shadowJar
+        run: |
+          ./gradlew clean build shadowJar
+          mkdir -p artifacts
+          cp platform/spigot/build/libs/spigot.jar artifacts/
+          cp platform/bungeecord/build/libs/bungeecord.jar artifacts/
+          cp platform/velocity/build/libs/velocity.jar artifacts/
 
       - name: Upload artifacts
         uses: actions/upload-artifact@v4
         with:
           name: build-artifacts
-          path: platform/*/build/libs/*.jar
+          path: artifacts/*.jar
           compression-level: 0
 
   publish-registry:
@@ -97,13 +88,16 @@ jobs:
           APP_ID=$(echo $response | jq -r '.release.application_id')
           echo "APP_ID=$APP_ID" >> $GITHUB_ENV
 
+      - name: List artifacts directory
+        run: ls -R artifacts
+
       - name: Upload to Registry
         run: |
           # Upload Spigot Platform
           curl -X POST \
             -H "Authorization: Bearer ${{ secrets.REGISTRY_TOKEN }}" \
             -H "Content-Type: multipart/form-data" \
-            -F "file=@artifacts/platform/spigot/build/libs/spigot.jar" \
+            -F "file=@artifacts/spigot.jar" \
             -F "platform=minecraft_plugin" \
             -F "arch=spigot" \
             -F "platform_versions=${{ env.MINECRAFT_VERSIONS }}" \
@@ -113,7 +107,7 @@ jobs:
           curl -X POST \
             -H "Authorization: Bearer ${{ secrets.REGISTRY_TOKEN }}" \
             -H "Content-Type: multipart/form-data" \
-            -F "file=@artifacts/platform/spigot/build/libs/spigot.jar" \
+            -F "file=@artifacts/spigot.jar" \
             -F "platform=minecraft_plugin" \
             -F "arch=paper" \
             -F "platform_versions=${{ env.MINECRAFT_VERSIONS }}" \
@@ -123,7 +117,7 @@ jobs:
           curl -X POST \
             -H "Authorization: Bearer ${{ secrets.REGISTRY_TOKEN }}" \
             -H "Content-Type: multipart/form-data" \
-            -F "file=@artifacts/platform/bungeecord/build/libs/bungeecord.jar" \
+            -F "file=@artifacts/bungeecord.jar" \
             -F "platform=minecraft_plugin" \
             -F "arch=bungeecord" \
             -F "platform_versions=${{ env.MINECRAFT_VERSIONS }}" \
@@ -133,7 +127,7 @@ jobs:
           curl -X POST \
             -H "Authorization: Bearer ${{ secrets.REGISTRY_TOKEN }}" \
             -H "Content-Type: multipart/form-data" \
-            -F "file=@artifacts/platform/velocity/build/libs/velocity.jar" \
+            -F "file=@artifacts/velocity.jar" \
             -F "platform=minecraft_plugin" \
             -F "arch=velocity" \
             -F "platform_versions=${{ env.MINECRAFT_VERSIONS }}" \
