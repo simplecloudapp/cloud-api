@@ -9,7 +9,20 @@ on:
 env:
   APP_SLUG: cloud-api-plugin
   REGISTRY_URL: https://registry.simplecloud.app
-  MINECRAFT_VERSIONS: '["1.20","1.20.1","1.20.2","1.20.3","1.20.4","1.20.5","1.20.6","1.21","1.21.1","1.21.2","1.21.3","1.21.4","1.21.5"]'
+  MINECRAFT_VERSIONS: |
+    1.20
+    1.20.1
+    1.20.2
+    1.20.3
+    1.20.4
+    1.20.5
+    1.20.6
+    1.21
+    1.21.1
+    1.21.2
+    1.21.3
+    1.21.4
+    1.21.5
 
 jobs:
   build:
@@ -100,6 +113,10 @@ jobs:
 
       - name: Upload to Registry
         run: |
+          # Convert newline-separated versions into simple JSON array
+          PLATFORM_VERSIONS=$(echo "$MINECRAFT_VERSIONS" | jq -R -s 'split("\n") | map(select(length > 0))')
+          echo "Using platform versions: $PLATFORM_VERSIONS"
+          
           # Upload Spigot Platform
           SPIGOT_URL="${REGISTRY_URL}/v1/applications/${APP_ID}/releases/${{ needs.build.outputs.gradle_version }}/files"
           echo "Uploading Spigot to: $SPIGOT_URL"
@@ -108,14 +125,14 @@ jobs:
           echo "Form data:"
           echo "  platform: minecraft_plugin"
           echo "  arch: spigot"
-          echo "  platform_versions: ${{ env.MINECRAFT_VERSIONS }}"
+          echo "  platform_versions: $PLATFORM_VERSIONS"
           curl -X POST \
             -H "Authorization: Bearer ${{ secrets.REGISTRY_TOKEN }}" \
             -H "Content-Type: multipart/form-data" \
             -F "file=@artifacts/spigot.jar" \
             -F "platform=minecraft_plugin" \
             -F "arch=spigot" \
-            -F "platform_versions=${{ env.MINECRAFT_VERSIONS }}" \
+            -F "platform_versions=$PLATFORM_VERSIONS" \
             "$SPIGOT_URL"
 
           # Upload Paper Platform (same jar as Spigot)
@@ -126,14 +143,14 @@ jobs:
           echo "Form data:"
           echo "  platform: minecraft_plugin"
           echo "  arch: paper"
-          echo "  platform_versions: ${{ env.MINECRAFT_VERSIONS }}"
+          echo "  platform_versions: $PLATFORM_VERSIONS"
           curl -X POST \
             -H "Authorization: Bearer ${{ secrets.REGISTRY_TOKEN }}" \
             -H "Content-Type: multipart/form-data" \
             -F "file=@artifacts/spigot.jar" \
             -F "platform=minecraft_plugin" \
             -F "arch=paper" \
-            -F "platform_versions=${{ env.MINECRAFT_VERSIONS }}" \
+            -F "platform_versions=$PLATFORM_VERSIONS" \
             "$PAPER_URL"
 
           # Upload BungeeCord Platform
@@ -144,14 +161,14 @@ jobs:
           echo "Form data:"
           echo "  platform: minecraft_plugin"
           echo "  arch: bungeecord"
-          echo "  platform_versions: ${{ env.MINECRAFT_VERSIONS }}"
+          echo "  platform_versions: $PLATFORM_VERSIONS"
           curl -X POST \
             -H "Authorization: Bearer ${{ secrets.REGISTRY_TOKEN }}" \
             -H "Content-Type: multipart/form-data" \
             -F "file=@artifacts/bungeecord.jar" \
             -F "platform=minecraft_plugin" \
             -F "arch=bungeecord" \
-            -F "platform_versions=${{ env.MINECRAFT_VERSIONS }}" \
+            -F "platform_versions=$PLATFORM_VERSIONS" \
             "$BUNGEE_URL"
 
           # Upload Velocity Platform
@@ -162,14 +179,14 @@ jobs:
           echo "Form data:"
           echo "  platform: minecraft_plugin"
           echo "  arch: velocity"
-          echo "  platform_versions: ${{ env.MINECRAFT_VERSIONS }}"
+          echo "  platform_versions: $PLATFORM_VERSIONS"
           curl -X POST \
             -H "Authorization: Bearer ${{ secrets.REGISTRY_TOKEN }}" \
             -H "Content-Type: multipart/form-data" \
             -F "file=@artifacts/velocity.jar" \
             -F "platform=minecraft_plugin" \
             -F "arch=velocity" \
-            -F "platform_versions=${{ env.MINECRAFT_VERSIONS }}" \
+            -F "platform_versions=$PLATFORM_VERSIONS" \
             "$VELOCITY_URL"
 
           echo "All uploads completed"
