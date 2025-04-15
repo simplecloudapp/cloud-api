@@ -9,7 +9,7 @@ on:
 env:
   APP_SLUG: cloud-api-plugin
   REGISTRY_URL: https://registry.simplecloud.app
-  MINECRAFT_VERSIONS: '["1.20","1.20.1","1.20.2","1.20.3","1.20.4","1.20.5","1.20.6","1.21","1.21.1","1.21.2","1.21.3","1.21.4"]'
+  MINECRAFT_VERSIONS: '["1.20","1.20.1","1.20.2","1.20.3","1.20.4","1.20.5","1.20.6","1.21","1.21.1","1.21.2","1.21.3","1.21.4","1.21.5"]'
 
 jobs:
   build:
@@ -76,10 +76,19 @@ jobs:
       - name: Create Registry Release
         id: create_registry_release
         run: |
+          RELEASE_URL="${REGISTRY_URL}/v1/applications/${APP_SLUG}/releases"
+          echo "Creating release at: $RELEASE_URL"
+          echo "Headers:"
+          echo "  Content-Type: application/json"
+          echo "Body:"
+          echo '{
+            "version": "'"${{ needs.build.outputs.gradle_version }}"'",
+            "manual_update": false
+          }'
           response=$(curl -X POST \
             -H "Authorization: Bearer ${{ secrets.REGISTRY_TOKEN }}" \
             -H "Content-Type: application/json" \
-            "${REGISTRY_URL}/v1/applications/${APP_SLUG}/releases" \
+            "$RELEASE_URL" \
             -d '{
               "version": "'"${{ needs.build.outputs.gradle_version }}"'",
               "manual_update": false
@@ -87,13 +96,19 @@ jobs:
           echo "Response: $response"
           APP_ID=$(echo $response | jq -r '.release.application_id')
           echo "APP_ID=$APP_ID" >> $GITHUB_ENV
-
-      - name: List artifacts directory
-        run: ls -R artifacts
+          echo "Release created with APP_ID: $APP_ID"
 
       - name: Upload to Registry
         run: |
           # Upload Spigot Platform
+          SPIGOT_URL="${REGISTRY_URL}/v1/applications/${APP_ID}/releases/${{ needs.build.outputs.gradle_version }}/files"
+          echo "Uploading Spigot to: $SPIGOT_URL"
+          echo "Headers:"
+          echo "  Content-Type: multipart/form-data"
+          echo "Form data:"
+          echo "  platform: minecraft_plugin"
+          echo "  arch: spigot"
+          echo "  platform_versions: ${{ env.MINECRAFT_VERSIONS }}"
           curl -X POST \
             -H "Authorization: Bearer ${{ secrets.REGISTRY_TOKEN }}" \
             -H "Content-Type: multipart/form-data" \
@@ -101,9 +116,17 @@ jobs:
             -F "platform=minecraft_plugin" \
             -F "arch=spigot" \
             -F "platform_versions=${{ env.MINECRAFT_VERSIONS }}" \
-            "${REGISTRY_URL}/v1/applications/${APP_ID}/releases/${{ needs.build.outputs.gradle_version }}/files"
+            "$SPIGOT_URL"
 
           # Upload Paper Platform (same jar as Spigot)
+          PAPER_URL="${REGISTRY_URL}/v1/applications/${APP_ID}/releases/${{ needs.build.outputs.gradle_version }}/files"
+          echo "Uploading Paper to: $PAPER_URL"
+          echo "Headers:"
+          echo "  Content-Type: multipart/form-data"
+          echo "Form data:"
+          echo "  platform: minecraft_plugin"
+          echo "  arch: paper"
+          echo "  platform_versions: ${{ env.MINECRAFT_VERSIONS }}"
           curl -X POST \
             -H "Authorization: Bearer ${{ secrets.REGISTRY_TOKEN }}" \
             -H "Content-Type: multipart/form-data" \
@@ -111,9 +134,17 @@ jobs:
             -F "platform=minecraft_plugin" \
             -F "arch=paper" \
             -F "platform_versions=${{ env.MINECRAFT_VERSIONS }}" \
-            "${REGISTRY_URL}/v1/applications/${APP_ID}/releases/${{ needs.build.outputs.gradle_version }}/files"
+            "$PAPER_URL"
 
           # Upload BungeeCord Platform
+          BUNGEE_URL="${REGISTRY_URL}/v1/applications/${APP_ID}/releases/${{ needs.build.outputs.gradle_version }}/files"
+          echo "Uploading BungeeCord to: $BUNGEE_URL"
+          echo "Headers:"
+          echo "  Content-Type: multipart/form-data"
+          echo "Form data:"
+          echo "  platform: minecraft_plugin"
+          echo "  arch: bungeecord"
+          echo "  platform_versions: ${{ env.MINECRAFT_VERSIONS }}"
           curl -X POST \
             -H "Authorization: Bearer ${{ secrets.REGISTRY_TOKEN }}" \
             -H "Content-Type: multipart/form-data" \
@@ -121,9 +152,17 @@ jobs:
             -F "platform=minecraft_plugin" \
             -F "arch=bungeecord" \
             -F "platform_versions=${{ env.MINECRAFT_VERSIONS }}" \
-            "${REGISTRY_URL}/v1/applications/${APP_ID}/releases/${{ needs.build.outputs.gradle_version }}/files"
+            "$BUNGEE_URL"
 
           # Upload Velocity Platform
+          VELOCITY_URL="${REGISTRY_URL}/v1/applications/${APP_ID}/releases/${{ needs.build.outputs.gradle_version }}/files"
+          echo "Uploading Velocity to: $VELOCITY_URL"
+          echo "Headers:"
+          echo "  Content-Type: multipart/form-data"
+          echo "Form data:"
+          echo "  platform: minecraft_plugin"
+          echo "  arch: velocity"
+          echo "  platform_versions: ${{ env.MINECRAFT_VERSIONS }}"
           curl -X POST \
             -H "Authorization: Bearer ${{ secrets.REGISTRY_TOKEN }}" \
             -H "Content-Type: multipart/form-data" \
@@ -131,7 +170,9 @@ jobs:
             -F "platform=minecraft_plugin" \
             -F "arch=velocity" \
             -F "platform_versions=${{ env.MINECRAFT_VERSIONS }}" \
-            "${REGISTRY_URL}/v1/applications/${APP_ID}/releases/${{ needs.build.outputs.gradle_version }}/files"
+            "$VELOCITY_URL"
+
+          echo "All uploads completed"
 
   publish-maven:
     needs: build
@@ -189,7 +230,7 @@ jobs:
           MODRINTH_TOKEN: ${{ secrets.MODRINTH_TOKEN }}
 
   create-github-release:
-    needs: [build, publish-registry, publish-maven, publish-modrinth]
+    needs: [ build, publish-registry, publish-maven, publish-modrinth ]
     runs-on: ubuntu-latest
     steps:
       - name: Download artifacts
