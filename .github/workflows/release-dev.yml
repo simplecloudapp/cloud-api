@@ -22,8 +22,7 @@ env:
       "1.21.1",
       "1.21.2",
       "1.21.3",
-      "1.21.4",
-      "1.21.5"
+      "1.21.4"
     ]
 
 jobs:
@@ -67,18 +66,18 @@ jobs:
         run: ./gradlew clean build shadowJar
 
       - name: Upload artifacts
-        uses: actions/upload-artifact@v3
+        uses: actions/upload-artifact@v4
         with:
           name: build-artifacts
-          path: |
-            platform/*/build/libs/*.jar
+          path: platform/*/build/libs/*.jar
+          compression-level: 0
 
   publish-registry:
     needs: build
     runs-on: ubuntu-latest
     steps:
       - name: Download artifacts
-        uses: actions/download-artifact@v3
+        uses: actions/download-artifact@v4
         with:
           name: build-artifacts
           path: artifacts
@@ -140,6 +139,31 @@ jobs:
             -F "platform_versions=${{ env.MINECRAFT_VERSIONS }}" \
             "${REGISTRY_URL}/v1/applications/${APP_ID}/releases/${{ needs.build.outputs.gradle_version }}/files"
 
+  publish-maven:
+    needs: build
+    runs-on: ubuntu-latest
+    steps:
+      - name: Checkout repository
+        uses: actions/checkout@v3
+        with:
+          ref: main
+
+      - name: Set up JDK 21
+        uses: actions/setup-java@v3
+        with:
+          distribution: 'adopt'
+          java-version: '21'
+
+      - name: Make gradlew executable
+        run: chmod +x ./gradlew
+
+      - name: Publish to SimpleCloud Repository
+        run: ./gradlew publishMavenJavaPublicationToSimplecloudRepository
+        env:
+          COMMIT_HASH: ${{ needs.build.outputs.commit_hash }}
+          SIMPLECLOUD_USERNAME: ${{ secrets.SIMPLECLOUD_USERNAME }}
+          SIMPLECLOUD_PASSWORD: ${{ secrets.SIMPLECLOUD_PASSWORD }}
+
   publish-modrinth:
     needs: build
     runs-on: ubuntu-latest
@@ -156,7 +180,7 @@ jobs:
           java-version: '21'
 
       - name: Download artifacts
-        uses: actions/download-artifact@v3
+        uses: actions/download-artifact@v4
         with:
           name: build-artifacts
           path: platform
@@ -171,11 +195,11 @@ jobs:
           MODRINTH_TOKEN: ${{ secrets.MODRINTH_TOKEN }}
 
   create-github-release:
-    needs: [build, publish-registry, publish-modrinth]
+    needs: [build, publish-registry, publish-maven, publish-modrinth]
     runs-on: ubuntu-latest
     steps:
       - name: Download artifacts
-        uses: actions/download-artifact@v3
+        uses: actions/download-artifact@v4
         with:
           name: build-artifacts
           path: artifacts
