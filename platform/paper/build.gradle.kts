@@ -3,6 +3,7 @@ import com.github.jengelman.gradle.plugins.shadow.tasks.ShadowJar
 dependencies {
     implementation(rootProject.libs.kotlin.stdlib)
     compileOnly(rootProject.libs.paper.api)
+    implementation(project(":platform:shared"))
 }
 
 sourceSets.main {

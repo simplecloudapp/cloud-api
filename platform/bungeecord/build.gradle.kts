@@ -9,6 +9,7 @@ dependencies {
     implementation(rootProject.libs.kotlin.reflect)
     implementation(rootProject.libs.kotlin.coroutines)
     compileOnly(rootProject.libs.bungeecord)
+    compileOnly(project(":platform:shared"))
     api(rootProject.libs.simplecloud.controller) {
         exclude(group = "org.jetbrains.kotlin")
         exclude(group = "org.jetbrains.kotlinx")
