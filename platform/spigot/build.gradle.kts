@@ -7,6 +7,8 @@ plugins {
 dependencies {
     compileOnly(rootProject.libs.kotlin.stdlib)
     compileOnly(rootProject.libs.kotlin.reflect)
+    compileOnly(rootProject.libs.kotlin.coroutines)
+    api(project(":platform:shared"))
     compileOnly(rootProject.libs.paper.api)
     api(rootProject.libs.simplecloud.controller) {
         exclude(group = "org.jetbrains.kotlin")

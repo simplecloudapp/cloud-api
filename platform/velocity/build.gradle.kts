@@ -8,6 +8,7 @@ dependencies {
     implementation(rootProject.libs.kotlin.stdlib)
     implementation(rootProject.libs.kotlin.reflect)
     implementation(rootProject.libs.kotlin.coroutines)
+    implementation(project(":platform:shared"))
     compileOnly(rootProject.libs.velocity)
     api(rootProject.libs.simplecloud.controller) {
         exclude(group = "org.jetbrains.kotlin")
