@@ -29,7 +29,6 @@ class PlayerSynchronizer(
                         playerCount = getCurrentOnlineCount()
                     )
                     controllerApi.getServers().updateServer(currentServer)
-                    println("Updated server player count to ${currentServer.playerCount}")
                 }
         }
 
