@@ -9,7 +9,7 @@ plugins {
     `maven-publish`
 }
 
-val baseVersion = "0.0.8"
+val baseVersion = "0.0.9"
 val commitHash = System.getenv("COMMIT_HASH")
 val timestamp = System.currentTimeMillis() // Temporary to be able to build and publish directly out of fix branch with same commit hash
 val snapshotVersion = "${baseVersion}-dev.${timestamp}-${commitHash}"
