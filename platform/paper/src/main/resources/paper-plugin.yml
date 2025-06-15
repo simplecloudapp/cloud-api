@@ -3,3 +3,4 @@ version: "1.0"
 main: app.simplecloud.api.provider.paper.PaperApiProvider
 loader: app.simplecloud.api.provider.paper.PaperLoader
 api-version: "1.21"
+folia-supported: true
