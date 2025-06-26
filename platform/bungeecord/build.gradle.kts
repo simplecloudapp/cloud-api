@@ -9,7 +9,7 @@ dependencies {
     implementation(rootProject.libs.kotlin.reflect)
     implementation(rootProject.libs.kotlin.coroutines)
     compileOnly(rootProject.libs.bungeecord)
-    compileOnly(project(":platform:shared"))
+    implementation(project(":platform:shared"))
     api(rootProject.libs.simplecloud.controller) {
         exclude(group = "org.jetbrains.kotlin")
         exclude(group = "org.jetbrains.kotlinx")
@@ -51,6 +51,7 @@ modrinth {
         "1.21.3",
         "1.21.4",
         "1.21.5",
+        "1.21.6",
     )
     loaders.add("bungeecord")
     changelog.set("https://docs.simplecloud.app/changelog")
