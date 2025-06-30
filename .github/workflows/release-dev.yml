@@ -116,7 +116,7 @@ jobs:
           # Convert newline-separated versions into simple JSON array
           PLATFORM_VERSIONS=$(echo "$MINECRAFT_VERSIONS" | jq -R -s 'split("\n") | map(select(length > 0))')
           echo "Using platform versions: $PLATFORM_VERSIONS"
-          
+
           # Upload Spigot Platform
           SPIGOT_URL="${REGISTRY_URL}/v1/applications/${APP_ID}/releases/${{ needs.build.outputs.gradle_version }}/files"
           echo "Uploading Spigot to: $SPIGOT_URL"
@@ -250,6 +250,11 @@ jobs:
     needs: [ build, publish-registry, publish-maven, publish-modrinth ]
     runs-on: ubuntu-latest
     steps:
+      - name: Checkout repository
+        uses: actions/checkout@v3
+        with:
+          ref: main
+
       - name: Download artifacts
         uses: actions/download-artifact@v4
         with:
@@ -258,15 +263,19 @@ jobs:
 
       - name: Create GitHub Release
         id: create_release
-        uses: actions/create-release@v1
-        with:
-          tag_name: v${{ needs.build.outputs.gradle_version }}-dev.${{ needs.build.outputs.commit_hash }}
-          release_name: v${{ needs.build.outputs.gradle_version }}-dev.${{ needs.build.outputs.commit_hash }}
-          draft: false
-          prerelease: true
-          commitish: main
-          body: |
-            This release contains dev builds for all platform modules.
+        run: |
+          RELEASE_TAG="v${{ needs.build.outputs.gradle_version }}-dev.${{ needs.build.outputs.commit_hash }}"
+          RELEASE_NAME="v${{ needs.build.outputs.gradle_version }}-dev.${{ needs.build.outputs.commit_hash }}"
+          RELEASE_BODY="This release contains dev builds for all platform modules."
+
+          gh release create "$RELEASE_TAG" \
+            --title "$RELEASE_NAME" \
+            --notes "$RELEASE_BODY" \
+            --target main \
+            --prerelease
+
+          # Export the release tag for use in the next step
+          echo "RELEASE_TAG=$RELEASE_TAG" >> $GITHUB_ENV
         env:
           GITHUB_TOKEN: ${{ secrets.GITHUB_TOKEN }}
 
@@ -277,7 +286,7 @@ jobs:
               echo "Skipping $jar due to version number"
             else
               echo "Uploading $jar"
-              gh release upload v${{ needs.build.outputs.gradle_version }}-dev.${{ needs.build.outputs.commit_hash }} "$jar"
+              gh release upload "$RELEASE_TAG" "$jar"
             fi
           done
         env:
