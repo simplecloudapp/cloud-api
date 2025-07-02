@@ -2,6 +2,7 @@ name: simplecloud-api
 version: "1.0"
 main: app.simplecloud.api.platform.spigot.SpigotApiProvider
 api-version: "1.20"
+folia-supported: true
 
 libraries:
   - "org.jetbrains.kotlinx:kotlinx-coroutines-core:1.9.0"
