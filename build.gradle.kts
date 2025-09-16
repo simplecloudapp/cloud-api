@@ -9,9 +9,9 @@ plugins {
     `maven-publish`
 }
 
-val baseVersion = "0.0.16"
+val baseVersion = "0.0.17"
 val commitHash = System.getenv("COMMIT_HASH")
-val timestamp = System.currentTimeMillis() // Temporary to be able to build and publish directly out of fix branch with same commit hash
+val timestamp = System.currentTimeMillis()
 val snapshotVersion = "${baseVersion}-dev.${timestamp}-${commitHash}"
 
 allprojects {
@@ -40,6 +40,7 @@ subprojects {
     apply {
         plugin(rootProject.libs.plugins.shadow.get().pluginId)
         plugin(rootProject.libs.plugins.kotlin.jvm.get().pluginId)
+        plugin("maven-publish")
 
         // Only apply the central portal publisher plugin to non-shared modules
         // to avoid conflicts with the mavenJava publication
@@ -60,29 +61,31 @@ subprojects {
         }
     }
 
-    if (project.path != ":platform:shared") {
-        publishing {
-            repositories {
-                maven {
-                    name = "simplecloud"
-                    url = uri("https://repo.simplecloud.app/snapshots/")
-                    credentials {
-                        username = System.getenv("SIMPLECLOUD_USERNAME")?: (project.findProperty("simplecloudUsername") as? String)
-                        password = System.getenv("SIMPLECLOUD_PASSWORD")?: (project.findProperty("simplecloudPassword") as? String)
-                    }
-                    authentication {
-                        create<BasicAuthentication>("basic")
-                    }
+    publishing {
+        repositories {
+            maven {
+                name = "simplecloud"
+                url = uri("https://repo.simplecloud.app/snapshots/")
+                credentials {
+                    username = System.getenv("SIMPLECLOUD_USERNAME")
+                        ?: (project.findProperty("simplecloudUsername") as? String)
+                    password = System.getenv("SIMPLECLOUD_PASSWORD")
+                        ?: (project.findProperty("simplecloudPassword") as? String)
                 }
-            }
-
-            publications {
-                create<MavenPublication>("mavenJava") {
-                    from(components["java"])
+                authentication {
+                    create<BasicAuthentication>("basic")
                 }
             }
         }
 
+        publications {
+            create<MavenPublication>("mavenJava") {
+                from(components["java"])
+            }
+        }
+    }
+
+    if (project.path != ":platform:shared") {
         signing {
             if (commitHash != null) {
                 return@signing
