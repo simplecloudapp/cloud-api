@@ -9,7 +9,7 @@ plugins {
     `maven-publish`
 }
 
-val baseVersion = "0.0.17"
+val baseVersion = "0.0.18"
 val commitHash = System.getenv("COMMIT_HASH")
 val timestamp = System.currentTimeMillis()
 val snapshotVersion = "${baseVersion}-dev.${timestamp}-${commitHash}"
