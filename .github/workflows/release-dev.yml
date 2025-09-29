@@ -23,34 +23,34 @@ env:
     1.21.3
     1.21.4
     1.21.5
+    1.21.6
+    1.21.7
+    1.21.8
+    1.21.9
 
 jobs:
-  build:
-    runs-on: ubuntu-latest
+  build-and-publish:
+    runs-on: blacksmith-4vcpu-ubuntu-2404
     outputs:
       gradle_version: ${{ steps.versions.outputs.gradle_version }}
       commit_hash: ${{ steps.versions.outputs.commit_hash }}
     steps:
       - name: Checkout repository
-        uses: actions/checkout@v3
+        uses: actions/checkout@v4
         with:
           ref: main
 
       - name: Set up JDK 21
-        uses: actions/setup-java@v3
+        uses: actions/setup-java@v4
         with:
-          distribution: 'adopt'
+          distribution: 'temurin'
           java-version: '21'
+          cache: 'gradle'
 
-      - name: Cache Gradle packages
-        uses: actions/cache@v3
+      - name: Setup Gradle
+        uses: gradle/actions/setup-gradle@v3
         with:
-          path: |
-            ~/.gradle/caches
-            ~/.gradle/wrapper
-          key: gradle-${{ runner.os }}-${{ hashFiles('**/*.gradle*', '**/gradle-wrapper.properties') }}
-          restore-keys: |
-            gradle-${{ runner.os }}
+          cache-read-only: false
 
       - name: Make gradlew executable
         run: chmod +x ./gradlew
@@ -61,13 +61,26 @@ jobs:
           echo "gradle_version=$(./gradlew properties -q | grep "version:" | awk '{print $2}')" >> $GITHUB_OUTPUT
           echo "commit_hash=$(git rev-parse --short HEAD)" >> $GITHUB_OUTPUT
 
-      - name: Build ShadowJars
+      - name: Build and Publish All
         run: |
-          ./gradlew clean build shadowJar
+          # Build everything once
+          ./gradlew clean build shadowJar \
+            publishMavenJavaPublicationToSimplecloudRepository \
+            modrinth modrinthSyncBody \
+            --parallel \
+            --build-cache \
+            --configuration-cache
+          
+          # Copy artifacts
           mkdir -p artifacts
           cp platform/spigot/build/libs/spigot.jar artifacts/
           cp platform/bungeecord/build/libs/bungeecord.jar artifacts/
           cp platform/velocity/build/libs/velocity.jar artifacts/
+        env:
+          COMMIT_HASH: ${{ steps.versions.outputs.commit_hash }}
+          SIMPLECLOUD_USERNAME: ${{ secrets.SIMPLECLOUD_USERNAME }}
+          SIMPLECLOUD_PASSWORD: ${{ secrets.SIMPLECLOUD_PASSWORD }}
+          MODRINTH_TOKEN: ${{ secrets.MODRINTH_TOKEN }}
 
       - name: Upload artifacts
         uses: actions/upload-artifact@v4
@@ -77,7 +90,7 @@ jobs:
           compression-level: 0
 
   publish-registry:
-    needs: build
+    needs: build-and-publish
     runs-on: ubuntu-latest
     steps:
       - name: Download artifacts
@@ -90,20 +103,12 @@ jobs:
         id: create_registry_release
         run: |
           RELEASE_URL="${REGISTRY_URL}/v1/applications/${APP_SLUG}/releases"
-          echo "Creating release at: $RELEASE_URL"
-          echo "Headers:"
-          echo "  Content-Type: application/json"
-          echo "Body:"
-          echo '{
-            "version": "'"${{ needs.build.outputs.gradle_version }}"'",
-            "manual_update": false
-          }'
-          response=$(curl -X POST \
+          response=$(curl -s -X POST \
             -H "Authorization: Bearer ${{ secrets.REGISTRY_TOKEN }}" \
             -H "Content-Type: application/json" \
             "$RELEASE_URL" \
             -d '{
-              "version": "'"${{ needs.build.outputs.gradle_version }}"'",
+              "version": "'"${{ needs.build-and-publish.outputs.gradle_version }}"'",
               "manual_update": false
             }')
           echo "Response: $response"
@@ -111,149 +116,44 @@ jobs:
           echo "APP_ID=$APP_ID" >> $GITHUB_ENV
           echo "Release created with APP_ID: $APP_ID"
 
-      - name: Upload to Registry
+      - name: Upload to Registry (Parallel)
         run: |
-          # Convert newline-separated versions into simple JSON array
           PLATFORM_VERSIONS=$(echo "$MINECRAFT_VERSIONS" | jq -R -s 'split("\n") | map(select(length > 0))')
-          echo "Using platform versions: $PLATFORM_VERSIONS"
-
-          # Upload Spigot Platform
-          SPIGOT_URL="${REGISTRY_URL}/v1/applications/${APP_ID}/releases/${{ needs.build.outputs.gradle_version }}/files"
-          echo "Uploading Spigot to: $SPIGOT_URL"
-          echo "Headers:"
-          echo "  Content-Type: multipart/form-data"
-          echo "Form data:"
-          echo "  platform: minecraft_plugin"
-          echo "  arch: spigot"
-          echo "  platform_versions: $PLATFORM_VERSIONS"
-          curl -X POST \
-            -H "Authorization: Bearer ${{ secrets.REGISTRY_TOKEN }}" \
-            -H "Content-Type: multipart/form-data" \
-            -F "file=@artifacts/spigot.jar" \
-            -F "platform=minecraft_plugin" \
-            -F "arch=spigot" \
-            -F "platform_versions=$PLATFORM_VERSIONS" \
-            "$SPIGOT_URL"
-
-          # Upload Paper Platform (same jar as Spigot)
-          PAPER_URL="${REGISTRY_URL}/v1/applications/${APP_ID}/releases/${{ needs.build.outputs.gradle_version }}/files"
-          echo "Uploading Paper to: $PAPER_URL"
-          echo "Headers:"
-          echo "  Content-Type: multipart/form-data"
-          echo "Form data:"
-          echo "  platform: minecraft_plugin"
-          echo "  arch: paper"
-          echo "  platform_versions: $PLATFORM_VERSIONS"
-          curl -X POST \
-            -H "Authorization: Bearer ${{ secrets.REGISTRY_TOKEN }}" \
-            -H "Content-Type: multipart/form-data" \
-            -F "file=@artifacts/spigot.jar" \
-            -F "platform=minecraft_plugin" \
-            -F "arch=paper" \
-            -F "platform_versions=$PLATFORM_VERSIONS" \
-            "$PAPER_URL"
-
-          # Upload BungeeCord Platform
-          BUNGEE_URL="${REGISTRY_URL}/v1/applications/${APP_ID}/releases/${{ needs.build.outputs.gradle_version }}/files"
-          echo "Uploading BungeeCord to: $BUNGEE_URL"
-          echo "Headers:"
-          echo "  Content-Type: multipart/form-data"
-          echo "Form data:"
-          echo "  platform: minecraft_plugin"
-          echo "  arch: bungeecord"
-          echo "  platform_versions: $PLATFORM_VERSIONS"
-          curl -X POST \
-            -H "Authorization: Bearer ${{ secrets.REGISTRY_TOKEN }}" \
-            -H "Content-Type: multipart/form-data" \
-            -F "file=@artifacts/bungeecord.jar" \
-            -F "platform=minecraft_plugin" \
-            -F "arch=bungeecord" \
-            -F "platform_versions=$PLATFORM_VERSIONS" \
-            "$BUNGEE_URL"
-
-          # Upload Velocity Platform
-          VELOCITY_URL="${REGISTRY_URL}/v1/applications/${APP_ID}/releases/${{ needs.build.outputs.gradle_version }}/files"
-          echo "Uploading Velocity to: $VELOCITY_URL"
-          echo "Headers:"
-          echo "  Content-Type: multipart/form-data"
-          echo "Form data:"
-          echo "  platform: minecraft_plugin"
-          echo "  arch: velocity"
-          echo "  platform_versions: $PLATFORM_VERSIONS"
-          curl -X POST \
-            -H "Authorization: Bearer ${{ secrets.REGISTRY_TOKEN }}" \
-            -H "Content-Type: multipart/form-data" \
-            -F "file=@artifacts/velocity.jar" \
-            -F "platform=minecraft_plugin" \
-            -F "arch=velocity" \
-            -F "platform_versions=$PLATFORM_VERSIONS" \
-            "$VELOCITY_URL"
-
+          
+          upload_file() {
+            local FILE=$1
+            local ARCH=$2
+            local URL="${REGISTRY_URL}/v1/applications/${APP_ID}/releases/${{ needs.build-and-publish.outputs.gradle_version }}/files"
+          
+            curl -s -X POST \
+              -H "Authorization: Bearer ${{ secrets.REGISTRY_TOKEN }}" \
+              -H "Content-Type: multipart/form-data" \
+              -F "file=@$FILE" \
+              -F "platform=minecraft_plugin" \
+              -F "arch=$ARCH" \
+              -F "platform_versions=$PLATFORM_VERSIONS" \
+              "$URL"
+          }
+          
+          # Upload all platforms in parallel
+          upload_file "artifacts/spigot.jar" "spigot" &
+          upload_file "artifacts/spigot.jar" "paper" &
+          upload_file "artifacts/bungeecord.jar" "bungeecord" &
+          upload_file "artifacts/velocity.jar" "velocity" &
+          
+          wait
           echo "All uploads completed"
 
-  publish-maven:
-    needs: build
-    runs-on: ubuntu-latest
-    steps:
-      - name: Checkout repository
-        uses: actions/checkout@v3
-        with:
-          ref: main
-
-      - name: Set up JDK 21
-        uses: actions/setup-java@v3
-        with:
-          distribution: 'adopt'
-          java-version: '21'
-
-      - name: Make gradlew executable
-        run: chmod +x ./gradlew
-
-      - name: Publish to SimpleCloud Repository
-        run: ./gradlew publishMavenJavaPublicationToSimplecloudRepository
-        env:
-          COMMIT_HASH: ${{ needs.build.outputs.commit_hash }}
-          SIMPLECLOUD_USERNAME: ${{ secrets.SIMPLECLOUD_USERNAME }}
-          SIMPLECLOUD_PASSWORD: ${{ secrets.SIMPLECLOUD_PASSWORD }}
-
-  publish-modrinth:
-    needs: build
-    runs-on: ubuntu-latest
-    steps:
-      - name: Checkout repository
-        uses: actions/checkout@v3
-        with:
-          ref: main
-
-      - name: Set up JDK 21
-        uses: actions/setup-java@v3
-        with:
-          distribution: 'adopt'
-          java-version: '21'
-
-      - name: Download artifacts
-        uses: actions/download-artifact@v4
-        with:
-          name: build-artifacts
-          path: platform
-
-      - name: Make gradlew executable
-        run: chmod +x ./gradlew
-
-      - name: Publish to Modrinth
-        run: ./gradlew modrinth && ./gradlew modrinthSyncBody
-        env:
-          COMMIT_HASH: ${{ needs.build.outputs.commit_hash }}
-          MODRINTH_TOKEN: ${{ secrets.MODRINTH_TOKEN }}
-
   create-github-release:
-    needs: [ build, publish-registry, publish-maven, publish-modrinth ]
+    needs: [ build-and-publish, publish-registry ]
     runs-on: ubuntu-latest
     steps:
       - name: Checkout repository
-        uses: actions/checkout@v3
+        uses: actions/checkout@v4
         with:
           ref: main
+          sparse-checkout: |
+            .github
 
       - name: Download artifacts
         uses: actions/download-artifact@v4
@@ -264,8 +164,8 @@ jobs:
       - name: Create GitHub Release
         id: create_release
         run: |
-          RELEASE_TAG="v${{ needs.build.outputs.gradle_version }}-dev.${{ needs.build.outputs.commit_hash }}"
-          RELEASE_NAME="v${{ needs.build.outputs.gradle_version }}-dev.${{ needs.build.outputs.commit_hash }}"
+          RELEASE_TAG="v${{ needs.build-and-publish.outputs.gradle_version }}-dev.${{ needs.build-and-publish.outputs.commit_hash }}"
+          RELEASE_NAME="v${{ needs.build-and-publish.outputs.gradle_version }}-dev.${{ needs.build-and-publish.outputs.commit_hash }}"
           RELEASE_BODY="This release contains dev builds for all platform modules."
 
           gh release create "$RELEASE_TAG" \
@@ -274,7 +174,6 @@ jobs:
             --target main \
             --prerelease
 
-          # Export the release tag for use in the next step
           echo "RELEASE_TAG=$RELEASE_TAG" >> $GITHUB_ENV
         env:
           GITHUB_TOKEN: ${{ secrets.GITHUB_TOKEN }}
