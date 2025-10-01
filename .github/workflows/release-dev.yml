@@ -30,7 +30,7 @@ env:
 
 jobs:
   build-and-publish:
-    runs-on: blacksmith-4vcpu-ubuntu-2404
+    runs-on: ubuntu-latest
     outputs:
       gradle_version: ${{ steps.versions.outputs.gradle_version }}
       commit_hash: ${{ steps.versions.outputs.commit_hash }}
@@ -61,25 +61,57 @@ jobs:
           echo "gradle_version=$(./gradlew properties -q | grep "version:" | awk '{print $2}')" >> $GITHUB_OUTPUT
           echo "commit_hash=$(git rev-parse --short HEAD)" >> $GITHUB_OUTPUT
 
-      - name: Build and Publish All
+      - name: Build Artifacts
         run: |
-          # Build everything once
           ./gradlew clean build shadowJar \
-            publishMavenJavaPublicationToSimplecloudRepository \
-            modrinth modrinthSyncBody \
             --parallel \
             --build-cache \
-            --configuration-cache
+            --no-configuration-cache
           
-          # Copy artifacts
           mkdir -p artifacts
           cp platform/spigot/build/libs/spigot.jar artifacts/
           cp platform/bungeecord/build/libs/bungeecord.jar artifacts/
           cp platform/velocity/build/libs/velocity.jar artifacts/
+          # Add spigot-legacy if it exists
+          if [ -f platform/spigot-legacy/build/libs/spigot-legacy.jar ]; then
+            cp platform/spigot-legacy/build/libs/spigot-legacy.jar artifacts/
+          fi
+        env:
+          COMMIT_HASH: ${{ steps.versions.outputs.commit_hash }}
+
+      - name: Publish to Maven
+        run: |
+          ./gradlew publishMavenJavaPublicationToSimplecloudRepository \
+            --parallel \
+            --build-cache \
+            --no-configuration-cache
         env:
           COMMIT_HASH: ${{ steps.versions.outputs.commit_hash }}
           SIMPLECLOUD_USERNAME: ${{ secrets.SIMPLECLOUD_USERNAME }}
           SIMPLECLOUD_PASSWORD: ${{ secrets.SIMPLECLOUD_PASSWORD }}
+
+      - name: Publish to Modrinth (with retries)
+        uses: nick-fields/retry-action@v3
+        with:
+          timeout_minutes: 10
+          max_attempts: 3
+          retry_wait_seconds: 30
+          command: |
+            ./gradlew modrinth \
+              --parallel \
+              --build-cache \
+              --no-configuration-cache \
+              -Dorg.gradle.internal.http.socketTimeout=180000 \
+              -Dorg.gradle.internal.http.connectionTimeout=180000
+        env:
+          COMMIT_HASH: ${{ steps.versions.outputs.commit_hash }}
+          MODRINTH_TOKEN: ${{ secrets.MODRINTH_TOKEN }}
+
+      - name: Sync Modrinth Body
+        run: |
+          ./gradlew modrinthSyncBody \
+            --no-configuration-cache
+        env:
           MODRINTH_TOKEN: ${{ secrets.MODRINTH_TOKEN }}
 
       - name: Upload artifacts
@@ -103,7 +135,7 @@ jobs:
         id: create_registry_release
         run: |
           RELEASE_URL="${REGISTRY_URL}/v1/applications/${APP_SLUG}/releases"
-          response=$(curl -s -X POST \
+          response=$(curl -s -w "\n%{http_code}" -X POST \
             -H "Authorization: Bearer ${{ secrets.REGISTRY_TOKEN }}" \
             -H "Content-Type: application/json" \
             "$RELEASE_URL" \
@@ -111,8 +143,18 @@ jobs:
               "version": "'"${{ needs.build-and-publish.outputs.gradle_version }}"'",
               "manual_update": false
             }')
-          echo "Response: $response"
-          APP_ID=$(echo $response | jq -r '.release.application_id')
+          
+          http_code=$(echo "$response" | tail -n1)
+          body=$(echo "$response" | sed '$d')
+          
+          if [ "$http_code" -ge 400 ]; then
+            echo "Error: HTTP $http_code"
+            echo "$body"
+            exit 1
+          fi
+          
+          echo "Response: $body"
+          APP_ID=$(echo "$body" | jq -r '.release.application_id')
           echo "APP_ID=$APP_ID" >> $GITHUB_ENV
           echo "Release created with APP_ID: $APP_ID"
 
@@ -125,24 +167,58 @@ jobs:
             local ARCH=$2
             local URL="${REGISTRY_URL}/v1/applications/${APP_ID}/releases/${{ needs.build-and-publish.outputs.gradle_version }}/files"
           
-            curl -s -X POST \
+            echo "Uploading $ARCH..."
+            response=$(curl -s -w "\n%{http_code}" -X POST \
+              --max-time 300 \
+              --retry 3 \
+              --retry-delay 5 \
               -H "Authorization: Bearer ${{ secrets.REGISTRY_TOKEN }}" \
               -H "Content-Type: multipart/form-data" \
               -F "file=@$FILE" \
               -F "platform=minecraft_plugin" \
               -F "arch=$ARCH" \
               -F "platform_versions=$PLATFORM_VERSIONS" \
-              "$URL"
+              "$URL")
+          
+            http_code=$(echo "$response" | tail -n1)
+            body=$(echo "$response" | sed '$d')
+          
+            if [ "$http_code" -ge 400 ]; then
+              echo "Error uploading $ARCH: HTTP $http_code"
+              echo "$body"
+              return 1
+            fi
+          
+            echo "✓ $ARCH uploaded successfully"
+            return 0
           }
           
           # Upload all platforms in parallel
           upload_file "artifacts/spigot.jar" "spigot" &
-          upload_file "artifacts/spigot.jar" "paper" &
-          upload_file "artifacts/bungeecord.jar" "bungeecord" &
-          upload_file "artifacts/velocity.jar" "velocity" &
+          PID_SPIGOT=$!
           
-          wait
-          echo "All uploads completed"
+          upload_file "artifacts/spigot.jar" "paper" &
+          PID_PAPER=$!
+          
+          upload_file "artifacts/bungeecord.jar" "bungeecord" &
+          PID_BUNGEE=$!
+          
+          upload_file "artifacts/velocity.jar" "velocity" &
+          PID_VELOCITY=$!
+          
+          # Wait for all uploads and check exit codes
+          FAILED=0
+          wait $PID_SPIGOT || FAILED=1
+          wait $PID_PAPER || FAILED=1
+          wait $PID_BUNGEE || FAILED=1
+          wait $PID_VELOCITY || FAILED=1
+          
+          if [ $FAILED -eq 1 ]; then
+            echo "One or more uploads failed"
+            exit 1
+          fi
+          
+          echo "All uploads completed successfully"
 
   create-github-release:
     needs: [ build-and-publish, publish-registry ]
@@ -185,7 +261,7 @@ jobs:
               echo "Skipping $jar due to version number"
             else
               echo "Uploading $jar"
-              gh release upload "$RELEASE_TAG" "$jar"
+              gh release upload "$RELEASE_TAG" "$jar" --clobber
             fi
           done
         env:
