@@ -91,18 +91,31 @@ jobs:
           SIMPLECLOUD_PASSWORD: ${{ secrets.SIMPLECLOUD_PASSWORD }}
 
       - name: Publish to Modrinth (with retries)
-        uses: nick-fields/retry-action@v3
-        with:
-          timeout_minutes: 10
-          max_attempts: 3
-          retry_wait_seconds: 30
-          command: |
-            ./gradlew modrinth \
+        run: |
+          MAX_ATTEMPTS=3
+          ATTEMPT=1
+          
+          while [ $ATTEMPT -le $MAX_ATTEMPTS ]; do
+            echo "Attempt $ATTEMPT of $MAX_ATTEMPTS..."
+          
+            if ./gradlew modrinth \
               --parallel \
               --build-cache \
               --no-configuration-cache \
               -Dorg.gradle.internal.http.socketTimeout=180000 \
-              -Dorg.gradle.internal.http.connectionTimeout=180000
+              -Dorg.gradle.internal.http.connectionTimeout=180000; then
+              echo "✓ Modrinth upload successful"
+              break
+            else
+              if [ $ATTEMPT -eq $MAX_ATTEMPTS ]; then
+                echo "✗ Modrinth upload failed after $MAX_ATTEMPTS attempts"
+                exit 1
+              fi
+              echo "⚠ Attempt $ATTEMPT failed, retrying in 30 seconds..."
+              sleep 30
+              ATTEMPT=$((ATTEMPT + 1))
+            fi
+          done
         env:
           COMMIT_HASH: ${{ steps.versions.outputs.commit_hash }}
           MODRINTH_TOKEN: ${{ secrets.MODRINTH_TOKEN }}
@@ -168,29 +181,40 @@ jobs:
             local URL="${REGISTRY_URL}/v1/applications/${APP_ID}/releases/${{ needs.build-and-publish.outputs.gradle_version }}/files"
           
             echo "Uploading $ARCH..."
-            response=$(curl -s -w "\n%{http_code}" -X POST \
-              --max-time 300 \
-              --retry 3 \
-              --retry-delay 5 \
-              -H "Authorization: Bearer ${{ secrets.REGISTRY_TOKEN }}" \
-              -H "Content-Type: multipart/form-data" \
-              -F "file=@$FILE" \
-              -F "platform=minecraft_plugin" \
-              -F "arch=$ARCH" \
-              -F "platform_versions=$PLATFORM_VERSIONS" \
-              "$URL")
           
-            http_code=$(echo "$response" | tail -n1)
-            body=$(echo "$response" | sed '$d')
+            # Retry logic for each upload
+            MAX_ATTEMPTS=3
+            ATTEMPT=1
           
-            if [ "$http_code" -ge 400 ]; then
-              echo "Error uploading $ARCH: HTTP $http_code"
-              echo "$body"
-              return 1
-            fi
+            while [ $ATTEMPT -le $MAX_ATTEMPTS ]; do
+              response=$(curl -s -w "\n%{http_code}" -X POST \
+                --max-time 300 \
+                -H "Authorization: Bearer ${{ secrets.REGISTRY_TOKEN }}" \
+                -H "Content-Type: multipart/form-data" \
+                -F "file=@$FILE" \
+                -F "platform=minecraft_plugin" \
+                -F "arch=$ARCH" \
+                -F "platform_versions=$PLATFORM_VERSIONS" \
+                "$URL")
           
-            echo "✓ $ARCH uploaded successfully"
-            return 0
+              http_code=$(echo "$response" | tail -n1)
+              body=$(echo "$response" | sed '$d')
+          
+              if [ "$http_code" -ge 200 ] && [ "$http_code" -lt 300 ]; then
+                echo "✓ $ARCH uploaded successfully"
+                return 0
+              fi
+          
+              if [ $ATTEMPT -eq $MAX_ATTEMPTS ]; then
+                echo "✗ Error uploading $ARCH after $MAX_ATTEMPTS attempts: HTTP $http_code"
+                echo "$body"
+                return 1
+              fi
+          
+              echo "⚠ Attempt $ATTEMPT failed for $ARCH (HTTP $http_code), retrying in 5 seconds..."
+              sleep 5
+              ATTEMPT=$((ATTEMPT + 1))
+            done
           }
           
           # Upload all platforms in parallel
