@@ -58,6 +58,7 @@ modrinth {
         "1.21.7",
         "1.21.8",
         "1.21.9",
+        "1.21.10",
     )
     loaders.add("spigot")
     loaders.add("paper")

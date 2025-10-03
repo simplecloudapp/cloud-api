@@ -58,6 +58,7 @@ modrinth {
         "1.21.7",
         "1.21.8",
         "1.21.9",
+        "1.21.10",
     )
     loaders.add("velocity")
     changelog.set("https://docs.simplecloud.app/changelog")
