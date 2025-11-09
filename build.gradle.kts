@@ -1,5 +1,4 @@
 import com.github.jengelman.gradle.plugins.shadow.tasks.ShadowJar
-import org.jetbrains.kotlin.gradle.dsl.JvmTarget
 
 plugins {
     id("java")
@@ -7,16 +6,16 @@ plugins {
     alias(libs.plugins.kotlin.jvm)
     alias(libs.plugins.sonatype.central.portal.publisher)
     `maven-publish`
+    `signing`
 }
 
 val baseVersion = "0.0.20"
 val commitHash = System.getenv("COMMIT_HASH")
-val timestamp = System.currentTimeMillis()
-val snapshotVersion = "${baseVersion}-dev.${timestamp}-${commitHash}"
+val isSnapshot = commitHash != null
 
 allprojects {
     group = "app.simplecloud.api"
-    version = if (commitHash != null) snapshotVersion else baseVersion
+    version = if (isSnapshot) "${baseVersion}-dev.${System.currentTimeMillis()}-${commitHash}" else baseVersion
 
     repositories {
         mavenCentral()
@@ -28,26 +27,16 @@ allprojects {
     }
 }
 
-tasks.named("shadowJar", ShadowJar::class).configure {
+tasks.named<ShadowJar>("shadowJar") {
     enabled = false
 }
 
 subprojects {
-    if (project.path.startsWith(":platform:")) {
-        group = "app.simplecloud.api.platform"
-    }
-
-    apply {
-        plugin(rootProject.libs.plugins.shadow.get().pluginId)
-        plugin(rootProject.libs.plugins.kotlin.jvm.get().pluginId)
-        plugin("maven-publish")
-
-        // Only apply the central portal publisher plugin to non-shared modules
-        // to avoid conflicts with the mavenJava publication
-        if (project.path != ":platform:shared") {
-            plugin(rootProject.libs.plugins.sonatype.central.portal.publisher.get().pluginId)
-        }
-    }
+    apply(plugin = "java")
+    apply(plugin = "maven-publish")
+    apply(plugin = "org.jetbrains.kotlin.jvm")
+    apply(plugin = "com.github.johnrengelman.shadow")
+    apply(plugin = "org.gradle.signing")
 
     java {
         toolchain.languageVersion.set(JavaLanguageVersion.of(21))
@@ -55,10 +44,6 @@ subprojects {
 
     kotlin {
         jvmToolchain(21)
-        compilerOptions {
-            apiVersion.set(org.jetbrains.kotlin.gradle.dsl.KotlinVersion.KOTLIN_2_0)
-            jvmTarget.set(JvmTarget.JVM_21)
-        }
     }
 
     publishing {
@@ -68,30 +53,20 @@ subprojects {
                 url = uri("https://repo.simplecloud.app/snapshots/")
                 credentials {
                     username = System.getenv("SIMPLECLOUD_USERNAME")
-                        ?: (project.findProperty("simplecloudUsername") as? String)
                     password = System.getenv("SIMPLECLOUD_PASSWORD")
-                        ?: (project.findProperty("simplecloudPassword") as? String)
-                }
-                authentication {
-                    create<BasicAuthentication>("basic")
                 }
             }
         }
-
         publications {
-            create<MavenPublication>("mavenJava") {
+            create<MavenPublication>("maven") {
                 from(components["java"])
             }
         }
     }
 
-    if (project.path != ":platform:shared") {
-        signing {
-            if (commitHash != null) {
-                return@signing
-            }
-
-            sign(publishing.publications)
+    signing {
+        if (!isSnapshot) {
+            sign(publishing.publications["maven"])
             useGpgCmd()
         }
     }
