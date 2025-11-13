@@ -1,7 +1,5 @@
 package app.simplecloud.api.future.group;
 
-import app.simplecloud.api.GroupServerType;
-
 import java.util.concurrent.CompletableFuture;
 
 public interface GroupApi {
@@ -10,38 +8,47 @@ public interface GroupApi {
      * Gets a group by its name.
      *
      * @param name the name of the group
-     * @return a future that completes with the group when it is found
+     * @return a future completing with the group or failing if not found
      */
     CompletableFuture<Group> getGroupByName(String name);
 
     /**
-     * Gets a group by its type.
+     * Gets a group by its ID.
      *
-     * @param type the type of the group
-     * @return a future that completes with the group when it is found
+     * @param id the server group ID
+     * @return a future completing with the group
      */
-    CompletableFuture<Group> getGroupByType(GroupServerType type);
+    CompletableFuture<Group> getGroupById(String id);
 
     /**
-     * Gets all groups.
+     * Gets all groups of the network.
      *
-     * @return a future that completes with a list of all groups
+     * @return a future completing with an array of all groups
      */
     CompletableFuture<Group[]> getAllGroups();
 
     /**
      * Creates a new group.
      *
-     * @return a future that completes with the created group when the creation is complete
+     * @param request the creation request
+     * @return a future completing with the created group
      */
     CompletableFuture<Group> createGroup();
 
     /**
+     * Updates an existing group.
+     *
+     * @param id the group ID
+     * @param request update request
+     * @return a future completing with the updated group
+     */
+    CompletableFuture<Group> updateGroup(String id);
+
+    /**
      * Deletes a group.
      *
-     * @param name the name of the group
-     * @return a future that completes when the group is deleted
+     * @param id the group ID
+     * @return a future completing when deletion succeeded
      */
-    CompletableFuture<Void> deleteGroup(String name);
-
+    CompletableFuture<Void> deleteGroup(String id);
 }
