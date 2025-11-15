@@ -41,3 +41,7 @@ bin/
 
 ### Mac OS ###
 .DS_Store
+/api-annotations/
+/api-annotations/api-kotlin/
+/api-kotlin-codegen/
+/api/docs/

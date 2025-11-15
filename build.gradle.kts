@@ -3,13 +3,12 @@ import com.github.jengelman.gradle.plugins.shadow.tasks.ShadowJar
 plugins {
     id("java")
     alias(libs.plugins.shadow)
-    alias(libs.plugins.kotlin.jvm)
     alias(libs.plugins.sonatype.central.portal.publisher)
     `maven-publish`
     `signing`
 }
 
-val baseVersion = "0.0.20"
+val baseVersion = "0.1.0-platform.1"
 val commitHash = System.getenv("COMMIT_HASH")
 val isSnapshot = commitHash != null
 
@@ -34,16 +33,11 @@ tasks.named<ShadowJar>("shadowJar") {
 subprojects {
     apply(plugin = "java")
     apply(plugin = "maven-publish")
-    apply(plugin = "org.jetbrains.kotlin.jvm")
-    apply(plugin = "com.github.johnrengelman.shadow")
+    apply(plugin = "com.gradleup.shadow")
     apply(plugin = "org.gradle.signing")
 
     java {
         toolchain.languageVersion.set(JavaLanguageVersion.of(21))
-    }
-
-    kotlin {
-        jvmToolchain(21)
     }
 
     publishing {
@@ -57,17 +51,17 @@ subprojects {
                 }
             }
         }
-        publications {
-            create<MavenPublication>("maven") {
-                from(components["java"])
-            }
-        }
+//        publications {
+//            create<MavenPublication>("maven") {
+//                from(components["java"])
+//            }
+//        }
     }
 
-    signing {
-        if (!isSnapshot) {
-            sign(publishing.publications["maven"])
-            useGpgCmd()
-        }
-    }
+//    signing {
+//        if (!isSnapshot) {
+//            sign(publishing.publications["maven"])
+//            useGpgCmd()
+//        }
+//    }
 }
