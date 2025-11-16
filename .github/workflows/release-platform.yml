@@ -1,0 +1,66 @@
+name: Release and Publish API
+
+on:
+  push:
+    branches:
+      - feat/platform
+  workflow_dispatch:
+
+jobs:
+  build-and-publish-api:
+    runs-on: ubuntu-latest
+    outputs:
+      gradle_version: ${{ steps.versions.outputs.gradle_version }}
+      commit_hash: ${{ steps.versions.outputs.commit_hash }}
+    steps:
+      - name: Checkout repository
+        uses: actions/checkout@v4
+
+      - name: Set up JDK 21
+        uses: actions/setup-java@v4
+        with:
+          distribution: 'temurin'
+          java-version: '21'
+          cache: 'gradle'
+
+      - name: Setup Gradle
+        uses: gradle/actions/setup-gradle@v3
+        with:
+          cache-read-only: false
+
+      - name: Make gradlew executable
+        run: chmod +x ./gradlew
+
+      - name: Get Versions
+        id: versions
+        run: |
+          echo "gradle_version=$(./gradlew properties -q | grep "version:" | awk '{print $2}')" >> $GITHUB_OUTPUT
+          echo "commit_hash=$(git rev-parse --short HEAD)" >> $GITHUB_OUTPUT
+
+      - name: Build API Module
+        run: |
+          ./gradlew :api:clean :api:build \
+            --parallel \
+            --build-cache \
+            --no-configuration-cache
+        env:
+          COMMIT_HASH: ${{ steps.versions.outputs.commit_hash }}
+
+      - name: Publish API to Maven
+        run: |
+          ./gradlew :api:publishMavenJavaPublicationToSimplecloudRepository \
+            --parallel \
+            --build-cache \
+            --no-configuration-cache
+        env:
+          COMMIT_HASH: ${{ steps.versions.outputs.commit_hash }}
+          SIMPLECLOUD_USERNAME: ${{ secrets.SIMPLECLOUD_USERNAME }}
+          SIMPLECLOUD_PASSWORD: ${{ secrets.SIMPLECLOUD_PASSWORD }}
+
+      - name: Summary
+        run: |
+          echo "## API Build Summary" >> $GITHUB_STEP_SUMMARY
+          echo "- **Branch:** ${{ github.ref_name }}" >> $GITHUB_STEP_SUMMARY
+          echo "- **Version:** ${{ steps.versions.outputs.gradle_version }}" >> $GITHUB_STEP_SUMMARY
+          echo "- **Commit:** ${{ steps.versions.outputs.commit_hash }}" >> $GITHUB_STEP_SUMMARY
+          echo "- **Published:** API module only to SimpleCloud Maven repository" >> $GITHUB_STEP_SUMMARY
