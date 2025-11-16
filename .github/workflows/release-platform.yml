@@ -48,7 +48,7 @@ jobs:
 
       - name: Publish API to Maven
         run: |
-          ./gradlew :api:publishMavenJavaPublicationToSimplecloudRepository \
+          ./gradlew :api:publishMavenPublicationToSimplecloudRepository \
             --parallel \
             --build-cache \
             --no-configuration-cache
