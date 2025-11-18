@@ -1,7 +1,7 @@
 package app.simplecloud.api.internal.event.server;
 
-import app.simplecloud.api.event.server.ServerEventApi;
 import app.simplecloud.api.event.Subscription;
+import app.simplecloud.api.event.server.ServerEventApi;
 import app.simplecloud.api.internal.event.SubscriptionImpl;
 import build.buf.gen.simplecloud.controller.v2.ServerDeletedEvent;
 import build.buf.gen.simplecloud.controller.v2.ServerStartedEvent;

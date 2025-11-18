@@ -7,7 +7,7 @@ import java.util.concurrent.CompletableFuture;
 
 /**
  * API for managing server groups.
- * 
+ *
  * <p>Server groups define templates for server instances, including memory limits,
  * scaling configuration, deployment strategy, and source configuration.
  */
@@ -15,7 +15,7 @@ public interface GroupApi {
 
     /**
      * Retrieves a server group by its name.
-     * 
+     *
      * @param name the name of the server group
      * @return a CompletableFuture that completes with the group, or fails if not found
      */
@@ -23,7 +23,7 @@ public interface GroupApi {
 
     /**
      * Retrieves a server group by its unique identifier.
-     * 
+     *
      * @param id the unique ID of the server group
      * @return a CompletableFuture that completes with the group, or fails if not found
      */
@@ -51,7 +51,7 @@ public interface GroupApi {
 
     /**
      * Creates a new server group.
-     * 
+     *
      * @param request the configuration for the new server group
      * @return a CompletableFuture that completes with the created group
      */
@@ -59,8 +59,8 @@ public interface GroupApi {
 
     /**
      * Updates an existing server group.
-     * 
-     * @param id the unique ID of the server group to update
+     *
+     * @param id      the unique ID of the server group to update
      * @param request the updated configuration (only specified fields will be updated)
      * @return a CompletableFuture that completes with the updated group
      */
@@ -68,9 +68,9 @@ public interface GroupApi {
 
     /**
      * Deletes a server group.
-     * 
+     *
      * <p>Note: This will not stop running servers, but prevents new servers from being created.
-     * 
+     *
      * @param id the unique ID of the server group to delete
      * @return a CompletableFuture that completes when the group is deleted
      */

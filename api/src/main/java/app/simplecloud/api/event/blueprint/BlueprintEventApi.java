@@ -11,7 +11,7 @@ public interface BlueprintEventApi {
 
     /**
      * Subscribes to blueprint creation events.
-     * 
+     *
      * @param handler the callback to invoke when a blueprint is created
      * @return a subscription that can be closed to stop receiving events
      */
@@ -19,7 +19,7 @@ public interface BlueprintEventApi {
 
     /**
      * Subscribes to blueprint update events.
-     * 
+     *
      * @param handler the callback to invoke when a blueprint is updated
      * @return a subscription that can be closed to stop receiving events
      */
@@ -27,7 +27,7 @@ public interface BlueprintEventApi {
 
     /**
      * Subscribes to blueprint deletion events.
-     * 
+     *
      * @param handler the callback to invoke when a blueprint is deleted
      * @return a subscription that can be closed to stop receiving events
      */

@@ -9,12 +9,13 @@ import java.util.List;
 
 /**
  * Query parameters for filtering and sorting server lists.
- * 
+ *
  * <p>Use the builder methods to construct queries. Example:
  * <pre>
  * ServerQuery query = ServerQuery.create()
  *     .filterByServerGroupId("group-123")
  *     .filterByState(ServerState.RUNNING, ServerState.STARTING)
+ *     .filterByNumericalId(1, 5, 10)
  *     .sortBy("created_at")
  *     .sortOrder("desc");
  * </pre>
@@ -27,6 +28,7 @@ public class ServerQuery {
     private List<GroupServerType> serverGroupTypes;
     private List<String> serverGroupNames;
     private List<String> serverGroupTags;
+    private List<Integer> numericalIds;
     private String sortBy;
     private String sortOrder;
 
@@ -40,7 +42,7 @@ public class ServerQuery {
 
     /**
      * Filter by one or more server group IDs.
-     * 
+     *
      * @param serverGroupIds the server group IDs to filter by
      * @return this query for chaining
      */
@@ -59,7 +61,7 @@ public class ServerQuery {
 
     /**
      * Filter by one or more server states.
-     * 
+     *
      * @param states the states to filter by (e.g., RUNNING, STARTING)
      * @return this query for chaining
      */
@@ -78,7 +80,7 @@ public class ServerQuery {
 
     /**
      * Filter by serverhost ID.
-     * 
+     *
      * @param serverhostId the serverhost ID to filter by
      * @return this query for chaining
      */
@@ -94,7 +96,7 @@ public class ServerQuery {
 
     /**
      * Filter by persistent server ID.
-     * 
+     *
      * @param persistentServerId the persistent server ID to filter by
      * @return this query for chaining
      */
@@ -110,7 +112,7 @@ public class ServerQuery {
 
     /**
      * Filter by one or more server group types.
-     * 
+     *
      * @param types the server group types to filter by (e.g., SERVER, PROXY)
      * @return this query for chaining
      */
@@ -129,7 +131,7 @@ public class ServerQuery {
 
     /**
      * Filter by one or more server group names.
-     * 
+     *
      * @param names the server group names to filter by
      * @return this query for chaining
      */
@@ -148,7 +150,7 @@ public class ServerQuery {
 
     /**
      * Filter by one or more server group tags (matches if any tag matches).
-     * 
+     *
      * @param tags the tags to filter by
      * @return this query for chaining
      */
@@ -161,13 +163,32 @@ public class ServerQuery {
     }
 
     @Nullable
+    public List<Integer> getNumericalIds() {
+        return numericalIds;
+    }
+
+    /**
+     * Filter by one or more numerical IDs.
+     *
+     * @param numericalIds the numerical IDs to filter by (e.g., 1, 5, 10)
+     * @return this query for chaining
+     */
+    public ServerQuery filterByNumericalId(Integer... numericalIds) {
+        if (this.numericalIds == null) {
+            this.numericalIds = new ArrayList<>();
+        }
+        this.numericalIds.addAll(Arrays.asList(numericalIds));
+        return this;
+    }
+
+    @Nullable
     public String getSortBy() {
         return sortBy;
     }
 
     /**
      * Set the field to sort by.
-     * 
+     *
      * @param sortBy the field name (e.g., "created_at", "updated_at", "numerical_id", "state")
      * @return this query for chaining
      */
@@ -183,7 +204,7 @@ public class ServerQuery {
 
     /**
      * Set the sort order.
-     * 
+     *
      * @param sortOrder "asc" for ascending or "desc" for descending
      * @return this query for chaining
      */
@@ -194,11 +215,10 @@ public class ServerQuery {
 
     /**
      * Creates a new empty server query.
-     * 
+     *
      * @return a new ServerQuery instance
      */
     public static ServerQuery create() {
         return new ServerQuery();
     }
 }
-

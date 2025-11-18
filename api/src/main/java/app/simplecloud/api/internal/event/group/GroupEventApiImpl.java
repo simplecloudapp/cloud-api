@@ -1,9 +1,9 @@
 package app.simplecloud.api.internal.event.group;
 
-import app.simplecloud.api.event.group.GroupEventApi;
 import app.simplecloud.api.event.Subscription;
 import app.simplecloud.api.event.group.GroupCreatedEvent;
 import app.simplecloud.api.event.group.GroupDeletedEvent;
+import app.simplecloud.api.event.group.GroupEventApi;
 import app.simplecloud.api.event.group.GroupUpdatedEvent;
 import app.simplecloud.api.internal.event.SubscriptionImpl;
 import build.buf.gen.simplecloud.controller.v2.ServerGroupCreatedEvent;

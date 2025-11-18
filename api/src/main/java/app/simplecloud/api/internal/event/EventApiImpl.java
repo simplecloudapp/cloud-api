@@ -1,7 +1,7 @@
 package app.simplecloud.api.internal.event;
 
-import app.simplecloud.api.event.blueprint.BlueprintEventApi;
 import app.simplecloud.api.event.EventApi;
+import app.simplecloud.api.event.blueprint.BlueprintEventApi;
 import app.simplecloud.api.event.group.GroupEventApi;
 import app.simplecloud.api.event.persistentserver.PersistentServerEventApi;
 import app.simplecloud.api.event.server.ServerEventApi;
@@ -50,4 +50,3 @@ public class EventApiImpl implements EventApi {
     }
 
 }
-

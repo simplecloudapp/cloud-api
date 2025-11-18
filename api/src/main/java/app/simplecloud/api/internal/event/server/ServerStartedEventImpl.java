@@ -3,7 +3,6 @@ package app.simplecloud.api.internal.event.server;
 import app.simplecloud.api.event.server.ServerStartedEvent;
 import app.simplecloud.api.internal.server.ServerImpl;
 import app.simplecloud.api.server.Server;
-import app.simplecloud.api.server.ServerState;
 import app.simplecloud.api.web.models.ModelsServerGroupInfo;
 import app.simplecloud.api.web.models.ModelsServerSummary;
 
@@ -44,7 +43,7 @@ class ServerStartedEventImpl implements ServerStartedEvent {
             summary.setServerId(delegate.getServerId());
             summary.setServerGroupId(delegate.getServerGroupId());
             summary.setNetworkId(delegate.getNetworkId());
-            
+
             if (delegate.hasConfig()) {
                 var config = delegate.getConfig();
                 summary.setMinMemory(config.getMinMemory());
@@ -56,7 +55,7 @@ class ServerStartedEventImpl implements ServerStartedEvent {
                     summary.setProperties(props);
                 }
             }
-            
+
             if (delegate.hasRuntimeInfo()) {
                 var runtime = delegate.getRuntimeInfo();
                 summary.setNumericalId(runtime.getNumericalId());
@@ -66,9 +65,9 @@ class ServerStartedEventImpl implements ServerStartedEvent {
                     summary.setServerhostId(runtime.getServerhostId());
                 }
             }
-            
+
             summary.setState(convertServerStateToString(delegate.getState()));
-            
+
             if (delegate.hasGroupConfig() && delegate.getGroupConfig().hasBaseConfig()) {
                 ModelsServerGroupInfo groupInfo = new ModelsServerGroupInfo();
                 var groupConfig = delegate.getGroupConfig();
@@ -78,7 +77,7 @@ class ServerStartedEventImpl implements ServerStartedEvent {
                 groupInfo.setType(convertServerTypeToString(baseConfig.getType()));
                 summary.setServerGroup(groupInfo);
             }
-            
+
             server = new ServerImpl(summary);
         }
         return server;
@@ -93,16 +92,16 @@ class ServerStartedEventImpl implements ServerStartedEvent {
         if (protoState == null) {
             return null;
         }
-        
+
         String name = protoState.name();
         if (name == null || name.isEmpty() || name.equals("UNRECOGNIZED")) {
             return null;
         }
-        
+
         if (name.startsWith("SERVER_STATE_")) {
             return name.substring("SERVER_STATE_".length());
         }
-        
+
         return name;
     }
 
@@ -110,16 +109,16 @@ class ServerStartedEventImpl implements ServerStartedEvent {
         if (protoType == null) {
             return null;
         }
-        
+
         String name = protoType.name();
         if (name == null || name.isEmpty() || name.equals("UNRECOGNIZED")) {
             return null;
         }
-        
+
         if (name.startsWith("SERVER_TYPE_")) {
             return name.substring("SERVER_TYPE_".length());
         }
-        
+
         return name;
     }
 }

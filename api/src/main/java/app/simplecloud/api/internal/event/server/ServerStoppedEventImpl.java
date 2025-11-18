@@ -44,7 +44,7 @@ class ServerStoppedEventImpl implements ServerStoppedEvent {
             summary.setServerId(delegate.getServerId());
             summary.setServerGroupId(delegate.getServerGroupId());
             summary.setNetworkId(delegate.getNetworkId());
-            
+
             if (delegate.hasConfig()) {
                 var config = delegate.getConfig();
                 summary.setMinMemory(config.getMinMemory());
@@ -56,7 +56,7 @@ class ServerStoppedEventImpl implements ServerStoppedEvent {
                     summary.setProperties(props);
                 }
             }
-            
+
             if (delegate.hasRuntimeInfo()) {
                 var runtime = delegate.getRuntimeInfo();
                 summary.setNumericalId(runtime.getNumericalId());
@@ -66,7 +66,7 @@ class ServerStoppedEventImpl implements ServerStoppedEvent {
                     summary.setServerhostId(runtime.getServerhostId());
                 }
             }
-            
+
             if (delegate.hasGroupConfig() && delegate.getGroupConfig().hasBaseConfig()) {
                 ModelsServerGroupInfo groupInfo = new ModelsServerGroupInfo();
                 var groupConfig = delegate.getGroupConfig();
@@ -76,7 +76,7 @@ class ServerStoppedEventImpl implements ServerStoppedEvent {
                 groupInfo.setType(convertServerTypeToString(baseConfig.getType()));
                 summary.setServerGroup(groupInfo);
             }
-            
+
             server = new ServerImpl(summary);
         }
         return server;
@@ -110,16 +110,16 @@ class ServerStoppedEventImpl implements ServerStoppedEvent {
         if (protoType == null) {
             return null;
         }
-        
+
         String name = protoType.name();
         if (name == null || name.isEmpty() || name.equals("UNRECOGNIZED")) {
             return null;
         }
-        
+
         if (name.startsWith("SERVER_TYPE_")) {
             return name.substring("SERVER_TYPE_".length());
         }
-        
+
         return name;
     }
 }

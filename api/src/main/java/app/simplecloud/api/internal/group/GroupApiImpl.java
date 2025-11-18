@@ -68,23 +68,23 @@ public class GroupApiImpl implements GroupApi {
                 if (groups == null) {
                     return List.of();
                 }
-                
+
                 List<Group> result = groups.stream()
                         .<Group>map(GroupImpl::new)
                         .toList();
-                
+
                 if (query != null) {
                     result = result.stream()
                             .filter(group -> query.getType() == null || query.getType().equals(group.getType()))
-                            .filter(group -> query.getTag() == null || 
+                            .filter(group -> query.getTag() == null ||
                                     (group.getTags() != null && group.getTags().contains(query.getTag())))
                             .toList();
-                    
+
                     if (query.getLimit() != null && result.size() > query.getLimit()) {
                         result = result.subList(0, query.getLimit());
                     }
                 }
-                
+
                 return result;
             } catch (ApiException e) {
                 throw new RuntimeException(e);
@@ -113,7 +113,7 @@ public class GroupApiImpl implements GroupApi {
                 apiRequest.setMaxPlayers(request.getMaxPlayers());
                 apiRequest.setProperties(request.getProperties());
                 apiRequest.setTags(request.getTags());
-                
+
                 if (request.getDeployment() != null) {
                     apiRequest.setDeployment(convertDeploymentConfig(request.getDeployment()));
                 }
@@ -132,7 +132,7 @@ public class GroupApiImpl implements GroupApi {
                         this.options.getNetworkSecret(),
                         apiRequest
                 );
-                
+
                 ModelsServerGroupSummary summary = new ModelsServerGroupSummary();
                 summary.setServerGroupId(response.getServerGroupId());
                 summary.setName(response.getName());
@@ -148,7 +148,7 @@ public class GroupApiImpl implements GroupApi {
                 summary.setTags(response.getTags());
                 summary.setCreatedAt(response.getCreatedAt());
                 summary.setUpdatedAt(response.getUpdatedAt());
-                
+
                 return new GroupImpl(summary);
             } catch (ApiException e) {
                 throw new RuntimeException(e);
@@ -170,7 +170,7 @@ public class GroupApiImpl implements GroupApi {
                 apiRequest.setMaxPlayers(request.getMaxPlayers());
                 apiRequest.setProperties(request.getProperties());
                 apiRequest.setTags(request.getTags());
-                
+
                 if (request.getDeployment() != null) {
                     apiRequest.setDeployment(convertDeploymentConfig(request.getDeployment()));
                 }
@@ -190,7 +190,7 @@ public class GroupApiImpl implements GroupApi {
                         id,
                         apiRequest
                 );
-                
+
                 ModelsServerGroupSummary summary = new ModelsServerGroupSummary();
                 summary.setServerGroupId(response.getServerGroupId());
                 summary.setName(response.getName());
@@ -206,20 +206,20 @@ public class GroupApiImpl implements GroupApi {
                 summary.setTags(response.getTags());
                 summary.setCreatedAt(response.getCreatedAt());
                 summary.setUpdatedAt(response.getUpdatedAt());
-                
+
                 return new GroupImpl(summary);
             } catch (ApiException e) {
                 throw new RuntimeException(e);
             }
         });
     }
-    
+
     private ModelsDeploymentConfig convertDeploymentConfig(DeploymentConfig config) {
         ModelsDeploymentConfig result = new ModelsDeploymentConfig();
         if (config.getStrategy() != null) {
             result.setStrategy(config.getStrategy().name());
         }
-        
+
         if (config.getHosts() != null && config.getHosts().length > 0) {
             for (DeploymentHost host : config.getHosts()) {
                 ModelsDeploymentHost modelHost = new ModelsDeploymentHost();
@@ -228,10 +228,10 @@ public class GroupApiImpl implements GroupApi {
                 result.addHostsItem(modelHost);
             }
         }
-        
+
         return result;
     }
-    
+
     private ModelsScalingConfig convertScalingConfig(ScalingConfig config) {
         ModelsScalingConfig result = new ModelsScalingConfig();
         result.setAvailableSlots(config.getAvailableSlots());
@@ -241,17 +241,17 @@ public class GroupApiImpl implements GroupApi {
         if (config.getScalingMode() != null) {
             result.setScalingMode(config.getScalingMode().name());
         }
-        
+
         if (config.getScaleDown() != null) {
             ModelsScaleDownConfig scaleDown = new ModelsScaleDownConfig();
             scaleDown.setIdleTime(config.getScaleDown().getIdleTime());
             scaleDown.setIgnorePlayers(config.getScaleDown().isIgnorePlayers());
             result.setScaleDown(scaleDown);
         }
-        
+
         return result;
     }
-    
+
     private ModelsSourceConfig convertSourceConfig(SourceConfig config) {
         ModelsSourceConfig result = new ModelsSourceConfig();
         if (config.getType() != null) {
@@ -261,18 +261,18 @@ public class GroupApiImpl implements GroupApi {
         result.setImage(config.getImage());
         return result;
     }
-    
+
     private ModelsWorkflowsConfig convertWorkflowsConfig(WorkflowsConfig config) {
         ModelsWorkflowsConfig result = new ModelsWorkflowsConfig();
         result.setManual(config.getManual());
-        
+
         if (config.getWhen() != null) {
             ModelsWorkflowWhen when = new ModelsWorkflowWhen();
             when.setStart(config.getWhen().getStart());
             when.setStop(config.getWhen().getStop());
             result.setWhen(when);
         }
-        
+
         return result;
     }
 

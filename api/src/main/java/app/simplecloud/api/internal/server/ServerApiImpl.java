@@ -4,13 +4,13 @@ import app.simplecloud.api.CloudApiOptions;
 import app.simplecloud.api.server.Server;
 import app.simplecloud.api.server.ServerApi;
 import app.simplecloud.api.server.ServerQuery;
-import app.simplecloud.api.server.ServerState;
 import app.simplecloud.api.server.StartServerRequest;
 import app.simplecloud.api.web.ApiException;
 import app.simplecloud.api.web.apis.ServersApi;
 import app.simplecloud.api.web.models.ModelsListServersResponse;
 import app.simplecloud.api.web.models.ModelsServerSummary;
 import app.simplecloud.api.web.models.ModelsStartServerRequest;
+import app.simplecloud.api.web.models.ModelsStartServerResponse;
 import org.jetbrains.annotations.Nullable;
 
 import java.util.List;
@@ -58,7 +58,7 @@ public class ServerApiImpl implements ServerApi {
                 if (servers == null) {
                     return List.of();
                 }
-                
+
                 return servers.stream()
                         .<Server>map(ServerImpl::new)
                         .toList();
@@ -73,34 +73,39 @@ public class ServerApiImpl implements ServerApi {
         if (query != null && query.getServerGroupIds() != null && !query.getServerGroupIds().isEmpty()) {
             serverGroupId = String.join(",", query.getServerGroupIds());
         }
-        
+
         String state = null;
         if (query != null && query.getStates() != null && !query.getStates().isEmpty()) {
             state = query.getStates().stream()
                     .map(Enum::name)
                     .collect(java.util.stream.Collectors.joining(","));
         }
-        
+
         String serverhostId = query != null ? query.getServerhostId() : null;
         String persistentServerId = query != null ? query.getPersistentServerId() : null;
-        
+
         String serverGroupType = null;
         if (query != null && query.getServerGroupTypes() != null && !query.getServerGroupTypes().isEmpty()) {
             serverGroupType = query.getServerGroupTypes().stream()
                     .map(Enum::name)
                     .collect(java.util.stream.Collectors.joining(","));
         }
-        
+
         String serverGroupName = null;
         if (query != null && query.getServerGroupNames() != null && !query.getServerGroupNames().isEmpty()) {
             serverGroupName = String.join(",", query.getServerGroupNames());
         }
-        
+
         String serverGroupTags = null;
         if (query != null && query.getServerGroupTags() != null && !query.getServerGroupTags().isEmpty()) {
             serverGroupTags = String.join(",", query.getServerGroupTags());
         }
-        
+
+        String numericalIds = null;
+        if (query != null && query.getNumericalIds() != null && !query.getNumericalIds().isEmpty()) {
+            numericalIds = query.getNumericalIds().stream().map(Object::toString).collect(java.util.stream.Collectors.joining(","));
+        }
+
         String sortBy = query != null ? query.getSortBy() : null;
         String sortOrder = query != null ? query.getSortOrder() : null;
 
@@ -114,14 +119,15 @@ public class ServerApiImpl implements ServerApi {
                 serverGroupType,
                 serverGroupName,
                 serverGroupTags,
+                numericalIds,
                 sortBy,
                 sortOrder
         );
     }
 
     @Override
-    public CompletableFuture<Void> startServer(StartServerRequest request) {
-        return CompletableFuture.runAsync(() -> {
+    public CompletableFuture<Server> startServer(StartServerRequest request) {
+        return CompletableFuture.supplyAsync(() -> {
             try {
                 ModelsStartServerRequest apiRequest = new ModelsStartServerRequest();
                 apiRequest.setServerGroupId(request.getServerGroupId());
@@ -129,11 +135,12 @@ public class ServerApiImpl implements ServerApi {
                 apiRequest.setServerhostId(request.getServerhostId());
                 apiRequest.setProperties(request.getProperties());
 
-                serversApi.v0ServersStartPost(
+                ModelsStartServerResponse modelsStartServerResponse = serversApi.v0ServersPost(
                         this.options.getNetworkId(),
                         this.options.getNetworkSecret(),
                         apiRequest
                 );
+                return new ServerImpl(modelsStartServerResponse.getServer());
             } catch (ApiException e) {
                 throw new RuntimeException(e);
             }

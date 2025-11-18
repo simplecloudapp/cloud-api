@@ -11,7 +11,7 @@ public interface GroupEventApi {
 
     /**
      * Subscribes to server group creation events.
-     * 
+     *
      * @param handler the callback to invoke when a group is created
      * @return a subscription that can be closed to stop receiving events
      */
@@ -19,7 +19,7 @@ public interface GroupEventApi {
 
     /**
      * Subscribes to server group update events.
-     * 
+     *
      * @param handler the callback to invoke when a group is updated
      * @return a subscription that can be closed to stop receiving events
      */
@@ -27,7 +27,7 @@ public interface GroupEventApi {
 
     /**
      * Subscribes to server group deletion events.
-     * 
+     *
      * @param handler the callback to invoke when a group is deleted
      * @return a subscription that can be closed to stop receiving events
      */

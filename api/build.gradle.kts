@@ -26,9 +26,9 @@ dependencies {
 
 tasks.named<ShadowJar>("shadowJar") {
     mergeServiceFiles()
-    
+
     val versionPath = project.version.toString().replace(".", "_").replace("-", "_")
-    
+
     relocate("io.nats", "app.simplecloud.api.shaded.v${versionPath}.nats")
     relocate("com.google", "app.simplecloud.api.shaded.v${versionPath}.google")
     relocate("build.buf", "app.simplecloud.api.shaded.v${versionPath}.buf")
@@ -39,11 +39,11 @@ tasks.named<ShadowJar>("shadowJar") {
     relocate("org.intellij", "app.simplecloud.api.shaded.v${versionPath}.intellij")
     relocate("org.jetbrains", "app.simplecloud.api.shaded.v${versionPath}.jetbrains")
     relocate("kotlin", "app.simplecloud.api.shaded.v${versionPath}.kotlin")
-    
+
     relocate("google", "app.simplecloud.api.shaded.v${versionPath}.google")
     relocate("native", "app.simplecloud.api.shaded.v${versionPath}.native")
     relocate("core", "app.simplecloud.api.shaded.v${versionPath}.core")
-    
+
     archiveClassifier.set("")
 }
 
@@ -75,11 +75,13 @@ openApiGenerate {
     modelPackage.set("app.simplecloud.api.web.models")
     packageName.set("app.simplecloud.api.web")
 
-    configOptions.set(mapOf(
-        "library" to "okhttp-gson",
-        "serializationLibrary" to "gson",
-        "useJakartaEe" to "true"
-    ))
+    configOptions.set(
+        mapOf(
+            "library" to "okhttp-gson",
+            "serializationLibrary" to "gson",
+            "useJakartaEe" to "true"
+        )
+    )
 }
 
 tasks.compileJava {
@@ -106,7 +108,7 @@ publishing {
             artifact(tasks.named<ShadowJar>("shadowJar")) {
                 classifier = ""
             }
-            
+
             artifact(tasks.named<Jar>("javadocJar"))
             artifact(tasks.named<Jar>("sourcesJar"))
 

@@ -57,7 +57,7 @@ class ServerStateChangedEventImpl implements ServerStateChangedEvent {
             summary.setServerId(delegate.getServerId());
             summary.setServerGroupId(delegate.getServerGroupId());
             summary.setNetworkId(delegate.getNetworkId());
-            
+
             if (delegate.hasConfig()) {
                 var config = delegate.getConfig();
                 summary.setMinMemory(config.getMinMemory());
@@ -69,7 +69,7 @@ class ServerStateChangedEventImpl implements ServerStateChangedEvent {
                     summary.setProperties(props);
                 }
             }
-            
+
             if (delegate.hasRuntimeInfo()) {
                 var runtime = delegate.getRuntimeInfo();
                 summary.setNumericalId(runtime.getNumericalId());
@@ -79,9 +79,9 @@ class ServerStateChangedEventImpl implements ServerStateChangedEvent {
                     summary.setServerhostId(runtime.getServerhostId());
                 }
             }
-            
+
             summary.setState(convertServerStateToString(delegate.getNewState()));
-            
+
             if (delegate.hasGroupConfig() && delegate.getGroupConfig().hasBaseConfig()) {
                 ModelsServerGroupInfo groupInfo = new ModelsServerGroupInfo();
                 var groupConfig = delegate.getGroupConfig();
@@ -91,7 +91,7 @@ class ServerStateChangedEventImpl implements ServerStateChangedEvent {
                 groupInfo.setType(convertServerTypeToString(baseConfig.getType()));
                 summary.setServerGroup(groupInfo);
             }
-            
+
             server = new ServerImpl(summary);
         }
         return server;
@@ -106,16 +106,16 @@ class ServerStateChangedEventImpl implements ServerStateChangedEvent {
         if (protoState == null) {
             return null;
         }
-        
+
         String name = protoState.name();
         if (name == null || name.isEmpty() || name.equals("UNRECOGNIZED")) {
             return null;
         }
-        
+
         if (name.startsWith("SERVER_STATE_")) {
             name = name.substring("SERVER_STATE_".length());
         }
-        
+
         try {
             return ServerState.valueOf(name);
         } catch (IllegalArgumentException e) {
@@ -127,16 +127,16 @@ class ServerStateChangedEventImpl implements ServerStateChangedEvent {
         if (protoState == null) {
             return null;
         }
-        
+
         String name = protoState.name();
         if (name == null || name.isEmpty() || name.equals("UNRECOGNIZED")) {
             return null;
         }
-        
+
         if (name.startsWith("SERVER_STATE_")) {
             return name.substring("SERVER_STATE_".length());
         }
-        
+
         return name;
     }
 
@@ -144,16 +144,16 @@ class ServerStateChangedEventImpl implements ServerStateChangedEvent {
         if (protoType == null) {
             return null;
         }
-        
+
         String name = protoType.name();
         if (name == null || name.isEmpty() || name.equals("UNRECOGNIZED")) {
             return null;
         }
-        
+
         if (name.startsWith("SERVER_TYPE_")) {
             return name.substring("SERVER_TYPE_".length());
         }
-        
+
         return name;
     }
 }

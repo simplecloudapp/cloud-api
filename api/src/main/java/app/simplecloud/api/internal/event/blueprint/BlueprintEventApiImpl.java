@@ -1,7 +1,7 @@
 package app.simplecloud.api.internal.event.blueprint;
 
-import app.simplecloud.api.event.blueprint.BlueprintEventApi;
 import app.simplecloud.api.event.Subscription;
+import app.simplecloud.api.event.blueprint.BlueprintEventApi;
 import app.simplecloud.api.internal.event.SubscriptionImpl;
 import build.buf.gen.simplecloud.controller.v2.BlueprintCreatedEvent;
 import build.buf.gen.simplecloud.controller.v2.BlueprintDeletedEvent;

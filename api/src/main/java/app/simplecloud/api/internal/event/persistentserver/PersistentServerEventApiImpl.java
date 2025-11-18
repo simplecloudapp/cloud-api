@@ -1,13 +1,9 @@
 package app.simplecloud.api.internal.event.persistentserver;
 
-import app.simplecloud.api.event.persistentserver.PersistentServerEventApi;
 import app.simplecloud.api.event.Subscription;
+import app.simplecloud.api.event.persistentserver.PersistentServerEventApi;
 import app.simplecloud.api.internal.event.SubscriptionImpl;
-import build.buf.gen.simplecloud.controller.v2.PersistentServerCreatedEvent;
-import build.buf.gen.simplecloud.controller.v2.PersistentServerDeletedEvent;
-import build.buf.gen.simplecloud.controller.v2.PersistentServerStartedEvent;
-import build.buf.gen.simplecloud.controller.v2.PersistentServerStoppedEvent;
-import build.buf.gen.simplecloud.controller.v2.PersistentServerUpdatedEvent;
+import build.buf.gen.simplecloud.controller.v2.*;
 import io.nats.client.Connection;
 import io.nats.client.Dispatcher;
 import io.nats.client.Message;
