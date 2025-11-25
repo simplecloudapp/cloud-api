@@ -31,5 +31,3 @@ public class WorkflowWhen {
         this.stop = stop;
     }
 }
-
-

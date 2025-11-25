@@ -67,5 +67,3 @@ public class GroupQuery {
         return new GroupQuery();
     }
 }
-
-

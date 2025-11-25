@@ -31,5 +31,3 @@ public class WorkflowsConfig {
         this.when = when;
     }
 }
-
-

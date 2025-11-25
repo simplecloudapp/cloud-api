@@ -7,6 +7,7 @@ import build.buf.gen.simplecloud.controller.v2.ServerDeletedEvent;
 import build.buf.gen.simplecloud.controller.v2.ServerStartedEvent;
 import build.buf.gen.simplecloud.controller.v2.ServerStateChangedEvent;
 import build.buf.gen.simplecloud.controller.v2.ServerStoppedEvent;
+import build.buf.gen.simplecloud.controller.v2.ServerUpdatedEvent;
 import io.nats.client.Connection;
 import io.nats.client.Dispatcher;
 import io.nats.client.Message;
@@ -83,6 +84,22 @@ public class ServerEventApiImpl implements ServerEventApi {
                 handler.accept(event);
             } catch (Exception e) {
                 System.err.println("Error parsing ServerDeletedEvent: " + e.getMessage());
+                e.printStackTrace();
+            }
+        });
+        return new SubscriptionImpl(natsSub);
+    }
+
+    @Override
+    public Subscription onUpdated(Consumer<app.simplecloud.api.event.server.ServerUpdatedEvent> handler) {
+        String subject = networkId + ".event.server.updated";
+        io.nats.client.Subscription natsSub = dispatcher.subscribe(subject, (Message msg) -> {
+            try {
+                ServerUpdatedEvent protoEvent = ServerUpdatedEvent.parseFrom(msg.getData());
+                app.simplecloud.api.event.server.ServerUpdatedEvent event = new ServerUpdatedEventImpl(protoEvent);
+                handler.accept(event);
+            } catch (Exception e) {
+                System.err.println("Error parsing ServerUpdatedEvent: " + e.getMessage());
                 e.printStackTrace();
             }
         });

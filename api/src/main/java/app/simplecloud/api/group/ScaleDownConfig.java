@@ -27,5 +27,3 @@ public class ScaleDownConfig {
         this.ignorePlayers = ignorePlayers;
     }
 }
-
-

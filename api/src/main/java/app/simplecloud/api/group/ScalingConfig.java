@@ -65,5 +65,3 @@ public class ScalingConfig {
         this.scalingMode = scalingMode;
     }
 }
-
-

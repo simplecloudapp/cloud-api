@@ -41,5 +41,13 @@ public interface ServerEventApi {
      */
     Subscription onDeleted(Consumer<ServerDeletedEvent> handler);
 
+    /**
+     * Subscribes to server update events.
+     *
+     * @param handler the callback to invoke when a server is updated
+     * @return a subscription that can be closed to stop receiving events
+     */
+    Subscription onUpdated(Consumer<ServerUpdatedEvent> handler);
+
 }
 

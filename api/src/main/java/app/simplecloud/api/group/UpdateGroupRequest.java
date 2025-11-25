@@ -132,5 +132,3 @@ public class UpdateGroupRequest {
         return this;
     }
 }
-
-

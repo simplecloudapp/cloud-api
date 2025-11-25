@@ -40,5 +40,3 @@ public class SourceConfig {
         this.image = image;
     }
 }
-
-
