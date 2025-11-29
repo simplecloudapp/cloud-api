@@ -2,3 +2,4 @@ name: simplecloud-api
 version: "1.0"
 main: app.simplecloud.api.platform.spigot.legacy.LegacySpigotApiProvider
 api-version: "1.8"
+author: Fllip

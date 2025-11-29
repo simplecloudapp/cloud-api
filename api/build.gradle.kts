@@ -38,7 +38,6 @@ tasks.named<ShadowJar>("shadowJar") {
     relocate("org.bouncycastle", "app.simplecloud.api.shaded.v${versionPath}.bouncycastle")
     relocate("org.intellij", "app.simplecloud.api.shaded.v${versionPath}.intellij")
     relocate("org.jetbrains", "app.simplecloud.api.shaded.v${versionPath}.jetbrains")
-    relocate("kotlin", "app.simplecloud.api.shaded.v${versionPath}.kotlin")
 
     relocate("google", "app.simplecloud.api.shaded.v${versionPath}.google")
     relocate("native", "app.simplecloud.api.shaded.v${versionPath}.native")

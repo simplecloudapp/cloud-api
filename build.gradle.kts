@@ -2,6 +2,7 @@ import com.github.jengelman.gradle.plugins.shadow.tasks.ShadowJar
 
 plugins {
     id("java")
+    id("java-library")
     alias(libs.plugins.shadow)
     alias(libs.plugins.sonatype.central.portal.publisher)
     `maven-publish`
@@ -32,6 +33,7 @@ tasks.named<ShadowJar>("shadowJar") {
 
 subprojects {
     apply(plugin = "java")
+    apply(plugin = "java-library")
     apply(plugin = "maven-publish")
     apply(plugin = "com.gradleup.shadow")
     apply(plugin = "org.gradle.signing")

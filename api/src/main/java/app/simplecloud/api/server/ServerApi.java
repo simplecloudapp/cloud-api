@@ -3,6 +3,7 @@ package app.simplecloud.api.server;
 import org.jetbrains.annotations.Nullable;
 
 import java.util.List;
+import java.util.Map;
 import java.util.concurrent.CompletableFuture;
 
 /**
@@ -53,5 +54,39 @@ public interface ServerApi {
      * @return a CompletableFuture that completes when the server stop is initiated
      */
     CompletableFuture<Void> stopServer(String id);
+
+    /**
+     * Updates an existing server instance.
+     *
+     * @param id the unique ID of the server to update
+     * @param request the update request containing fields to update
+     * @return a CompletableFuture that completes with the updated Server instance
+     */
+    CompletableFuture<Server> updateServer(String id, UpdateServerRequest request);
+
+    /**
+     * Retrieves the current server instance using the SIMPLECLOUD_UNIQUE_ID environment variable.
+     *
+     * @return a CompletableFuture that completes with the current server, or fails if not found
+     */
+    CompletableFuture<Server> getCurrentServer();
+
+    /**
+     * Updates server properties by merging with existing properties (deep merge).
+     *
+     * @param id the unique ID of the server
+     * @param properties the properties to merge
+     * @return a CompletableFuture that completes with the updated properties
+     */
+    CompletableFuture<Map<String, Object>> updateServerProperties(String id, Map<String, Object> properties);
+
+    /**
+     * Deletes specific property keys from a server.
+     *
+     * @param id the unique ID of the server
+     * @param keys the property keys to delete
+     * @return a CompletableFuture that completes with the remaining properties
+     */
+    CompletableFuture<Map<String, Object>> deleteServerProperties(String id, List<String> keys);
 }
 

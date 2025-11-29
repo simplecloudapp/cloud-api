@@ -3,7 +3,7 @@
   "name": "SimpleCloud API",
   "version": "1.0",
   "authors": [
-    "ugede"
+    "Fllip"
   ],
   "main": "app.simplecloud.api.platform.velocity.VelocityApiProvider",
   "dependencies": []

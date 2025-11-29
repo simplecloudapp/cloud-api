@@ -1,32 +1,28 @@
 import com.github.jengelman.gradle.plugins.shadow.tasks.ShadowJar
 
 dependencies {
-    implementation(rootProject.libs.kotlin.stdlib)
     compileOnly(rootProject.libs.paper.api)
     implementation(project(":platform:shared"))
+    implementation(project(":api"))
 }
 
 sourceSets.main {
-    kotlin.srcDir(layout.buildDirectory.dir("generated/src/main/kotlin"))
+    java.srcDir(layout.buildDirectory.dir("generated/src/main/java"))
 }
 
 tasks.named("shadowJar", ShadowJar::class) {
+    dependsOn(":api:shadowJar")
     mergeServiceFiles()
 
     archiveFileName.set("${project.name}.jar")
 }
 
-tasks.named("compileKotlin") {
-    dependsOn("generateArtifactsClass")
-}
-
-
 tasks.register("generateArtifactsClass") {
     group = "generation"
-    description = "Generates a Kotlin class containing artifact information"
+    description = "Generates a Java class containing artifact information"
 
-    val outputDir = layout.buildDirectory.dir("generated/src/main/kotlin/app/simplecloud/generated")
-    val outputFile = outputDir.get().file("SimpleCloudArtifacts.kt")
+    val outputDir = layout.buildDirectory.dir("generated/src/main/java/app/simplecloud/generated")
+    val outputFile = outputDir.get().file("SimpleCloudArtifacts.java")
 
     outputs.file(outputFile)
 
@@ -34,21 +30,27 @@ tasks.register("generateArtifactsClass") {
         outputDir.get().asFile.mkdirs()
         outputFile.asFile.writeText(
             """
-            package app.simplecloud.generated
+            package app.simplecloud.generated;
             
-            object SimpleCloudArtifacts {
-                val artifacts = listOf(
-                    "${rootProject.libs.simplecloud.controller.get()}",
-                    "${rootProject.libs.simplecloud.player.get()}"
-                )
+            import java.util.List;
+            
+            public class SimpleCloudArtifacts {
+                public static final List<String> artifacts = List.of(
+                    "${rootProject.libs.controller.proto.get()}",
+                    "${rootProject.libs.jnats.get()}"
+                );
             }
             """.trimIndent()
         )
-        println("Generated Artifacts.kt at ${outputFile.asFile.absolutePath}")
+        println("Generated Artifacts.java at ${outputFile.asFile.absolutePath}")
     }
 }
 
-// Add the generated source set to Kotlin compilation
-sourceSets.main {
-    kotlin.srcDir(layout.buildDirectory.dir("generated/src/main/kotlin"))
+tasks.named("compileJava") {
+    dependsOn("generateArtifactsClass")
 }
+
+sourceSets.main {
+    java.srcDir(layout.buildDirectory.dir("generated/src/main/java"))
+}
+

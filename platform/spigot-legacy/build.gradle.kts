@@ -5,26 +5,13 @@ plugins {
 }
 
 dependencies {
-    api(rootProject.libs.kotlin.stdlib)
-    api(rootProject.libs.kotlin.reflect)
-    api(rootProject.libs.kotlin.coroutines)
     api(project(":platform:shared"))
     compileOnly(rootProject.libs.paper.api)
-    api(rootProject.libs.simplecloud.controller) {
-        exclude(group = "org.jetbrains.kotlin")
-        exclude(group = "org.jetbrains.kotlinx")
-    }
-    api(rootProject.libs.simplecloud.player) {
-        exclude(group = "net.kyori")
-        exclude(group = "org.jetbrains.kotlin")
-        exclude(group = "org.jetbrains.kotlinx")
-    }
+    implementation(project(":api"))
 }
 
 tasks.named("shadowJar", ShadowJar::class) {
-
-    exclude("kotlin")
-    exclude("kotlinx")
+    dependsOn(":api:shadowJar")
     mergeServiceFiles()
 
     relocate("com.google.protobuf", "app.simplecloud.relocate.google.protobuf")

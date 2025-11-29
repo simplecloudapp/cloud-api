@@ -131,6 +131,87 @@ definitions:
           type: string
         type: array
     type: object
+  models.CreatePersistentServerRequest:
+    description: Request to create a new persistent server
+    properties:
+      active:
+        example: true
+        type: boolean
+      max_memory:
+        example: 2048
+        type: integer
+      max_players:
+        example: 50
+        type: integer
+      min_memory:
+        example: 1024
+        type: integer
+      name:
+        example: my-persistent-server
+        type: string
+      properties:
+        additionalProperties: true
+        type: object
+      serverhost_id:
+        example: 123e4567-e89b-12d3-a456-426614174000
+        type: string
+      source:
+        $ref: '#/definitions/models.SourceConfig'
+      tags:
+        items:
+          type: string
+        type: array
+      type:
+        example: SERVER
+        type: string
+      workflows:
+        $ref: '#/definitions/models.WorkflowsConfig'
+    type: object
+  models.CreatePersistentServerResponse:
+    description: Response for creating a new persistent server
+    properties:
+      active:
+        example: true
+        type: boolean
+      created_at:
+        example: "2023-01-01T12:00:00Z"
+        type: string
+      max_memory:
+        example: 2048
+        type: integer
+      max_players:
+        example: 50
+        type: integer
+      min_memory:
+        example: 1024
+        type: integer
+      name:
+        example: my-persistent-server
+        type: string
+      persistent_server_id:
+        example: 123e4567-e89b-12d3-a456-426614174000
+        type: string
+      properties:
+        additionalProperties: true
+        type: object
+      serverhost_id:
+        example: 123e4567-e89b-12d3-a456-426614174000
+        type: string
+      source:
+        $ref: '#/definitions/models.SourceConfig'
+      tags:
+        items:
+          type: string
+        type: array
+      type:
+        example: SERVER
+        type: string
+      updated_at:
+        example: "2023-01-01T12:00:00Z"
+        type: string
+      workflows:
+        $ref: '#/definitions/models.WorkflowsConfig'
+    type: object
   models.CreateServerGroupRequest:
     description: Request to create a new server group
     properties:
@@ -221,6 +302,47 @@ definitions:
         example: example-blueprint
         type: string
     type: object
+  models.DeletePersistentServerResponse:
+    description: Response for deleting a persistent server
+    properties:
+      message:
+        example: Persistent server deleted successfully
+        type: string
+      name:
+        example: my-persistent-server
+        type: string
+      persistent_server_id:
+        example: 123e4567-e89b-12d3-a456-426614174000
+        type: string
+    type: object
+  models.DeletePropertiesRequest:
+    description: Request to delete specific property keys
+    properties:
+      keys:
+        example:
+        - key1
+        - key2
+        items:
+          type: string
+        type: array
+    type: object
+  models.DeletePropertiesResponse:
+    description: Response for deleting properties
+    properties:
+      deleted_keys:
+        example:
+        - key1
+        - key2
+        items:
+          type: string
+        type: array
+      message:
+        example: Properties deleted successfully
+        type: string
+      properties:
+        additionalProperties: true
+        type: object
+    type: object
   models.DeleteServerGroupResponse:
     description: Response for deleting a server group
     properties:
@@ -272,6 +394,17 @@ definitions:
         example: 5
         type: integer
     type: object
+  models.ListPersistentServersResponse:
+    description: Response for listing persistent servers
+    properties:
+      count:
+        example: 5
+        type: integer
+      persistent_servers:
+        items:
+          $ref: '#/definitions/models.PersistentServerSummary'
+        type: array
+    type: object
   models.ListServerGroupsResponse:
     description: Response for listing server groups
     properties:
@@ -293,6 +426,194 @@ definitions:
         items:
           $ref: '#/definitions/models.ServerSummary'
         type: array
+    type: object
+  models.PatchBlueprintRequest:
+    description: Request to partially update an existing blueprint
+    properties:
+      configurator:
+        example: example-configurator
+        type: string
+      minecraft_version:
+        example: 1.20.1
+        type: string
+      name:
+        example: example-blueprint
+        type: string
+      runtime_config:
+        $ref: '#/definitions/models.RuntimeConfig'
+      server_software:
+        example: paper
+        type: string
+      server_url:
+        example: https://example.com/server
+        type: string
+      software_version:
+        example: 1.20.1
+        type: string
+      workflow_steps:
+        items:
+          type: string
+        type: array
+    type: object
+  models.PatchPersistentServerRequest:
+    description: Request to partially update an existing persistent server
+    properties:
+      active:
+        example: true
+        type: boolean
+      max_memory:
+        example: 2048
+        type: integer
+      max_players:
+        example: 50
+        type: integer
+      min_memory:
+        example: 1024
+        type: integer
+      name:
+        example: my-persistent-server
+        type: string
+      properties:
+        additionalProperties: true
+        type: object
+      serverhost_id:
+        example: 123e4567-e89b-12d3-a456-426614174000
+        type: string
+      source:
+        $ref: '#/definitions/models.SourceConfig'
+      tags:
+        items:
+          type: string
+        type: array
+      type:
+        example: SERVER
+        type: string
+      workflows:
+        $ref: '#/definitions/models.WorkflowsConfig'
+    type: object
+  models.PatchPropertiesRequest:
+    description: Request to merge/update specific property keys (deep merge)
+    properties:
+      properties:
+        additionalProperties: true
+        type: object
+    type: object
+  models.PatchPropertiesResponse:
+    description: Response for patching properties
+    properties:
+      message:
+        example: Properties patched successfully
+        type: string
+      properties:
+        additionalProperties: true
+        type: object
+    type: object
+  models.PatchServerGroupRequest:
+    description: Request to partially update an existing server group
+    properties:
+      deployment:
+        $ref: '#/definitions/models.DeploymentConfig'
+      max_memory:
+        example: 2048
+        type: integer
+      max_players:
+        example: 50
+        type: integer
+      min_memory:
+        example: 1024
+        type: integer
+      name:
+        example: lobby
+        type: string
+      properties:
+        additionalProperties: true
+        type: object
+      scaling:
+        $ref: '#/definitions/models.ScalingConfig'
+      source:
+        $ref: '#/definitions/models.SourceConfig'
+      tags:
+        items:
+          type: string
+        type: array
+      type:
+        example: SERVER
+        type: string
+      workflows:
+        $ref: '#/definitions/models.WorkflowsConfig'
+    type: object
+  models.PatchServerRequest:
+    description: Request to partially update an existing server
+    properties:
+      max_memory:
+        example: 2048
+        type: integer
+      max_players:
+        example: 50
+        type: integer
+      min_memory:
+        example: 1024
+        type: integer
+      player_count:
+        example: 10
+        type: integer
+      properties:
+        additionalProperties: true
+        type: object
+      state:
+        example: RUNNING
+        type: string
+    type: object
+  models.PatchServerResponse:
+    description: Response for patching a server
+    properties:
+      server:
+        $ref: '#/definitions/models.ServerSummary'
+    type: object
+  models.PersistentServerSummary:
+    description: Summary of a persistent server for listing
+    properties:
+      active:
+        example: true
+        type: boolean
+      created_at:
+        example: "2023-01-01T12:00:00Z"
+        type: string
+      max_memory:
+        example: 2048
+        type: integer
+      max_players:
+        example: 50
+        type: integer
+      min_memory:
+        example: 1024
+        type: integer
+      name:
+        example: my-persistent-server
+        type: string
+      persistent_server_id:
+        example: 123e4567-e89b-12d3-a456-426614174000
+        type: string
+      properties:
+        additionalProperties: true
+        type: object
+      serverhost_id:
+        example: 123e4567-e89b-12d3-a456-426614174000
+        type: string
+      source:
+        $ref: '#/definitions/models.SourceConfig'
+      tags:
+        items:
+          type: string
+        type: array
+      type:
+        example: SERVER
+        type: string
+      updated_at:
+        example: "2023-01-01T12:00:00Z"
+        type: string
+      workflows:
+        $ref: '#/definitions/models.WorkflowsConfig'
     type: object
   models.RegisterNetworkResponse:
     description: Response for network registration
@@ -643,6 +964,104 @@ definitions:
           type: string
         type: array
     type: object
+  models.UpdatePersistentServerRequest:
+    description: Request to update an existing persistent server
+    properties:
+      active:
+        example: true
+        type: boolean
+      max_memory:
+        example: 2048
+        type: integer
+      max_players:
+        example: 50
+        type: integer
+      min_memory:
+        example: 1024
+        type: integer
+      name:
+        example: my-persistent-server
+        type: string
+      properties:
+        additionalProperties: true
+        type: object
+      serverhost_id:
+        example: 123e4567-e89b-12d3-a456-426614174000
+        type: string
+      source:
+        $ref: '#/definitions/models.SourceConfig'
+      tags:
+        items:
+          type: string
+        type: array
+      type:
+        example: SERVER
+        type: string
+      workflows:
+        $ref: '#/definitions/models.WorkflowsConfig'
+    type: object
+  models.UpdatePersistentServerResponse:
+    description: Response for updating a persistent server
+    properties:
+      active:
+        example: true
+        type: boolean
+      created_at:
+        example: "2023-01-01T12:00:00Z"
+        type: string
+      max_memory:
+        example: 2048
+        type: integer
+      max_players:
+        example: 50
+        type: integer
+      min_memory:
+        example: 1024
+        type: integer
+      name:
+        example: my-persistent-server
+        type: string
+      persistent_server_id:
+        example: 123e4567-e89b-12d3-a456-426614174000
+        type: string
+      properties:
+        additionalProperties: true
+        type: object
+      serverhost_id:
+        example: 123e4567-e89b-12d3-a456-426614174000
+        type: string
+      source:
+        $ref: '#/definitions/models.SourceConfig'
+      tags:
+        items:
+          type: string
+        type: array
+      type:
+        example: SERVER
+        type: string
+      updated_at:
+        example: "2023-01-01T12:00:00Z"
+        type: string
+      workflows:
+        $ref: '#/definitions/models.WorkflowsConfig'
+    type: object
+  models.UpdatePropertiesRequest:
+    description: Request to replace entire properties object
+    properties:
+      properties:
+        additionalProperties: true
+        type: object
+    type: object
+  models.UpdatePropertiesResponse:
+    description: Response for updating properties
+    properties:
+      message:
+        example: Properties updated successfully
+        type: string
+      properties:
+        additionalProperties: true
+        type: object
+    type: object
   models.UpdateServerGroupRequest:
     description: Request to update an existing server group
     properties:
@@ -882,6 +1301,58 @@ paths:
       summary: List blueprints
       tags:
       - blueprints
+    patch:
+      consumes:
+      - application/json
+      description: Partially update an existing blueprint
+      parameters:
+      - description: Network ID
+        in: header
+        name: X-Network-ID
+        required: true
+        type: string
+      - description: Network Secret
+        in: header
+        name: X-Network-Secret
+        required: true
+        type: string
+      - description: Blueprint ID
+        in: query
+        name: blueprint_id
+        required: true
+        type: string
+      - description: Blueprint fields to update
+        in: body
+        name: request
+        required: true
+        schema:
+          $ref: '#/definitions/models.PatchBlueprintRequest'
+      produces:
+      - application/json
+      responses:
+        "200":
+          description: OK
+          schema:
+            $ref: '#/definitions/models.UpdateBlueprintResponse'
+        "400":
+          description: Bad Request
+          schema:
+            $ref: '#/definitions/models.ErrorResponse'
+        "401":
+          description: Unauthorized
+          schema:
+            $ref: '#/definitions/models.ErrorResponse'
+        "404":
+          description: Not Found
+          schema:
+            $ref: '#/definitions/models.ErrorResponse'
+        "500":
+          description: Internal Server Error
+          schema:
+            $ref: '#/definitions/models.ErrorResponse'
+      summary: Partially update a blueprint
+      tags:
+      - blueprints
     post:
       consumes:
       - application/json
@@ -1034,6 +1505,385 @@ paths:
       summary: Verify network credentials
       tags:
       - networks
+  /v0/persistent-servers:
+    delete:
+      description: Delete an existing persistent server
+      parameters:
+      - description: Network ID
+        in: header
+        name: X-Network-ID
+        required: true
+        type: string
+      - description: Network Secret
+        in: header
+        name: X-Network-Secret
+        required: true
+        type: string
+      - description: Persistent Server ID
+        in: query
+        name: persistent_server_id
+        required: true
+        type: string
+      responses:
+        "200":
+          description: OK
+          schema:
+            $ref: '#/definitions/models.DeletePersistentServerResponse'
+        "400":
+          description: Bad Request
+          schema:
+            $ref: '#/definitions/models.ErrorResponse'
+        "401":
+          description: Unauthorized
+          schema:
+            $ref: '#/definitions/models.ErrorResponse'
+        "404":
+          description: Not Found
+          schema:
+            $ref: '#/definitions/models.ErrorResponse'
+        "500":
+          description: Internal Server Error
+          schema:
+            $ref: '#/definitions/models.ErrorResponse'
+      summary: Delete a persistent server
+      tags:
+      - persistent-servers
+    get:
+      description: Get a list of persistent servers for a network
+      parameters:
+      - description: Network ID
+        in: header
+        name: X-Network-ID
+        required: true
+        type: string
+      - description: Network Secret
+        in: header
+        name: X-Network-Secret
+        required: true
+        type: string
+      produces:
+      - application/json
+      responses:
+        "200":
+          description: OK
+          schema:
+            $ref: '#/definitions/models.ListPersistentServersResponse'
+        "401":
+          description: Unauthorized
+          schema:
+            $ref: '#/definitions/models.ErrorResponse'
+        "500":
+          description: Internal Server Error
+          schema:
+            $ref: '#/definitions/models.ErrorResponse'
+      summary: List persistent servers
+      tags:
+      - persistent-servers
+    patch:
+      consumes:
+      - application/json
+      description: Partially update an existing persistent server
+      parameters:
+      - description: Network ID
+        in: header
+        name: X-Network-ID
+        required: true
+        type: string
+      - description: Network Secret
+        in: header
+        name: X-Network-Secret
+        required: true
+        type: string
+      - description: Persistent Server ID
+        in: query
+        name: persistent_server_id
+        required: true
+        type: string
+      - description: Persistent server fields to update
+        in: body
+        name: request
+        required: true
+        schema:
+          $ref: '#/definitions/models.PatchPersistentServerRequest'
+      produces:
+      - application/json
+      responses:
+        "200":
+          description: OK
+          schema:
+            $ref: '#/definitions/models.UpdatePersistentServerResponse'
+        "400":
+          description: Bad Request
+          schema:
+            $ref: '#/definitions/models.ErrorResponse'
+        "401":
+          description: Unauthorized
+          schema:
+            $ref: '#/definitions/models.ErrorResponse'
+        "404":
+          description: Not Found
+          schema:
+            $ref: '#/definitions/models.ErrorResponse'
+        "500":
+          description: Internal Server Error
+          schema:
+            $ref: '#/definitions/models.ErrorResponse'
+      summary: Partially update a persistent server
+      tags:
+      - persistent-servers
+    post:
+      consumes:
+      - application/json
+      description: Create a new persistent server for a network
+      parameters:
+      - description: Network ID
+        in: header
+        name: X-Network-ID
+        required: true
+        type: string
+      - description: Network Secret
+        in: header
+        name: X-Network-Secret
+        required: true
+        type: string
+      - description: Persistent server details
+        in: body
+        name: request
+        required: true
+        schema:
+          $ref: '#/definitions/models.CreatePersistentServerRequest'
+      produces:
+      - application/json
+      responses:
+        "201":
+          description: Created
+          schema:
+            $ref: '#/definitions/models.CreatePersistentServerResponse'
+        "400":
+          description: Bad Request
+          schema:
+            $ref: '#/definitions/models.ErrorResponse'
+        "401":
+          description: Unauthorized
+          schema:
+            $ref: '#/definitions/models.ErrorResponse'
+        "500":
+          description: Internal Server Error
+          schema:
+            $ref: '#/definitions/models.ErrorResponse'
+      summary: Create a new persistent server
+      tags:
+      - persistent-servers
+    put:
+      consumes:
+      - application/json
+      description: Update an existing persistent server
+      parameters:
+      - description: Network ID
+        in: header
+        name: X-Network-ID
+        required: true
+        type: string
+      - description: Network Secret
+        in: header
+        name: X-Network-Secret
+        required: true
+        type: string
+      - description: Persistent Server ID
+        in: query
+        name: persistent_server_id
+        required: true
+        type: string
+      - description: Persistent server details
+        in: body
+        name: request
+        required: true
+        schema:
+          $ref: '#/definitions/models.UpdatePersistentServerRequest'
+      produces:
+      - application/json
+      responses:
+        "200":
+          description: OK
+          schema:
+            $ref: '#/definitions/models.UpdatePersistentServerResponse'
+        "400":
+          description: Bad Request
+          schema:
+            $ref: '#/definitions/models.ErrorResponse'
+        "401":
+          description: Unauthorized
+          schema:
+            $ref: '#/definitions/models.ErrorResponse'
+        "404":
+          description: Not Found
+          schema:
+            $ref: '#/definitions/models.ErrorResponse'
+        "500":
+          description: Internal Server Error
+          schema:
+            $ref: '#/definitions/models.ErrorResponse'
+      summary: Update a persistent server
+      tags:
+      - persistent-servers
+  /v0/persistent-servers/properties:
+    delete:
+      consumes:
+      - application/json
+      description: Delete specific property keys from a persistent server
+      parameters:
+      - description: Network ID
+        in: header
+        name: X-Network-ID
+        required: true
+        type: string
+      - description: Network Secret
+        in: header
+        name: X-Network-Secret
+        required: true
+        type: string
+      - description: Persistent Server ID
+        in: query
+        name: persistent_server_id
+        required: true
+        type: string
+      - description: Keys to delete
+        in: body
+        name: request
+        required: true
+        schema:
+          $ref: '#/definitions/models.DeletePropertiesRequest'
+      produces:
+      - application/json
+      responses:
+        "200":
+          description: OK
+          schema:
+            $ref: '#/definitions/models.DeletePropertiesResponse'
+        "400":
+          description: Bad Request
+          schema:
+            $ref: '#/definitions/models.ErrorResponse'
+        "401":
+          description: Unauthorized
+          schema:
+            $ref: '#/definitions/models.ErrorResponse'
+        "404":
+          description: Not Found
+          schema:
+            $ref: '#/definitions/models.ErrorResponse'
+        "500":
+          description: Internal Server Error
+          schema:
+            $ref: '#/definitions/models.ErrorResponse'
+      summary: Delete persistent server property keys
+      tags:
+      - persistent-servers
+    patch:
+      consumes:
+      - application/json
+      description: Merge/update specific property keys for a persistent server (deep
+        merge)
+      parameters:
+      - description: Network ID
+        in: header
+        name: X-Network-ID
+        required: true
+        type: string
+      - description: Network Secret
+        in: header
+        name: X-Network-Secret
+        required: true
+        type: string
+      - description: Persistent Server ID
+        in: query
+        name: persistent_server_id
+        required: true
+        type: string
+      - description: Properties to merge
+        in: body
+        name: request
+        required: true
+        schema:
+          $ref: '#/definitions/models.PatchPropertiesRequest'
+      produces:
+      - application/json
+      responses:
+        "200":
+          description: OK
+          schema:
+            $ref: '#/definitions/models.PatchPropertiesResponse'
+        "400":
+          description: Bad Request
+          schema:
+            $ref: '#/definitions/models.ErrorResponse'
+        "401":
+          description: Unauthorized
+          schema:
+            $ref: '#/definitions/models.ErrorResponse'
+        "404":
+          description: Not Found
+          schema:
+            $ref: '#/definitions/models.ErrorResponse'
+        "500":
+          description: Internal Server Error
+          schema:
+            $ref: '#/definitions/models.ErrorResponse'
+      summary: Merge persistent server properties
+      tags:
+      - persistent-servers
+    put:
+      consumes:
+      - application/json
+      description: Replace entire properties object for a persistent server
+      parameters:
+      - description: Network ID
+        in: header
+        name: X-Network-ID
+        required: true
+        type: string
+      - description: Network Secret
+        in: header
+        name: X-Network-Secret
+        required: true
+        type: string
+      - description: Persistent Server ID
+        in: query
+        name: persistent_server_id
+        required: true
+        type: string
+      - description: Properties to set
+        in: body
+        name: request
+        required: true
+        schema:
+          $ref: '#/definitions/models.UpdatePropertiesRequest'
+      produces:
+      - application/json
+      responses:
+        "200":
+          description: OK
+          schema:
+            $ref: '#/definitions/models.UpdatePropertiesResponse'
+        "400":
+          description: Bad Request
+          schema:
+            $ref: '#/definitions/models.ErrorResponse'
+        "401":
+          description: Unauthorized
+          schema:
+            $ref: '#/definitions/models.ErrorResponse'
+        "404":
+          description: Not Found
+          schema:
+            $ref: '#/definitions/models.ErrorResponse'
+        "500":
+          description: Internal Server Error
+          schema:
+            $ref: '#/definitions/models.ErrorResponse'
+      summary: Replace persistent server properties
+      tags:
+      - persistent-servers
   /v0/server-groups:
     delete:
       description: Delete an existing server group
@@ -1106,6 +1956,58 @@ paths:
           schema:
             $ref: '#/definitions/models.ErrorResponse'
       summary: List server groups
+      tags:
+      - server-groups
+    patch:
+      consumes:
+      - application/json
+      description: Partially update an existing server group
+      parameters:
+      - description: Network ID
+        in: header
+        name: X-Network-ID
+        required: true
+        type: string
+      - description: Network Secret
+        in: header
+        name: X-Network-Secret
+        required: true
+        type: string
+      - description: Server Group ID
+        in: query
+        name: server_group_id
+        required: true
+        type: string
+      - description: Server group fields to update
+        in: body
+        name: request
+        required: true
+        schema:
+          $ref: '#/definitions/models.PatchServerGroupRequest'
+      produces:
+      - application/json
+      responses:
+        "200":
+          description: OK
+          schema:
+            $ref: '#/definitions/models.UpdateServerGroupResponse'
+        "400":
+          description: Bad Request
+          schema:
+            $ref: '#/definitions/models.ErrorResponse'
+        "401":
+          description: Unauthorized
+          schema:
+            $ref: '#/definitions/models.ErrorResponse'
+        "404":
+          description: Not Found
+          schema:
+            $ref: '#/definitions/models.ErrorResponse'
+        "500":
+          description: Internal Server Error
+          schema:
+            $ref: '#/definitions/models.ErrorResponse'
+      summary: Partially update a server group
       tags:
       - server-groups
     post:
@@ -1201,6 +2103,163 @@ paths:
           schema:
             $ref: '#/definitions/models.ErrorResponse'
       summary: Update a server group
+      tags:
+      - server-groups
+  /v0/server-groups/properties:
+    delete:
+      consumes:
+      - application/json
+      description: Delete specific property keys from a server group
+      parameters:
+      - description: Network ID
+        in: header
+        name: X-Network-ID
+        required: true
+        type: string
+      - description: Network Secret
+        in: header
+        name: X-Network-Secret
+        required: true
+        type: string
+      - description: Server Group ID
+        in: query
+        name: server_group_id
+        required: true
+        type: string
+      - description: Keys to delete
+        in: body
+        name: request
+        required: true
+        schema:
+          $ref: '#/definitions/models.DeletePropertiesRequest'
+      produces:
+      - application/json
+      responses:
+        "200":
+          description: OK
+          schema:
+            $ref: '#/definitions/models.DeletePropertiesResponse'
+        "400":
+          description: Bad Request
+          schema:
+            $ref: '#/definitions/models.ErrorResponse'
+        "401":
+          description: Unauthorized
+          schema:
+            $ref: '#/definitions/models.ErrorResponse'
+        "404":
+          description: Not Found
+          schema:
+            $ref: '#/definitions/models.ErrorResponse'
+        "500":
+          description: Internal Server Error
+          schema:
+            $ref: '#/definitions/models.ErrorResponse'
+      summary: Delete server group property keys
+      tags:
+      - server-groups
+    patch:
+      consumes:
+      - application/json
+      description: Merge/update specific property keys for a server group (deep merge)
+      parameters:
+      - description: Network ID
+        in: header
+        name: X-Network-ID
+        required: true
+        type: string
+      - description: Network Secret
+        in: header
+        name: X-Network-Secret
+        required: true
+        type: string
+      - description: Server Group ID
+        in: query
+        name: server_group_id
+        required: true
+        type: string
+      - description: Properties to merge
+        in: body
+        name: request
+        required: true
+        schema:
+          $ref: '#/definitions/models.PatchPropertiesRequest'
+      produces:
+      - application/json
+      responses:
+        "200":
+          description: OK
+          schema:
+            $ref: '#/definitions/models.PatchPropertiesResponse'
+        "400":
+          description: Bad Request
+          schema:
+            $ref: '#/definitions/models.ErrorResponse'
+        "401":
+          description: Unauthorized
+          schema:
+            $ref: '#/definitions/models.ErrorResponse'
+        "404":
+          description: Not Found
+          schema:
+            $ref: '#/definitions/models.ErrorResponse'
+        "500":
+          description: Internal Server Error
+          schema:
+            $ref: '#/definitions/models.ErrorResponse'
+      summary: Merge server group properties
+      tags:
+      - server-groups
+    put:
+      consumes:
+      - application/json
+      description: Replace entire properties object for a server group
+      parameters:
+      - description: Network ID
+        in: header
+        name: X-Network-ID
+        required: true
+        type: string
+      - description: Network Secret
+        in: header
+        name: X-Network-Secret
+        required: true
+        type: string
+      - description: Server Group ID
+        in: query
+        name: server_group_id
+        required: true
+        type: string
+      - description: Properties to set
+        in: body
+        name: request
+        required: true
+        schema:
+          $ref: '#/definitions/models.UpdatePropertiesRequest'
+      produces:
+      - application/json
+      responses:
+        "200":
+          description: OK
+          schema:
+            $ref: '#/definitions/models.UpdatePropertiesResponse'
+        "400":
+          description: Bad Request
+          schema:
+            $ref: '#/definitions/models.ErrorResponse'
+        "401":
+          description: Unauthorized
+          schema:
+            $ref: '#/definitions/models.ErrorResponse'
+        "404":
+          description: Not Found
+          schema:
+            $ref: '#/definitions/models.ErrorResponse'
+        "500":
+          description: Internal Server Error
+          schema:
+            $ref: '#/definitions/models.ErrorResponse'
+      summary: Replace server group properties
       tags:
       - server-groups
   /v0/serverhosts/register:
@@ -1424,6 +2483,58 @@ paths:
       summary: List servers
       tags:
       - servers
+    patch:
+      consumes:
+      - application/json
+      description: Partially update an existing server
+      parameters:
+      - description: Network ID
+        in: header
+        name: X-Network-ID
+        required: true
+        type: string
+      - description: Network Secret
+        in: header
+        name: X-Network-Secret
+        required: true
+        type: string
+      - description: Server ID
+        in: query
+        name: server_id
+        required: true
+        type: string
+      - description: Server fields to update
+        in: body
+        name: request
+        required: true
+        schema:
+          $ref: '#/definitions/models.PatchServerRequest'
+      produces:
+      - application/json
+      responses:
+        "200":
+          description: OK
+          schema:
+            $ref: '#/definitions/models.PatchServerResponse'
+        "400":
+          description: Bad Request
+          schema:
+            $ref: '#/definitions/models.ErrorResponse'
+        "401":
+          description: Unauthorized
+          schema:
+            $ref: '#/definitions/models.ErrorResponse'
+        "404":
+          description: Not Found
+          schema:
+            $ref: '#/definitions/models.ErrorResponse'
+        "500":
+          description: Internal Server Error
+          schema:
+            $ref: '#/definitions/models.ErrorResponse'
+      summary: Partially update a server
+      tags:
+      - servers
     post:
       consumes:
       - application/json
@@ -1466,6 +2577,163 @@ paths:
           schema:
             $ref: '#/definitions/models.ErrorResponse'
       summary: Start server
+      tags:
+      - servers
+  /v0/servers/properties:
+    delete:
+      consumes:
+      - application/json
+      description: Delete specific property keys from a server
+      parameters:
+      - description: Network ID
+        in: header
+        name: X-Network-ID
+        required: true
+        type: string
+      - description: Network Secret
+        in: header
+        name: X-Network-Secret
+        required: true
+        type: string
+      - description: Server ID
+        in: query
+        name: server_id
+        required: true
+        type: string
+      - description: Keys to delete
+        in: body
+        name: request
+        required: true
+        schema:
+          $ref: '#/definitions/models.DeletePropertiesRequest'
+      produces:
+      - application/json
+      responses:
+        "200":
+          description: OK
+          schema:
+            $ref: '#/definitions/models.DeletePropertiesResponse'
+        "400":
+          description: Bad Request
+          schema:
+            $ref: '#/definitions/models.ErrorResponse'
+        "401":
+          description: Unauthorized
+          schema:
+            $ref: '#/definitions/models.ErrorResponse'
+        "404":
+          description: Not Found
+          schema:
+            $ref: '#/definitions/models.ErrorResponse'
+        "500":
+          description: Internal Server Error
+          schema:
+            $ref: '#/definitions/models.ErrorResponse'
+      summary: Delete server property keys
+      tags:
+      - servers
+    patch:
+      consumes:
+      - application/json
+      description: Merge/update specific property keys for a server (deep merge)
+      parameters:
+      - description: Network ID
+        in: header
+        name: X-Network-ID
+        required: true
+        type: string
+      - description: Network Secret
+        in: header
+        name: X-Network-Secret
+        required: true
+        type: string
+      - description: Server ID
+        in: query
+        name: server_id
+        required: true
+        type: string
+      - description: Properties to merge
+        in: body
+        name: request
+        required: true
+        schema:
+          $ref: '#/definitions/models.PatchPropertiesRequest'
+      produces:
+      - application/json
+      responses:
+        "200":
+          description: OK
+          schema:
+            $ref: '#/definitions/models.PatchPropertiesResponse'
+        "400":
+          description: Bad Request
+          schema:
+            $ref: '#/definitions/models.ErrorResponse'
+        "401":
+          description: Unauthorized
+          schema:
+            $ref: '#/definitions/models.ErrorResponse'
+        "404":
+          description: Not Found
+          schema:
+            $ref: '#/definitions/models.ErrorResponse'
+        "500":
+          description: Internal Server Error
+          schema:
+            $ref: '#/definitions/models.ErrorResponse'
+      summary: Merge server properties
+      tags:
+      - servers
+    put:
+      consumes:
+      - application/json
+      description: Replace entire properties object for a server
+      parameters:
+      - description: Network ID
+        in: header
+        name: X-Network-ID
+        required: true
+        type: string
+      - description: Network Secret
+        in: header
+        name: X-Network-Secret
+        required: true
+        type: string
+      - description: Server ID
+        in: query
+        name: server_id
+        required: true
+        type: string
+      - description: Properties to set
+        in: body
+        name: request
+        required: true
+        schema:
+          $ref: '#/definitions/models.UpdatePropertiesRequest'
+      produces:
+      - application/json
+      responses:
+        "200":
+          description: OK
+          schema:
+            $ref: '#/definitions/models.UpdatePropertiesResponse'
+        "400":
+          description: Bad Request
+          schema:
+            $ref: '#/definitions/models.ErrorResponse'
+        "401":
+          description: Unauthorized
+          schema:
+            $ref: '#/definitions/models.ErrorResponse'
+        "404":
+          description: Not Found
+          schema:
+            $ref: '#/definitions/models.ErrorResponse'
+        "500":
+          description: Internal Server Error
+          schema:
+            $ref: '#/definitions/models.ErrorResponse'
+      summary: Replace server properties
       tags:
       - servers
 schemes:
