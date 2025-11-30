@@ -86,7 +86,7 @@ public class PersistentServerImpl implements PersistentServer {
         if (summaryDelegate != null) {
             return summaryDelegate.getMinMemory();
         }
-        return null;
+        return infoDelegate != null ? infoDelegate.getMinMemory() : null;
     }
 
     @Override
@@ -95,7 +95,7 @@ public class PersistentServerImpl implements PersistentServer {
         if (summaryDelegate != null) {
             return summaryDelegate.getMaxMemory();
         }
-        return null;
+        return infoDelegate != null ? infoDelegate.getMaxMemory() : null;
     }
 
     @Override
@@ -104,7 +104,7 @@ public class PersistentServerImpl implements PersistentServer {
         if (summaryDelegate != null) {
             return summaryDelegate.getMaxPlayers();
         }
-        return null;
+        return infoDelegate != null ? infoDelegate.getMaxPlayers() : null;
     }
 
     @Override
@@ -115,16 +115,7 @@ public class PersistentServerImpl implements PersistentServer {
             if (summaryDelegate != null) {
                 config = summaryDelegate.getSource();
             } else if (infoDelegate != null) {
-                app.simplecloud.api.web.models.ModelsSourceInfo sourceInfo = infoDelegate.getSource();
-                if (sourceInfo != null) {
-                    config = new app.simplecloud.api.web.models.ModelsSourceConfig();
-                    config.setType(sourceInfo.getType());
-                    app.simplecloud.api.web.models.ModelsBlueprintInfo blueprintInfo = sourceInfo.getBlueprint();
-                    if (blueprintInfo != null) {
-                        config.setBlueprint(blueprintInfo.getId());
-                    }
-                    config.setImage(sourceInfo.getImage());
-                }
+                config = infoDelegate.getSource();
             }
             if (config != null) {
                 source = convertSourceConfig(config);
@@ -141,10 +132,7 @@ public class PersistentServerImpl implements PersistentServer {
             if (summaryDelegate != null) {
                 config = summaryDelegate.getWorkflows();
             } else if (infoDelegate != null) {
-                Map<String, Object> workflowsConfig = infoDelegate.getWorkflowsConfig();
-                if (workflowsConfig != null) {
-                    config = new app.simplecloud.api.web.models.ModelsWorkflowsConfig();
-                }
+                config = infoDelegate.getWorkflows();
             }
             if (config != null) {
                 workflows = convertWorkflowsConfig(config);

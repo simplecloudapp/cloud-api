@@ -579,6 +579,12 @@ definitions:
         type: string
       id:
         type: string
+      max_memory:
+        type: integer
+      max_players:
+        type: integer
+      min_memory:
+        type: integer
       name:
         type: string
       properties:
@@ -587,7 +593,7 @@ definitions:
       serverhost_id:
         type: string
       source:
-        $ref: '#/definitions/models.SourceInfo'
+        $ref: '#/definitions/models.SourceConfig'
       tags:
         items:
           type: string
@@ -596,9 +602,8 @@ definitions:
         type: string
       updated_at:
         type: string
-      workflows_config:
-        additionalProperties: true
-        type: object
+      workflows:
+        $ref: '#/definitions/models.WorkflowsConfig'
     type: object
   models.PersistentServerSummary:
     description: Summary of a persistent server for listing
@@ -2435,8 +2440,9 @@ paths:
       - servers
     get:
       description: Get a list of servers for a network with optional filters. Returns
-        comprehensive server information including server group details, blueprint
-        information, and workflow configurations.
+        comprehensive server information including server group or persistent server
+        details, blueprint information, and workflow configurations. Filters for type,
+        name, and tags work with both server groups and persistent servers.
       parameters:
       - description: Network ID
         in: header
@@ -2464,18 +2470,20 @@ paths:
         in: query
         name: persistent_server_id
         type: string
-      - description: Filter by server group type(s), comma-separated
+      - description: Filter by type(s), comma-separated (matches server group type
+          OR persistent server type)
         in: query
-        name: server_group_type
+        name: type
         type: string
-      - description: Filter by server group name(s), comma-separated
+      - description: Filter by name(s), comma-separated (matches server group name
+          OR persistent server name)
         in: query
-        name: server_group_name
+        name: name
         type: string
-      - description: Filter by server group tag(s), comma-separated (matches if any
-          tag matches)
+      - description: Filter by tag(s), comma-separated (matches if any tag matches
+          in server group OR persistent server)
         in: query
-        name: server_group_tags
+        name: tags
         type: string
       - description: Filter by numerical ID(s), comma-separated (e.g., 1,5,10)
         in: query
