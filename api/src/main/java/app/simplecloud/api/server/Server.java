@@ -1,7 +1,9 @@
 package app.simplecloud.api.server;
 
+import app.simplecloud.api.base.ServerBase;
 import app.simplecloud.api.blueprint.Blueprint;
 import app.simplecloud.api.group.Group;
+import app.simplecloud.api.persistentserver.PersistentServer;
 import org.jetbrains.annotations.Nullable;
 
 import java.util.Map;
@@ -10,7 +12,12 @@ import java.util.Map;
  * Represents a running server instance.
  *
  * <p>Provides detailed information about a server's state, resource usage,
- * network configuration, and associated group and blueprint.
+ * network configuration, and associated base configuration.
+ *
+ * <p>A server can be spawned from either a {@link Group} or a {@link PersistentServer}.
+ * Use {@link #getServerBase()} to access common configuration properties regardless
+ * of the source type, or use {@link #getGroup()} / {@link #getPersistentServer()} to
+ * access type-specific properties.
  */
 public interface Server {
 
@@ -24,9 +31,9 @@ public interface Server {
     /**
      * Returns the persistent server ID this instance is associated with.
      *
-     * @return the persistent server ID
+     * @return the persistent server ID, or null if spawned from a group
      */
-    String getPersistentServerId();
+    @Nullable String getPersistentServerId();
 
     /**
      * Returns the numerical ID of this server (typically a sequential number).
@@ -38,9 +45,9 @@ public interface Server {
     /**
      * Returns the ID of the server group this instance belongs to.
      *
-     * @return the server group ID
+     * @return the server group ID, or null if spawned from a persistent server
      */
-    String getServerGroupId();
+    @Nullable String getServerGroupId();
 
     /**
      * Returns the ID of the host machine running this server.
@@ -155,10 +162,61 @@ public interface Server {
     @Nullable Blueprint getBlueprint();
 
     /**
+     * Returns the server base configuration.
+     *
+     * <p>This returns the common configuration properties regardless of whether
+     * this server was spawned from a group or a persistent server.
+     *
+     * @return the server base (either a Group or PersistentServer)
+     */
+    ServerBase getServerBase();
+
+    /**
+     * Returns the server group this server belongs to, if spawned from a group.
+     *
+     * @return the server group, or null if this server was spawned from a persistent server
+     */
+    @Nullable Group getGroup();
+
+    /**
+     * Returns the persistent server configuration, if spawned from a persistent server.
+     *
+     * @return the persistent server, or null if this server was spawned from a group
+     */
+    @Nullable PersistentServer getPersistentServer();
+
+    /**
+     * Returns whether this server was spawned from a group.
+     *
+     * @return true if spawned from a group, false if spawned from a persistent server
+     */
+    default boolean isFromGroup() {
+        return getGroup() != null;
+    }
+
+    /**
+     * Returns whether this server was spawned from a persistent server.
+     *
+     * @return true if spawned from a persistent server, false if spawned from a group
+     */
+    default boolean isFromPersistentServer() {
+        return getPersistentServer() != null;
+    }
+
+    /**
      * Returns the server group this server belongs to.
      *
      * @return the server group
+     * @throws IllegalStateException if this server was spawned from a persistent server
+     * @deprecated Use {@link #getGroup()} instead. This method throws if the server
+     *             was spawned from a persistent server.
      */
-    Group getServerGroup();
+    @Deprecated
+    default Group getServerGroup() {
+        Group group = getGroup();
+        if (group == null) {
+            throw new IllegalStateException("Server was spawned from a persistent server, not a group. Use getGroup() or getPersistentServer() instead.");
+        }
+        return group;
+    }
 }
-

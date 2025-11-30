@@ -152,13 +152,6 @@ publishing {
                         protoDep.appendNode("artifactId", "simplecloud_controller_protocolbuffers_java_lite")
                         protoDep.appendNode("version", rootProject.libs.controller.proto.get().version.toString())
                         protoDep.appendNode("scope", "compile")
-
-                        // Add kotlin stdlib if needed
-                        val kotlinDep = deps.appendNode("dependency")
-                        kotlinDep.appendNode("groupId", "org.jetbrains.kotlin")
-                        kotlinDep.appendNode("artifactId", "kotlin-stdlib")
-                        kotlinDep.appendNode("version", rootProject.libs.kotlin.stdlib.get().version.toString())
-                        kotlinDep.appendNode("scope", "compile")
                     }
 
                     // Note: io.nats, com.squareup.okhttp3, com.google.code.gson, and io.gsonfire are NOT added because they're shaded

@@ -3,8 +3,10 @@ package app.simplecloud.api.internal.server;
 import app.simplecloud.api.blueprint.Blueprint;
 import app.simplecloud.api.group.Group;
 import app.simplecloud.api.internal.group.GroupImpl;
+import app.simplecloud.api.persistentserver.PersistentServer;
 import app.simplecloud.api.server.Server;
 import app.simplecloud.api.server.ServerState;
+import app.simplecloud.api.base.ServerBase;
 import app.simplecloud.api.web.models.ModelsServerSummary;
 import org.jetbrains.annotations.Nullable;
 
@@ -14,10 +16,15 @@ import java.util.Map;
 public class ServerImpl implements Server {
     private final ModelsServerSummary delegate;
     private Blueprint blueprint;
-    private Group serverGroup;
+    private Group group;
+    private PersistentServer persistentServer;
 
     public ServerImpl(ModelsServerSummary delegate) {
         this.delegate = delegate;
+    }
+
+    public void setPersistentServer(PersistentServer persistentServer) {
+        this.persistentServer = persistentServer;
     }
 
     @Override
@@ -30,12 +37,9 @@ public class ServerImpl implements Server {
     }
 
     @Override
+    @Nullable
     public String getPersistentServerId() {
-        String persistentServerId = delegate.getPersistentServerId();
-        if (persistentServerId == null) {
-            throw new IllegalStateException("Persistent server ID is null");
-        }
-        return persistentServerId;
+        return delegate.getPersistentServerId();
     }
 
     @Override
@@ -48,12 +52,9 @@ public class ServerImpl implements Server {
     }
 
     @Override
+    @Nullable
     public String getServerGroupId() {
-        String serverGroupId = delegate.getServerGroupId();
-        if (serverGroupId == null) {
-            throw new IllegalStateException("Server group ID is null");
-        }
-        return serverGroupId;
+        return delegate.getServerGroupId();
     }
 
     @Override
@@ -183,14 +184,36 @@ public class ServerImpl implements Server {
     }
 
     @Override
-    public Group getServerGroup() {
-        if (serverGroup == null) {
-            if (delegate.getServerGroup() == null) {
-                throw new IllegalStateException("Server group is null");
-            }
-            serverGroup = new GroupImpl(delegate.getServerGroup());
+    public ServerBase getServerBase() {
+        if (group != null) {
+            return group;
         }
-        return serverGroup;
+        if (persistentServer != null) {
+            return persistentServer;
+        }
+        Group g = getGroup();
+        if (g != null) {
+            return g;
+        }
+        PersistentServer ps = getPersistentServer();
+        if (ps != null) {
+            return ps;
+        }
+        throw new IllegalStateException("Server has no base configuration (neither group nor persistent server)");
+    }
+
+    @Override
+    @Nullable
+    public Group getGroup() {
+        if (group == null && delegate.getServerGroup() != null) {
+            group = new GroupImpl(delegate.getServerGroup());
+        }
+        return group;
+    }
+
+    @Override
+    @Nullable
+    public PersistentServer getPersistentServer() {
+        return persistentServer;
     }
 }
-
