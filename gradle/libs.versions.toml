@@ -5,7 +5,7 @@ shadow = "8.3.3"
 openapi-generator = "7.14.0"
 
 jnats = "2.21.2"
-controller-proto = "32.0.0.1.20251125160757.798bafd5010c"
+controller-proto = "32.0.0.1.20251130130240.5b333e510f03"
 okhttp = "4.12.0"
 okhttp-logging = "4.12.0"
 gson = "2.13.1"

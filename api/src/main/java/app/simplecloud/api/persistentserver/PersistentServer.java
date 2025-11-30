@@ -39,4 +39,3 @@ public interface PersistentServer extends ServerBase {
      */
     @Nullable String getServerhostId();
 }
-

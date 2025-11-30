@@ -1,8 +1,10 @@
 package app.simplecloud.api.internal.event.server;
 
 import app.simplecloud.api.event.server.ServerDeletedEvent;
+import app.simplecloud.api.internal.persistentserver.PersistentServerImpl;
 import app.simplecloud.api.internal.server.ServerImpl;
 import app.simplecloud.api.server.Server;
+import app.simplecloud.api.web.models.ModelsPersistentServerInfo;
 import app.simplecloud.api.web.models.ModelsServerGroupInfo;
 import app.simplecloud.api.web.models.ModelsServerSummary;
 
@@ -66,6 +68,8 @@ class ServerDeletedEventImpl implements ServerDeletedEvent {
                 }
             }
 
+            ServerImpl serverImpl = new ServerImpl(summary);
+
             if (delegate.hasGroupConfig() && delegate.getGroupConfig().hasBaseConfig()) {
                 ModelsServerGroupInfo groupInfo = new ModelsServerGroupInfo();
                 var groupConfig = delegate.getGroupConfig();
@@ -74,9 +78,18 @@ class ServerDeletedEventImpl implements ServerDeletedEvent {
                 groupInfo.setName(baseConfig.getName());
                 groupInfo.setType(convertServerTypeToString(baseConfig.getType()));
                 summary.setServerGroup(groupInfo);
+            } else if (delegate.hasPersistentServerConfig() && delegate.getPersistentServerConfig().hasBaseConfig()) {
+                ModelsPersistentServerInfo persistentServerInfo = new ModelsPersistentServerInfo();
+                var psConfig = delegate.getPersistentServerConfig();
+                var baseConfig = psConfig.getBaseConfig();
+                persistentServerInfo.setId(delegate.getPersistentServerId());
+                persistentServerInfo.setName(baseConfig.getName());
+                persistentServerInfo.setType(convertServerTypeToString(baseConfig.getType()));
+                summary.setPersistentServerId(delegate.getPersistentServerId());
+                serverImpl.setPersistentServer(new PersistentServerImpl(persistentServerInfo));
             }
 
-            server = new ServerImpl(summary);
+            server = serverImpl;
         }
         return server;
     }

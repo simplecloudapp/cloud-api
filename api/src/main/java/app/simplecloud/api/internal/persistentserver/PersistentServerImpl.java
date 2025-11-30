@@ -6,6 +6,7 @@ import app.simplecloud.api.group.SourceType;
 import app.simplecloud.api.group.WorkflowWhen;
 import app.simplecloud.api.group.WorkflowsConfig;
 import app.simplecloud.api.persistentserver.PersistentServer;
+import app.simplecloud.api.web.models.ModelsPersistentServerInfo;
 import app.simplecloud.api.web.models.ModelsPersistentServerSummary;
 import org.jetbrains.annotations.Nullable;
 
@@ -13,38 +14,66 @@ import java.util.List;
 import java.util.Map;
 
 public class PersistentServerImpl implements PersistentServer {
-    private final ModelsPersistentServerSummary delegate;
+    private final ModelsPersistentServerSummary summaryDelegate;
+    private final ModelsPersistentServerInfo infoDelegate;
     private SourceConfig source;
     private WorkflowsConfig workflows;
 
     public PersistentServerImpl(ModelsPersistentServerSummary delegate) {
-        this.delegate = delegate;
+        this.summaryDelegate = delegate;
+        this.infoDelegate = null;
+    }
+
+    public PersistentServerImpl(ModelsPersistentServerInfo delegate) {
+        this.summaryDelegate = null;
+        this.infoDelegate = delegate;
     }
 
     @Override
     public String getPersistentServerId() {
-        String id = delegate.getPersistentServerId();
-        if (id == null) {
-            throw new IllegalStateException("Persistent server ID is null");
+        if (summaryDelegate != null) {
+            String id = summaryDelegate.getPersistentServerId();
+            if (id == null) {
+                throw new IllegalStateException("Persistent server ID is null");
+            }
+            return id;
         }
-        return id;
+        if (infoDelegate != null) {
+            String id = infoDelegate.getId();
+            if (id == null) {
+                throw new IllegalStateException("Persistent server ID is null");
+            }
+            return id;
+        }
+        throw new IllegalStateException("No delegate available");
     }
 
     @Override
     @Nullable
     public Boolean isActive() {
-        return delegate.getActive();
+        if (summaryDelegate != null) {
+            return summaryDelegate.getActive();
+        }
+        return infoDelegate != null ? infoDelegate.getActive() : null;
     }
 
     @Override
     @Nullable
     public String getServerhostId() {
-        return delegate.getServerhostId();
+        if (summaryDelegate != null) {
+            return summaryDelegate.getServerhostId();
+        }
+        return infoDelegate != null ? infoDelegate.getServerhostId() : null;
     }
 
     @Override
     public String getName() {
-        String name = delegate.getName();
+        String name = null;
+        if (summaryDelegate != null) {
+            name = summaryDelegate.getName();
+        } else if (infoDelegate != null) {
+            name = infoDelegate.getName();
+        }
         if (name == null) {
             throw new IllegalStateException("Persistent server name is null");
         }
@@ -54,26 +83,52 @@ public class PersistentServerImpl implements PersistentServer {
     @Override
     @Nullable
     public Integer getMinMemory() {
-        return delegate.getMinMemory();
+        if (summaryDelegate != null) {
+            return summaryDelegate.getMinMemory();
+        }
+        return null;
     }
 
     @Override
     @Nullable
     public Integer getMaxMemory() {
-        return delegate.getMaxMemory();
+        if (summaryDelegate != null) {
+            return summaryDelegate.getMaxMemory();
+        }
+        return null;
     }
 
     @Override
     @Nullable
     public Integer getMaxPlayers() {
-        return delegate.getMaxPlayers();
+        if (summaryDelegate != null) {
+            return summaryDelegate.getMaxPlayers();
+        }
+        return null;
     }
 
     @Override
     @Nullable
     public SourceConfig getSource() {
-        if (source == null && delegate.getSource() != null) {
-            source = convertSourceConfig(delegate.getSource());
+        if (source == null) {
+            app.simplecloud.api.web.models.ModelsSourceConfig config = null;
+            if (summaryDelegate != null) {
+                config = summaryDelegate.getSource();
+            } else if (infoDelegate != null) {
+                app.simplecloud.api.web.models.ModelsSourceInfo sourceInfo = infoDelegate.getSource();
+                if (sourceInfo != null) {
+                    config = new app.simplecloud.api.web.models.ModelsSourceConfig();
+                    config.setType(sourceInfo.getType());
+                    app.simplecloud.api.web.models.ModelsBlueprintInfo blueprintInfo = sourceInfo.getBlueprint();
+                    if (blueprintInfo != null) {
+                        config.setBlueprint(blueprintInfo.getId());
+                    }
+                    config.setImage(sourceInfo.getImage());
+                }
+            }
+            if (config != null) {
+                source = convertSourceConfig(config);
+            }
         }
         return source;
     }
@@ -81,8 +136,19 @@ public class PersistentServerImpl implements PersistentServer {
     @Override
     @Nullable
     public WorkflowsConfig getWorkflows() {
-        if (workflows == null && delegate.getWorkflows() != null) {
-            workflows = convertWorkflowsConfig(delegate.getWorkflows());
+        if (workflows == null) {
+            app.simplecloud.api.web.models.ModelsWorkflowsConfig config = null;
+            if (summaryDelegate != null) {
+                config = summaryDelegate.getWorkflows();
+            } else if (infoDelegate != null) {
+                Map<String, Object> workflowsConfig = infoDelegate.getWorkflowsConfig();
+                if (workflowsConfig != null) {
+                    config = new app.simplecloud.api.web.models.ModelsWorkflowsConfig();
+                }
+            }
+            if (config != null) {
+                workflows = convertWorkflowsConfig(config);
+            }
         }
         return workflows;
     }
@@ -90,18 +156,29 @@ public class PersistentServerImpl implements PersistentServer {
     @Override
     @Nullable
     public Map<String, Object> getProperties() {
-        return delegate.getProperties();
+        if (summaryDelegate != null) {
+            return summaryDelegate.getProperties();
+        }
+        return infoDelegate != null ? infoDelegate.getProperties() : null;
     }
 
     @Override
     @Nullable
     public List<String> getTags() {
-        return delegate.getTags();
+        if (summaryDelegate != null) {
+            return summaryDelegate.getTags();
+        }
+        return infoDelegate != null ? infoDelegate.getTags() : null;
     }
 
     @Override
     public GroupServerType getType() {
-        String typeStr = delegate.getType();
+        String typeStr = null;
+        if (summaryDelegate != null) {
+            typeStr = summaryDelegate.getType();
+        } else if (infoDelegate != null) {
+            typeStr = infoDelegate.getType();
+        }
         if (typeStr == null) {
             throw new IllegalStateException("Persistent server type is null");
         }
@@ -114,7 +191,12 @@ public class PersistentServerImpl implements PersistentServer {
 
     @Override
     public String getCreatedAt() {
-        String createdAt = delegate.getCreatedAt();
+        String createdAt = null;
+        if (summaryDelegate != null) {
+            createdAt = summaryDelegate.getCreatedAt();
+        } else if (infoDelegate != null) {
+            createdAt = infoDelegate.getCreatedAt();
+        }
         if (createdAt == null) {
             throw new IllegalStateException("Created at timestamp is null");
         }
@@ -123,7 +205,12 @@ public class PersistentServerImpl implements PersistentServer {
 
     @Override
     public String getUpdatedAt() {
-        String updatedAt = delegate.getUpdatedAt();
+        String updatedAt = null;
+        if (summaryDelegate != null) {
+            updatedAt = summaryDelegate.getUpdatedAt();
+        } else if (infoDelegate != null) {
+            updatedAt = infoDelegate.getUpdatedAt();
+        }
         if (updatedAt == null) {
             throw new IllegalStateException("Updated at timestamp is null");
         }
@@ -156,4 +243,3 @@ public class PersistentServerImpl implements PersistentServer {
         return result;
     }
 }
-

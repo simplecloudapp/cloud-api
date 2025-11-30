@@ -570,6 +570,36 @@ definitions:
       server:
         $ref: '#/definitions/models.ServerSummary'
     type: object
+  models.PersistentServerInfo:
+    description: Persistent server information
+    properties:
+      active:
+        type: boolean
+      created_at:
+        type: string
+      id:
+        type: string
+      name:
+        type: string
+      properties:
+        additionalProperties: true
+        type: object
+      serverhost_id:
+        type: string
+      source:
+        $ref: '#/definitions/models.SourceInfo'
+      tags:
+        items:
+          type: string
+        type: array
+      type:
+        type: string
+      updated_at:
+        type: string
+      workflows_config:
+        additionalProperties: true
+        type: object
+    type: object
   models.PersistentServerSummary:
     description: Summary of a persistent server for listing
     properties:
@@ -811,6 +841,8 @@ definitions:
       numerical_id:
         example: 1
         type: integer
+      persistent_server:
+        $ref: '#/definitions/models.PersistentServerInfo'
       persistent_server_id:
         example: 123e4567-e89b-12d3-a456-426614174000
         type: string
