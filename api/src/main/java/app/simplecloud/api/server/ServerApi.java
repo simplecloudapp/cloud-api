@@ -23,6 +23,23 @@ public interface ServerApi {
     CompletableFuture<Server> getServerById(String id);
 
     /**
+     * Retrieves a server by its numerical ID.
+     *
+     * @param groupName the name of the server group
+     * @param numericalId the numerical server ID
+     * @return a CompletableFuture that completes with the server, or fails if not found
+     */
+    CompletableFuture<Server> getServerByNumericalId(String groupName, int numericalId);
+
+    /**
+     * Retrieves all servers belonging to a specific group.
+     *
+     * @param groupName the name of the server group
+     * @return a CompletableFuture that completes with a list of servers in the specified group
+     */
+    CompletableFuture<List<Server>> getServersByGroup(String groupName);
+
+    /**
      * Retrieves all servers, optionally filtered by a query.
      *
      * @param query optional query parameters to filter results (group, host, state, sorting, limit)

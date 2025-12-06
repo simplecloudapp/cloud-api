@@ -59,6 +59,55 @@ public class ServerApiImpl implements ServerApi {
     }
 
     @Override
+    public CompletableFuture<Server> getServerByNumericalId(String groupName, int numericalId) {
+        return CompletableFuture.supplyAsync(() -> {
+            try {
+                ServerQuery query = ServerQuery.create()
+                        .filterByServerGroupName(groupName)
+                        .filterByNumericalId(numericalId);
+                ModelsListServersResponse serversResponse = executeQuery(query);
+
+                List<ModelsServerSummary> servers = serversResponse.getServers();
+                if (servers == null) {
+                    return null;
+                }
+
+                for (ModelsServerSummary summary : servers) {
+                    if (summary.getNumericalId() != null && summary.getNumericalId() == numericalId) {
+                        return new ServerImpl(summary);
+                    }
+                }
+                throw new RuntimeException("Server not found in group " + groupName + " with numerical ID " + numericalId);
+
+            } catch (ApiException e) {
+                throw new RuntimeException(e);
+            }
+        });
+    }
+
+    @Override
+    public CompletableFuture<List<Server>> getServersByGroup(String groupName) {
+        return CompletableFuture.supplyAsync(() -> {
+            try {
+                ServerQuery query = ServerQuery.create()
+                        .filterByServerGroupName(groupName);
+                ModelsListServersResponse serversResponse = executeQuery(query);
+
+                List<ModelsServerSummary> servers = serversResponse.getServers();
+                if (servers == null) {
+                    return List.of();
+                }
+
+                return servers.stream()
+                        .<Server>map(ServerImpl::new)
+                        .toList();
+            } catch (ApiException e) {
+                throw new RuntimeException(e);
+            }
+        });
+    }
+
+    @Override
     public CompletableFuture<List<Server>> getAllServers(@Nullable ServerQuery query) {
         return CompletableFuture.supplyAsync(() -> {
             try {
