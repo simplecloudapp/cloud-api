@@ -43,8 +43,8 @@ public interface CloudApi {
      * <ul>
      *   <li>SIMPLECLOUD_NETWORK_ID (default: "default")</li>
      *   <li>SIMPLECLOUD_NETWORK_SECRET (default: "")</li>
-     *   <li>SIMPLECLOUD_NATS_URL (default: "nats://localhost:4222")</li>
-     *   <li>SIMPLECLOUD_CONTROLLER_URL (default: "http://localhost:1337")</li>
+     *   <li>SIMPLECLOUD_NATS_URL (default: "nats://platform.simplecloud.app:4222")</li>
+     *   <li>SIMPLECLOUD_CONTROLLER_URL (default: "https://controller.platform.simplecloud.app")</li>
      * </ul>
      *
      * @return a new CloudApi instance

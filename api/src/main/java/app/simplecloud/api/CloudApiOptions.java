@@ -43,8 +43,8 @@ public class CloudApiOptions {
         private String networkSecret;
 
         public Builder() {
-            this.natsUrl = System.getenv().getOrDefault("SIMPLECLOUD_NATS_URL", "nats://localhost:4222");
-            this.controllerUrl = System.getenv().getOrDefault("SIMPLECLOUD_CONTROLLER_URL", "http://localhost:1337");
+            this.natsUrl = System.getenv().getOrDefault("SIMPLECLOUD_NATS_URL", "nats://platform.simplecloud.app:4222");
+            this.controllerUrl = System.getenv().getOrDefault("SIMPLECLOUD_CONTROLLER_URL", "https://controller.platform.simplecloud.app");
             this.networkId = System.getenv().getOrDefault("SIMPLECLOUD_NETWORK_ID", "default");
             this.networkSecret = System.getenv().getOrDefault("SIMPLECLOUD_NETWORK_SECRET", "");
         }
