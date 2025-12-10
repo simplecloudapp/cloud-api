@@ -34,6 +34,7 @@ public class ServerApiImpl implements ServerApi {
     public ServerApiImpl(CloudApiOptions options) {
         this.options = options;
         this.serversApi = new ServersApi();
+        this.serversApi.setCustomBaseUrl(options.getControllerUrl());
     }
 
     @Override

@@ -142,7 +142,7 @@ public class ServerImpl implements Server {
             throw new IllegalStateException("Server state is null");
         }
         try {
-            return ServerState.valueOf(stateStr);
+            return ServerState.parse(stateStr);
         } catch (IllegalArgumentException e) {
             throw new IllegalStateException("Invalid server state: " + stateStr, e);
         }

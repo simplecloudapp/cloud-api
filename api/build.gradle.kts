@@ -5,6 +5,7 @@ plugins {
 
     `maven-publish`
     alias(libs.plugins.openapi.generator)
+    kotlin("jvm")
 }
 
 java {
@@ -22,6 +23,7 @@ dependencies {
     implementation(rootProject.libs.gson.fire)
     implementation(rootProject.libs.jakarta.annotation)
     implementation(rootProject.libs.javax.annotation)
+    implementation(kotlin("stdlib-jdk8"))
 }
 
 tasks.named<ShadowJar>("shadowJar") {
@@ -60,7 +62,7 @@ sourceSets {
 
 openApiGenerate {
     generatorName.set("java")
-    inputSpec.set("${rootDir}/swagger.yaml")
+    remoteInputSpec.set("https://controller.platform.simplecloud.app/swagger/doc.json")
 
     outputDir.set("$buildDir/generated")
 
@@ -184,4 +186,7 @@ tasks.register<Javadoc>("generateJavadocSite") {
             addStringOption("Xmaxwarns", "10000")
         }
     }
+}
+repositories {
+    mavenCentral()
 }

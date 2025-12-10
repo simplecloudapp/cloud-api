@@ -17,6 +17,7 @@ public class GroupApiImpl implements GroupApi {
     public GroupApiImpl(CloudApiOptions options) {
         this.options = options;
         this.serverGroupsApi = new ServerGroupsApi();
+        this.serverGroupsApi.setCustomBaseUrl(options.getControllerUrl());
     }
 
     @Override

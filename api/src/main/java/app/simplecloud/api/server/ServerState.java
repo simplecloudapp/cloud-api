@@ -32,6 +32,11 @@ public enum ServerState {
     /**
      * Server is in the process of shutting down.
      */
-    STOPPING
+    STOPPING;
+
+    public static ServerState parse(String state) {
+        return ServerState.valueOf(state.toUpperCase().replace("SERVER_STATE_", ""));
+    }
+
 }
 
