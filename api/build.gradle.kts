@@ -23,7 +23,6 @@ dependencies {
     implementation(rootProject.libs.gson.fire)
     implementation(rootProject.libs.jakarta.annotation)
     implementation(rootProject.libs.javax.annotation)
-    implementation(kotlin("stdlib-jdk8"))
 }
 
 tasks.named<ShadowJar>("shadowJar") {
