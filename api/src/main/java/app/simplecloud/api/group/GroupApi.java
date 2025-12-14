@@ -3,6 +3,7 @@ package app.simplecloud.api.group;
 import org.jetbrains.annotations.Nullable;
 
 import java.util.List;
+import java.util.Map;
 import java.util.concurrent.CompletableFuture;
 
 /**
@@ -75,5 +76,23 @@ public interface GroupApi {
      * @return a CompletableFuture that completes when the group is deleted
      */
     CompletableFuture<Void> deleteGroup(String id);
+
+    /**
+     * Updates group properties by merging with existing properties (deep merge).
+     *
+     * @param id the unique ID of the server group
+     * @param properties the properties to merge
+     * @return a CompletableFuture that completes with the updated properties
+     */
+    CompletableFuture<Map<String, Object>> updateGroupProperties(String id, Map<String, Object> properties);
+
+    /**
+     * Deletes specific property keys from a server group.
+     *
+     * @param id the unique ID of the server group
+     * @param keys the property keys to delete
+     * @return a CompletableFuture that completes with the remaining properties
+     */
+    CompletableFuture<Map<String, Object>> deleteGroupProperties(String id, List<String> keys);
 }
 

@@ -6,7 +6,9 @@ import app.simplecloud.api.web.ApiException;
 import app.simplecloud.api.web.apis.ServerGroupsApi;
 import app.simplecloud.api.web.models.*;
 
+import java.util.HashMap;
 import java.util.List;
+import java.util.Map;
 import java.util.concurrent.CompletableFuture;
 
 public class GroupApiImpl implements GroupApi {
@@ -286,6 +288,50 @@ public class GroupApiImpl implements GroupApi {
                         this.options.getNetworkSecret(),
                         id
                 );
+            } catch (ApiException e) {
+                throw new RuntimeException(e);
+            }
+        });
+    }
+
+    @Override
+    public CompletableFuture<Map<String, Object>> updateGroupProperties(String id, Map<String, Object> properties) {
+        return CompletableFuture.supplyAsync(() -> {
+            try {
+                ModelsPatchPropertiesRequest request = new ModelsPatchPropertiesRequest();
+                request.setProperties(properties);
+
+                ModelsPatchPropertiesResponse response = serverGroupsApi.v0ServerGroupsPropertiesPatch(
+                        this.options.getNetworkId(),
+                        this.options.getNetworkSecret(),
+                        id,
+                        request
+                );
+
+                Map<String, Object> result = response.getProperties();
+                return result != null ? result : new HashMap<>();
+            } catch (ApiException e) {
+                throw new RuntimeException(e);
+            }
+        });
+    }
+
+    @Override
+    public CompletableFuture<Map<String, Object>> deleteGroupProperties(String id, List<String> keys) {
+        return CompletableFuture.supplyAsync(() -> {
+            try {
+                ModelsDeletePropertiesRequest request = new ModelsDeletePropertiesRequest();
+                request.setKeys(keys);
+
+                ModelsDeletePropertiesResponse response = serverGroupsApi.v0ServerGroupsPropertiesDelete(
+                        this.options.getNetworkId(),
+                        this.options.getNetworkSecret(),
+                        id,
+                        request
+                );
+
+                Map<String, Object> result = response.getProperties();
+                return result != null ? result : new HashMap<>();
             } catch (ApiException e) {
                 throw new RuntimeException(e);
             }
