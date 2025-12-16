@@ -1,5 +1,3 @@
-import com.github.jengelman.gradle.plugins.shadow.tasks.ShadowJar
-
 plugins {
     alias(libs.plugins.minotaur)
 }
@@ -8,17 +6,6 @@ dependencies {
     implementation(project(":platform:shared"))
     compileOnly(rootProject.libs.velocity)
     implementation(project(":api"))
-}
-
-tasks.named("shadowJar", ShadowJar::class) {
-    dependsOn(":api:shadowJar")
-    mergeServiceFiles()
-
-    relocate("com.google.protobuf", "app.simplecloud.relocate.google.protobuf")
-    relocate("com.google.common", "app.simplecloud.relocate.google.common")
-    relocate("io.grpc", "app.simplecloud.relocate.io.grpc")
-
-    archiveFileName.set("${project.name}.jar")
 }
 
 modrinth {

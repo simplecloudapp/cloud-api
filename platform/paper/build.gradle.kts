@@ -1,5 +1,3 @@
-import com.github.jengelman.gradle.plugins.shadow.tasks.ShadowJar
-
 dependencies {
     compileOnly(rootProject.libs.paper.api)
     implementation(project(":platform:shared"))
@@ -8,13 +6,6 @@ dependencies {
 
 sourceSets.main {
     java.srcDir(layout.buildDirectory.dir("generated/src/main/java"))
-}
-
-tasks.named("shadowJar", ShadowJar::class) {
-    dependsOn(":api:shadowJar")
-    mergeServiceFiles()
-
-    archiveFileName.set("${project.name}.jar")
 }
 
 tasks.register("generateArtifactsClass") {

@@ -9,7 +9,7 @@ plugins {
     `signing`
 }
 
-val baseVersion = "0.1.0-platform.4"
+val baseVersion = "0.1.0-platform.5"
 val commitHash = System.getenv("COMMIT_HASH")
 val isSnapshot = commitHash != null
 
@@ -40,6 +40,32 @@ subprojects {
 
     java {
         toolchain.languageVersion.set(JavaLanguageVersion.of(21))
+    }
+
+    if (project.path.startsWith(":platform:") && project.path != ":platform:shared") {
+        tasks.named<ShadowJar>("shadowJar") {
+            dependsOn(":api:shadowJar")
+            mergeServiceFiles()
+
+            exclude("io/nats/**")
+            exclude("com/google/**")
+            exclude("build/buf/**")
+            exclude("okhttp3/**")
+            exclude("okio/**")
+            exclude("io/gsonfire/**")
+            exclude("org/bouncycastle/**")
+            exclude("org/intellij/**")
+            exclude("org/jetbrains/**")
+            exclude("kotlin/**")
+            exclude("google/**")
+            exclude("native/**")
+            exclude("core/**")
+            exclude("META-INF/*.kotlin_module")
+            exclude("META-INF/proguard/**")
+            exclude("META-INF/versions/**")
+
+            archiveFileName.set("${project.name}.jar")
+        }
     }
 
     publishing {
