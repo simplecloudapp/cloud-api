@@ -98,7 +98,8 @@ public class GroupApiImpl implements GroupApi {
     private ModelsListServerGroupsResponse executeQuery(@org.jetbrains.annotations.Nullable GroupQuery query) throws ApiException {
         return serverGroupsApi.v0ServerGroupsGet(
                 this.options.getNetworkId(),
-                this.options.getNetworkSecret()
+                this.options.getNetworkSecret(),
+                null
         );
     }
 
