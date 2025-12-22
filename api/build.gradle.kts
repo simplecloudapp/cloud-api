@@ -79,7 +79,8 @@ openApiGenerate {
         mapOf(
             "library" to "okhttp-gson",
             "serializationLibrary" to "gson",
-            "useJakartaEe" to "true"
+            "useJakartaEe" to "true",
+            "disallowAdditionalPropertiesIfNotPresent" to "false"
         )
     )
 }
