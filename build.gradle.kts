@@ -9,7 +9,7 @@ plugins {
     `signing`
 }
 
-val baseVersion = "0.1.0-platform.7"
+val baseVersion = "0.1.0-platform.8"
 val commitHash = System.getenv("COMMIT_HASH")
 val isSnapshot = commitHash != null
 
@@ -64,7 +64,7 @@ subprojects {
             exclude("META-INF/proguard/**")
             exclude("META-INF/versions/**")
 
-            archiveFileName.set("${project.name}.jar")
+            archiveFileName.set("${rootProject.name}-${project.name}.jar")
         }
     }
 
@@ -92,4 +92,51 @@ subprojects {
 //            useGpgCmd()
 //        }
 //    }
+}
+
+tasks.register("buildTemplates") {
+    group = "build"
+    description = "Builds all platform JARs and copies them to run/templates structure"
+
+    val platformProjects = listOf("paper", "spigot", "spigot-legacy", "bungeecord", "velocity")
+
+    platformProjects.forEach { platform ->
+        dependsOn(":platform:$platform:shadowJar")
+    }
+
+    doLast {
+        platformProjects.forEach { platform ->
+            val shadowJarTask = project(":platform:$platform").tasks.named<ShadowJar>("shadowJar").get()
+            val jarFile = shadowJarTask.archiveFile.get().asFile
+
+            val folderName = platform.removeSuffix("-legacy")
+            val templateDir = file("run/templates/every_$folderName/plugins")
+            templateDir.mkdirs()
+
+            val targetName = if (platform.endsWith("-legacy")) {
+                "${rootProject.name}-${platform}.jar.legacy"
+            } else {
+                "${rootProject.name}-${platform}.jar"
+            }
+
+            jarFile.copyTo(File(templateDir, targetName), overwrite = true)
+            println("Copied $jarFile to ${File(templateDir, targetName)}")
+        }
+
+        val waterfallDir = file("run/templates/every_waterfall")
+        waterfallDir.deleteRecursively()
+        file("run/templates/every_bungeecord").copyRecursively(waterfallDir)
+        println("Copied every_bungeecord to every_waterfall")
+    }
+}
+
+tasks.register<Zip>("zipTemplates") {
+    group = "build"
+    description = "Builds templates and creates a zip archive"
+
+    dependsOn("buildTemplates")
+
+    from("run/templates")
+    archiveFileName.set("templates.zip")
+    destinationDirectory.set(file("build"))
 }
