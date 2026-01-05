@@ -63,7 +63,7 @@ class ServerDeletedEventImpl implements ServerDeletedEvent {
                 summary.setNumericalId(runtime.getNumericalId());
                 summary.setIp(runtime.getIp());
                 summary.setPort(runtime.getPort());
-                summary.setState(delegate.getRuntimeInfo().getState().toString());
+                summary.setState(ModelsServerSummary.StateEnum.valueOf(delegate.getRuntimeInfo().getState().toString()));
                 summary.setPlayerCount(-1); // TODO: implement with real player count by adding it to runtime info 
                 if (!runtime.getServerhostId().isEmpty()) {
                     summary.setServerhostId(runtime.getServerhostId());

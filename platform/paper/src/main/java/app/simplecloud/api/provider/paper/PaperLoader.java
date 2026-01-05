@@ -10,11 +10,14 @@ import org.eclipse.aether.repository.RemoteRepository;
 
 @SuppressWarnings("UnstableApiUsage")
 public class PaperLoader implements PluginLoader {
+
+    public static final String MAVEN_CENTRAL_DEFAULT_MIRROR = getDefaultMavenCentralMirror();
+
     @Override
     public void classloader(PluginClasspathBuilder classpathBuilder) {
         MavenLibraryResolver resolver = new MavenLibraryResolver();
         resolver.addRepository(
-            new RemoteRepository.Builder("central", "default", MavenLibraryResolver.MAVEN_CENTRAL_DEFAULT_MIRROR).build()
+            new RemoteRepository.Builder("central", "default", MAVEN_CENTRAL_DEFAULT_MIRROR).build()
         );
         resolver.addRepository(
             new RemoteRepository.Builder(
@@ -38,6 +41,17 @@ public class PaperLoader implements PluginLoader {
             );
         }
         classpathBuilder.addLibrary(resolver);
+    }
+
+    private static String getDefaultMavenCentralMirror() {
+        String central = System.getenv("PAPER_DEFAULT_CENTRAL_REPOSITORY");
+        if (central == null) {
+            central = System.getProperty("org.bukkit.plugin.java.LibraryLoader.centralURL");
+        }
+        if (central == null) {
+            central = "https://maven-central.storage-download.googleapis.com/maven2";
+        }
+        return central;
     }
 }
 

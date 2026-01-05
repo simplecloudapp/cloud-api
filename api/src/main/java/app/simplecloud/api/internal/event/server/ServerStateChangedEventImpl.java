@@ -77,14 +77,14 @@ class ServerStateChangedEventImpl implements ServerStateChangedEvent {
                 summary.setNumericalId(runtime.getNumericalId());
                 summary.setIp(runtime.getIp());
                 summary.setPort(runtime.getPort());
-                summary.setState(delegate.getRuntimeInfo().getState().toString());
+                summary.setState(ModelsServerSummary.StateEnum.valueOf(convertServerStateToString(delegate.getRuntimeInfo().getState())));
                 summary.setPlayerCount(-1); // TODO: implement with real player count by adding it to runtime info
                 if (!runtime.getServerhostId().isEmpty()) {
                     summary.setServerhostId(runtime.getServerhostId());
                 }
             }
 
-            summary.setState(convertServerStateToString(delegate.getNewState()));
+            summary.setState(ModelsServerSummary.StateEnum.valueOf(convertServerStateToString(delegate.getNewState())));
 
             ServerImpl serverImpl = new ServerImpl(summary);
 

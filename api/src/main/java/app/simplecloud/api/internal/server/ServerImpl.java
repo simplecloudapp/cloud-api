@@ -137,7 +137,7 @@ public class ServerImpl implements Server {
 
     @Override
     public ServerState getState() {
-        String stateStr = delegate.getState();
+        ModelsServerSummary.StateEnum stateStr = delegate.getState();
         if (stateStr == null) {
             throw new IllegalStateException("Server state is null");
         }

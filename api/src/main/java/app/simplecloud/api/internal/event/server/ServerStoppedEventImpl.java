@@ -64,7 +64,7 @@ class ServerStoppedEventImpl implements ServerStoppedEvent {
                 summary.setNumericalId(runtime.getNumericalId());
                 summary.setIp(runtime.getIp());
                 summary.setPort(runtime.getPort());
-                summary.setState(delegate.getRuntimeInfo().getState().toString());
+                summary.setState(ModelsServerSummary.StateEnum.valueOf(delegate.getRuntimeInfo().getState().name()));
                 summary.setPlayerCount(-1); // TODO: implement with real player count by adding it to runtime info
                 if (!runtime.getServerhostId().isEmpty()) {
                     summary.setServerhostId(runtime.getServerhostId());
