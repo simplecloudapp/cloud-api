@@ -1,6 +1,7 @@
 package app.simplecloud.api.internal.event.server;
 
 import app.simplecloud.api.event.server.ServerStoppedEvent;
+import app.simplecloud.api.internal.ProtoConversionUtil;
 import app.simplecloud.api.internal.persistentserver.PersistentServerImpl;
 import app.simplecloud.api.internal.server.ServerImpl;
 import app.simplecloud.api.server.Server;
@@ -64,7 +65,7 @@ class ServerStoppedEventImpl implements ServerStoppedEvent {
                 summary.setNumericalId(runtime.getNumericalId());
                 summary.setIp(runtime.getIp());
                 summary.setPort(runtime.getPort());
-                summary.setState(ModelsServerSummary.StateEnum.valueOf(delegate.getRuntimeInfo().getState().name()));
+                summary.setState(ModelsServerSummary.StateEnum.valueOf(ProtoConversionUtil.convertServerStateToString(runtime.getState())));
                 summary.setPlayerCount(-1); // TODO: implement with real player count by adding it to runtime info
                 if (!runtime.getServerhostId().isEmpty()) {
                     summary.setServerhostId(runtime.getServerhostId());
@@ -79,7 +80,7 @@ class ServerStoppedEventImpl implements ServerStoppedEvent {
                 var baseConfig = groupConfig.getBaseConfig();
                 groupInfo.setId(delegate.getServerGroupId());
                 groupInfo.setName(baseConfig.getName());
-                groupInfo.setType(convertServerTypeToString(baseConfig.getType()));
+                groupInfo.setType(ProtoConversionUtil.convertServerTypeToString(baseConfig.getType()));
                 summary.setServerGroup(groupInfo);
             } else if (delegate.hasPersistentServerConfig() && delegate.getPersistentServerConfig().hasBaseConfig()) {
                 ModelsPersistentServerInfo persistentServerInfo = new ModelsPersistentServerInfo();
@@ -87,7 +88,7 @@ class ServerStoppedEventImpl implements ServerStoppedEvent {
                 var baseConfig = psConfig.getBaseConfig();
                 persistentServerInfo.setId(delegate.getPersistentServerId());
                 persistentServerInfo.setName(baseConfig.getName());
-                persistentServerInfo.setType(convertServerTypeToString(baseConfig.getType()));
+                persistentServerInfo.setType(ProtoConversionUtil.convertServerTypeToString(baseConfig.getType()));
                 summary.setPersistentServerId(delegate.getPersistentServerId());
                 serverImpl.setPersistentServer(new PersistentServerImpl(persistentServerInfo));
             }
@@ -119,23 +120,6 @@ class ServerStoppedEventImpl implements ServerStoppedEvent {
     @Override
     public String getTimestamp() {
         return Instant.ofEpochSecond(delegate.getTimestamp()).toString();
-    }
-
-    private String convertServerTypeToString(build.buf.gen.simplecloud.controller.v2.ServerType protoType) {
-        if (protoType == null) {
-            return null;
-        }
-
-        String name = protoType.name();
-        if (name == null || name.isEmpty() || name.equals("UNRECOGNIZED")) {
-            return null;
-        }
-
-        if (name.startsWith("SERVER_TYPE_")) {
-            return name.substring("SERVER_TYPE_".length());
-        }
-
-        return name;
     }
 }
 

@@ -1,6 +1,7 @@
 package app.simplecloud.api.internal.event.server;
 
 import app.simplecloud.api.event.server.ServerStateChangedEvent;
+import app.simplecloud.api.internal.ProtoConversionUtil;
 import app.simplecloud.api.internal.persistentserver.PersistentServerImpl;
 import app.simplecloud.api.internal.server.ServerImpl;
 import app.simplecloud.api.server.Server;
@@ -33,7 +34,7 @@ class ServerStateChangedEventImpl implements ServerStateChangedEvent {
 
     @Override
     public ServerState getOldState() {
-        ServerState state = convertServerState(delegate.getOldState());
+        ServerState state = ProtoConversionUtil.convertServerState(delegate.getOldState());
         if (state == null) {
             throw new IllegalStateException("Old state is not available in ServerStateChangedEvent");
         }
@@ -42,7 +43,7 @@ class ServerStateChangedEventImpl implements ServerStateChangedEvent {
 
     @Override
     public ServerState getNewState() {
-        ServerState state = convertServerState(delegate.getNewState());
+        ServerState state = ProtoConversionUtil.convertServerState(delegate.getNewState());
         if (state == null) {
             throw new IllegalStateException("New state is not available in ServerStateChangedEvent");
         }
@@ -77,14 +78,14 @@ class ServerStateChangedEventImpl implements ServerStateChangedEvent {
                 summary.setNumericalId(runtime.getNumericalId());
                 summary.setIp(runtime.getIp());
                 summary.setPort(runtime.getPort());
-                summary.setState(ModelsServerSummary.StateEnum.valueOf(convertServerStateToString(delegate.getRuntimeInfo().getState())));
+                summary.setState(ModelsServerSummary.StateEnum.valueOf(ProtoConversionUtil.convertServerStateToString(runtime.getState())));
                 summary.setPlayerCount(-1); // TODO: implement with real player count by adding it to runtime info
                 if (!runtime.getServerhostId().isEmpty()) {
                     summary.setServerhostId(runtime.getServerhostId());
                 }
             }
 
-            summary.setState(ModelsServerSummary.StateEnum.valueOf(convertServerStateToString(delegate.getNewState())));
+            summary.setState(ModelsServerSummary.StateEnum.valueOf(ProtoConversionUtil.convertServerStateToString(delegate.getNewState())));
 
             ServerImpl serverImpl = new ServerImpl(summary);
 
@@ -94,7 +95,7 @@ class ServerStateChangedEventImpl implements ServerStateChangedEvent {
                 var baseConfig = groupConfig.getBaseConfig();
                 groupInfo.setId(delegate.getServerGroupId());
                 groupInfo.setName(baseConfig.getName());
-                groupInfo.setType(convertServerTypeToString(baseConfig.getType()));
+                groupInfo.setType(ProtoConversionUtil.convertServerTypeToString(baseConfig.getType()));
                 summary.setServerGroup(groupInfo);
             } else if (delegate.hasPersistentServerConfig() && delegate.getPersistentServerConfig().hasBaseConfig()) {
                 ModelsPersistentServerInfo persistentServerInfo = new ModelsPersistentServerInfo();
@@ -102,7 +103,7 @@ class ServerStateChangedEventImpl implements ServerStateChangedEvent {
                 var baseConfig = psConfig.getBaseConfig();
                 persistentServerInfo.setId(delegate.getPersistentServerId());
                 persistentServerInfo.setName(baseConfig.getName());
-                persistentServerInfo.setType(convertServerTypeToString(baseConfig.getType()));
+                persistentServerInfo.setType(ProtoConversionUtil.convertServerTypeToString(baseConfig.getType()));
                 summary.setPersistentServerId(delegate.getPersistentServerId());
                 serverImpl.setPersistentServer(new PersistentServerImpl(persistentServerInfo));
             }
@@ -115,61 +116,6 @@ class ServerStateChangedEventImpl implements ServerStateChangedEvent {
     @Override
     public String getTimestamp() {
         return Instant.ofEpochSecond(delegate.getTimestamp()).toString();
-    }
-
-    private ServerState convertServerState(build.buf.gen.simplecloud.controller.v2.ServerState protoState) {
-        if (protoState == null) {
-            return null;
-        }
-
-        String name = protoState.name();
-        if (name == null || name.isEmpty() || name.equals("UNRECOGNIZED")) {
-            return null;
-        }
-
-        if (name.startsWith("SERVER_STATE_")) {
-            name = name.substring("SERVER_STATE_".length());
-        }
-
-        try {
-            return ServerState.valueOf(name);
-        } catch (IllegalArgumentException e) {
-            return null;
-        }
-    }
-
-    private String convertServerStateToString(build.buf.gen.simplecloud.controller.v2.ServerState protoState) {
-        if (protoState == null) {
-            return null;
-        }
-
-        String name = protoState.name();
-        if (name == null || name.isEmpty() || name.equals("UNRECOGNIZED")) {
-            return null;
-        }
-
-        if (name.startsWith("SERVER_STATE_")) {
-            return name.substring("SERVER_STATE_".length());
-        }
-
-        return name;
-    }
-
-    private String convertServerTypeToString(build.buf.gen.simplecloud.controller.v2.ServerType protoType) {
-        if (protoType == null) {
-            return null;
-        }
-
-        String name = protoType.name();
-        if (name == null || name.isEmpty() || name.equals("UNRECOGNIZED")) {
-            return null;
-        }
-
-        if (name.startsWith("SERVER_TYPE_")) {
-            return name.substring("SERVER_TYPE_".length());
-        }
-
-        return name;
     }
 }
 

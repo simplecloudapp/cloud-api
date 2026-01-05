@@ -1,6 +1,7 @@
 package app.simplecloud.api.internal.event.server;
 
 import app.simplecloud.api.event.server.ServerStartedEvent;
+import app.simplecloud.api.internal.ProtoConversionUtil;
 import app.simplecloud.api.internal.persistentserver.PersistentServerImpl;
 import app.simplecloud.api.internal.server.ServerImpl;
 import app.simplecloud.api.server.Server;
@@ -63,14 +64,14 @@ class ServerStartedEventImpl implements ServerStartedEvent {
                 summary.setNumericalId(runtime.getNumericalId());
                 summary.setIp(runtime.getIp());
                 summary.setPort(runtime.getPort());
-                summary.setState(ModelsServerSummary.StateEnum.valueOf(delegate.getRuntimeInfo().getState().toString()));
+                summary.setState(ModelsServerSummary.StateEnum.valueOf(ProtoConversionUtil.convertServerStateToString(runtime.getState())));
                 summary.setPlayerCount(-1); // TODO: implement with real player count by adding it to runtime info
                 if (!runtime.getServerhostId().isEmpty()) {
                     summary.setServerhostId(runtime.getServerhostId());
                 }
             }
 
-            summary.setState(ModelsServerSummary.StateEnum.valueOf(convertServerStateToString(delegate.getState())));
+            summary.setState(ModelsServerSummary.StateEnum.valueOf(ProtoConversionUtil.convertServerStateToString(delegate.getState())));
 
             ServerImpl serverImpl = new ServerImpl(summary);
 
@@ -80,7 +81,7 @@ class ServerStartedEventImpl implements ServerStartedEvent {
                 var baseConfig = groupConfig.getBaseConfig();
                 groupInfo.setId(delegate.getServerGroupId());
                 groupInfo.setName(baseConfig.getName());
-                groupInfo.setType(convertServerTypeToString(baseConfig.getType()));
+                groupInfo.setType(ProtoConversionUtil.convertServerTypeToString(baseConfig.getType()));
                 summary.setServerGroup(groupInfo);
             } else if (delegate.hasPersistentServerConfig() && delegate.getPersistentServerConfig().hasBaseConfig()) {
                 ModelsPersistentServerInfo persistentServerInfo = new ModelsPersistentServerInfo();
@@ -88,7 +89,7 @@ class ServerStartedEventImpl implements ServerStartedEvent {
                 var baseConfig = psConfig.getBaseConfig();
                 persistentServerInfo.setId(delegate.getPersistentServerId());
                 persistentServerInfo.setName(baseConfig.getName());
-                persistentServerInfo.setType(convertServerTypeToString(baseConfig.getType()));
+                persistentServerInfo.setType(ProtoConversionUtil.convertServerTypeToString(baseConfig.getType()));
                 summary.setPersistentServerId(delegate.getPersistentServerId());
                 serverImpl.setPersistentServer(new PersistentServerImpl(persistentServerInfo));
             }
@@ -101,40 +102,6 @@ class ServerStartedEventImpl implements ServerStartedEvent {
     @Override
     public String getTimestamp() {
         return Instant.ofEpochSecond(delegate.getTimestamp()).toString();
-    }
-
-    private String convertServerStateToString(build.buf.gen.simplecloud.controller.v2.ServerState protoState) {
-        if (protoState == null) {
-            return null;
-        }
-
-        String name = protoState.name();
-        if (name == null || name.isEmpty() || name.equals("UNRECOGNIZED")) {
-            return null;
-        }
-
-        if (name.startsWith("SERVER_STATE_")) {
-            return name.substring("SERVER_STATE_".length());
-        }
-
-        return name;
-    }
-
-    private String convertServerTypeToString(build.buf.gen.simplecloud.controller.v2.ServerType protoType) {
-        if (protoType == null) {
-            return null;
-        }
-
-        String name = protoType.name();
-        if (name == null || name.isEmpty() || name.equals("UNRECOGNIZED")) {
-            return null;
-        }
-
-        if (name.startsWith("SERVER_TYPE_")) {
-            return name.substring("SERVER_TYPE_".length());
-        }
-
-        return name;
     }
 }
 
