@@ -4,8 +4,12 @@ plugins {
 
 dependencies {
     compileOnly(rootProject.libs.bungeecord)
+    compileOnly(rootProject.libs.adventure.api)
     implementation(project(":platform:shared"))
-    implementation(project(":api"))
+    implementation(project(":api")) {
+        exclude(group = "net.kyori")
+    }
+    implementation(rootProject.libs.jnats)
 }
 
 modrinth {

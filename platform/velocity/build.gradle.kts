@@ -5,7 +5,11 @@ plugins {
 dependencies {
     implementation(project(":platform:shared"))
     compileOnly(rootProject.libs.velocity)
-    implementation(project(":api"))
+    compileOnly(rootProject.libs.adventure.api)
+    implementation(project(":api")) {
+        exclude(group = "net.kyori")
+    }
+    implementation(rootProject.libs.jnats)
 }
 
 modrinth {

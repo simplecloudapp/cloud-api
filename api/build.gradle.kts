@@ -16,12 +16,17 @@ java {
 dependencies {
     implementation(rootProject.libs.jnats)
     implementation(rootProject.libs.controller.proto)
+    implementation(rootProject.libs.player.proto)
+    implementation(rootProject.libs.adventure.proto)
     implementation(rootProject.libs.okhttp)
     implementation(rootProject.libs.okhttp.logging)
     implementation(rootProject.libs.gson)
     implementation(rootProject.libs.gson.fire)
     implementation(rootProject.libs.jakarta.annotation)
     implementation(rootProject.libs.javax.annotation)
+
+    implementation(rootProject.libs.adventure.api)
+    implementation(rootProject.libs.adventure.gson)
 }
 
 tasks.named<ShadowJar>("shadowJar") {
@@ -47,8 +52,8 @@ tasks.named<ShadowJar>("shadowJar") {
     archiveClassifier.set("")
 }
 
-tasks.named("jar") {
-    enabled = false
+tasks.named<Jar>("jar") {
+    archiveClassifier.set("thin")
 }
 
 sourceSets {

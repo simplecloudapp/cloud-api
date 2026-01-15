@@ -7,6 +7,8 @@ import app.simplecloud.api.group.GroupApi;
 import app.simplecloud.api.internal.event.EventApiImpl;
 import app.simplecloud.api.internal.group.GroupApiImpl;
 import app.simplecloud.api.internal.server.ServerApiImpl;
+import app.simplecloud.api.internal.player.PlayerApiImpl;
+import app.simplecloud.api.player.PlayerApi;
 import app.simplecloud.api.server.ServerApi;
 import io.nats.client.Connection;
 import io.nats.client.Nats;
@@ -22,6 +24,7 @@ public class CloudApiImpl implements CloudApi {
     private final ServerApi serverApi;
     private final GroupApi groupApi;
     private final EventApi eventApi;
+    private final PlayerApi playerApi;
 
     public CloudApiImpl(CloudApiOptions options) {
         this.options = options;
@@ -40,6 +43,7 @@ public class CloudApiImpl implements CloudApi {
         this.serverApi = new ServerApiImpl(options);
         this.groupApi = new GroupApiImpl(options);
         this.eventApi = new EventApiImpl(natsClient, options.getNetworkId());
+        this.playerApi = new PlayerApiImpl(options, natsClient);
     }
 
     @Override
@@ -55,6 +59,26 @@ public class CloudApiImpl implements CloudApi {
     @Override
     public EventApi event() {
         return eventApi;
+    }
+
+    @Override
+    public PlayerApi player() {
+        return playerApi;
+    }
+
+    /**
+     * Returns the underlying NATS connection.
+     * This is for internal use by integration modules.
+     *
+     * @return the NATS connection
+     */
+    public Connection getNatsConnection() {
+        return natsClient;
+    }
+
+    @Override
+    public String getNetworkId() {
+        return options.getNetworkId();
     }
 
 }

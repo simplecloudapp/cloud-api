@@ -1,14 +1,21 @@
 package app.simplecloud.api.platform.velocity;
 
 import app.simplecloud.api.CloudApi;
+import app.simplecloud.api.internal.integration.player.PlayerIntegration;
+import app.simplecloud.api.player.CloudPlayer;
 import app.simplecloud.api.platform.shared.PlayerSynchronizer;
 import com.velocitypowered.api.event.Subscribe;
 import com.velocitypowered.api.event.proxy.ProxyInitializeEvent;
 import com.velocitypowered.api.event.proxy.ProxyShutdownEvent;
+import com.velocitypowered.api.proxy.ConnectionRequestBuilder;
+import com.velocitypowered.api.proxy.Player;
 import com.velocitypowered.api.proxy.ProxyServer;
+import net.kyori.adventure.text.serializer.gson.GsonComponentSerializer;
 import org.slf4j.Logger;
 
 import javax.inject.Inject;
+import java.util.UUID;
+import java.util.concurrent.CompletableFuture;
 
 public class VelocityApiProvider {
 
@@ -16,6 +23,7 @@ public class VelocityApiProvider {
     private final ProxyServer proxyServer;
     private final CloudApi cloudApi;
     private final PlayerSynchronizer playerSynchronizer;
+    private final PlayerIntegration playerIntegration;
 
     @Inject
     public VelocityApiProvider(Logger logger, ProxyServer proxyServer) {
@@ -26,20 +34,62 @@ public class VelocityApiProvider {
             cloudApi,
             () -> (long) proxyServer.getPlayerCount()
         );
+        this.playerIntegration = new PlayerIntegration(cloudApi);
+
+        playerIntegration.onKick(this::handleKickRequest);
+        playerIntegration.onConnect(this::handleConnectRequest);
     }
 
     @Subscribe
     public void onProxyInitialize(ProxyInitializeEvent event) {
         logger.info("SimpleCloud v3 API provider initialized!");
-        proxyServer.getEventManager().register(this, new PlayerConnectionListener(playerSynchronizer));
+        proxyServer.getEventManager().register(this, new PlayerConnectionListener(playerSynchronizer, playerIntegration));
 
         playerSynchronizer.start();
+        playerIntegration.start();
     }
 
     @Subscribe
     public void onProxyShutdown(ProxyShutdownEvent event) {
         logger.info("SimpleCloud v3 API provider uninitialized!");
         playerSynchronizer.stop();
+        playerIntegration.stop();
+    }
+
+    private CompletableFuture<Boolean> handleKickRequest(String playerUniqueId, String reason) {
+        return CompletableFuture.supplyAsync(() -> {
+            Player player = proxyServer.getPlayer(UUID.fromString(playerUniqueId)).orElse(null);
+            if (player == null) {
+                // Don't respond - another proxy might have the player
+                // Returning null signals to not send a response
+                return null;
+            }
+            player.disconnect(GsonComponentSerializer.gson().deserialize(reason != null ? reason : "{}"));
+            return true;
+        });
+    }
+
+    private CompletableFuture<CloudPlayer.ConnectResult> handleConnectRequest(String playerUniqueId, String serverName) {
+        Player player = proxyServer.getPlayer(UUID.fromString(playerUniqueId)).orElse(null);
+        if (player == null) {
+            return CompletableFuture.completedFuture(null);
+        }
+        var registeredServer = proxyServer.getServer(serverName).orElse(null);
+        if (registeredServer == null) {
+            return CompletableFuture.completedFuture(CloudPlayer.ConnectResult.SERVER_NOT_FOUND);
+        }
+
+        return player.createConnectionRequest(registeredServer).connect()
+                .thenApply(result -> {
+                    ConnectionRequestBuilder.Status status = result.getStatus();
+                    if (status == ConnectionRequestBuilder.Status.SUCCESS) {
+                        return CloudPlayer.ConnectResult.SUCCESS;
+                    } else if (status == ConnectionRequestBuilder.Status.ALREADY_CONNECTED) {
+                        return CloudPlayer.ConnectResult.ALREADY_CONNECTED;
+                    } else {
+                        return CloudPlayer.ConnectResult.CONNECTION_FAILED;
+                    }
+                });
     }
 }
 

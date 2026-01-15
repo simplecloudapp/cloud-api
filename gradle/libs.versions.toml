@@ -4,8 +4,11 @@ kotlin-coroutines = "1.10.2"
 shadow = "8.3.3"
 openapi-generator = "7.14.0"
 
+controller-proto = "32.0.0.1.20260113194911.9d09738b448c"
+adventure-proto = "32.0.0.1.20260106101056.0d2c689e8f10"
+player-proto = "32.0.0.1.20260114162036.5bc1467b93a5"
+
 jnats = "2.21.2"
-controller-proto = "32.0.0.1.20251130130240.5b333e510f03"
 okhttp = "4.12.0"
 okhttp-logging = "4.12.0"
 gson = "2.13.1"
@@ -17,6 +20,9 @@ velocity = "3.4.0-SNAPSHOT"
 bungeecord = "1.21-R0.4"
 paper = "1.21.4-R0.1-SNAPSHOT"
 
+adventure-api = "4.25.0"
+adventure-gson = "4.25.0"
+
 minotaur = "2.8.7"
 sonatype-central-portal-publisher = "1.2.3"
 
@@ -25,8 +31,11 @@ kotlin-stdlib = { module = "org.jetbrains.kotlin:kotlin-stdlib", version.ref = "
 kotlin-reflect = { module = "org.jetbrains.kotlin:kotlin-reflect", version.ref = "kotlin" }
 kotlin-coroutines = { module = "org.jetbrains.kotlinx:kotlinx-coroutines-core", version.ref = "kotlin-coroutines" }
 
-jnats = { module = "io.nats:jnats", version.ref = "jnats" }
 controller-proto = { module = "build.buf.gen:simplecloud_controller_protocolbuffers_java_lite", version.ref = "controller-proto" }
+adventure-proto = { module = "build.buf.gen:simplecloud_adventure_protocolbuffers_java_lite", version.ref = "adventure-proto" }
+player-proto = { module = "build.buf.gen:simplecloud_player_protocolbuffers_java_lite", version.ref = "player-proto" }
+
+jnats = { module = "io.nats:jnats", version.ref = "jnats" }
 okhttp = { module = "com.squareup.okhttp3:okhttp", version.ref = "okhttp" }
 okhttp-logging = { module = "com.squareup.okhttp3:logging-interceptor", version.ref = "okhttp-logging" }
 gson = { module = "com.google.code.gson:gson", version.ref = "gson" }
@@ -37,6 +46,9 @@ javax-annotation = { module = "javax.annotation:javax.annotation-api", version.r
 paper-api = { module = "io.papermc.paper:paper-api", version.ref = "paper" }
 velocity = { module = "com.velocitypowered:velocity-api", version.ref = "velocity" }
 bungeecord = { module = "net.md-5:bungeecord-api", version.ref = "bungeecord" }
+
+adventure-api = { module = "net.kyori:adventure-api", version.ref = "adventure-api" }
+adventure-gson = { module = "net.kyori:adventure-text-serializer-gson", version.ref = "adventure-gson" }
 
 [plugins]
 kotlin-jvm = { id = "org.jetbrains.kotlin.jvm", version.ref = "kotlin" }

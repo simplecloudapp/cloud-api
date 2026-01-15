@@ -3,6 +3,7 @@ package app.simplecloud.api;
 import app.simplecloud.api.event.EventApi;
 import app.simplecloud.api.group.GroupApi;
 import app.simplecloud.api.internal.CloudApiImpl;
+import app.simplecloud.api.player.PlayerApi;
 import app.simplecloud.api.server.ServerApi;
 
 /**
@@ -90,6 +91,23 @@ public interface CloudApi {
      * @return the event API
      */
     EventApi event();
+
+    /**
+     * Returns the player management API.
+     *
+     * <p>Use this to query online players, send messages, kick, connect, etc.
+     * Players implement Adventure's Audience interface for sending content.
+     *
+     * @return the player API
+     */
+    PlayerApi player();
+
+    /**
+     * Returns the network ID this API is connected to.
+     *
+     * @return the network ID
+     */
+    String getNetworkId();
 
 }
 

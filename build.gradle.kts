@@ -9,7 +9,7 @@ plugins {
     `signing`
 }
 
-val baseVersion = "0.1.0-platform.9"
+val baseVersion = "0.1.0-platform.10"
 val commitHash = System.getenv("COMMIT_HASH")
 val isSnapshot = commitHash != null
 
@@ -47,19 +47,23 @@ subprojects {
             dependsOn(":api:shadowJar")
             mergeServiceFiles()
 
-            exclude("io/nats/**")
-            exclude("com/google/**")
-            exclude("build/buf/**")
-            exclude("okhttp3/**")
-            exclude("okio/**")
-            exclude("io/gsonfire/**")
-            exclude("org/bouncycastle/**")
-            exclude("org/intellij/**")
-            exclude("org/jetbrains/**")
-            exclude("kotlin/**")
-            exclude("google/**")
-            exclude("native/**")
-            exclude("core/**")
+            val versionPath = project.version.toString().replace(".", "_").replace("-", "_")
+
+            // Relocate to match api module's shading (so references match at runtime)
+            relocate("io.nats", "app.simplecloud.api.shaded.v${versionPath}.nats")
+            relocate("com.google", "app.simplecloud.api.shaded.v${versionPath}.google")
+            relocate("build.buf", "app.simplecloud.api.shaded.v${versionPath}.buf")
+            relocate("okhttp3", "app.simplecloud.api.shaded.v${versionPath}.okhttp3")
+            relocate("okio", "app.simplecloud.api.shaded.v${versionPath}.okio")
+            relocate("io.gsonfire", "app.simplecloud.api.shaded.v${versionPath}.gsonfire")
+            relocate("org.bouncycastle", "app.simplecloud.api.shaded.v${versionPath}.bouncycastle")
+            relocate("org.intellij", "app.simplecloud.api.shaded.v${versionPath}.intellij")
+            relocate("org.jetbrains", "app.simplecloud.api.shaded.v${versionPath}.jetbrains")
+            relocate("kotlin", "app.simplecloud.api.shaded.v${versionPath}.kotlin")
+            relocate("google", "app.simplecloud.api.shaded.v${versionPath}.google")
+            relocate("native", "app.simplecloud.api.shaded.v${versionPath}.native")
+            relocate("core", "app.simplecloud.api.shaded.v${versionPath}.core")
+
             exclude("META-INF/*.kotlin_module")
             exclude("META-INF/proguard/**")
             exclude("META-INF/versions/**")
