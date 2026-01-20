@@ -4,6 +4,7 @@ import app.simplecloud.api.CloudApi;
 import app.simplecloud.api.internal.integration.player.PlayerIntegration;
 import app.simplecloud.api.player.CloudPlayer;
 import app.simplecloud.api.platform.shared.PlayerSynchronizer;
+import net.kyori.adventure.platform.bungeecord.BungeeAudiences;
 import net.md_5.bungee.api.chat.TextComponent;
 import net.md_5.bungee.api.connection.ProxiedPlayer;
 import net.md_5.bungee.api.plugin.Plugin;
@@ -17,6 +18,8 @@ public class BungeeCordApiProvider extends Plugin {
     private PlayerSynchronizer playerSynchronizer;
     private PlayerIntegration playerIntegration;
 
+    private BungeeAudiences bungeeAudiences;
+
     @Override
     public void onEnable() {
         this.cloudApi = CloudApi.create();
@@ -28,6 +31,8 @@ public class BungeeCordApiProvider extends Plugin {
 
         playerIntegration.onKick(this::handleKickRequest);
         playerIntegration.onConnect(this::handleConnectRequest);
+
+        this.bungeeAudiences = BungeeAudiences.create(this);
 
         getLogger().info("SimpleCloud v3 API provider initialized!");
         getProxy().getPluginManager().registerListener(this, new PlayerConnectionListener(playerSynchronizer, playerIntegration));
@@ -41,6 +46,10 @@ public class BungeeCordApiProvider extends Plugin {
         getLogger().info("SimpleCloud v3 API provider uninitialized!");
         playerSynchronizer.stop();
         playerIntegration.stop();
+
+        if (bungeeAudiences != null) {
+            bungeeAudiences.close();
+        }
     }
 
     private CompletableFuture<Boolean> handleKickRequest(String playerUniqueId, String reason) {

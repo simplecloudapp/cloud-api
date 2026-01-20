@@ -20,8 +20,8 @@ velocity = "3.4.0-SNAPSHOT"
 bungeecord = "1.21-R0.4"
 paper = "1.21.4-R0.1-SNAPSHOT"
 
-adventure-api = "4.25.0"
-adventure-gson = "4.25.0"
+adventure = "4.25.0"
+adventure-platform = "4.4.1"
 
 minotaur = "2.8.7"
 sonatype-central-portal-publisher = "1.2.3"
@@ -47,8 +47,9 @@ paper-api = { module = "io.papermc.paper:paper-api", version.ref = "paper" }
 velocity = { module = "com.velocitypowered:velocity-api", version.ref = "velocity" }
 bungeecord = { module = "net.md-5:bungeecord-api", version.ref = "bungeecord" }
 
-adventure-api = { module = "net.kyori:adventure-api", version.ref = "adventure-api" }
-adventure-gson = { module = "net.kyori:adventure-text-serializer-gson", version.ref = "adventure-gson" }
+adventure-api = { module = "net.kyori:adventure-api", version.ref = "adventure" }
+adventure-gson = { module = "net.kyori:adventure-text-serializer-gson", version.ref = "adventure" }
+adventure-bungeecord = { module = "net.kyori:adventure-platform-bungeecord", version.ref = "adventure-platform" }
 
 [plugins]
 kotlin-jvm = { id = "org.jetbrains.kotlin.jvm", version.ref = "kotlin" }

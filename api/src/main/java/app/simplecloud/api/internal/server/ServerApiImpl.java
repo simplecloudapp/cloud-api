@@ -18,6 +18,10 @@ import app.simplecloud.api.web.models.ModelsPatchServerResponse;
 import app.simplecloud.api.web.models.ModelsServerSummary;
 import app.simplecloud.api.web.models.ModelsStartServerRequest;
 import app.simplecloud.api.web.models.ModelsStartServerResponse;
+import app.simplecloud.api.web.models.V0PersistentServersPropertiesDeleteRequest;
+import app.simplecloud.api.web.models.V0PersistentServersPropertiesPatchRequest;
+import app.simplecloud.api.web.models.V0ServersPatchRequest;
+import app.simplecloud.api.web.models.V0ServersPostRequest;
 import org.jetbrains.annotations.NotNull;
 import org.jetbrains.annotations.Nullable;
 
@@ -198,7 +202,7 @@ public class ServerApiImpl implements ServerApi {
                 ModelsStartServerResponse modelsStartServerResponse = serversApi.v0ServersPost(
                         this.options.getNetworkId(),
                         this.options.getNetworkSecret(),
-                        apiRequest
+                        new V0ServersPostRequest(apiRequest)
                 );
                 return new ServerImpl(modelsStartServerResponse.getServer());
             } catch (ApiException e) {
@@ -232,7 +236,7 @@ public class ServerApiImpl implements ServerApi {
                         this.options.getNetworkId(),
                         this.options.getNetworkSecret(),
                         id,
-                        patchRequest
+                        new V0ServersPatchRequest(patchRequest)
                 );
                 
                 if (response.getServer() == null) {
@@ -282,7 +286,7 @@ public class ServerApiImpl implements ServerApi {
                         this.options.getNetworkId(),
                         this.options.getNetworkSecret(),
                         id,
-                        request
+                        new V0PersistentServersPropertiesPatchRequest(request)
                 );
                 
                 Map<String, Object> result = response.getProperties();
@@ -304,7 +308,7 @@ public class ServerApiImpl implements ServerApi {
                         this.options.getNetworkId(),
                         this.options.getNetworkSecret(),
                         id,
-                        request
+                        new V0PersistentServersPropertiesDeleteRequest(request)
                 );
                 
                 Map<String, Object> result = response.getProperties();

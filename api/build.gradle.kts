@@ -90,8 +90,42 @@ openApiGenerate {
     )
 }
 
-tasks.compileJava {
+// Fix OpenAPI generator bug: oneOf schemas with Object option have wrong instanceof order
+// The generator checks "instanceof Object" before specific types, which always matches
+tasks.register("fixOpenApiGeneratedCode") {
     dependsOn("openApiGenerate")
+    doLast {
+        val modelsDir = file("$buildDir/generated/src/main/java/app/simplecloud/api/web/models")
+        modelsDir.listFiles()?.filter { it.name.startsWith("V0") && it.name.endsWith(".java") }?.forEach { file ->
+            var content = file.readText()
+
+            // Fix the write() method: move "instanceof Object" check to the end
+            // Pattern: check for specific type first, then Object
+            val writeMethodPattern = Regex(
+                """(// check if the actual instance is of the type `Object`\s+if \(value\.getActualInstance\(\) instanceof Object\) \{[^}]+\}\s+)(// check if the actual instance is of the type `(\w+)`\s+if \(value\.getActualInstance\(\) instanceof \3\) \{[^}]+\})""",
+                RegexOption.DOT_MATCHES_ALL
+            )
+            content = content.replace(writeMethodPattern) { match ->
+                // Swap: put specific type check before Object check
+                "${match.groupValues[2]}\n                    ${match.groupValues[1]}"
+            }
+
+            // Fix setActualInstance(): move "instanceof Object" check to the end
+            val setInstancePattern = Regex(
+                """(public void setActualInstance\(Object instance\) \{\s+)(if \(instance instanceof Object\) \{\s+super\.setActualInstance\(instance\);\s+return;\s+\}\s+)(if \(instance instanceof (\w+)\) \{)""",
+                RegexOption.DOT_MATCHES_ALL
+            )
+            content = content.replace(setInstancePattern) { match ->
+                "${match.groupValues[1]}${match.groupValues[3]}"
+            }
+
+            file.writeText(content)
+        }
+    }
+}
+
+tasks.compileJava {
+    dependsOn("fixOpenApiGeneratedCode")
 }
 
 tasks.named<Javadoc>("javadoc") {

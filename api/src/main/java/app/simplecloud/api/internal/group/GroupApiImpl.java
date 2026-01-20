@@ -134,7 +134,7 @@ public class GroupApiImpl implements GroupApi {
                 ModelsCreateServerGroupResponse response = serverGroupsApi.v0ServerGroupsPost(
                         this.options.getNetworkId(),
                         this.options.getNetworkSecret(),
-                        apiRequest
+                        new V0ServerGroupsPostRequest(apiRequest)
                 );
 
                 ModelsServerGroupSummary summary = new ModelsServerGroupSummary();
@@ -192,7 +192,7 @@ public class GroupApiImpl implements GroupApi {
                         this.options.getNetworkId(),
                         this.options.getNetworkSecret(),
                         id,
-                        apiRequest
+                        new V0ServerGroupsPutRequest(apiRequest)
                 );
 
                 ModelsServerGroupSummary summary = new ModelsServerGroupSummary();
@@ -306,7 +306,7 @@ public class GroupApiImpl implements GroupApi {
                         this.options.getNetworkId(),
                         this.options.getNetworkSecret(),
                         id,
-                        request
+                        new V0PersistentServersPropertiesPatchRequest(request)
                 );
 
                 Map<String, Object> result = response.getProperties();
@@ -328,7 +328,7 @@ public class GroupApiImpl implements GroupApi {
                         this.options.getNetworkId(),
                         this.options.getNetworkSecret(),
                         id,
-                        request
+                        new V0PersistentServersPropertiesDeleteRequest(request)
                 );
 
                 Map<String, Object> result = response.getProperties();
