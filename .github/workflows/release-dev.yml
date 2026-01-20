@@ -31,7 +31,7 @@ env:
     1.21.11
 jobs:
   build-and-publish:
-    runs-on: ubuntu-latest
+    runs-on: blacksmith-4vcpu-ubuntu-2404
     outputs:
       gradle_version: ${{ steps.versions.outputs.gradle_version }}
       commit_hash: ${{ steps.versions.outputs.commit_hash }}
@@ -137,7 +137,7 @@ jobs:
 
   publish-registry:
     needs: build-and-publish
-    runs-on: ubuntu-latest
+    runs-on: blacksmith-4vcpu-ubuntu-2404
     steps:
       - name: Download artifacts
         uses: actions/download-artifact@v4
@@ -247,7 +247,7 @@ jobs:
 
   create-github-release:
     needs: [ build-and-publish, publish-registry ]
-    runs-on: ubuntu-latest
+    runs-on: blacksmith-4vcpu-ubuntu-2404
     steps:
       - name: Checkout repository
         uses: actions/checkout@v4

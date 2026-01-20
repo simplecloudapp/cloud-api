@@ -8,7 +8,7 @@ on:
 
 jobs:
   build-and-publish-api:
-    runs-on: ubuntu-latest
+    runs-on: blacksmith-4vcpu-ubuntu-2404
     outputs:
       gradle_version: ${{ steps.versions.outputs.gradle_version }}
       commit_hash: ${{ steps.versions.outputs.commit_hash }}
