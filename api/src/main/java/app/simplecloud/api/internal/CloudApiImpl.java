@@ -6,8 +6,10 @@ import app.simplecloud.api.event.EventApi;
 import app.simplecloud.api.group.GroupApi;
 import app.simplecloud.api.internal.event.EventApiImpl;
 import app.simplecloud.api.internal.group.GroupApiImpl;
+import app.simplecloud.api.internal.persistentserver.PersistentServerApiImpl;
 import app.simplecloud.api.internal.server.ServerApiImpl;
 import app.simplecloud.api.internal.player.PlayerApiImpl;
+import app.simplecloud.api.persistentserver.PersistentServerApi;
 import app.simplecloud.api.player.PlayerApi;
 import app.simplecloud.api.server.ServerApi;
 import io.nats.client.Connection;
@@ -23,6 +25,7 @@ public class CloudApiImpl implements CloudApi {
     private final Connection natsClient;
     private final ServerApi serverApi;
     private final GroupApi groupApi;
+    private final PersistentServerApi persistentServerApi;
     private final EventApi eventApi;
     private final PlayerApi playerApi;
 
@@ -42,6 +45,7 @@ public class CloudApiImpl implements CloudApi {
 
         this.serverApi = new ServerApiImpl(options);
         this.groupApi = new GroupApiImpl(options);
+        this.persistentServerApi = new PersistentServerApiImpl(options);
         this.eventApi = new EventApiImpl(natsClient, options.getNetworkId());
         this.playerApi = new PlayerApiImpl(options, natsClient);
     }
@@ -54,6 +58,11 @@ public class CloudApiImpl implements CloudApi {
     @Override
     public ServerApi server() {
         return serverApi;
+    }
+
+    @Override
+    public PersistentServerApi persistentServer() {
+        return persistentServerApi;
     }
 
     @Override

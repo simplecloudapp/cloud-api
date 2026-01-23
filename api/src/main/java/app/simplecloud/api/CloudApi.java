@@ -3,6 +3,7 @@ package app.simplecloud.api;
 import app.simplecloud.api.event.EventApi;
 import app.simplecloud.api.group.GroupApi;
 import app.simplecloud.api.internal.CloudApiImpl;
+import app.simplecloud.api.persistentserver.PersistentServerApi;
 import app.simplecloud.api.player.PlayerApi;
 import app.simplecloud.api.server.ServerApi;
 
@@ -81,6 +82,16 @@ public interface CloudApi {
      * @return the server API
      */
     ServerApi server();
+
+    /**
+     * Returns the persistent server management API.
+     *
+     * <p>Use this to create, read, update, and delete persistent servers.
+     * Persistent servers are long-lived server instances that maintain state across restarts.
+     *
+     * @return the persistent server API
+     */
+    PersistentServerApi persistentServer();
 
     /**
      * Returns the event subscription API.
