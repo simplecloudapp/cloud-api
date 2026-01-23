@@ -9,7 +9,7 @@ plugins {
     `signing`
 }
 
-val baseVersion = "0.1.0-platform.13"
+val baseVersion = "0.1.0-platform.14"
 val commitHash = System.getenv("COMMIT_HASH")
 val isSnapshot = commitHash != null
 
