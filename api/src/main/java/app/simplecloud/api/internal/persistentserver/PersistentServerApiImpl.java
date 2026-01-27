@@ -1,6 +1,8 @@
 package app.simplecloud.api.internal.persistentserver;
 
 import app.simplecloud.api.CloudApiOptions;
+import app.simplecloud.api.cache.QueryCache;
+import app.simplecloud.api.cache.QueryKey;
 import app.simplecloud.api.group.SourceConfig;
 import app.simplecloud.api.group.WorkflowsConfig;
 import app.simplecloud.api.persistentserver.*;
@@ -18,16 +20,20 @@ public class PersistentServerApiImpl implements PersistentServerApi {
 
     private final CloudApiOptions options;
     private final PersistentServersApi persistentServersApi;
+    private final QueryCache cache;
 
-    public PersistentServerApiImpl(CloudApiOptions options) {
+    public PersistentServerApiImpl(CloudApiOptions options, QueryCache cache) {
         this.options = options;
+        this.cache = cache;
         this.persistentServersApi = new PersistentServersApi();
         this.persistentServersApi.setCustomBaseUrl(options.getControllerUrl());
     }
 
     @Override
     public CompletableFuture<PersistentServer> getPersistentServerById(String id) {
-        return CompletableFuture.supplyAsync(() -> {
+        QueryKey key = QueryKey.of("persistentServer", id);
+
+        return cache.fetch(key, () -> CompletableFuture.supplyAsync(() -> {
             try {
                 ModelsListPersistentServersResponse response = persistentServersApi.v0PersistentServersGet(
                         options.getNetworkId(),
@@ -45,12 +51,14 @@ public class PersistentServerApiImpl implements PersistentServerApi {
             } catch (ApiException e) {
                 throw new RuntimeException(e);
             }
-        });
+        }));
     }
 
     @Override
     public CompletableFuture<PersistentServer> getPersistentServerByName(String name) {
-        return CompletableFuture.supplyAsync(() -> {
+        QueryKey key = QueryKey.of("persistentServer", "name", name);
+
+        return cache.fetch(key, () -> CompletableFuture.supplyAsync(() -> {
             try {
                 ModelsListPersistentServersResponse response = persistentServersApi.v0PersistentServersGet(
                         options.getNetworkId(),
@@ -68,12 +76,14 @@ public class PersistentServerApiImpl implements PersistentServerApi {
             } catch (ApiException e) {
                 throw new RuntimeException(e);
             }
-        });
+        }));
     }
 
     @Override
     public CompletableFuture<List<PersistentServer>> getAllPersistentServers(@Nullable PersistentServerQuery query) {
-        return CompletableFuture.supplyAsync(() -> {
+        QueryKey key = buildQueryKey(query);
+
+        return cache.fetch(key, () -> CompletableFuture.supplyAsync(() -> {
             try {
                 ModelsListPersistentServersResponse response = persistentServersApi.v0PersistentServersGet(
                         options.getNetworkId(),
@@ -105,7 +115,19 @@ public class PersistentServerApiImpl implements PersistentServerApi {
             } catch (ApiException e) {
                 throw new RuntimeException(e);
             }
-        });
+        }));
+    }
+
+    private QueryKey buildQueryKey(@Nullable PersistentServerQuery query) {
+        if (query == null) {
+            return QueryKey.of("persistentServers");
+        }
+        return QueryKey.of("persistentServers", "query",
+                query.getActive(),
+                query.getServerhostId(),
+                query.getTags(),
+                query.getLimit()
+        );
     }
 
     @Override
@@ -137,6 +159,9 @@ public class PersistentServerApiImpl implements PersistentServerApi {
                         options.getNetworkSecret(),
                         new V0PersistentServersPostRequest(apiRequest)
                 );
+
+                // Invalidate list caches (new persistent server created)
+                cache.invalidateAll(QueryKey.of("persistentServers"));
 
                 // Re-fetch to get the full object
                 return getPersistentServerById(response.getPersistentServerId()).join();
@@ -177,6 +202,10 @@ public class PersistentServerApiImpl implements PersistentServerApi {
                         new V0PersistentServersPutRequest(apiRequest)
                 );
 
+                // Invalidate cache before re-fetching
+                cache.invalidate(QueryKey.of("persistentServer", id));
+                cache.invalidateAll(QueryKey.of("persistentServers"));
+
                 // Re-fetch to get the updated object
                 return getPersistentServerById(id).join();
             } catch (ApiException e) {
@@ -194,6 +223,10 @@ public class PersistentServerApiImpl implements PersistentServerApi {
                         options.getNetworkSecret(),
                         id
                 );
+
+                // Invalidate this persistent server and list caches
+                cache.invalidate(QueryKey.of("persistentServer", id));
+                cache.invalidateAll(QueryKey.of("persistentServers"));
             } catch (ApiException e) {
                 throw new RuntimeException(e);
             }
@@ -213,6 +246,10 @@ public class PersistentServerApiImpl implements PersistentServerApi {
                         id,
                         new V0PersistentServersPropertiesPatchRequest(request)
                 );
+
+                // Invalidate persistent server cache (properties changed)
+                cache.invalidate(QueryKey.of("persistentServer", id));
+                cache.invalidateAll(QueryKey.of("persistentServers"));
 
                 Map<String, Object> result = response.getProperties();
                 return result != null ? result : new HashMap<>();
@@ -235,6 +272,10 @@ public class PersistentServerApiImpl implements PersistentServerApi {
                         id,
                         new V0PersistentServersPropertiesDeleteRequest(request)
                 );
+
+                // Invalidate persistent server cache (properties changed)
+                cache.invalidate(QueryKey.of("persistentServer", id));
+                cache.invalidateAll(QueryKey.of("persistentServers"));
 
                 Map<String, Object> result = response.getProperties();
                 return result != null ? result : new HashMap<>();

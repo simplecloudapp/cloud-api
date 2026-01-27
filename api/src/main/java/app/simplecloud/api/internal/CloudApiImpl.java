@@ -2,8 +2,13 @@ package app.simplecloud.api.internal;
 
 import app.simplecloud.api.CloudApi;
 import app.simplecloud.api.CloudApiOptions;
+import app.simplecloud.api.cache.CacheConfig;
+import app.simplecloud.api.cache.QueryCache;
 import app.simplecloud.api.event.EventApi;
 import app.simplecloud.api.group.GroupApi;
+import app.simplecloud.api.internal.cache.CacheEventListener;
+import app.simplecloud.api.internal.cache.NoOpQueryCache;
+import app.simplecloud.api.internal.cache.QueryCacheImpl;
 import app.simplecloud.api.internal.event.EventApiImpl;
 import app.simplecloud.api.internal.group.GroupApiImpl;
 import app.simplecloud.api.internal.persistentserver.PersistentServerApiImpl;
@@ -23,6 +28,8 @@ public class CloudApiImpl implements CloudApi {
     private final CloudApiOptions options;
 
     private final Connection natsClient;
+    private final QueryCache queryCache;
+    private final CacheEventListener cacheEventListener;
     private final ServerApi serverApi;
     private final GroupApi groupApi;
     private final PersistentServerApi persistentServerApi;
@@ -43,11 +50,28 @@ public class CloudApiImpl implements CloudApi {
             throw new RuntimeException(e);
         }
 
-        this.serverApi = new ServerApiImpl(options);
-        this.groupApi = new GroupApiImpl(options);
-        this.persistentServerApi = new PersistentServerApiImpl(options);
+        // Initialize cache
+        CacheConfig cacheConfig = options.getCacheConfig();
+        if (cacheConfig.isEnabled()) {
+            this.queryCache = new QueryCacheImpl(cacheConfig);
+        } else {
+            this.queryCache = new NoOpQueryCache();
+        }
+
+        // Initialize APIs with cache
         this.eventApi = new EventApiImpl(natsClient, options.getNetworkId());
+        this.serverApi = new ServerApiImpl(options, queryCache);
+        this.groupApi = new GroupApiImpl(options, queryCache);
+        this.persistentServerApi = new PersistentServerApiImpl(options, queryCache);
         this.playerApi = new PlayerApiImpl(options, natsClient);
+
+        // Setup event-based cache invalidation with debouncing
+        if (cacheConfig.isEnabled() && cacheConfig.isAutoInvalidateOnEvents()) {
+            long debounceMs = cacheConfig.getEventDebounceTime().toMillis();
+            this.cacheEventListener = new CacheEventListener(queryCache, eventApi, debounceMs);
+        } else {
+            this.cacheEventListener = null;
+        }
     }
 
     @Override
@@ -88,6 +112,11 @@ public class CloudApiImpl implements CloudApi {
     @Override
     public String getNetworkId() {
         return options.getNetworkId();
+    }
+
+    @Override
+    public QueryCache cache() {
+        return queryCache;
     }
 
 }

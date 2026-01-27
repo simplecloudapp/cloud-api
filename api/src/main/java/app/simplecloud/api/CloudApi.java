@@ -1,5 +1,7 @@
 package app.simplecloud.api;
 
+import app.simplecloud.api.cache.QueryCache;
+import app.simplecloud.api.cache.QueryKey;
 import app.simplecloud.api.event.EventApi;
 import app.simplecloud.api.group.GroupApi;
 import app.simplecloud.api.internal.CloudApiImpl;
@@ -119,6 +121,26 @@ public interface CloudApi {
      * @return the network ID
      */
     String getNetworkId();
+
+    /**
+     * Returns the query cache for manual cache operations.
+     *
+     * <p>Use this for manual invalidation or to inspect cache state:
+     * <pre>{@code
+     * // Invalidate a specific server
+     * cloudApi.cache().invalidate(QueryKey.of("server", serverId));
+     *
+     * // Invalidate all servers
+     * cloudApi.cache().invalidateAll(QueryKey.of("servers"));
+     *
+     * // Get cache statistics
+     * CacheStats stats = cloudApi.cache().getStats();
+     * System.out.println("Cache hit rate: " + stats.getHitRate());
+     * }</pre>
+     *
+     * @return the query cache
+     */
+    QueryCache cache();
 
 }
 

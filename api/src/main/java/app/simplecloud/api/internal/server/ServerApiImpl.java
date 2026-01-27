@@ -1,6 +1,8 @@
 package app.simplecloud.api.internal.server;
 
 import app.simplecloud.api.CloudApiOptions;
+import app.simplecloud.api.cache.QueryCache;
+import app.simplecloud.api.cache.QueryKey;
 import app.simplecloud.api.server.Server;
 import app.simplecloud.api.server.ServerApi;
 import app.simplecloud.api.server.ServerQuery;
@@ -34,16 +36,20 @@ public class ServerApiImpl implements ServerApi {
 
     private final CloudApiOptions options;
     private final ServersApi serversApi;
+    private final QueryCache cache;
 
-    public ServerApiImpl(CloudApiOptions options) {
+    public ServerApiImpl(CloudApiOptions options, QueryCache cache) {
         this.options = options;
+        this.cache = cache;
         this.serversApi = new ServersApi();
         this.serversApi.setCustomBaseUrl(options.getControllerUrl());
     }
 
     @Override
     public CompletableFuture<Server> getServerById(String id) {
-        return CompletableFuture.supplyAsync(() -> {
+        QueryKey key = QueryKey.of("server", id);
+
+        return cache.fetch(key, () -> CompletableFuture.supplyAsync(() -> {
             try {
                 ServerQuery query = ServerQuery.create();
                 ModelsListServersResponse serversResponse = executeQuery(query);
@@ -60,12 +66,14 @@ public class ServerApiImpl implements ServerApi {
             } catch (ApiException e) {
                 throw new RuntimeException(e);
             }
-        });
+        }));
     }
 
     @Override
     public CompletableFuture<Server> getServerByNumericalId(String groupName, int numericalId) {
-        return CompletableFuture.supplyAsync(() -> {
+        QueryKey key = QueryKey.of("server", "numerical", groupName, numericalId);
+
+        return cache.fetch(key, () -> CompletableFuture.supplyAsync(() -> {
             try {
                 ServerQuery query = ServerQuery.create()
                         .filterByServerGroupName(groupName)
@@ -87,12 +95,14 @@ public class ServerApiImpl implements ServerApi {
             } catch (ApiException e) {
                 throw new RuntimeException(e);
             }
-        });
+        }));
     }
 
     @Override
     public CompletableFuture<List<Server>> getServersByGroup(String groupName) {
-        return CompletableFuture.supplyAsync(() -> {
+        QueryKey key = QueryKey.of("servers", "group", groupName);
+
+        return cache.fetch(key, () -> CompletableFuture.supplyAsync(() -> {
             try {
                 ServerQuery query = ServerQuery.create()
                         .filterByServerGroupName(groupName);
@@ -109,12 +119,14 @@ public class ServerApiImpl implements ServerApi {
             } catch (ApiException e) {
                 throw new RuntimeException(e);
             }
-        });
+        }));
     }
 
     @Override
     public CompletableFuture<List<Server>> getAllServers(@Nullable ServerQuery query) {
-        return CompletableFuture.supplyAsync(() -> {
+        QueryKey key = buildQueryKey(query);
+
+        return cache.fetch(key, () -> CompletableFuture.supplyAsync(() -> {
             try {
                 ModelsListServersResponse serversResponse = executeQuery(query);
 
@@ -129,7 +141,26 @@ public class ServerApiImpl implements ServerApi {
             } catch (ApiException e) {
                 throw new RuntimeException(e);
             }
-        });
+        }));
+    }
+
+    private QueryKey buildQueryKey(@Nullable ServerQuery query) {
+        if (query == null) {
+            return QueryKey.of("servers");
+        }
+        // Build a deterministic cache key from query parameters
+        return QueryKey.of("servers", "query",
+                query.getServerGroupIds(),
+                query.getStates(),
+                query.getServerhostId(),
+                query.getPersistentServerId(),
+                query.getServerGroupTypes(),
+                query.getServerGroupNames(),
+                query.getServerGroupTags(),
+                query.getNumericalIds(),
+                query.getSortBy(),
+                query.getSortOrder()
+        );
     }
 
     private ModelsListServersResponse executeQuery(@Nullable ServerQuery query) throws ApiException {
@@ -204,6 +235,10 @@ public class ServerApiImpl implements ServerApi {
                         this.options.getNetworkSecret(),
                         new V0ServersPostRequest(apiRequest)
                 );
+
+                // Invalidate server list caches (new server appeared)
+                cache.invalidateAll(QueryKey.of("servers"));
+
                 return new ServerImpl(modelsStartServerResponse.getServer());
             } catch (ApiException e) {
                 throw new RuntimeException(e);
@@ -220,6 +255,10 @@ public class ServerApiImpl implements ServerApi {
                         this.options.getNetworkSecret(),
                         id
                 );
+
+                // Invalidate this server and list caches
+                cache.invalidate(QueryKey.of("server", id));
+                cache.invalidateAll(QueryKey.of("servers"));
             } catch (ApiException e) {
                 throw new RuntimeException(e);
             }
@@ -238,12 +277,18 @@ public class ServerApiImpl implements ServerApi {
                         id,
                         new V0ServersPatchRequest(patchRequest)
                 );
-                
+
                 if (response.getServer() == null) {
                     throw new RuntimeException("Server update response did not contain server data");
                 }
-                
-                return new ServerImpl(response.getServer());
+
+                Server server = new ServerImpl(response.getServer());
+
+                // Update cache with new data and invalidate list caches
+                cache.set(QueryKey.of("server", id), server);
+                cache.invalidateAll(QueryKey.of("servers"));
+
+                return server;
             } catch (ApiException e) {
                 throw new RuntimeException(e);
             }
@@ -281,14 +326,18 @@ public class ServerApiImpl implements ServerApi {
             try {
                 ModelsPatchPropertiesRequest request = new ModelsPatchPropertiesRequest();
                 request.setProperties(properties);
-                
+
                 ModelsPatchPropertiesResponse response = serversApi.v0ServersPropertiesPatch(
                         this.options.getNetworkId(),
                         this.options.getNetworkSecret(),
                         id,
                         new V0PersistentServersPropertiesPatchRequest(request)
                 );
-                
+
+                // Invalidate server cache (properties changed)
+                cache.invalidate(QueryKey.of("server", id));
+                cache.invalidateAll(QueryKey.of("servers"));
+
                 Map<String, Object> result = response.getProperties();
                 return result != null ? result : new HashMap<>();
             } catch (ApiException e) {
@@ -303,14 +352,18 @@ public class ServerApiImpl implements ServerApi {
             try {
                 ModelsDeletePropertiesRequest request = new ModelsDeletePropertiesRequest();
                 request.setKeys(keys);
-                
+
                 ModelsDeletePropertiesResponse response = serversApi.v0ServersPropertiesDelete(
                         this.options.getNetworkId(),
                         this.options.getNetworkSecret(),
                         id,
                         new V0PersistentServersPropertiesDeleteRequest(request)
                 );
-                
+
+                // Invalidate server cache (properties changed)
+                cache.invalidate(QueryKey.of("server", id));
+                cache.invalidateAll(QueryKey.of("servers"));
+
                 Map<String, Object> result = response.getProperties();
                 return result != null ? result : new HashMap<>();
             } catch (ApiException e) {

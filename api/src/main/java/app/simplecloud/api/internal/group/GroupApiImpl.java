@@ -1,6 +1,8 @@
 package app.simplecloud.api.internal.group;
 
 import app.simplecloud.api.CloudApiOptions;
+import app.simplecloud.api.cache.QueryCache;
+import app.simplecloud.api.cache.QueryKey;
 import app.simplecloud.api.group.*;
 import app.simplecloud.api.web.ApiException;
 import app.simplecloud.api.web.apis.ServerGroupsApi;
@@ -15,16 +17,20 @@ public class GroupApiImpl implements GroupApi {
 
     private final CloudApiOptions options;
     private final ServerGroupsApi serverGroupsApi;
+    private final QueryCache cache;
 
-    public GroupApiImpl(CloudApiOptions options) {
+    public GroupApiImpl(CloudApiOptions options, QueryCache cache) {
         this.options = options;
+        this.cache = cache;
         this.serverGroupsApi = new ServerGroupsApi();
         this.serverGroupsApi.setCustomBaseUrl(options.getControllerUrl());
     }
 
     @Override
     public CompletableFuture<Group> getGroupByName(String name) {
-        return CompletableFuture.supplyAsync(() -> {
+        QueryKey key = QueryKey.of("group", "name", name);
+
+        return cache.fetch(key, () -> CompletableFuture.supplyAsync(() -> {
             try {
                 ModelsListServerGroupsResponse response = executeQuery(null);
                 List<ModelsServerGroupSummary> groups = response.getServerGroups();
@@ -39,12 +45,14 @@ public class GroupApiImpl implements GroupApi {
             } catch (ApiException e) {
                 throw new RuntimeException(e);
             }
-        });
+        }));
     }
 
     @Override
     public CompletableFuture<Group> getGroupById(String id) {
-        return CompletableFuture.supplyAsync(() -> {
+        QueryKey key = QueryKey.of("group", id);
+
+        return cache.fetch(key, () -> CompletableFuture.supplyAsync(() -> {
             try {
                 ModelsListServerGroupsResponse response = executeQuery(null);
                 List<ModelsServerGroupSummary> groups = response.getServerGroups();
@@ -59,12 +67,14 @@ public class GroupApiImpl implements GroupApi {
             } catch (ApiException e) {
                 throw new RuntimeException(e);
             }
-        });
+        }));
     }
 
     @Override
     public CompletableFuture<List<Group>> getAllGroups(@org.jetbrains.annotations.Nullable GroupQuery query) {
-        return CompletableFuture.supplyAsync(() -> {
+        QueryKey key = buildQueryKey(query);
+
+        return cache.fetch(key, () -> CompletableFuture.supplyAsync(() -> {
             try {
                 ModelsListServerGroupsResponse response = executeQuery(query);
                 List<ModelsServerGroupSummary> groups = response.getServerGroups();
@@ -92,7 +102,18 @@ public class GroupApiImpl implements GroupApi {
             } catch (ApiException e) {
                 throw new RuntimeException(e);
             }
-        });
+        }));
+    }
+
+    private QueryKey buildQueryKey(@org.jetbrains.annotations.Nullable GroupQuery query) {
+        if (query == null) {
+            return QueryKey.of("groups");
+        }
+        return QueryKey.of("groups", "query",
+                query.getType(),
+                query.getTag(),
+                query.getLimit()
+        );
     }
 
     private ModelsListServerGroupsResponse executeQuery(@org.jetbrains.annotations.Nullable GroupQuery query) throws ApiException {
@@ -136,6 +157,9 @@ public class GroupApiImpl implements GroupApi {
                         this.options.getNetworkSecret(),
                         new V0ServerGroupsPostRequest(apiRequest)
                 );
+
+                // Invalidate group list caches (new group created)
+                cache.invalidateAll(QueryKey.of("groups"));
 
                 ModelsServerGroupSummary summary = new ModelsServerGroupSummary();
                 summary.setServerGroupId(response.getServerGroupId());
@@ -211,7 +235,13 @@ public class GroupApiImpl implements GroupApi {
                 summary.setCreatedAt(response.getCreatedAt());
                 summary.setUpdatedAt(response.getUpdatedAt());
 
-                return new GroupImpl(summary);
+                Group group = new GroupImpl(summary);
+
+                // Update cache with new data and invalidate list caches
+                cache.set(QueryKey.of("group", id), group);
+                cache.invalidateAll(QueryKey.of("groups"));
+
+                return group;
             } catch (ApiException e) {
                 throw new RuntimeException(e);
             }
@@ -289,6 +319,10 @@ public class GroupApiImpl implements GroupApi {
                         this.options.getNetworkSecret(),
                         id
                 );
+
+                // Invalidate this group and list caches
+                cache.invalidate(QueryKey.of("group", id));
+                cache.invalidateAll(QueryKey.of("groups"));
             } catch (ApiException e) {
                 throw new RuntimeException(e);
             }
@@ -308,6 +342,10 @@ public class GroupApiImpl implements GroupApi {
                         id,
                         new V0PersistentServersPropertiesPatchRequest(request)
                 );
+
+                // Invalidate group cache (properties changed)
+                cache.invalidate(QueryKey.of("group", id));
+                cache.invalidateAll(QueryKey.of("groups"));
 
                 Map<String, Object> result = response.getProperties();
                 return result != null ? result : new HashMap<>();
@@ -330,6 +368,10 @@ public class GroupApiImpl implements GroupApi {
                         id,
                         new V0PersistentServersPropertiesDeleteRequest(request)
                 );
+
+                // Invalidate group cache (properties changed)
+                cache.invalidate(QueryKey.of("group", id));
+                cache.invalidateAll(QueryKey.of("groups"));
 
                 Map<String, Object> result = response.getProperties();
                 return result != null ? result : new HashMap<>();

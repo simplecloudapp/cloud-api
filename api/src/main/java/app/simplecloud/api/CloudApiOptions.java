@@ -1,5 +1,7 @@
 package app.simplecloud.api;
 
+import app.simplecloud.api.cache.CacheConfig;
+
 public class CloudApiOptions {
 
     public final static CloudApiOptions DEFAULT = new Builder().build();
@@ -8,12 +10,14 @@ public class CloudApiOptions {
     private final String controllerUrl;
     private final String networkId;
     private final String networkSecret;
+    private final CacheConfig cacheConfig;
 
     private CloudApiOptions(Builder builder) {
         this.natsUrl = builder.natsUrl;
         this.controllerUrl = builder.controllerUrl;
         this.networkId = builder.networkId;
         this.networkSecret = builder.networkSecret;
+        this.cacheConfig = builder.cacheConfig;
     }
 
     public String getNatsUrl() {
@@ -32,6 +36,15 @@ public class CloudApiOptions {
         return networkSecret;
     }
 
+    /**
+     * Returns the cache configuration.
+     *
+     * @return the cache configuration
+     */
+    public CacheConfig getCacheConfig() {
+        return cacheConfig;
+    }
+
     public static Builder builder() {
         return new Builder();
     }
@@ -41,6 +54,7 @@ public class CloudApiOptions {
         private String controllerUrl;
         private String networkId;
         private String networkSecret;
+        private CacheConfig cacheConfig = CacheConfig.DEFAULT;
 
         public Builder() {
             this.natsUrl = System.getenv().getOrDefault("SIMPLECLOUD_NATS_URL", "nats://platform.simplecloud.app:4222");
@@ -66,6 +80,31 @@ public class CloudApiOptions {
 
         public Builder networkSecret(String networkSecret) {
             this.networkSecret = networkSecret;
+            return this;
+        }
+
+        /**
+         * Sets the cache configuration.
+         *
+         * <p>By default, caching is enabled with sensible defaults.
+         * Use {@link CacheConfig#DISABLED} to disable caching entirely.
+         *
+         * @param cacheConfig the cache configuration
+         * @return this builder
+         */
+        public Builder cache(CacheConfig cacheConfig) {
+            this.cacheConfig = cacheConfig;
+            return this;
+        }
+
+        /**
+         * Disables caching entirely.
+         * Shorthand for {@code cache(CacheConfig.DISABLED)}.
+         *
+         * @return this builder
+         */
+        public Builder disableCache() {
+            this.cacheConfig = CacheConfig.DISABLED;
             return this;
         }
 
