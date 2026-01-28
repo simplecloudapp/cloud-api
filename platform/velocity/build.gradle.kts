@@ -5,6 +5,7 @@ plugins {
 dependencies {
     implementation(project(":platform:shared"))
     compileOnly(rootProject.libs.velocity)
+    annotationProcessor(rootProject.libs.velocity)
     compileOnly(rootProject.libs.adventure.api)
     implementation(project(":api")) {
         exclude(group = "net.kyori")

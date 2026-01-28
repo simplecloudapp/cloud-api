@@ -4,20 +4,27 @@ import app.simplecloud.api.CloudApi;
 import app.simplecloud.api.internal.integration.player.PlayerIntegration;
 import app.simplecloud.api.player.CloudPlayer;
 import app.simplecloud.api.platform.shared.PlayerSynchronizer;
+import com.google.inject.Inject;
 import com.velocitypowered.api.event.Subscribe;
 import com.velocitypowered.api.event.proxy.ProxyInitializeEvent;
 import com.velocitypowered.api.event.proxy.ProxyShutdownEvent;
+import com.velocitypowered.api.plugin.Plugin;
 import com.velocitypowered.api.proxy.ConnectionRequestBuilder;
 import com.velocitypowered.api.proxy.Player;
 import com.velocitypowered.api.proxy.ProxyServer;
 import net.kyori.adventure.text.serializer.gson.GsonComponentSerializer;
 import org.slf4j.Logger;
 
-import javax.inject.Inject;
 import java.util.UUID;
 import java.util.concurrent.CompletableFuture;
 
-public class VelocityApiProvider {
+@Plugin(
+        id = "simplecloud-api",
+        name = "SimpleCloud API",
+        version = "1.0",
+        authors = {"Fllip"}
+)
+public class CloudApiVelocityPlugin {
 
     private final Logger logger;
     private final ProxyServer proxyServer;
@@ -26,7 +33,7 @@ public class VelocityApiProvider {
     private final PlayerIntegration playerIntegration;
 
     @Inject
-    public VelocityApiProvider(Logger logger, ProxyServer proxyServer) {
+    public CloudApiVelocityPlugin(Logger logger, ProxyServer proxyServer) {
         this.logger = logger;
         this.proxyServer = proxyServer;
         this.cloudApi = CloudApi.create();

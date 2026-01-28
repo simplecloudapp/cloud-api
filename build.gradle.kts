@@ -9,7 +9,7 @@ plugins {
     `signing`
 }
 
-val baseVersion = "0.1.0-platform.15"
+val baseVersion = "0.1.0-platform.16"
 val commitHash = System.getenv("COMMIT_HASH")
 val isSnapshot = commitHash != null
 
@@ -49,7 +49,9 @@ subprojects {
 
             // Relocate to match api module's shading (so references match at runtime)
             relocate("io.nats", "app.simplecloud.api.shaded.nats")
-            relocate("com.google", "app.simplecloud.api.shaded.google")
+            relocate("com.google", "app.simplecloud.api.shaded.google") {
+                exclude("com.google.inject.**")
+            }
             relocate("build.buf", "app.simplecloud.api.shaded.buf")
             relocate("okhttp3", "app.simplecloud.api.shaded.okhttp3")
             relocate("okio", "app.simplecloud.api.shaded.okio")
