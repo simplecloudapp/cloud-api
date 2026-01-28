@@ -114,7 +114,7 @@ tasks.register("buildTemplates") {
             val jarFile = shadowJarTask.archiveFile.get().asFile
 
             val folderName = platform.removeSuffix("-legacy")
-            val templateDir = file("run/templates/every_$folderName/plugins")
+            val templateDir = file("run/templates/_every/every_$folderName/plugins")
             templateDir.mkdirs()
 
             val targetName = if (platform.endsWith("-legacy")) {
@@ -127,9 +127,9 @@ tasks.register("buildTemplates") {
             println("Copied $jarFile to ${File(templateDir, targetName)}")
         }
 
-        val waterfallDir = file("run/templates/every_waterfall")
+        val waterfallDir = file("run/templates/_every/every_waterfall")
         waterfallDir.deleteRecursively()
-        file("run/templates/every_bungeecord").copyRecursively(waterfallDir)
+        file("run/templates/_every/every_bungeecord").copyRecursively(waterfallDir)
         println("Copied every_bungeecord to every_waterfall")
     }
 }
