@@ -128,7 +128,13 @@ public class PlayerApiImpl implements PlayerApi {
                 player.getName(),
                 player.getDisplayName(),
                 player.getConnectedProxyName(),
-                player.getConnectedServerName()
+                player.getConnectedServerName(),
+                player.getOnline() != null && player.getOnline(),
+                player.getOnlineTimeSeconds() != null ? player.getOnlineTimeSeconds().longValue() : 0L,
+                player.getSessionId(),
+                player.getFirstSeen(),
+                player.getLastSeen(),
+                player.getProperties()
         );
     }
 
@@ -140,7 +146,13 @@ public class PlayerApiImpl implements PlayerApi {
                 player.getName(),
                 player.getDisplayName(),
                 player.getConnectedProxyName(),
-                player.getConnectedServerName()
+                player.getConnectedServerName(),
+                player.getOnline() != null && player.getOnline(),
+                player.getOnlineTimeSeconds() != null ? player.getOnlineTimeSeconds().longValue() : 0L,
+                player.getSessionId(),
+                player.getFirstSeen(),
+                player.getLastSeen(),
+                player.getProperties()
         );
     }
 }

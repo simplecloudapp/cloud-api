@@ -3,6 +3,7 @@ package app.simplecloud.api.player;
 import net.kyori.adventure.audience.Audience;
 import net.kyori.adventure.text.Component;
 
+import java.util.Map;
 import java.util.UUID;
 import java.util.concurrent.CompletableFuture;
 
@@ -61,18 +62,60 @@ public interface CloudPlayer extends Audience {
     String getDisplayName();
 
     /**
-     * Returns the unique ID of the proxy the player is connected through.
+     * Returns the name of the proxy the player is connected through.
      *
-     * @return the proxy server ID
+     * @return the proxy name, or null if unavailable
      */
-    String getConnectedProxyId();
+    String getConnectedProxyName();
 
     /**
-     * Returns the unique ID of the server the player is currently on.
+     * Returns the name of the server the player is currently on.
      *
-     * @return the server ID, or null if not connected to a backend server
+     * @return the server name, or null if not connected to a backend server
      */
-    String getConnectedServerId();
+    String getConnectedServerName();
+
+    /**
+     * Returns whether the player is currently online.
+     *
+     * @return true if online
+     */
+    boolean isOnline();
+
+    /**
+     * Returns accumulated online time in seconds.
+     *
+     * @return total online time in seconds
+     */
+    long getOnlineTimeSeconds();
+
+    /**
+     * Returns the active session ID when online.
+     *
+     * @return session ID, or null if unavailable
+     */
+    String getSessionId();
+
+    /**
+     * Returns the first seen timestamp as returned by the controller.
+     *
+     * @return ISO-8601 timestamp string, or null if unavailable
+     */
+    String getFirstSeen();
+
+    /**
+     * Returns the last seen timestamp as returned by the controller.
+     *
+     * @return ISO-8601 timestamp string, or null if unavailable
+     */
+    String getLastSeen();
+
+    /**
+     * Returns custom player properties.
+     *
+     * @return immutable map of properties (empty if none)
+     */
+    Map<String, String> getProperties();
 
     /**
      * Kicks the player from the network with the specified reason.

@@ -15,6 +15,9 @@ import net.kyori.adventure.text.Component;
 import net.kyori.adventure.text.serializer.gson.GsonComponentSerializer;
 
 import java.time.Duration;
+import java.util.Collections;
+import java.util.HashMap;
+import java.util.Map;
 import java.util.UUID;
 import java.util.concurrent.CompletableFuture;
 
@@ -32,8 +35,14 @@ public class CloudPlayerImpl implements CloudPlayer, ForwardingAudience.Single {
     private final UUID uniqueId;
     private final String name;
     private final String displayName;
-    private final String connectedProxyId;
-    private final String connectedServerId;
+    private final String connectedProxyName;
+    private final String connectedServerName;
+    private final boolean online;
+    private final long onlineTimeSeconds;
+    private final String sessionId;
+    private final String firstSeen;
+    private final String lastSeen;
+    private final Map<String, String> properties;
 
     public CloudPlayerImpl(
             Connection natsConnection,
@@ -41,8 +50,14 @@ public class CloudPlayerImpl implements CloudPlayer, ForwardingAudience.Single {
             UUID uniqueId,
             String name,
             String displayName,
-            String connectedProxyId,
-            String connectedServerId
+            String connectedProxyName,
+            String connectedServerName,
+            boolean online,
+            long onlineTimeSeconds,
+            String sessionId,
+            String firstSeen,
+            String lastSeen,
+            Map<String, String> properties
     ) {
         this.natsConnection = natsConnection;
         this.networkId = networkId;
@@ -50,8 +65,18 @@ public class CloudPlayerImpl implements CloudPlayer, ForwardingAudience.Single {
         this.uniqueId = uniqueId;
         this.name = name;
         this.displayName = displayName;
-        this.connectedProxyId = connectedProxyId;
-        this.connectedServerId = connectedServerId;
+        this.connectedProxyName = connectedProxyName;
+        this.connectedServerName = connectedServerName;
+        this.online = online;
+        this.onlineTimeSeconds = onlineTimeSeconds;
+        this.sessionId = sessionId;
+        this.firstSeen = firstSeen;
+        this.lastSeen = lastSeen;
+        if (properties == null || properties.isEmpty()) {
+            this.properties = Collections.emptyMap();
+        } else {
+            this.properties = Collections.unmodifiableMap(new HashMap<>(properties));
+        }
     }
 
     @Override
@@ -77,13 +102,43 @@ public class CloudPlayerImpl implements CloudPlayer, ForwardingAudience.Single {
     }
 
     @Override
-    public String getConnectedProxyId() {
-        return connectedProxyId;
+    public String getConnectedProxyName() {
+        return connectedProxyName;
     }
 
     @Override
-    public String getConnectedServerId() {
-        return connectedServerId;
+    public String getConnectedServerName() {
+        return connectedServerName;
+    }
+
+    @Override
+    public boolean isOnline() {
+        return online;
+    }
+
+    @Override
+    public long getOnlineTimeSeconds() {
+        return onlineTimeSeconds;
+    }
+
+    @Override
+    public String getSessionId() {
+        return sessionId;
+    }
+
+    @Override
+    public String getFirstSeen() {
+        return firstSeen;
+    }
+
+    @Override
+    public String getLastSeen() {
+        return lastSeen;
+    }
+
+    @Override
+    public Map<String, String> getProperties() {
+        return properties;
     }
 
     @Override
