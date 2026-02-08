@@ -267,7 +267,8 @@ public class GroupImpl implements app.simplecloud.api.group.Group {
         result.setMaxServers(config.getMaxServers() != null ? config.getMaxServers() : 0);
         result.setMinServers(config.getMinServers() != null ? config.getMinServers() : 0);
         result.setPlayerThreshold(config.getPlayerThreshold() != null ? config.getPlayerThreshold().doubleValue() : 0.0);
-        String scalingModeStr = config.getScalingMode();
+        assert config.getScalingMode() != null;
+        String scalingModeStr = config.getScalingMode().toString();
         if (scalingModeStr != null) {
             try {
                 result.setScalingMode(ScalingMode.valueOf(scalingModeStr));

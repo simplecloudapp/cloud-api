@@ -10,6 +10,7 @@ import app.simplecloud.api.web.models.*;
 
 import java.util.HashMap;
 import java.util.List;
+import java.util.Locale;
 import java.util.Map;
 import java.util.concurrent.CompletableFuture;
 
@@ -273,7 +274,7 @@ public class GroupApiImpl implements GroupApi {
         result.setMinServers(config.getMinServers());
         result.setPlayerThreshold(java.math.BigDecimal.valueOf(config.getPlayerThreshold()));
         if (config.getScalingMode() != null) {
-            result.setScalingMode(config.getScalingMode().name());
+            result.setScalingMode(ModelsScalingMode.valueOf(config.getScalingMode().name().toUpperCase(Locale.ROOT)));
         }
 
         if (config.getScaleDown() != null) {
