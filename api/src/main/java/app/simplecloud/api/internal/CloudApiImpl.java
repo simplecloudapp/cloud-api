@@ -11,6 +11,7 @@ import app.simplecloud.api.internal.cache.NoOpQueryCache;
 import app.simplecloud.api.internal.cache.QueryCacheImpl;
 import app.simplecloud.api.internal.event.EventApiImpl;
 import app.simplecloud.api.internal.group.GroupApiImpl;
+import app.simplecloud.api.internal.nats.NatsFailoverConnectionManager;
 import app.simplecloud.api.internal.persistentserver.PersistentServerApiImpl;
 import app.simplecloud.api.internal.server.ServerApiImpl;
 import app.simplecloud.api.internal.player.PlayerApiImpl;
@@ -18,8 +19,6 @@ import app.simplecloud.api.persistentserver.PersistentServerApi;
 import app.simplecloud.api.player.PlayerApi;
 import app.simplecloud.api.server.ServerApi;
 import io.nats.client.Connection;
-import io.nats.client.Nats;
-import io.nats.client.Options;
 
 import java.io.IOException;
 
@@ -27,6 +26,7 @@ public class CloudApiImpl implements CloudApi {
 
     private final CloudApiOptions options;
 
+    private final NatsFailoverConnectionManager natsConnectionManager;
     private final Connection natsClient;
     private final QueryCache queryCache;
     private final CacheEventListener cacheEventListener;
@@ -40,12 +40,13 @@ public class CloudApiImpl implements CloudApi {
         this.options = options;
 
         try {
-            this.natsClient = Nats.connect(
-                    Options.builder()
-                            .server(options.getNatsUrl())
-                            .userInfo(options.getNetworkId(), options.getNetworkSecret())
-                            .build()
+            this.natsConnectionManager = new NatsFailoverConnectionManager(
+                    options.getNatsUrl(),
+                    options.getNetworkId(),
+                    options.getNetworkSecret(),
+                    options.getNatsFailoverReconnectAfter()
             );
+            this.natsClient = natsConnectionManager.getConnection();
         } catch (IOException | InterruptedException e) {
             throw new RuntimeException(e);
         }
@@ -120,4 +121,3 @@ public class CloudApiImpl implements CloudApi {
     }
 
 }
-

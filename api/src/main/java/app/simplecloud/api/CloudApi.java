@@ -48,6 +48,7 @@ public interface CloudApi {
      *   <li>SIMPLECLOUD_NETWORK_ID (default: "default")</li>
      *   <li>SIMPLECLOUD_NETWORK_SECRET (default: "")</li>
      *   <li>SIMPLECLOUD_NATS_URL (default: "nats://platform.simplecloud.app:4222")</li>
+     *   <li>SIMPLECLOUD_NATS_FAILOVER_RECONNECT_AFTER (default: "30s")</li>
      *   <li>SIMPLECLOUD_CONTROLLER_URL (default: "https://controller.platform.simplecloud.app")</li>
      * </ul>
      *
@@ -143,4 +144,3 @@ public interface CloudApi {
     QueryCache cache();
 
 }
-
