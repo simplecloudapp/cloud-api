@@ -25,6 +25,9 @@ public class GroupApiImpl implements GroupApi {
         this.cache = cache;
         this.serverGroupsApi = new ServerGroupsApi();
         this.serverGroupsApi.setCustomBaseUrl(options.getControllerUrl());
+        if (options.getComponent() != null && !options.getComponent().isBlank()) {
+            this.serverGroupsApi.getApiClient().addDefaultHeader("X-SC-Component", options.getComponent());
+        }
     }
 
     @Override
@@ -382,4 +385,3 @@ public class GroupApiImpl implements GroupApi {
         });
     }
 }
-

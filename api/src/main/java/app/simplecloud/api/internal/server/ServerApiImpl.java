@@ -43,6 +43,9 @@ public class ServerApiImpl implements ServerApi {
         this.cache = cache;
         this.serversApi = new ServersApi();
         this.serversApi.setCustomBaseUrl(options.getControllerUrl());
+        if (options.getComponent() != null && !options.getComponent().isBlank()) {
+            this.serversApi.getApiClient().addDefaultHeader("X-SC-Component", options.getComponent());
+        }
     }
 
     @Override
@@ -372,4 +375,3 @@ public class ServerApiImpl implements ServerApi {
         });
     }
 }
-

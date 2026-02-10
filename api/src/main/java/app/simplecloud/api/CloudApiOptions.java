@@ -14,6 +14,7 @@ public class CloudApiOptions {
     private final String natsUrl;
     private final Duration natsFailoverReconnectAfter;
     private final String controllerUrl;
+    private final String component;
     private final String networkId;
     private final String networkSecret;
     private final CacheConfig cacheConfig;
@@ -22,6 +23,7 @@ public class CloudApiOptions {
         this.natsUrl = builder.natsUrl;
         this.natsFailoverReconnectAfter = builder.natsFailoverReconnectAfter;
         this.controllerUrl = builder.controllerUrl;
+        this.component = builder.component;
         this.networkId = builder.networkId;
         this.networkSecret = builder.networkSecret;
         this.cacheConfig = builder.cacheConfig;
@@ -37,6 +39,10 @@ public class CloudApiOptions {
 
     public String getControllerUrl() {
         return controllerUrl;
+    }
+
+    public String getComponent() {
+        return component;
     }
 
     public String getNetworkId() {
@@ -64,6 +70,7 @@ public class CloudApiOptions {
         private String natsUrl;
         private Duration natsFailoverReconnectAfter;
         private String controllerUrl;
+        private String component;
         private String networkId;
         private String networkSecret;
         private CacheConfig cacheConfig = CacheConfig.DEFAULT;
@@ -97,6 +104,17 @@ public class CloudApiOptions {
 
         public Builder controllerUrl(String controllerUrl) {
             this.controllerUrl = controllerUrl;
+            return this;
+        }
+
+        /**
+         * Sets the value for the controller request header {@code X-SC-Component}.
+         *
+         * @param component the component identifier to send; null/blank disables the header
+         * @return this builder
+         */
+        public Builder component(String component) {
+            this.component = component;
             return this;
         }
 

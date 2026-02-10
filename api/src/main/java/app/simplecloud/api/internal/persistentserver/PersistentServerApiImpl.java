@@ -27,6 +27,9 @@ public class PersistentServerApiImpl implements PersistentServerApi {
         this.cache = cache;
         this.persistentServersApi = new PersistentServersApi();
         this.persistentServersApi.setCustomBaseUrl(options.getControllerUrl());
+        if (options.getComponent() != null && !options.getComponent().isBlank()) {
+            this.persistentServersApi.getApiClient().addDefaultHeader("X-SC-Component", options.getComponent());
+        }
     }
 
     @Override

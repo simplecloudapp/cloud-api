@@ -30,6 +30,9 @@ public class PlayerApiImpl implements PlayerApi {
         this.natsConnection = natsConnection;
         this.playersApi = new PlayersApi();
         this.playersApi.setCustomBaseUrl(options.getControllerUrl());
+        if (options.getComponent() != null && !options.getComponent().isBlank()) {
+            this.playersApi.getApiClient().addDefaultHeader("X-SC-Component", options.getComponent());
+        }
     }
 
     @Override
