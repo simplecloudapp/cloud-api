@@ -6,7 +6,6 @@ import app.simplecloud.api.cache.QueryKey;
 import app.simplecloud.api.server.Server;
 import app.simplecloud.api.server.ServerApi;
 import app.simplecloud.api.server.ServerQuery;
-import app.simplecloud.api.server.StartServerRequest;
 import app.simplecloud.api.server.UpdateServerRequest;
 import app.simplecloud.api.web.ApiException;
 import app.simplecloud.api.web.apis.ServersApi;
@@ -18,12 +17,9 @@ import app.simplecloud.api.web.models.ModelsPatchPropertiesResponse;
 import app.simplecloud.api.web.models.ModelsPatchServerRequest;
 import app.simplecloud.api.web.models.ModelsPatchServerResponse;
 import app.simplecloud.api.web.models.ModelsServerSummary;
-import app.simplecloud.api.web.models.ModelsStartServerRequest;
-import app.simplecloud.api.web.models.ModelsStartServerResponse;
 import app.simplecloud.api.web.models.V0PersistentServersPropertiesDeleteRequest;
 import app.simplecloud.api.web.models.V0PersistentServersPropertiesPatchRequest;
 import app.simplecloud.api.web.models.V0ServersPatchRequest;
-import app.simplecloud.api.web.models.V0ServersPostRequest;
 import org.jetbrains.annotations.NotNull;
 import org.jetbrains.annotations.Nullable;
 
@@ -221,32 +217,6 @@ public class ServerApiImpl implements ServerApi {
                 sortBy,
                 sortOrder
         );
-    }
-
-    @Override
-    public CompletableFuture<Server> startServer(StartServerRequest request) {
-        return CompletableFuture.supplyAsync(() -> {
-            try {
-                ModelsStartServerRequest apiRequest = new ModelsStartServerRequest();
-                apiRequest.setServerGroupId(request.getServerGroupId());
-                apiRequest.setServerGroupName(request.getServerGroupName());
-                apiRequest.setServerhostId(request.getServerhostId());
-                apiRequest.setProperties(request.getProperties());
-
-                ModelsStartServerResponse modelsStartServerResponse = serversApi.v0ServersPost(
-                        this.options.getNetworkId(),
-                        this.options.getNetworkSecret(),
-                        new V0ServersPostRequest(apiRequest)
-                );
-
-                // Invalidate server list caches (new server appeared)
-                cache.invalidateAll(QueryKey.of("servers"));
-
-                return new ServerImpl(modelsStartServerResponse.getServer());
-            } catch (ApiException e) {
-                throw new RuntimeException(e);
-            }
-        });
     }
 
     @Override

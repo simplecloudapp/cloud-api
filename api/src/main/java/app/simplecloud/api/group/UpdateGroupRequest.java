@@ -12,6 +12,8 @@ public class UpdateGroupRequest {
     private Integer minMemory;
     private Integer maxMemory;
     private Integer maxPlayers;
+    private Boolean active;
+    private Integer priority;
     private DeploymentConfig deployment;
     private ScalingConfig scaling;
     private SourceConfig source;
@@ -69,6 +71,26 @@ public class UpdateGroupRequest {
 
     public UpdateGroupRequest setMaxPlayers(Integer maxPlayers) {
         this.maxPlayers = maxPlayers;
+        return this;
+    }
+
+    @Nullable
+    public Boolean getActive() {
+        return active;
+    }
+
+    public UpdateGroupRequest setActive(@Nullable Boolean active) {
+        this.active = active;
+        return this;
+    }
+
+    @Nullable
+    public Integer getPriority() {
+        return priority;
+    }
+
+    public UpdateGroupRequest setPriority(@Nullable Integer priority) {
+        this.priority = priority;
         return this;
     }
 

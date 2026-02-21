@@ -32,6 +32,20 @@ public interface Group extends ServerBase {
     @Nullable DeploymentConfig getDeployment();
 
     /**
+     * Returns whether this group is active.
+     *
+     * @return active flag, or null if not available
+     */
+    @Nullable Boolean isActive();
+
+    /**
+     * Returns the priority for this group.
+     *
+     * @return priority, or null if not available
+     */
+    @Nullable Integer getPriority();
+
+    /**
      * Returns the scaling configuration for this group.
      *
      * <p>Defines auto-scaling behavior including min/max servers and thresholds.

@@ -15,6 +15,8 @@ public class CreateGroupRequest {
     private Integer minMemory;
     private Integer maxMemory;
     private Integer maxPlayers;
+    private Boolean active;
+    private Integer priority;
     private DeploymentConfig deployment;
     private ScalingConfig scaling;
     private SourceConfig source;
@@ -67,6 +69,26 @@ public class CreateGroupRequest {
 
     public CreateGroupRequest setMaxPlayers(Integer maxPlayers) {
         this.maxPlayers = maxPlayers;
+        return this;
+    }
+
+    @Nullable
+    public Boolean getActive() {
+        return active;
+    }
+
+    public CreateGroupRequest setActive(@Nullable Boolean active) {
+        this.active = active;
+        return this;
+    }
+
+    @Nullable
+    public Integer getPriority() {
+        return priority;
+    }
+
+    public CreateGroupRequest setPriority(@Nullable Integer priority) {
+        this.priority = priority;
         return this;
     }
 
@@ -130,4 +152,3 @@ public class CreateGroupRequest {
         return this;
     }
 }
-

@@ -9,8 +9,7 @@ import java.util.concurrent.CompletableFuture;
 /**
  * API for managing server instances.
  *
- * <p>Provides methods to query running servers, start new server instances
- * from server groups, and stop running servers.
+ * <p>Provides methods to query running servers and stop/update server instances.
  */
 public interface ServerApi {
 
@@ -57,14 +56,6 @@ public interface ServerApi {
     }
 
     /**
-     * Starts a new server instance from a server group.
-     *
-     * @param request the start request specifying which group to start from
-     * @return a CompletableFuture that completes with the started Server instance
-     */
-    CompletableFuture<Server> startServer(StartServerRequest request);
-
-    /**
      * Stops a running server.
      *
      * @param id the unique ID of the server to stop
@@ -106,4 +97,3 @@ public interface ServerApi {
      */
     CompletableFuture<Map<String, Object>> deleteServerProperties(String id, List<String> keys);
 }
-

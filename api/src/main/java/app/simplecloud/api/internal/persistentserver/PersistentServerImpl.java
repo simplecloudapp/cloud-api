@@ -59,6 +59,25 @@ public class PersistentServerImpl implements PersistentServer {
 
     @Override
     @Nullable
+    public Integer getPriority() {
+        if (summaryDelegate != null) {
+            return summaryDelegate.getPriority();
+        }
+        return null;
+    }
+
+    @Override
+    public int getPlayerCount() {
+        if (summaryDelegate != null) {
+            Integer count = summaryDelegate.getPlayerCount();
+            return count != null ? Math.max(count, 0) : 0;
+        }
+
+        return 0;
+    }
+
+    @Override
+    @Nullable
     public String getServerhostId() {
         if (summaryDelegate != null) {
             return summaryDelegate.getServerhostId();

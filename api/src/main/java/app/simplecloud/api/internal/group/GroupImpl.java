@@ -3,12 +3,14 @@ package app.simplecloud.api.internal.group;
 import app.simplecloud.api.group.*;
 import app.simplecloud.api.web.models.ModelsServerGroupInfo;
 import app.simplecloud.api.web.models.ModelsServerGroupSummary;
+import com.google.gson.Gson;
 import org.jetbrains.annotations.Nullable;
 
 import java.util.List;
 import java.util.Map;
 
 public class GroupImpl implements app.simplecloud.api.group.Group {
+    private static final Gson GSON = new Gson();
     private final ModelsServerGroupSummary summaryDelegate;
     private final ModelsServerGroupInfo infoDelegate;
     private DeploymentConfig deployment;
@@ -88,6 +90,24 @@ public class GroupImpl implements app.simplecloud.api.group.Group {
 
     @Override
     @Nullable
+    public Boolean isActive() {
+        if (summaryDelegate != null) {
+            return summaryDelegate.getActive();
+        }
+        return null;
+    }
+
+    @Override
+    @Nullable
+    public Integer getPriority() {
+        if (summaryDelegate != null) {
+            return summaryDelegate.getPriority();
+        }
+        return null;
+    }
+
+    @Override
+    @Nullable
     public DeploymentConfig getDeployment() {
         if (deployment == null) {
             app.simplecloud.api.web.models.ModelsDeploymentConfig config = null;
@@ -96,8 +116,13 @@ public class GroupImpl implements app.simplecloud.api.group.Group {
             } else if (infoDelegate != null) {
                 Map<String, Object> deploymentConfig = infoDelegate.getDeploymentConfig();
                 String strategy = infoDelegate.getDeploymentStrategy();
-                if (deploymentConfig != null || strategy != null) {
+                if (deploymentConfig != null && !deploymentConfig.isEmpty()) {
+                    config = mapToModel(deploymentConfig, app.simplecloud.api.web.models.ModelsDeploymentConfig.class);
+                }
+                if (config == null && strategy != null) {
                     config = new app.simplecloud.api.web.models.ModelsDeploymentConfig();
+                }
+                if (config != null && config.getStrategy() == null && strategy != null) {
                     config.setStrategy(strategy);
                 }
             }
@@ -117,8 +142,8 @@ public class GroupImpl implements app.simplecloud.api.group.Group {
                 config = summaryDelegate.getScaling();
             } else if (infoDelegate != null) {
                 Map<String, Object> scalingConfig = infoDelegate.getScalingConfig();
-                if (scalingConfig != null) {
-                    config = new app.simplecloud.api.web.models.ModelsScalingConfig();
+                if (scalingConfig != null && !scalingConfig.isEmpty()) {
+                    config = mapToModel(scalingConfig, app.simplecloud.api.web.models.ModelsScalingConfig.class);
                 }
             }
             if (config != null) {
@@ -163,8 +188,8 @@ public class GroupImpl implements app.simplecloud.api.group.Group {
                 config = summaryDelegate.getWorkflows();
             } else if (infoDelegate != null) {
                 Map<String, Object> workflowsConfig = infoDelegate.getWorkflowsConfig();
-                if (workflowsConfig != null) {
-                    config = new app.simplecloud.api.web.models.ModelsWorkflowsConfig();
+                if (workflowsConfig != null && !workflowsConfig.isEmpty()) {
+                    config = mapToModel(workflowsConfig, app.simplecloud.api.web.models.ModelsWorkflowsConfig.class);
                 }
             }
             if (config != null) {
@@ -309,5 +334,8 @@ public class GroupImpl implements app.simplecloud.api.group.Group {
         }
         return result;
     }
-}
 
+    private <T> T mapToModel(Map<String, Object> source, Class<T> type) {
+        return GSON.fromJson(GSON.toJson(source), type);
+    }
+}

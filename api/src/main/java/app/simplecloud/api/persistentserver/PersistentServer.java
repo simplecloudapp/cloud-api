@@ -33,6 +33,22 @@ public interface PersistentServer extends ServerBase {
     @Nullable Boolean isActive();
 
     /**
+     * Returns the priority of this persistent server.
+     *
+     * @return the priority, or null if not set
+     */
+    @Nullable Integer getPriority();
+
+    /**
+     * Returns the current player count of the running instance.
+     *
+     * <p>Returns {@code 0} when no running instance exists.
+     *
+     * @return current player count
+     */
+    int getPlayerCount();
+
+    /**
      * Returns the ID of the serverhost this persistent server is assigned to.
      *
      * @return the serverhost ID, or null if not set

@@ -17,7 +17,6 @@ import java.util.Map;
 import java.util.concurrent.CompletableFuture;
 
 public class PersistentServerApiImpl implements PersistentServerApi {
-
     private final CloudApiOptions options;
     private final PersistentServersApi persistentServersApi;
     private final QueryCache cache;
@@ -143,6 +142,7 @@ public class PersistentServerApiImpl implements PersistentServerApi {
                 apiRequest.setMaxMemory(request.getMaxMemory());
                 apiRequest.setMaxPlayers(request.getMaxPlayers());
                 apiRequest.setActive(request.getActive());
+                apiRequest.setPriority(request.getPriority());
                 apiRequest.setServerhostId(request.getServerhostId());
                 apiRequest.setProperties(request.getProperties());
                 apiRequest.setTags(request.getTags());
@@ -184,6 +184,7 @@ public class PersistentServerApiImpl implements PersistentServerApi {
                 apiRequest.setMaxMemory(request.getMaxMemory());
                 apiRequest.setMaxPlayers(request.getMaxPlayers());
                 apiRequest.setActive(request.getActive());
+                apiRequest.setPriority(request.getPriority());
                 apiRequest.setServerhostId(request.getServerhostId());
                 apiRequest.setProperties(request.getProperties());
                 apiRequest.setTags(request.getTags());

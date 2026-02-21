@@ -18,6 +18,7 @@ public class UpdatePersistentServerRequest {
     private final Integer maxMemory;
     private final Integer maxPlayers;
     private final Boolean active;
+    private final Integer priority;
     private final String serverhostId;
     private final GroupServerType type;
     private final SourceConfig source;
@@ -31,6 +32,7 @@ public class UpdatePersistentServerRequest {
         this.maxMemory = builder.maxMemory;
         this.maxPlayers = builder.maxPlayers;
         this.active = builder.active;
+        this.priority = builder.priority;
         this.serverhostId = builder.serverhostId;
         this.type = builder.type;
         this.source = builder.source;
@@ -62,6 +64,11 @@ public class UpdatePersistentServerRequest {
     @Nullable
     public Boolean getActive() {
         return active;
+    }
+
+    @Nullable
+    public Integer getPriority() {
+        return priority;
     }
 
     @Nullable
@@ -104,6 +111,7 @@ public class UpdatePersistentServerRequest {
         private Integer maxMemory;
         private Integer maxPlayers;
         private Boolean active;
+        private Integer priority;
         private String serverhostId;
         private GroupServerType type;
         private SourceConfig source;
@@ -133,6 +141,11 @@ public class UpdatePersistentServerRequest {
 
         public Builder active(Boolean active) {
             this.active = active;
+            return this;
+        }
+
+        public Builder priority(Integer priority) {
+            this.priority = priority;
             return this;
         }
 

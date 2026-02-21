@@ -140,6 +140,8 @@ public class GroupApiImpl implements GroupApi {
                 apiRequest.setMinMemory(request.getMinMemory());
                 apiRequest.setMaxMemory(request.getMaxMemory());
                 apiRequest.setMaxPlayers(request.getMaxPlayers());
+                apiRequest.setActive(request.getActive());
+                apiRequest.setPriority(request.getPriority());
                 apiRequest.setProperties(request.getProperties());
                 apiRequest.setTags(request.getTags());
 
@@ -172,6 +174,8 @@ public class GroupApiImpl implements GroupApi {
                 summary.setMinMemory(response.getMinMemory());
                 summary.setMaxMemory(response.getMaxMemory());
                 summary.setMaxPlayers(response.getMaxPlayers());
+                summary.setActive(response.getActive());
+                summary.setPriority(response.getPriority());
                 summary.setDeployment(response.getDeployment());
                 summary.setScaling(response.getScaling());
                 summary.setSource(response.getSource());
@@ -200,6 +204,8 @@ public class GroupApiImpl implements GroupApi {
                 apiRequest.setMinMemory(request.getMinMemory());
                 apiRequest.setMaxMemory(request.getMaxMemory());
                 apiRequest.setMaxPlayers(request.getMaxPlayers());
+                apiRequest.setActive(request.getActive());
+                apiRequest.setPriority(request.getPriority());
                 apiRequest.setProperties(request.getProperties());
                 apiRequest.setTags(request.getTags());
 
@@ -230,6 +236,8 @@ public class GroupApiImpl implements GroupApi {
                 summary.setMinMemory(response.getMinMemory());
                 summary.setMaxMemory(response.getMaxMemory());
                 summary.setMaxPlayers(response.getMaxPlayers());
+                summary.setActive(response.getActive());
+                summary.setPriority(response.getPriority());
                 summary.setDeployment(response.getDeployment());
                 summary.setScaling(response.getScaling());
                 summary.setSource(response.getSource());
