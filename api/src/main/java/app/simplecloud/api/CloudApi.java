@@ -38,7 +38,7 @@ import app.simplecloud.api.server.ServerApi;
  * });
  * }</pre>
  */
-public interface CloudApi {
+public interface CloudApi extends AutoCloseable {
 
     /**
      * Creates a CloudAPI instance with default options.
@@ -142,5 +142,9 @@ public interface CloudApi {
      * @return the query cache
      */
     QueryCache cache();
+
+    @Override
+    default void close() {
+    }
 
 }
