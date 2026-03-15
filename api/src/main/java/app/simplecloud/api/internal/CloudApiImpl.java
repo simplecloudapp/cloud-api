@@ -21,6 +21,7 @@ import app.simplecloud.api.server.ServerApi;
 import io.nats.client.Connection;
 
 import java.io.IOException;
+import java.util.concurrent.atomic.AtomicBoolean;
 
 public class CloudApiImpl implements CloudApi {
 
@@ -35,6 +36,7 @@ public class CloudApiImpl implements CloudApi {
     private final PersistentServerApi persistentServerApi;
     private final EventApi eventApi;
     private final PlayerApi playerApi;
+    private final AtomicBoolean closed = new AtomicBoolean(false);
 
     public CloudApiImpl(CloudApiOptions options) {
         this.options = options;
@@ -73,6 +75,7 @@ public class CloudApiImpl implements CloudApi {
         } else {
             this.cacheEventListener = null;
         }
+
     }
 
     @Override
@@ -118,6 +121,21 @@ public class CloudApiImpl implements CloudApi {
     @Override
     public QueryCache cache() {
         return queryCache;
+    }
+
+    @Override
+    public void close() {
+        if (!closed.compareAndSet(false, true)) {
+            return;
+        }
+
+        if (cacheEventListener != null) {
+            cacheEventListener.shutdown();
+        }
+        if (queryCache instanceof QueryCacheImpl queryCacheImpl) {
+            queryCacheImpl.shutdown();
+        }
+        natsConnectionManager.shutdown();
     }
 
 }

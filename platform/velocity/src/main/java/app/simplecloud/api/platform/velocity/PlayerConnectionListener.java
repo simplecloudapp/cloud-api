@@ -1,6 +1,7 @@
 package app.simplecloud.api.platform.velocity;
 
 import app.simplecloud.api.internal.integration.player.PlayerIntegration;
+import app.simplecloud.api.internal.integration.presence.ProxyPresenceTracker;
 import app.simplecloud.api.platform.shared.PlayerSynchronizer;
 import com.velocitypowered.api.event.Subscribe;
 import com.velocitypowered.api.event.connection.DisconnectEvent;
@@ -18,17 +19,26 @@ public class PlayerConnectionListener {
 
     private final PlayerSynchronizer playerSynchronizer;
     private final PlayerIntegration playerIntegration;
-    private final String proxyId;
+    private final ProxyPresenceTracker proxyPresenceTracker;
+    private final String proxyName;
 
-    public PlayerConnectionListener(PlayerSynchronizer playerSynchronizer, PlayerIntegration playerIntegration) {
+    public PlayerConnectionListener(
+            PlayerSynchronizer playerSynchronizer,
+            PlayerIntegration playerIntegration,
+            ProxyPresenceTracker proxyPresenceTracker,
+            String proxyName
+    ) {
         this.playerSynchronizer = playerSynchronizer;
         this.playerIntegration = playerIntegration;
-        this.proxyId = System.getenv("SIMPLECLOUD_UNIQUE_ID");
+        this.proxyPresenceTracker = proxyPresenceTracker;
+        this.proxyName = proxyName;
     }
 
     @Subscribe
     public void onPlayerJoin(PostLoginEvent event) {
         Player player = event.getPlayer();
+        String playerId = player.getUniqueId().toString();
+        proxyPresenceTracker.trackLogin(playerId);
 
         String texture = null;
         var texturesProperty = player.getGameProfile().getProperties().stream()
@@ -39,16 +49,19 @@ public class PlayerConnectionListener {
         }
 
         playerIntegration.login(
-                player.getUniqueId().toString(),
+                playerId,
                 player.getUsername(),
                 player.getUsername(),
-                proxyId != null ? proxyId : "unknown",
+                proxyName != null && !proxyName.isBlank() ? proxyName : "unknown",
                 String.valueOf(player.getRemoteAddress().hashCode()),
                 player.getEffectiveLocale() != null ? player.getEffectiveLocale().toString() : "en_US",
                 player.getProtocolVersion().getProtocol(),
                 player.isOnlineMode(),
                 texture
         ).thenAccept(result -> {
+            if (result.isSuccess()) {
+                proxyPresenceTracker.updateSessionId(playerId, result.getSessionId());
+            }
             if (!result.isSuccess()) {
                 logger.warn("Login failed for {}: {}", player.getUsername(), result.getErrorMessage());
             }
@@ -63,12 +76,14 @@ public class PlayerConnectionListener {
     @Subscribe
     public void onPlayerQuit(DisconnectEvent event) {
         Player player = event.getPlayer();
+        String playerId = player.getUniqueId().toString();
 
-        playerIntegration.disconnect(player.getUniqueId().toString())
+        playerIntegration.disconnect(playerId)
                 .exceptionally(e -> {
                     logger.error("Failed to send disconnect event for {}: {}", player.getUsername(), e.getMessage());
                     return null;
                 });
+        proxyPresenceTracker.remove(playerId);
 
         CompletableFuture.runAsync(() -> playerSynchronizer.updatePlayerCount());
     }
@@ -85,5 +100,3 @@ public class PlayerConnectionListener {
                 });
     }
 }
-
-

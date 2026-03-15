@@ -1,8 +1,14 @@
 package app.simplecloud.api.platform.velocity;
 
 import app.simplecloud.api.CloudApi;
+import app.simplecloud.api.internal.CloudApiImpl;
 import app.simplecloud.api.internal.integration.player.PlayerIntegration;
+import app.simplecloud.api.internal.integration.presence.ProxyPresenceResponder;
+import app.simplecloud.api.internal.integration.presence.ProxyPresenceTracker;
+import app.simplecloud.api.presence.ProxyPresencePlayer;
+import app.simplecloud.api.presence.ProxyPresencePlayerProvider;
 import app.simplecloud.api.player.CloudPlayer;
+import app.simplecloud.api.runtime.SimpleCloudRuntime;
 import app.simplecloud.api.platform.shared.PlayerSynchronizer;
 import com.google.inject.Inject;
 import com.velocitypowered.api.event.Subscribe;
@@ -15,6 +21,8 @@ import com.velocitypowered.api.proxy.ProxyServer;
 import net.kyori.adventure.text.serializer.gson.GsonComponentSerializer;
 import org.slf4j.Logger;
 
+import java.util.List;
+import java.util.Locale;
 import java.util.UUID;
 import java.util.concurrent.CompletableFuture;
 
@@ -24,24 +32,35 @@ import java.util.concurrent.CompletableFuture;
         version = "1.0",
         authors = {"Fllip"}
 )
-public class CloudApiVelocityPlugin {
+public class CloudApiVelocityPlugin implements ProxyPresencePlayerProvider {
 
     private final Logger logger;
     private final ProxyServer proxyServer;
-    private final CloudApi cloudApi;
+    private final CloudApiImpl cloudApi;
+    private final String proxyName;
     private final PlayerSynchronizer playerSynchronizer;
     private final PlayerIntegration playerIntegration;
+    private final ProxyPresenceTracker proxyPresenceTracker;
+    private final ProxyPresenceResponder proxyPresenceResponder;
 
     @Inject
     public CloudApiVelocityPlugin(Logger logger, ProxyServer proxyServer) {
         this.logger = logger;
         this.proxyServer = proxyServer;
-        this.cloudApi = CloudApi.create();
+        this.cloudApi = (CloudApiImpl) CloudApi.create();
+        this.proxyName = SimpleCloudRuntime.serverName();
         this.playerSynchronizer = new PlayerSynchronizer(
             cloudApi,
             () -> (long) proxyServer.getPlayerCount()
         );
         this.playerIntegration = new PlayerIntegration(cloudApi);
+        this.proxyPresenceTracker = new ProxyPresenceTracker(proxyName);
+        this.proxyPresenceResponder = new ProxyPresenceResponder(
+                cloudApi.getNatsConnection(),
+                cloudApi.getNetworkId(),
+                SimpleCloudRuntime.serverId(),
+                this
+        );
 
         playerIntegration.onKick(this::handleKickRequest);
         playerIntegration.onConnect(this::handleConnectRequest);
@@ -50,17 +69,49 @@ public class CloudApiVelocityPlugin {
     @Subscribe
     public void onProxyInitialize(ProxyInitializeEvent event) {
         logger.info("SimpleCloud v3 API provider initialized!");
-        proxyServer.getEventManager().register(this, new PlayerConnectionListener(playerSynchronizer, playerIntegration));
+        proxyServer.getEventManager().register(this, new PlayerConnectionListener(
+                playerSynchronizer,
+                playerIntegration,
+                proxyPresenceTracker,
+                proxyName
+        ));
 
         playerSynchronizer.start();
         playerIntegration.start();
+        proxyPresenceResponder.start();
     }
 
     @Subscribe
     public void onProxyShutdown(ProxyShutdownEvent event) {
         logger.info("SimpleCloud v3 API provider uninitialized!");
+        proxyPresenceResponder.stop();
         playerSynchronizer.stop();
         playerIntegration.stop();
+        cloudApi.close();
+    }
+
+    @Override
+    public List<ProxyPresencePlayer> getProxyPresencePlayers() {
+        return proxyServer.getAllPlayers().stream()
+                .map(this::toPresencePlayer)
+                .toList();
+    }
+
+    private ProxyPresencePlayer toPresencePlayer(Player player) {
+        String connectedServerName = player.getCurrentServer()
+                .map(serverConnection -> serverConnection.getServerInfo().getName())
+                .orElse("");
+        Locale locale = player.getEffectiveLocale();
+
+        return proxyPresenceTracker.createSnapshot(
+                player.getUniqueId().toString(),
+                player.getUsername(),
+                player.getUsername(),
+                connectedServerName,
+                locale != null ? locale.toString() : "en_US",
+                player.getProtocolVersion().getProtocol(),
+                player.isOnlineMode()
+        );
     }
 
     private CompletableFuture<Boolean> handleKickRequest(String playerUniqueId, String reason) {
@@ -99,4 +150,3 @@ public class CloudApiVelocityPlugin {
                 });
     }
 }
-

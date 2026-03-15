@@ -1,6 +1,7 @@
 package app.simplecloud.api.platform.shared;
 
 import app.simplecloud.api.CloudApi;
+import app.simplecloud.api.runtime.SimpleCloudRuntime;
 
 import java.util.HashMap;
 import java.util.Map;
@@ -23,7 +24,7 @@ public class PlayerSynchronizer {
     public PlayerSynchronizer(CloudApi cloudApi, Supplier<Long> getCurrentOnlineCount) {
         this.cloudApi = cloudApi;
         this.getCurrentOnlineCount = getCurrentOnlineCount;
-        this.currentServerId = System.getenv("SIMPLECLOUD_UNIQUE_ID");
+        this.currentServerId = SimpleCloudRuntime.serverId();
     }
 
     public void start() {
@@ -99,4 +100,3 @@ public class PlayerSynchronizer {
         }
     }
 }
-

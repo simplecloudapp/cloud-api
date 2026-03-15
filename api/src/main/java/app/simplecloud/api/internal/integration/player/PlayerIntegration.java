@@ -1,6 +1,5 @@
 package app.simplecloud.api.internal.integration.player;
 
-import app.simplecloud.api.CloudApi;
 import app.simplecloud.api.internal.CloudApiImpl;
 import app.simplecloud.api.player.CloudPlayer;
 import build.buf.gen.simplecloud.player.v2.*;
@@ -29,12 +28,8 @@ public class PlayerIntegration {
     private BiFunction<String, String, CompletableFuture<Boolean>> kickHandler;
     private BiFunction<String, String, CompletableFuture<CloudPlayer.ConnectResult>> connectHandler;
 
-    public PlayerIntegration(CloudApi cloudApi) {
-        if (!(cloudApi instanceof CloudApiImpl)) {
-            throw new IllegalArgumentException("CloudApi must be an instance of CloudApiImpl");
-        }
-        CloudApiImpl impl = (CloudApiImpl) cloudApi;
-        this.natsConnection = impl.getNatsConnection();
+    public PlayerIntegration(CloudApiImpl cloudApi) {
+        this.natsConnection = cloudApi.getNatsConnection();
         this.networkId = cloudApi.getNetworkId();
     }
 

@@ -1,33 +1,52 @@
 package app.simplecloud.api.platform.bungeecord;
 
 import app.simplecloud.api.CloudApi;
+import app.simplecloud.api.internal.CloudApiImpl;
 import app.simplecloud.api.internal.integration.player.PlayerIntegration;
+import app.simplecloud.api.internal.integration.presence.ProxyPresenceResponder;
+import app.simplecloud.api.internal.integration.presence.ProxyPresenceTracker;
+import app.simplecloud.api.presence.ProxyPresencePlayer;
+import app.simplecloud.api.presence.ProxyPresencePlayerProvider;
 import app.simplecloud.api.player.CloudPlayer;
+import app.simplecloud.api.runtime.SimpleCloudRuntime;
 import app.simplecloud.api.platform.shared.PlayerSynchronizer;
 import net.kyori.adventure.platform.bungeecord.BungeeAudiences;
 import net.md_5.bungee.api.chat.TextComponent;
 import net.md_5.bungee.api.connection.ProxiedPlayer;
 import net.md_5.bungee.api.plugin.Plugin;
 
+import java.util.List;
+import java.util.Locale;
 import java.util.UUID;
 import java.util.concurrent.CompletableFuture;
 
-public class BungeeCordApiProvider extends Plugin {
+public class BungeeCordApiProvider extends Plugin implements ProxyPresencePlayerProvider {
 
-    private CloudApi cloudApi;
+    private CloudApiImpl cloudApi;
+    private String proxyName;
     private PlayerSynchronizer playerSynchronizer;
     private PlayerIntegration playerIntegration;
+    private ProxyPresenceTracker proxyPresenceTracker;
+    private ProxyPresenceResponder proxyPresenceResponder;
 
     private BungeeAudiences bungeeAudiences;
 
     @Override
     public void onEnable() {
-        this.cloudApi = CloudApi.create();
+        this.cloudApi = (CloudApiImpl) CloudApi.create();
+        this.proxyName = SimpleCloudRuntime.serverName();
         this.playerSynchronizer = new PlayerSynchronizer(
             cloudApi,
             () -> (long) getProxy().getOnlineCount()
         );
         this.playerIntegration = new PlayerIntegration(cloudApi);
+        this.proxyPresenceTracker = new ProxyPresenceTracker(proxyName);
+        this.proxyPresenceResponder = new ProxyPresenceResponder(
+                cloudApi.getNatsConnection(),
+                cloudApi.getNetworkId(),
+                SimpleCloudRuntime.serverId(),
+                this
+        );
 
         playerIntegration.onKick(this::handleKickRequest);
         playerIntegration.onConnect(this::handleConnectRequest);
@@ -35,21 +54,52 @@ public class BungeeCordApiProvider extends Plugin {
         this.bungeeAudiences = BungeeAudiences.create(this);
 
         getLogger().info("SimpleCloud v3 API provider initialized!");
-        getProxy().getPluginManager().registerListener(this, new PlayerConnectionListener(playerSynchronizer, playerIntegration));
+        getProxy().getPluginManager().registerListener(this, new PlayerConnectionListener(
+                playerSynchronizer,
+                playerIntegration,
+                proxyPresenceTracker,
+                proxyName
+        ));
 
         playerSynchronizer.start();
         playerIntegration.start();
+        proxyPresenceResponder.start();
     }
 
     @Override
     public void onDisable() {
         getLogger().info("SimpleCloud v3 API provider uninitialized!");
+        proxyPresenceResponder.stop();
         playerSynchronizer.stop();
         playerIntegration.stop();
 
         if (bungeeAudiences != null) {
             bungeeAudiences.close();
         }
+        cloudApi.close();
+    }
+
+    @Override
+    public List<ProxyPresencePlayer> getProxyPresencePlayers() {
+        return getProxy().getPlayers().stream()
+                .map(this::toPresencePlayer)
+                .toList();
+    }
+
+    private ProxyPresencePlayer toPresencePlayer(ProxiedPlayer player) {
+        String connectedServerName = player.getServer() != null ? player.getServer().getInfo().getName() : "";
+        Locale locale = player.getLocale();
+        var pendingConnection = player.getPendingConnection();
+
+        return proxyPresenceTracker.createSnapshot(
+                player.getUniqueId().toString(),
+                player.getName(),
+                player.getDisplayName(),
+                connectedServerName,
+                locale != null ? locale.toString() : "en_US",
+                pendingConnection != null ? pendingConnection.getVersion() : 0,
+                pendingConnection != null && pendingConnection.isOnlineMode()
+        );
     }
 
     private CompletableFuture<Boolean> handleKickRequest(String playerUniqueId, String reason) {
@@ -88,5 +138,3 @@ public class BungeeCordApiProvider extends Plugin {
         return future;
     }
 }
-
-
