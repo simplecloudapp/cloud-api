@@ -43,6 +43,8 @@ public class CloudApiVelocityPlugin implements ProxyPresencePlayerProvider {
     private final ProxyPresenceTracker proxyPresenceTracker;
     private final ProxyPresenceResponder proxyPresenceResponder;
 
+    private final GsonComponentSerializer gsonComponentSerializer = GsonComponentSerializer.gson();
+
     @Inject
     public CloudApiVelocityPlugin(Logger logger, ProxyServer proxyServer) {
         this.logger = logger;
@@ -122,7 +124,7 @@ public class CloudApiVelocityPlugin implements ProxyPresencePlayerProvider {
                 // Returning null signals to not send a response
                 return null;
             }
-            player.disconnect(GsonComponentSerializer.gson().deserialize(reason != null ? reason : "{}"));
+            player.disconnect(gsonComponentSerializer.deserialize(reason != null ? reason : "{}"));
             return true;
         });
     }

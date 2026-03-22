@@ -11,6 +11,8 @@ import app.simplecloud.api.player.CloudPlayer;
 import app.simplecloud.api.runtime.SimpleCloudRuntime;
 import app.simplecloud.api.platform.shared.PlayerSynchronizer;
 import net.kyori.adventure.platform.bungeecord.BungeeAudiences;
+import net.kyori.adventure.text.serializer.bungeecord.BungeeComponentSerializer;
+import net.kyori.adventure.text.serializer.gson.GsonComponentSerializer;
 import net.md_5.bungee.api.chat.TextComponent;
 import net.md_5.bungee.api.connection.ProxiedPlayer;
 import net.md_5.bungee.api.plugin.Plugin;
@@ -30,6 +32,9 @@ public class BungeeCordApiProvider extends Plugin implements ProxyPresencePlayer
     private ProxyPresenceResponder proxyPresenceResponder;
 
     private BungeeAudiences bungeeAudiences;
+
+    private final BungeeComponentSerializer bungeeComponentSerializer = BungeeComponentSerializer.get();
+    private final GsonComponentSerializer gsonComponentSerializer = GsonComponentSerializer.gson();
 
     @Override
     public void onEnable() {
@@ -109,7 +114,7 @@ public class BungeeCordApiProvider extends Plugin implements ProxyPresencePlayer
                 // Don't respond - another proxy might have the player
                 return null;
             }
-            player.disconnect(TextComponent.fromLegacy(reason != null ? reason : ""));
+            player.disconnect(bungeeComponentSerializer.serialize(gsonComponentSerializer.deserialize(reason != null ? reason : "{}")));
             return true;
         });
     }
