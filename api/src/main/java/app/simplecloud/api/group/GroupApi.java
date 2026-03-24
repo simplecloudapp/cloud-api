@@ -87,6 +87,18 @@ public interface GroupApi {
     CompletableFuture<Map<String, Object>> updateGroupProperties(String id, Map<String, Object> properties);
 
     /**
+     * Updates a single group property by merging it with existing properties.
+     *
+     * @param id the unique ID of the server group
+     * @param key the property key to update
+     * @param value the property value to set
+     * @return a CompletableFuture that completes with the updated properties
+     */
+    default CompletableFuture<Map<String, Object>> updateGroupProperty(String id, String key, Object value) {
+        return updateGroupProperties(id, Map.of(key, value));
+    }
+
+    /**
      * Deletes specific property keys from a server group.
      *
      * @param id the unique ID of the server group
@@ -94,5 +106,15 @@ public interface GroupApi {
      * @return a CompletableFuture that completes with the remaining properties
      */
     CompletableFuture<Map<String, Object>> deleteGroupProperties(String id, List<String> keys);
-}
 
+    /**
+     * Deletes a single property key from a server group.
+     *
+     * @param id the unique ID of the server group
+     * @param key the property key to delete
+     * @return a CompletableFuture that completes with the remaining properties
+     */
+    default CompletableFuture<Map<String, Object>> deleteGroupProperty(String id, String key) {
+        return deleteGroupProperties(id, List.of(key));
+    }
+}

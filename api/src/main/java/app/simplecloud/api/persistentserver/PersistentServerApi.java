@@ -83,6 +83,18 @@ public interface PersistentServerApi {
     CompletableFuture<Map<String, Object>> updatePersistentServerProperties(String id, Map<String, Object> properties);
 
     /**
+     * Updates a single persistent server property by merging it with existing properties.
+     *
+     * @param id the unique ID of the persistent server
+     * @param key the property key to update
+     * @param value the property value to set
+     * @return a CompletableFuture that completes with the updated properties
+     */
+    default CompletableFuture<Map<String, Object>> updatePersistentServerProperty(String id, String key, Object value) {
+        return updatePersistentServerProperties(id, Map.of(key, value));
+    }
+
+    /**
      * Deletes specific property keys from a persistent server.
      *
      * @param id the unique ID of the persistent server
@@ -90,4 +102,15 @@ public interface PersistentServerApi {
      * @return a CompletableFuture that completes with the remaining properties
      */
     CompletableFuture<Map<String, Object>> deletePersistentServerProperties(String id, List<String> keys);
+
+    /**
+     * Deletes a single property key from a persistent server.
+     *
+     * @param id the unique ID of the persistent server
+     * @param key the property key to delete
+     * @return a CompletableFuture that completes with the remaining properties
+     */
+    default CompletableFuture<Map<String, Object>> deletePersistentServerProperty(String id, String key) {
+        return deletePersistentServerProperties(id, List.of(key));
+    }
 }

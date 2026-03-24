@@ -89,6 +89,18 @@ public interface ServerApi {
     CompletableFuture<Map<String, Object>> updateServerProperties(String id, Map<String, Object> properties);
 
     /**
+     * Updates a single server property by merging it with existing properties.
+     *
+     * @param id the unique ID of the server
+     * @param key the property key to update
+     * @param value the property value to set
+     * @return a CompletableFuture that completes with the updated properties
+     */
+    default CompletableFuture<Map<String, Object>> updateServerProperty(String id, String key, Object value) {
+        return updateServerProperties(id, Map.of(key, value));
+    }
+
+    /**
      * Deletes specific property keys from a server.
      *
      * @param id the unique ID of the server
@@ -96,4 +108,15 @@ public interface ServerApi {
      * @return a CompletableFuture that completes with the remaining properties
      */
     CompletableFuture<Map<String, Object>> deleteServerProperties(String id, List<String> keys);
+
+    /**
+     * Deletes a single property key from a server.
+     *
+     * @param id the unique ID of the server
+     * @param key the property key to delete
+     * @return a CompletableFuture that completes with the remaining properties
+     */
+    default CompletableFuture<Map<String, Object>> deleteServerProperty(String id, String key) {
+        return deleteServerProperties(id, List.of(key));
+    }
 }

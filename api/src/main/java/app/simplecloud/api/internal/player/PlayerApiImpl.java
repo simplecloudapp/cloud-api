@@ -5,14 +5,22 @@ import app.simplecloud.api.player.CloudPlayer;
 import app.simplecloud.api.player.PlayerApi;
 import app.simplecloud.api.web.ApiException;
 import app.simplecloud.api.web.apis.PlayersApi;
+import app.simplecloud.api.web.models.ModelsDeletePlayerPropertiesRequest;
 import app.simplecloud.api.web.models.ModelsOnlinePlayerCountResponse;
 import app.simplecloud.api.web.models.ModelsOnlinePlayerResponse;
 import app.simplecloud.api.web.models.ModelsOnlinePlayersResponse;
+import app.simplecloud.api.web.models.ModelsPlayerPropertiesResponse;
 import app.simplecloud.api.web.models.ModelsPlayerResponse;
+import app.simplecloud.api.web.models.ModelsUpdatePlayerPropertiesRequest;
+import app.simplecloud.api.web.models.ModelsUpdatePlayerPropertiesResponse;
+import app.simplecloud.api.web.models.V0PlayersPropertiesDeleteRequest;
+import app.simplecloud.api.web.models.V0PlayersPropertiesPutRequest;
 import io.nats.client.Connection;
 
 import java.util.ArrayList;
+import java.util.HashMap;
 import java.util.List;
+import java.util.Map;
 import java.util.UUID;
 import java.util.concurrent.CompletableFuture;
 
@@ -123,6 +131,46 @@ public class PlayerApiImpl implements PlayerApi {
         });
     }
 
+    @Override
+    public CompletableFuture<Map<String, String>> updatePlayerProperties(UUID uniqueId, Map<String, String> properties) {
+        return CompletableFuture.supplyAsync(() -> {
+            try {
+                ModelsUpdatePlayerPropertiesRequest request = new ModelsUpdatePlayerPropertiesRequest();
+                request.setProperties(properties);
+
+                ModelsUpdatePlayerPropertiesResponse response = playersApi.v0PlayersPropertiesPatch(
+                        options.getNetworkId(),
+                        options.getNetworkSecret(),
+                        uniqueId.toString(),
+                        new V0PlayersPropertiesPutRequest(request)
+                );
+                return toPropertiesMap(response.getProperties());
+            } catch (ApiException e) {
+                throw new RuntimeException(e);
+            }
+        });
+    }
+
+    @Override
+    public CompletableFuture<Map<String, String>> deletePlayerProperties(UUID uniqueId, List<String> keys) {
+        return CompletableFuture.supplyAsync(() -> {
+            try {
+                ModelsDeletePlayerPropertiesRequest request = new ModelsDeletePlayerPropertiesRequest();
+                request.setKeys(keys);
+
+                playersApi.v0PlayersPropertiesDelete(
+                        options.getNetworkId(),
+                        options.getNetworkSecret(),
+                        uniqueId.toString(),
+                        new V0PlayersPropertiesDeleteRequest(request)
+                );
+                return getPlayerProperties(uniqueId);
+            } catch (ApiException e) {
+                throw new RuntimeException(e);
+            }
+        });
+    }
+
     private CloudPlayer convertPlayer(ModelsOnlinePlayerResponse player) {
         return new CloudPlayerImpl(
                 natsConnection,
@@ -157,5 +205,18 @@ public class PlayerApiImpl implements PlayerApi {
                 player.getLastSeen(),
                 player.getProperties()
         );
+    }
+
+    private Map<String, String> getPlayerProperties(UUID uniqueId) throws ApiException {
+        ModelsPlayerPropertiesResponse response = playersApi.v0PlayersPropertiesGet(
+                options.getNetworkId(),
+                options.getNetworkSecret(),
+                uniqueId.toString()
+        );
+        return toPropertiesMap(response.getProperties());
+    }
+
+    private Map<String, String> toPropertiesMap(Map<String, String> properties) {
+        return properties != null ? properties : new HashMap<>();
     }
 }
