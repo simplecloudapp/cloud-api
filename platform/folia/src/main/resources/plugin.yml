@@ -1,0 +1,6 @@
+name: simplecloud-api
+version: "1.0"
+main: app.simplecloud.api.platform.folia.FoliaApiProvider
+api-version: "1.21"
+folia-supported: true
+author: Fllip

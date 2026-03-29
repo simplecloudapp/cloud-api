@@ -76,7 +76,7 @@ public class CloudApiOptions {
         private CacheConfig cacheConfig = CacheConfig.DEFAULT;
 
         public Builder() {
-            this.natsUrl = System.getenv().getOrDefault("SIMPLECLOUD_NATS_URL", "nats://platform.simplecloud.app:4222");
+            this.natsUrl = System.getenv().getOrDefault("SIMPLECLOUD_NATS_URL", "wss://nats.simplecloud.app:443");
             this.natsFailoverReconnectAfter = parseDuration(
                     System.getenv("SIMPLECLOUD_NATS_FAILOVER_RECONNECT_AFTER"),
                     Duration.ofSeconds(30)

@@ -102,7 +102,7 @@ tasks.register("buildTemplates") {
     group = "build"
     description = "Builds all platform JARs and copies them to run/templates structure"
 
-    val platformProjects = listOf("paper", "spigot", "spigot-legacy", "bungeecord", "velocity")
+    val platformProjects = listOf("paper", "folia", "spigot", "spigot-legacy", "bungeecord", "velocity")
 
     platformProjects.forEach { platform ->
         dependsOn(":platform:$platform:shadowJar")

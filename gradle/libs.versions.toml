@@ -20,6 +20,7 @@ javax-annotation = "1.3.2"
 velocity = "3.5.0-SNAPSHOT"
 bungeecord = "1.21-R0.4"
 paper = "1.21.4-R0.1-SNAPSHOT"
+folia = "1.21.4-R0.1-SNAPSHOT"
 
 adventure = "4.25.0"
 adventure-platform = "4.4.1"
@@ -46,6 +47,7 @@ javax-annotation = { module = "javax.annotation:javax.annotation-api", version.r
 caffeine = { module = "com.github.ben-manes.caffeine:caffeine", version.ref = "caffeine" }
 
 paper-api = { module = "io.papermc.paper:paper-api", version.ref = "paper" }
+folia-api = { module = "dev.folia:folia-api", version.ref = "folia" }
 velocity = { module = "com.velocitypowered:velocity-api", version.ref = "velocity" }
 bungeecord = { module = "net.md-5:bungeecord-api", version.ref = "bungeecord" }
 
