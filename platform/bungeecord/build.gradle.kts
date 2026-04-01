@@ -39,6 +39,7 @@ modrinth {
     uploadFile.set(tasks.shadowJar)
     gameVersions.addAll(
         
+        
         "1.20",
         "1.20.1",
         "1.20.2",
@@ -58,6 +59,9 @@ modrinth {
         "1.21.9",
         "1.21.10",
         "1.21.11",
+        "26.1",
+        "26.1.1",
+
 
     )
     loaders.add("bungeecord")
