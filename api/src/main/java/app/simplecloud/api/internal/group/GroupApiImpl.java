@@ -31,6 +31,77 @@ public class GroupApiImpl implements GroupApi {
     }
 
     @Override
+    public CompletableFuture<GroupStartQueue> getServerStartQueue() {
+        return CompletableFuture.supplyAsync(() -> {
+            try {
+                ModelsListServerGroupStartQueueResponse response = serverGroupsApi.v0ServerGroupsStartQueueGet(
+                        options.getNetworkId(),
+                        options.getNetworkSecret()
+                );
+
+                List<GroupStartQueueEntry> items = response.getItems() == null
+                        ? List.of()
+                        : response.getItems().stream()
+                        .map(this::convertStartQueueEntry)
+                        .toList();
+
+                return new GroupStartQueue(
+                        intValue(response.getCount()),
+                        intValue(response.getFailedStarts()),
+                        items,
+                        intValue(response.getQueuedStarts()),
+                        intValue(response.getTotalStarts())
+                );
+            } catch (ApiException e) {
+                throw new RuntimeException(e);
+            }
+        });
+    }
+
+    @Override
+    public CompletableFuture<Void> requestServerStart(String serverGroupId) {
+        return CompletableFuture.runAsync(() -> {
+            String normalizedServerGroupId = normalize(serverGroupId);
+            if (normalizedServerGroupId == null) {
+                throw new IllegalArgumentException("serverGroupId must not be blank");
+            }
+
+            try {
+                ModelsQueueServerGroupStartRequest request = new ModelsQueueServerGroupStartRequest();
+                request.setServerGroupId(normalizedServerGroupId);
+
+                serverGroupsApi.v0ServerGroupsStartQueuePost(
+                        options.getNetworkId(),
+                        options.getNetworkSecret(),
+                        new V0ServerGroupsStartQueuePostRequest(request)
+                );
+            } catch (ApiException e) {
+                throw new RuntimeException(e);
+            }
+        });
+    }
+
+    @Override
+    public CompletableFuture<Void> clearServerStartQueue(String serverGroupId) {
+        return CompletableFuture.runAsync(() -> {
+            String normalizedServerGroupId = normalize(serverGroupId);
+            if (normalizedServerGroupId == null) {
+                throw new IllegalArgumentException("serverGroupId must not be blank");
+            }
+
+            try {
+                serverGroupsApi.v0ServerGroupsStartQueueDelete(
+                        options.getNetworkId(),
+                        options.getNetworkSecret(),
+                        normalizedServerGroupId
+                );
+            } catch (ApiException e) {
+                throw new RuntimeException(e);
+            }
+        });
+    }
+
+    @Override
     public CompletableFuture<Group> getGroupByName(String name) {
         QueryKey key = QueryKey.of("group", "name", name);
 
@@ -391,5 +462,43 @@ public class GroupApiImpl implements GroupApi {
                 throw new RuntimeException(e);
             }
         });
+    }
+
+    private GroupStartQueueEntry convertStartQueueEntry(ModelsServerGroupStartQueueEntry entry) {
+        List<GroupStartQueueItem> starts = entry.getStarts() == null
+                ? List.of()
+                : entry.getStarts().stream()
+                .map(this::convertStartQueueItem)
+                .toList();
+
+        return new GroupStartQueueEntry(
+                intValue(entry.getFailedStarts()),
+                intValue(entry.getQueuedStarts()),
+                entry.getServerGroupId(),
+                entry.getServerGroupName(),
+                starts,
+                intValue(entry.getTotalStarts())
+        );
+    }
+
+    private GroupStartQueueItem convertStartQueueItem(ModelsManualServerStartQueueItem item) {
+        String statusValue = item.getStatus() == null ? null : item.getStatus().getValue();
+        return new GroupStartQueueItem(
+                item.getCreatedAt(),
+                item.getFailureReason(),
+                item.getId(),
+                GroupStartQueueItemStatus.fromApiValue(statusValue)
+        );
+    }
+
+    private int intValue(Integer value) {
+        return value != null ? value : 0;
+    }
+
+    private String normalize(String value) {
+        if (value == null || value.isBlank()) {
+            return null;
+        }
+        return value;
     }
 }

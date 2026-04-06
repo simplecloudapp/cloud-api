@@ -15,6 +15,49 @@ import java.util.concurrent.CompletableFuture;
 public interface GroupApi {
 
     /**
+     * Retrieves the current server-start queue for all server groups.
+     *
+     * @return a CompletableFuture that completes with the aggregated queue state
+     */
+    CompletableFuture<GroupStartQueue> getServerStartQueue();
+
+    /**
+     * Requests one server start for a server group.
+     *
+     * @param serverGroupId the server group ID
+     * @return a CompletableFuture that completes when the start request was accepted
+     */
+    CompletableFuture<Void> requestServerStart(String serverGroupId);
+
+    /**
+     * Requests one server start for the provided group.
+     *
+     * @param group the target group
+     * @return a CompletableFuture that completes when the start request was accepted
+     */
+    default CompletableFuture<Void> requestServerStart(Group group) {
+        return requestServerStart(group.getServerGroupId());
+    }
+
+    /**
+     * Clears all queued starts for one server group.
+     *
+     * @param serverGroupId the server group ID
+     * @return a CompletableFuture that completes when the queue was cleared
+     */
+    CompletableFuture<Void> clearServerStartQueue(String serverGroupId);
+
+    /**
+     * Clears all queued starts for the provided group.
+     *
+     * @param group the target group
+     * @return a CompletableFuture that completes when the queue was cleared
+     */
+    default CompletableFuture<Void> clearServerStartQueue(Group group) {
+        return clearServerStartQueue(group.getServerGroupId());
+    }
+
+    /**
      * Retrieves a server group by its name.
      *
      * @param name the name of the server group
