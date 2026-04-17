@@ -15,6 +15,7 @@ rootProject.name = "cloud-api"
 
 include(
     "api",
+    "local-dev",
 //    "api-kotlin",
 //    "api-kotlin-codegen",
 //    "api-annotations",

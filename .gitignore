@@ -47,3 +47,17 @@ bin/
 /api/docs/
 
 /run/
+
+/local-dev/src/**
+!/local-dev/src/main/
+!/local-dev/src/main/java/
+!/local-dev/src/main/resources/
+!/local-dev/src/test/
+!/local-dev/src/test/java/
+!/local-dev/src/test/resources/
+!/local-dev/src/main/java/.gitkeep
+!/local-dev/src/main/resources/.gitkeep
+!/local-dev/src/test/java/.gitkeep
+!/local-dev/src/test/resources/.gitkeep
+/local-dev/.env
+/local-dev/*.local

@@ -66,7 +66,7 @@ sourceSets {
 
 openApiGenerate {
     generatorName.set("java")
-    remoteInputSpec.set("https://controller.platform.simplecloud.app/swagger/doc.json")
+    remoteInputSpec.set("https://controller.simplecloud.app/swagger/doc.json")
 
     outputDir.set("$buildDir/generated")
 

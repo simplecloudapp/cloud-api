@@ -81,7 +81,7 @@ public class CloudApiOptions {
                     System.getenv("SIMPLECLOUD_NATS_FAILOVER_RECONNECT_AFTER"),
                     Duration.ofSeconds(30)
             );
-            this.controllerUrl = System.getenv().getOrDefault("SIMPLECLOUD_CONTROLLER_URL", "https://controller.platform.simplecloud.app");
+            this.controllerUrl = System.getenv().getOrDefault("SIMPLECLOUD_CONTROLLER_URL", "https://controller.simplecloud.app");
             this.networkId = System.getenv().getOrDefault("SIMPLECLOUD_NETWORK_ID", "default");
             this.networkSecret = System.getenv().getOrDefault("SIMPLECLOUD_NETWORK_SECRET", "");
         }

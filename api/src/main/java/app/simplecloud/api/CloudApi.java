@@ -47,9 +47,9 @@ public interface CloudApi extends AutoCloseable {
      * <ul>
      *   <li>SIMPLECLOUD_NETWORK_ID (default: "default")</li>
      *   <li>SIMPLECLOUD_NETWORK_SECRET (default: "")</li>
-     *   <li>SIMPLECLOUD_NATS_URL (default: "nats://platform.simplecloud.app:4222")</li>
+     *   <li>SIMPLECLOUD_NATS_URL (default: "wss://nats.simplecloud.app:443")</li>
      *   <li>SIMPLECLOUD_NATS_FAILOVER_RECONNECT_AFTER (default: "30s")</li>
-     *   <li>SIMPLECLOUD_CONTROLLER_URL (default: "https://controller.platform.simplecloud.app")</li>
+     *   <li>SIMPLECLOUD_CONTROLLER_URL (default: "https://controller.simplecloud.app")</li>
      * </ul>
      *
      * @return a new CloudApi instance
