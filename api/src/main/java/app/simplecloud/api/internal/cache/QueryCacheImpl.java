@@ -63,17 +63,21 @@ public class QueryCacheImpl implements QueryCache {
         Duration staleTime = getStaleTime(key);
 
         if (entry != null) {
-            Instant staleThreshold = Instant.now().minus(staleTime);
-
-            if (!entry.isStale(staleThreshold)) {
-                // Fresh data - return immediately
-                hitCount.incrementAndGet();
-                return CompletableFuture.completedFuture(entry.getData());
+            if (entry.isExpired()) {
+                cache.invalidate(key);
             } else {
-                // Stale data - return cached, revalidate in background
-                staleHitCount.incrementAndGet();
-                triggerBackgroundRevalidation(key, fetcher);
-                return CompletableFuture.completedFuture(entry.getData());
+                Instant staleThreshold = Instant.now().minus(staleTime);
+
+                if (!entry.isStale(staleThreshold)) {
+                    // Fresh data - return immediately
+                    hitCount.incrementAndGet();
+                    return CompletableFuture.completedFuture(entry.getData());
+                } else {
+                    // Stale data - return cached, revalidate in background
+                    staleHitCount.incrementAndGet();
+                    triggerBackgroundRevalidation(key, fetcher);
+                    return CompletableFuture.completedFuture(entry.getData());
+                }
             }
         }
 

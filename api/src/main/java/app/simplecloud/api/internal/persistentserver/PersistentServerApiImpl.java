@@ -127,7 +127,7 @@ public class PersistentServerApiImpl implements PersistentServerApi {
         return QueryKey.of("persistentServers", "query",
                 query.getActive(),
                 query.getServerhostId(),
-                query.getTags(),
+                query.getTags() == null ? null : List.copyOf(query.getTags()),
                 query.getLimit()
         );
     }
