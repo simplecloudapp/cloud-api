@@ -23,6 +23,7 @@ import app.simplecloud.api.web.models.V0ServersPatchRequest;
 import org.jetbrains.annotations.NotNull;
 import org.jetbrains.annotations.Nullable;
 
+import java.time.Duration;
 import java.util.HashMap;
 import java.util.List;
 import java.util.Locale;
@@ -32,6 +33,8 @@ import java.util.logging.Logger;
 
 public class ServerApiImpl implements ServerApi {
     private static final Logger LOGGER = Logger.getLogger(ServerApiImpl.class.getName());
+    private static final Duration TRANSIENT_MISS_RETRY_DELAY = Duration.ofMillis(200);
+    private static final int TRANSIENT_MISS_MAX_RETRIES = 2;
 
     private final CloudApiOptions options;
     private final ServersApi serversApi;
@@ -51,53 +54,38 @@ public class ServerApiImpl implements ServerApi {
     public CompletableFuture<Server> getServerById(String id) {
         QueryKey key = QueryKey.of("server", id);
 
-        return cache.fetch(key, () -> CompletableFuture.supplyAsync(() -> {
-            try {
-                ServerQuery query = ServerQuery.create();
-                ModelsListServersResponse serversResponse = executeQuery(query);
-
-                List<ModelsServerSummary> servers = serversResponse.getServers();
-                if (servers != null) {
-                    for (ModelsServerSummary summary : servers) {
-                        if (id.equals(summary.getServerId())) {
-                            return new ServerImpl(summary);
-                        }
-                    }
-                }
+        return cache.fetchWithTransientMissRecovery(
+                key,
+                () -> fetchServerByIdFromController(id),
+                server -> server == null,
+                TRANSIENT_MISS_RETRY_DELAY,
+                TRANSIENT_MISS_MAX_RETRIES
+        ).thenApply(server -> {
+            if (server == null) {
                 throw new RuntimeException("Server not found: " + id);
-            } catch (ApiException e) {
-                throw new RuntimeException(e);
             }
-        }));
+            return server;
+        });
     }
 
     @Override
     public CompletableFuture<Server> getServerByNumericalId(String groupName, int numericalId) {
         QueryKey key = QueryKey.of("server", "numerical", groupName, numericalId);
 
-        return cache.fetch(key, () -> CompletableFuture.supplyAsync(() -> {
-            try {
-                ServerQuery query = ServerQuery.create()
-                        .filterByServerGroupName(groupName)
-                        .filterByNumericalId(numericalId);
-                ModelsListServersResponse serversResponse = executeQuery(query);
-
-                List<ModelsServerSummary> servers = serversResponse.getServers();
-                if (servers == null) {
-                    return null;
-                }
-
-                for (ModelsServerSummary summary : servers) {
-                    if (summary.getNumericalId() != null && summary.getNumericalId() == numericalId) {
-                        return new ServerImpl(summary);
-                    }
-                }
-                throw new RuntimeException("Server not found in group " + groupName + " with numerical ID " + numericalId);
-
-            } catch (ApiException e) {
-                throw new RuntimeException(e);
+        return cache.fetchWithTransientMissRecovery(
+                key,
+                () -> fetchServerByNumericalIdFromController(groupName, numericalId),
+                server -> server == null,
+                TRANSIENT_MISS_RETRY_DELAY,
+                TRANSIENT_MISS_MAX_RETRIES
+        ).thenApply(server -> {
+            if (server == null) {
+                throw new RuntimeException(
+                        "Server not found in group " + groupName + " with numerical ID " + numericalId
+                );
             }
-        }));
+            return server;
+        });
     }
 
     @Override
@@ -128,7 +116,29 @@ public class ServerApiImpl implements ServerApi {
     public CompletableFuture<List<Server>> getAllServers(@Nullable ServerQuery query) {
         QueryKey key = buildQueryKey(query);
 
-        CompletableFuture<List<Server>> future = cache.fetch(key, () -> CompletableFuture.supplyAsync(() -> {
+        CompletableFuture<List<Server>> future;
+        if (isExactServerLookup(query)) {
+            future = cache.fetchWithTransientMissRecovery(
+                    key,
+                    () -> fetchServersFromController(query),
+                    List::isEmpty,
+                    TRANSIENT_MISS_RETRY_DELAY,
+                    TRANSIENT_MISS_MAX_RETRIES
+            );
+        } else {
+            future = cache.fetch(key, () -> fetchServersFromController(query));
+        }
+
+        return future.thenApply(servers -> {
+                    if (debugEmptyServerResultsEnabled() && servers.isEmpty()) {
+                        logEmptyServerResult(query, key);
+                    }
+                    return servers;
+                });
+    }
+
+    private CompletableFuture<List<Server>> fetchServersFromController(@Nullable ServerQuery query) {
+        return CompletableFuture.supplyAsync(() -> {
             try {
                 ModelsListServersResponse serversResponse = executeQuery(query);
 
@@ -143,14 +153,53 @@ public class ServerApiImpl implements ServerApi {
             } catch (ApiException e) {
                 throw new RuntimeException(e);
             }
-        }));
-
-        return future.thenApply(servers -> {
-            if (debugEmptyServerResultsEnabled() && servers.isEmpty()) {
-                logEmptyServerResult(query, key);
-            }
-            return servers;
         });
+    }
+
+    private CompletableFuture<Server> fetchServerByIdFromController(String id) {
+        return fetchServersFromController(null)
+                .thenApply(servers -> servers.stream()
+                        .filter(server -> id.equals(server.getServerId()))
+                        .findFirst()
+                        .orElse(null));
+    }
+
+    private CompletableFuture<Server> fetchServerByNumericalIdFromController(String groupName, int numericalId) {
+        ServerQuery query = ServerQuery.create()
+                .filterByServerGroupName(groupName)
+                .filterByNumericalId(numericalId);
+
+        return fetchServersFromController(query)
+                .thenApply(servers -> servers.stream()
+                        .filter(server -> server.getNumericalId() == numericalId)
+                        .findFirst()
+                        .orElse(null));
+    }
+
+    private boolean isExactServerLookup(@Nullable ServerQuery query) {
+        return query != null
+                && hasExactlyOneValue(query.getServerGroupNames())
+                && hasExactlyOneValue(query.getNumericalIds())
+                && isNullOrEmpty(query.getServerGroupIds())
+                && isNullOrEmpty(query.getStates())
+                && isBlank(query.getServerhostId())
+                && isBlank(query.getPersistentServerId())
+                && isNullOrEmpty(query.getServerGroupTypes())
+                && isNullOrEmpty(query.getServerGroupTags())
+                && isBlank(query.getSortBy())
+                && isBlank(query.getSortOrder());
+    }
+
+    private boolean hasExactlyOneValue(@Nullable List<?> values) {
+        return values != null && values.size() == 1 && values.getFirst() != null;
+    }
+
+    private boolean isNullOrEmpty(@Nullable List<?> values) {
+        return values == null || values.isEmpty();
+    }
+
+    private boolean isBlank(@Nullable String value) {
+        return value == null || value.isBlank();
     }
 
     private QueryKey buildQueryKey(@Nullable ServerQuery query) {

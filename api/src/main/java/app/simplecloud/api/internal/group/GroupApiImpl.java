@@ -8,6 +8,7 @@ import app.simplecloud.api.web.ApiException;
 import app.simplecloud.api.web.apis.ServerGroupsApi;
 import app.simplecloud.api.web.models.*;
 
+import java.time.Duration;
 import java.util.HashMap;
 import java.util.List;
 import java.util.Locale;
@@ -15,6 +16,8 @@ import java.util.Map;
 import java.util.concurrent.CompletableFuture;
 
 public class GroupApiImpl implements GroupApi {
+    private static final Duration TRANSIENT_MISS_RETRY_DELAY = Duration.ofMillis(200);
+    private static final int TRANSIENT_MISS_MAX_RETRIES = 2;
 
     private final CloudApiOptions options;
     private final ServerGroupsApi serverGroupsApi;
@@ -105,44 +108,36 @@ public class GroupApiImpl implements GroupApi {
     public CompletableFuture<Group> getGroupByName(String name) {
         QueryKey key = QueryKey.of("group", "name", name);
 
-        return cache.fetch(key, () -> CompletableFuture.supplyAsync(() -> {
-            try {
-                ModelsListServerGroupsResponse response = executeQuery(null);
-                List<ModelsServerGroupSummary> groups = response.getServerGroups();
-                if (groups != null) {
-                    for (ModelsServerGroupSummary summary : groups) {
-                        if (name.equals(summary.getName())) {
-                            return new GroupImpl(summary);
-                        }
-                    }
-                }
+        return cache.fetchWithTransientMissRecovery(
+                key,
+                () -> fetchGroupByNameFromController(name),
+                group -> group == null,
+                TRANSIENT_MISS_RETRY_DELAY,
+                TRANSIENT_MISS_MAX_RETRIES
+        ).thenApply(group -> {
+            if (group == null) {
                 throw new RuntimeException("Group not found: " + name);
-            } catch (ApiException e) {
-                throw new RuntimeException(e);
             }
-        }));
+            return group;
+        });
     }
 
     @Override
     public CompletableFuture<Group> getGroupById(String id) {
         QueryKey key = QueryKey.of("group", id);
 
-        return cache.fetch(key, () -> CompletableFuture.supplyAsync(() -> {
-            try {
-                ModelsListServerGroupsResponse response = executeQuery(null);
-                List<ModelsServerGroupSummary> groups = response.getServerGroups();
-                if (groups != null) {
-                    for (ModelsServerGroupSummary summary : groups) {
-                        if (id.equals(summary.getServerGroupId())) {
-                            return new GroupImpl(summary);
-                        }
-                    }
-                }
+        return cache.fetchWithTransientMissRecovery(
+                key,
+                () -> fetchGroupByIdFromController(id),
+                group -> group == null,
+                TRANSIENT_MISS_RETRY_DELAY,
+                TRANSIENT_MISS_MAX_RETRIES
+        ).thenApply(group -> {
+            if (group == null) {
                 throw new RuntimeException("Group not found: " + id);
-            } catch (ApiException e) {
-                throw new RuntimeException(e);
             }
-        }));
+            return group;
+        });
     }
 
     @Override
@@ -197,6 +192,46 @@ public class GroupApiImpl implements GroupApi {
                 this.options.getNetworkSecret(),
                 null
         );
+    }
+
+    private CompletableFuture<Group> fetchGroupByNameFromController(String name) {
+        return CompletableFuture.supplyAsync(() -> {
+            try {
+                ModelsListServerGroupsResponse response = executeQuery(null);
+                List<ModelsServerGroupSummary> groups = response.getServerGroups();
+                if (groups == null) {
+                    return null;
+                }
+
+                return groups.stream()
+                        .filter(summary -> name.equals(summary.getName()))
+                        .findFirst()
+                        .<Group>map(GroupImpl::new)
+                        .orElse(null);
+            } catch (ApiException e) {
+                throw new RuntimeException(e);
+            }
+        });
+    }
+
+    private CompletableFuture<Group> fetchGroupByIdFromController(String id) {
+        return CompletableFuture.supplyAsync(() -> {
+            try {
+                ModelsListServerGroupsResponse response = executeQuery(null);
+                List<ModelsServerGroupSummary> groups = response.getServerGroups();
+                if (groups == null) {
+                    return null;
+                }
+
+                return groups.stream()
+                        .filter(summary -> id.equals(summary.getServerGroupId()))
+                        .findFirst()
+                        .<Group>map(GroupImpl::new)
+                        .orElse(null);
+            } catch (ApiException e) {
+                throw new RuntimeException(e);
+            }
+        });
     }
 
     @Override

@@ -11,12 +11,16 @@ import app.simplecloud.api.web.apis.PersistentServersApi;
 import app.simplecloud.api.web.models.*;
 import org.jetbrains.annotations.Nullable;
 
+import java.time.Duration;
 import java.util.HashMap;
 import java.util.List;
 import java.util.Map;
 import java.util.concurrent.CompletableFuture;
 
 public class PersistentServerApiImpl implements PersistentServerApi {
+    private static final Duration TRANSIENT_MISS_RETRY_DELAY = Duration.ofMillis(200);
+    private static final int TRANSIENT_MISS_MAX_RETRIES = 2;
+
     private final CloudApiOptions options;
     private final PersistentServersApi persistentServersApi;
     private final QueryCache cache;
@@ -35,50 +39,36 @@ public class PersistentServerApiImpl implements PersistentServerApi {
     public CompletableFuture<PersistentServer> getPersistentServerById(String id) {
         QueryKey key = QueryKey.of("persistentServer", id);
 
-        return cache.fetch(key, () -> CompletableFuture.supplyAsync(() -> {
-            try {
-                ModelsListPersistentServersResponse response = persistentServersApi.v0PersistentServersGet(
-                        options.getNetworkId(),
-                        options.getNetworkSecret()
-                );
-                List<ModelsPersistentServerSummary> servers = response.getPersistentServers();
-                if (servers != null) {
-                    for (ModelsPersistentServerSummary summary : servers) {
-                        if (id.equals(summary.getPersistentServerId())) {
-                            return new PersistentServerImpl(summary);
-                        }
-                    }
-                }
+        return cache.fetchWithTransientMissRecovery(
+                key,
+                () -> fetchPersistentServerByIdFromController(id),
+                persistentServer -> persistentServer == null,
+                TRANSIENT_MISS_RETRY_DELAY,
+                TRANSIENT_MISS_MAX_RETRIES
+        ).thenApply(persistentServer -> {
+            if (persistentServer == null) {
                 throw new RuntimeException("Persistent server not found: " + id);
-            } catch (ApiException e) {
-                throw new RuntimeException(e);
             }
-        }));
+            return persistentServer;
+        });
     }
 
     @Override
     public CompletableFuture<PersistentServer> getPersistentServerByName(String name) {
         QueryKey key = QueryKey.of("persistentServer", "name", name);
 
-        return cache.fetch(key, () -> CompletableFuture.supplyAsync(() -> {
-            try {
-                ModelsListPersistentServersResponse response = persistentServersApi.v0PersistentServersGet(
-                        options.getNetworkId(),
-                        options.getNetworkSecret()
-                );
-                List<ModelsPersistentServerSummary> servers = response.getPersistentServers();
-                if (servers != null) {
-                    for (ModelsPersistentServerSummary summary : servers) {
-                        if (name.equals(summary.getName())) {
-                            return new PersistentServerImpl(summary);
-                        }
-                    }
-                }
+        return cache.fetchWithTransientMissRecovery(
+                key,
+                () -> fetchPersistentServerByNameFromController(name),
+                persistentServer -> persistentServer == null,
+                TRANSIENT_MISS_RETRY_DELAY,
+                TRANSIENT_MISS_MAX_RETRIES
+        ).thenApply(persistentServer -> {
+            if (persistentServer == null) {
                 throw new RuntimeException("Persistent server not found: " + name);
-            } catch (ApiException e) {
-                throw new RuntimeException(e);
             }
-        }));
+            return persistentServer;
+        });
     }
 
     @Override
@@ -130,6 +120,52 @@ public class PersistentServerApiImpl implements PersistentServerApi {
                 query.getTags() == null ? null : List.copyOf(query.getTags()),
                 query.getLimit()
         );
+    }
+
+    private CompletableFuture<PersistentServer> fetchPersistentServerByIdFromController(String id) {
+        return CompletableFuture.supplyAsync(() -> {
+            try {
+                ModelsListPersistentServersResponse response = persistentServersApi.v0PersistentServersGet(
+                        options.getNetworkId(),
+                        options.getNetworkSecret()
+                );
+                List<ModelsPersistentServerSummary> servers = response.getPersistentServers();
+                if (servers == null) {
+                    return null;
+                }
+
+                return servers.stream()
+                        .filter(summary -> id.equals(summary.getPersistentServerId()))
+                        .findFirst()
+                        .<PersistentServer>map(PersistentServerImpl::new)
+                        .orElse(null);
+            } catch (ApiException e) {
+                throw new RuntimeException(e);
+            }
+        });
+    }
+
+    private CompletableFuture<PersistentServer> fetchPersistentServerByNameFromController(String name) {
+        return CompletableFuture.supplyAsync(() -> {
+            try {
+                ModelsListPersistentServersResponse response = persistentServersApi.v0PersistentServersGet(
+                        options.getNetworkId(),
+                        options.getNetworkSecret()
+                );
+                List<ModelsPersistentServerSummary> servers = response.getPersistentServers();
+                if (servers == null) {
+                    return null;
+                }
+
+                return servers.stream()
+                        .filter(summary -> name.equals(summary.getName()))
+                        .findFirst()
+                        .<PersistentServer>map(PersistentServerImpl::new)
+                        .orElse(null);
+            } catch (ApiException e) {
+                throw new RuntimeException(e);
+            }
+        });
     }
 
     @Override

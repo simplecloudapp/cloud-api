@@ -1,7 +1,11 @@
 package app.simplecloud.api.cache;
 
+import java.time.Duration;
+import java.util.Objects;
 import java.util.Set;
 import java.util.concurrent.CompletableFuture;
+import java.util.concurrent.TimeUnit;
+import java.util.function.Predicate;
 import java.util.function.Supplier;
 
 /**
@@ -51,6 +55,51 @@ public interface QueryCache {
      * @return a CompletableFuture with the data (from cache or network)
      */
     <T> CompletableFuture<T> fetch(QueryKey key, Supplier<CompletableFuture<T>> fetcher);
+
+    /**
+     * Fetches data and retries direct source fetches when the result matches a transient-miss predicate.
+     *
+     * <p>This is intended for exact lookups where eventual consistency can briefly return
+     * "not found" even though the resource exists a moment later. If all retries still match
+     * the transient-miss predicate, the cache entry is invalidated to avoid negative caching.
+     *
+     * @param key the query key
+     * @param fetcher the function to fetch fresh data from the source
+     * @param isTransientMiss returns true when the result should trigger a direct retry
+     * @param retryDelay delay between retries
+     * @param maxRetries maximum number of direct retries after the initial fetch
+     * @param <T> the data type
+     * @return a CompletableFuture with the resolved data
+     */
+    default <T> CompletableFuture<T> fetchWithTransientMissRecovery(
+            QueryKey key,
+            Supplier<CompletableFuture<T>> fetcher,
+            Predicate<T> isTransientMiss,
+            Duration retryDelay,
+            int maxRetries
+    ) {
+        Objects.requireNonNull(key, "key");
+        Objects.requireNonNull(fetcher, "fetcher");
+        Objects.requireNonNull(isTransientMiss, "isTransientMiss");
+        Objects.requireNonNull(retryDelay, "retryDelay");
+
+        if (maxRetries < 0) {
+            throw new IllegalArgumentException("maxRetries must be >= 0");
+        }
+        if (retryDelay.isNegative()) {
+            throw new IllegalArgumentException("retryDelay must be >= 0");
+        }
+
+        return fetch(key, fetcher)
+                .thenCompose(result -> recoverTransientMiss(
+                        key,
+                        fetcher,
+                        isTransientMiss,
+                        retryDelay,
+                        maxRetries,
+                        result
+                ));
+    }
 
     /**
      * Gets the cached entry for a key, or null if not cached.
@@ -117,4 +166,44 @@ public interface QueryCache {
      * @return the set of cached keys
      */
     Set<QueryKey> getKeys();
+
+    private <T> CompletableFuture<T> recoverTransientMiss(
+            QueryKey key,
+            Supplier<CompletableFuture<T>> fetcher,
+            Predicate<T> isTransientMiss,
+            Duration retryDelay,
+            int retriesRemaining,
+            T result
+    ) {
+        if (!isTransientMiss.test(result)) {
+            return CompletableFuture.completedFuture(result);
+        }
+
+        if (retriesRemaining == 0) {
+            invalidate(key);
+            return CompletableFuture.completedFuture(result);
+        }
+
+        return CompletableFuture
+                .supplyAsync(
+                        () -> null,
+                        CompletableFuture.delayedExecutor(retryDelay.toMillis(), TimeUnit.MILLISECONDS)
+                )
+                .thenCompose(ignored -> fetcher.get())
+                .thenCompose(retriedResult -> {
+                    if (!isTransientMiss.test(retriedResult)) {
+                        set(key, retriedResult);
+                        return CompletableFuture.completedFuture(retriedResult);
+                    }
+
+                    return recoverTransientMiss(
+                            key,
+                            fetcher,
+                            isTransientMiss,
+                            retryDelay,
+                            retriesRemaining - 1,
+                            retriedResult
+                    );
+                });
+    }
 }
