@@ -26,7 +26,7 @@ public class ServerQuery {
     private String serverhostId;
     private String persistentServerId;
     private List<GroupServerType> serverGroupTypes;
-    private List<String> serverGroupNames;
+    private List<String> serverBaseNames;
     private List<String> serverGroupTags;
     private List<Integer> numericalIds;
     private String sortBy;
@@ -125,22 +125,41 @@ public class ServerQuery {
     }
 
     @Nullable
-    public List<String> getServerGroupNames() {
-        return serverGroupNames;
+    public List<String> getServerBaseNames() {
+        return serverBaseNames;
     }
 
     /**
-     * Filter by one or more server group names.
+     * Filter by one or more server base names.
      *
-     * @param names the server group names to filter by
+     * <p>This matches either a persistent server name or a group name.
+     *
+     * @param serverBaseNames the server base names to filter by
      * @return this query for chaining
      */
-    public ServerQuery filterByServerGroupName(String... names) {
-        if (this.serverGroupNames == null) {
-            this.serverGroupNames = new ArrayList<>();
+    public ServerQuery filterByServerBaseName(String... serverBaseNames) {
+        if (this.serverBaseNames == null) {
+            this.serverBaseNames = new ArrayList<>();
         }
-        this.serverGroupNames.addAll(Arrays.asList(names));
+        this.serverBaseNames.addAll(Arrays.asList(serverBaseNames));
         return this;
+    }
+
+    /**
+     * @deprecated Use {@link #getServerBaseNames()} instead.
+     */
+    @Deprecated
+    @Nullable
+    public List<String> getServerGroupNames() {
+        return getServerBaseNames();
+    }
+
+    /**
+     * @deprecated Use {@link #filterByServerBaseName(String...)} instead.
+     */
+    @Deprecated
+    public ServerQuery filterByServerGroupName(String... names) {
+        return filterByServerBaseName(names);
     }
 
     @Nullable

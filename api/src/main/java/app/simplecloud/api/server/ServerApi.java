@@ -22,21 +22,48 @@ public interface ServerApi {
     CompletableFuture<Server> getServerById(String id);
 
     /**
+     * Retrieves a server by its runtime name.
+     *
+     * <p>The provided name may refer either to a persistent server or to a group-backed server
+     * instance. The lookup uses the provided split character to separate the base name from the
+     * trailing numerical suffix, then resolves either the persistent server name with numerical ID
+     * {@code -1}, or the base name with the parsed numerical ID.
+     *
+     * <p>If the provided name does not contain the split character, or the trailing segment is not
+     * a valid numerical suffix, the whole input is treated as a persistent server base name.
+     *
+     * @param serverName the runtime server name
+     * @param splitChar the character used to split the base name from the numerical suffix
+     * @return a CompletableFuture that completes with the server, or null if the provided name is blank
+     */
+    CompletableFuture<Server> getServerByName(String serverName, char splitChar);
+
+    /**
      * Retrieves a server by its numerical ID.
      *
-     * @param groupName the name of the server group
+     * @param serverBaseName the persistent server name or group name used by the server query filter
      * @param numericalId the numerical server ID
      * @return a CompletableFuture that completes with the server, or fails if not found
      */
-    CompletableFuture<Server> getServerByNumericalId(String groupName, int numericalId);
+    CompletableFuture<Server> getServerByNumericalId(String serverBaseName, int numericalId);
 
     /**
-     * Retrieves all servers belonging to a specific group.
+     * Retrieves all servers whose base configuration name matches the provided server base name.
      *
-     * @param groupName the name of the server group
-     * @return a CompletableFuture that completes with a list of servers in the specified group
+     * <p>This matches either a persistent server name or a group name.
+     *
+     * @param serverBaseName the server base name to filter by
+     * @return a CompletableFuture that completes with a list of matching servers
      */
-    CompletableFuture<List<Server>> getServersByGroup(String groupName);
+    CompletableFuture<List<Server>> getServersByServerBaseName(String serverBaseName);
+
+    /**
+     * @deprecated Use {@link #getServersByServerBaseName(String)} instead.
+     */
+    @Deprecated
+    default CompletableFuture<List<Server>> getServersByGroup(String groupName) {
+        return getServersByServerBaseName(groupName);
+    }
 
     /**
      * Retrieves all servers, optionally filtered by a query.

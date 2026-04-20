@@ -3,6 +3,8 @@ package app.simplecloud.api.internal.server;
 import app.simplecloud.api.CloudApiOptions;
 import app.simplecloud.api.cache.QueryCache;
 import app.simplecloud.api.cache.QueryKey;
+import app.simplecloud.api.group.Group;
+import app.simplecloud.api.persistentserver.PersistentServer;
 import app.simplecloud.api.server.Server;
 import app.simplecloud.api.server.ServerApi;
 import app.simplecloud.api.server.ServerQuery;
@@ -69,13 +71,46 @@ public class ServerApiImpl implements ServerApi {
     }
 
     @Override
-    public CompletableFuture<Server> getServerByNumericalId(String groupName, int numericalId) {
-        QueryKey key = QueryKey.of("server", "numerical", groupName, numericalId);
+    public CompletableFuture<Server> getServerByName(String serverName, char splitChar) {
+        ParsedServerName parsedServerName = parseServerName(serverName, splitChar);
+        if (parsedServerName == null) {
+            return CompletableFuture.completedFuture(null);
+        }
+
+        QueryKey key = QueryKey.of("server", "serverName", serverName, splitChar);
 
         return cache.fetch(key, () -> CompletableFuture.supplyAsync(() -> {
             try {
                 ServerQuery query = ServerQuery.create()
-                        .filterByServerGroupName(groupName)
+                        .filterByServerBaseName(parsedServerName.fullName(), parsedServerName.serverBaseName())
+                        .filterByNumericalId(-1, parsedServerName.numericalId());
+                ModelsListServersResponse serversResponse = executeQuery(query);
+
+                List<ModelsServerSummary> servers = serversResponse.getServers();
+                if (servers == null || servers.isEmpty()) {
+                    throw new RuntimeException("Server not found: " + serverName);
+                }
+
+                Server server = findServerByName(servers, parsedServerName);
+                if (server != null) {
+                    return server;
+                }
+
+                throw new RuntimeException("Server not found: " + serverName);
+            } catch (ApiException e) {
+                throw new RuntimeException(e);
+            }
+        }));
+    }
+
+    @Override
+    public CompletableFuture<Server> getServerByNumericalId(String serverBaseName, int numericalId) {
+        QueryKey key = QueryKey.of("server", "numerical", "serverBaseName", serverBaseName, numericalId);
+
+        return cache.fetch(key, () -> CompletableFuture.supplyAsync(() -> {
+            try {
+                ServerQuery query = ServerQuery.create()
+                        .filterByServerBaseName(serverBaseName)
                         .filterByNumericalId(numericalId);
                 ModelsListServersResponse serversResponse = executeQuery(query);
 
@@ -89,7 +124,7 @@ public class ServerApiImpl implements ServerApi {
                         return new ServerImpl(summary);
                     }
                 }
-                throw new RuntimeException("Server not found in group " + groupName + " with numerical ID " + numericalId);
+                throw new RuntimeException("Server not found for server base name " + serverBaseName + " with numerical ID " + numericalId);
 
             } catch (ApiException e) {
                 throw new RuntimeException(e);
@@ -98,13 +133,13 @@ public class ServerApiImpl implements ServerApi {
     }
 
     @Override
-    public CompletableFuture<List<Server>> getServersByGroup(String groupName) {
-        QueryKey key = QueryKey.of("servers", "group", groupName);
+    public CompletableFuture<List<Server>> getServersByServerBaseName(String serverBaseName) {
+        QueryKey key = QueryKey.of("servers", "serverBaseName", serverBaseName);
 
         return cache.fetch(key, () -> CompletableFuture.supplyAsync(() -> {
             try {
                 ServerQuery query = ServerQuery.create()
-                        .filterByServerGroupName(groupName);
+                        .filterByServerBaseName(serverBaseName);
                 ModelsListServersResponse serversResponse = executeQuery(query);
 
                 List<ModelsServerSummary> servers = serversResponse.getServers();
@@ -154,7 +189,7 @@ public class ServerApiImpl implements ServerApi {
                 query.getServerhostId(),
                 query.getPersistentServerId(),
                 query.getServerGroupTypes(),
-                query.getServerGroupNames(),
+                query.getServerBaseNames(),
                 query.getServerGroupTags(),
                 query.getNumericalIds(),
                 query.getSortBy(),
@@ -185,9 +220,9 @@ public class ServerApiImpl implements ServerApi {
                     .collect(java.util.stream.Collectors.joining(","));
         }
 
-        String serverGroupName = null;
-        if (query != null && query.getServerGroupNames() != null && !query.getServerGroupNames().isEmpty()) {
-            serverGroupName = String.join(",", query.getServerGroupNames());
+        String serverBaseName = null;
+        if (query != null && query.getServerBaseNames() != null && !query.getServerBaseNames().isEmpty()) {
+            serverBaseName = String.join(",", query.getServerBaseNames());
         }
 
         String serverGroupTags = null;
@@ -211,7 +246,7 @@ public class ServerApiImpl implements ServerApi {
                 serverhostId,
                 persistentServerId,
                 serverGroupType,
-                serverGroupName,
+                serverBaseName,
                 serverGroupTags,
                 numericalIds,
                 sortBy,
@@ -343,5 +378,74 @@ public class ServerApiImpl implements ServerApi {
                 throw new RuntimeException(e);
             }
         });
+    }
+
+    private Server findServerByName(List<ModelsServerSummary> servers, ParsedServerName parsedServerName) {
+        Server fallback = null;
+
+        for (ModelsServerSummary summary : servers) {
+            Server server = new ServerImpl(summary);
+            if (isExactPersistentServerMatch(server, parsedServerName)
+                    || isExactGroupServerMatch(server, parsedServerName)) {
+                return server;
+            }
+
+            if (fallback == null && summary.getNumericalId() != null
+                    && (summary.getNumericalId() == -1 || summary.getNumericalId() == parsedServerName.numericalId())) {
+                fallback = server;
+            }
+        }
+
+        return fallback;
+    }
+
+    private boolean isExactPersistentServerMatch(Server server, ParsedServerName parsedServerName) {
+        if (server.getNumericalId() != -1) {
+            return false;
+        }
+
+        PersistentServer persistentServer = server.getPersistentServer();
+        return persistentServer != null && parsedServerName.fullName().equals(persistentServer.getName());
+    }
+
+    private boolean isExactGroupServerMatch(Server server, ParsedServerName parsedServerName) {
+        if (server.getNumericalId() != parsedServerName.numericalId()) {
+            return false;
+        }
+
+        Group group = server.getGroup();
+        return group != null && parsedServerName.serverBaseName().equals(group.getName());
+    }
+
+    @Nullable
+    private ParsedServerName parseServerName(String serverName, char splitChar) {
+        if (serverName == null) {
+            return null;
+        }
+
+        String trimmedServerName = serverName.trim();
+        if (trimmedServerName.isEmpty()) {
+            return null;
+        }
+
+        int separatorIndex = trimmedServerName.lastIndexOf(splitChar);
+        if (separatorIndex <= 0 || separatorIndex == trimmedServerName.length() - 1) {
+            return new ParsedServerName(trimmedServerName, trimmedServerName, -1);
+        }
+
+        String serverBaseName = trimmedServerName.substring(0, separatorIndex).trim();
+        String numericalIdPart = trimmedServerName.substring(separatorIndex + 1).trim();
+        if (serverBaseName.isEmpty() || numericalIdPart.isEmpty()) {
+            return new ParsedServerName(trimmedServerName, trimmedServerName, -1);
+        }
+
+        try {
+            return new ParsedServerName(trimmedServerName, serverBaseName, Integer.parseInt(numericalIdPart));
+        } catch (NumberFormatException ignored) {
+            return new ParsedServerName(trimmedServerName, trimmedServerName, -1);
+        }
+    }
+
+    private record ParsedServerName(String fullName, String serverBaseName, int numericalId) {
     }
 }

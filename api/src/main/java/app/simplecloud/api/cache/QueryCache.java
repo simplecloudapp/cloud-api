@@ -84,7 +84,7 @@ public interface QueryCache {
      * For example, {@code invalidateAll(QueryKey.of("servers"))} invalidates:
      * <ul>
      *   <li>{@code QueryKey.of("servers")}</li>
-     *   <li>{@code QueryKey.of("servers", "group", "Lobby")}</li>
+     *   <li>{@code QueryKey.of("servers", "serverBaseName", "Lobby")}</li>
      *   <li>{@code QueryKey.of("servers", "query", ...)}</li>
      * </ul>
      *

@@ -2,10 +2,12 @@ package app.simplecloud.api.internal;
 
 import app.simplecloud.api.CloudApi;
 import app.simplecloud.api.CloudApiOptions;
+import app.simplecloud.api.blueprint.BlueprintApi;
 import app.simplecloud.api.cache.CacheConfig;
 import app.simplecloud.api.cache.QueryCache;
 import app.simplecloud.api.event.EventApi;
 import app.simplecloud.api.group.GroupApi;
+import app.simplecloud.api.internal.blueprint.BlueprintApiImpl;
 import app.simplecloud.api.internal.cache.CacheEventListener;
 import app.simplecloud.api.internal.cache.NoOpQueryCache;
 import app.simplecloud.api.internal.cache.QueryCacheImpl;
@@ -33,6 +35,7 @@ public class CloudApiImpl implements CloudApi {
     private final CacheEventListener cacheEventListener;
     private final ServerApi serverApi;
     private final GroupApi groupApi;
+    private final BlueprintApi blueprintApi;
     private final PersistentServerApi persistentServerApi;
     private final EventApi eventApi;
     private final PlayerApi playerApi;
@@ -65,6 +68,7 @@ public class CloudApiImpl implements CloudApi {
         this.eventApi = new EventApiImpl(natsClient, options.getNetworkId());
         this.serverApi = new ServerApiImpl(options, queryCache);
         this.groupApi = new GroupApiImpl(options, queryCache);
+        this.blueprintApi = new BlueprintApiImpl(options, queryCache);
         this.persistentServerApi = new PersistentServerApiImpl(options, queryCache);
         this.playerApi = new PlayerApiImpl(options, natsClient);
 
@@ -86,6 +90,11 @@ public class CloudApiImpl implements CloudApi {
     @Override
     public ServerApi server() {
         return serverApi;
+    }
+
+    @Override
+    public BlueprintApi blueprint() {
+        return blueprintApi;
     }
 
     @Override

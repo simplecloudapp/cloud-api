@@ -7,6 +7,7 @@ package app.simplecloud.api.cache;
 public enum EntityType {
     SERVER,
     GROUP,
+    BLUEPRINT,
     PERSISTENT_SERVER,
     PLAYER
 }

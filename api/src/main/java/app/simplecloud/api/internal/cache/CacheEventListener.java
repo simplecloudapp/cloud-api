@@ -133,6 +133,22 @@ public class CacheEventListener {
             schedulePatternInvalidation(QueryKey.of("groups"));
         }));
 
+        // Blueprint events
+        subscriptions.add(eventApi.blueprint().onCreated(event -> {
+            schedulePatternInvalidation(QueryKey.of("blueprint"));
+            schedulePatternInvalidation(QueryKey.of("blueprints"));
+        }));
+
+        subscriptions.add(eventApi.blueprint().onUpdated(event -> {
+            schedulePatternInvalidation(QueryKey.of("blueprint"));
+            schedulePatternInvalidation(QueryKey.of("blueprints"));
+        }));
+
+        subscriptions.add(eventApi.blueprint().onDeleted(event -> {
+            schedulePatternInvalidation(QueryKey.of("blueprint"));
+            schedulePatternInvalidation(QueryKey.of("blueprints"));
+        }));
+
         // Persistent server events
         subscriptions.add(eventApi.persistentServer().onCreated(event -> {
             schedulePatternInvalidation(QueryKey.of("persistentServers"));

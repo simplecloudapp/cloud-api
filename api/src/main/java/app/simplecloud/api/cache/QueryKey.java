@@ -12,7 +12,7 @@ import java.util.Objects;
  * <p>Example keys:
  * <pre>{@code
  * QueryKey.of("server", serverId)              // Single server by ID
- * QueryKey.of("servers", "group", groupName)   // Servers filtered by group
+ * QueryKey.of("servers", "serverBaseName", serverBaseName) // Servers filtered by group or persistent server name
  * QueryKey.of("servers")                       // All servers
  * QueryKey.of("groups")                        // All groups
  * QueryKey.of("group", groupId)                // Single group by ID
@@ -21,7 +21,7 @@ import java.util.Objects;
  * <p>Hierarchical matching for invalidation:
  * <pre>{@code
  * // Invalidating QueryKey.of("servers") will also invalidate:
- * // - QueryKey.of("servers", "group", "Lobby")
+ * // - QueryKey.of("servers", "serverBaseName", "Lobby")
  * // - QueryKey.of("servers", "query", ...)
  * cache.invalidateAll(QueryKey.of("servers"));
  * }</pre>
@@ -55,6 +55,7 @@ public final class QueryKey {
         return switch (first) {
             case "server", "servers" -> EntityType.SERVER;
             case "group", "groups" -> EntityType.GROUP;
+            case "blueprint", "blueprints" -> EntityType.BLUEPRINT;
             case "persistentServer", "persistentServers" -> EntityType.PERSISTENT_SERVER;
             case "player", "players" -> EntityType.PLAYER;
             default -> null;
@@ -72,7 +73,7 @@ public final class QueryKey {
      * Checks if this key matches or is a parent of the given key.
      * Used for invalidation patterns.
      *
-     * <p>Example: {@code QueryKey.of("servers")} matches {@code QueryKey.of("servers", "group", "Lobby")}
+     * <p>Example: {@code QueryKey.of("servers")} matches {@code QueryKey.of("servers", "serverBaseName", "Lobby")}
      *
      * @param other the key to check against
      * @return true if this key is a prefix of the other key
