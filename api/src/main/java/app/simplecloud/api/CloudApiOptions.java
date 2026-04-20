@@ -18,6 +18,9 @@ public class CloudApiOptions {
     private final String networkId;
     private final String networkSecret;
     private final CacheConfig cacheConfig;
+    private final Duration httpConnectTimeout;
+    private final Duration httpReadTimeout;
+    private final Duration httpWriteTimeout;
 
     private CloudApiOptions(Builder builder) {
         this.natsUrl = builder.natsUrl;
@@ -27,6 +30,9 @@ public class CloudApiOptions {
         this.networkId = builder.networkId;
         this.networkSecret = builder.networkSecret;
         this.cacheConfig = builder.cacheConfig;
+        this.httpConnectTimeout = builder.httpConnectTimeout;
+        this.httpReadTimeout = builder.httpReadTimeout;
+        this.httpWriteTimeout = builder.httpWriteTimeout;
     }
 
     public String getNatsUrl() {
@@ -62,6 +68,28 @@ public class CloudApiOptions {
         return cacheConfig;
     }
 
+    /**
+     * Returns the HTTP connect timeout for the controller REST client.
+     */
+    public Duration getHttpConnectTimeout() {
+        return httpConnectTimeout;
+    }
+
+    /**
+     * Returns the HTTP read timeout for the controller REST client. Prevents
+     * requests from hanging indefinitely when the controller is unresponsive.
+     */
+    public Duration getHttpReadTimeout() {
+        return httpReadTimeout;
+    }
+
+    /**
+     * Returns the HTTP write timeout for the controller REST client.
+     */
+    public Duration getHttpWriteTimeout() {
+        return httpWriteTimeout;
+    }
+
     public static Builder builder() {
         return new Builder();
     }
@@ -74,6 +102,9 @@ public class CloudApiOptions {
         private String networkId;
         private String networkSecret;
         private CacheConfig cacheConfig = CacheConfig.DEFAULT;
+        private Duration httpConnectTimeout = Duration.ofSeconds(5);
+        private Duration httpReadTimeout = Duration.ofSeconds(10);
+        private Duration httpWriteTimeout = Duration.ofSeconds(10);
 
         public Builder() {
             this.natsUrl = System.getenv().getOrDefault("SIMPLECLOUD_NATS_URL", "wss://nats.simplecloud.app:443");
@@ -150,6 +181,50 @@ public class CloudApiOptions {
          */
         public Builder disableCache() {
             this.cacheConfig = CacheConfig.DISABLED;
+            return this;
+        }
+
+        /**
+         * Sets the HTTP connect timeout for the controller REST client.
+         * A value of zero disables the timeout.
+         *
+         * @param httpConnectTimeout the connect timeout; must be non-null and non-negative
+         */
+        public Builder httpConnectTimeout(Duration httpConnectTimeout) {
+            if (httpConnectTimeout == null || httpConnectTimeout.isNegative()) {
+                throw new IllegalArgumentException("httpConnectTimeout must be >= 0");
+            }
+            this.httpConnectTimeout = httpConnectTimeout;
+            return this;
+        }
+
+        /**
+         * Sets the HTTP read timeout for the controller REST client.
+         * A value of zero disables the timeout. Setting a bounded read timeout
+         * prevents in-flight requests from hanging indefinitely when the
+         * controller stops responding.
+         *
+         * @param httpReadTimeout the read timeout; must be non-null and non-negative
+         */
+        public Builder httpReadTimeout(Duration httpReadTimeout) {
+            if (httpReadTimeout == null || httpReadTimeout.isNegative()) {
+                throw new IllegalArgumentException("httpReadTimeout must be >= 0");
+            }
+            this.httpReadTimeout = httpReadTimeout;
+            return this;
+        }
+
+        /**
+         * Sets the HTTP write timeout for the controller REST client.
+         * A value of zero disables the timeout.
+         *
+         * @param httpWriteTimeout the write timeout; must be non-null and non-negative
+         */
+        public Builder httpWriteTimeout(Duration httpWriteTimeout) {
+            if (httpWriteTimeout == null || httpWriteTimeout.isNegative()) {
+                throw new IllegalArgumentException("httpWriteTimeout must be >= 0");
+            }
+            this.httpWriteTimeout = httpWriteTimeout;
             return this;
         }
 

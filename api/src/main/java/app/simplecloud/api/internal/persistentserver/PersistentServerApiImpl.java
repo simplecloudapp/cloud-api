@@ -3,6 +3,7 @@ package app.simplecloud.api.internal.persistentserver;
 import app.simplecloud.api.CloudApiOptions;
 import app.simplecloud.api.cache.QueryCache;
 import app.simplecloud.api.cache.QueryKey;
+import app.simplecloud.api.internal.web.ApiClients;
 import app.simplecloud.api.group.SourceConfig;
 import app.simplecloud.api.group.WorkflowsConfig;
 import app.simplecloud.api.persistentserver.*;
@@ -30,6 +31,7 @@ public class PersistentServerApiImpl implements PersistentServerApi {
         this.cache = cache;
         this.persistentServersApi = new PersistentServersApi();
         this.persistentServersApi.setCustomBaseUrl(options.getControllerUrl());
+        ApiClients.applyTimeouts(this.persistentServersApi.getApiClient(), options);
         if (options.getComponent() != null && !options.getComponent().isBlank()) {
             this.persistentServersApi.getApiClient().addDefaultHeader("X-SC-Component", options.getComponent());
         }

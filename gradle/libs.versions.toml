@@ -4,6 +4,7 @@ kotlin-coroutines = "1.10.2"
 shadow = "8.3.3"
 openapi-generator = "7.14.0"
 caffeine = "3.1.8"
+junit = "5.11.3"
 
 controller-proto = "32.0.0.1.20260307111646.50c9870526a2"
 adventure-proto = "32.0.0.1.20260106101056.0d2c689e8f10"
@@ -45,6 +46,7 @@ gson-fire = { module = "io.gsonfire:gson-fire", version.ref = "gson-fire" }
 jakarta-annotation = { module = "jakarta.annotation:jakarta.annotation-api", version.ref = "jakarta-annotation" }
 javax-annotation = { module = "javax.annotation:javax.annotation-api", version.ref = "javax-annotation" }
 caffeine = { module = "com.github.ben-manes.caffeine:caffeine", version.ref = "caffeine" }
+junit-jupiter = { module = "org.junit.jupiter:junit-jupiter", version.ref = "junit" }
 
 paper-api = { module = "io.papermc.paper:paper-api", version.ref = "paper" }
 folia-api = { module = "dev.folia:folia-api", version.ref = "folia" }

@@ -16,7 +16,10 @@ import java.util.function.Supplier;
  */
 public class QueryCacheImpl implements QueryCache {
 
+    private static final Duration DEFAULT_IN_FLIGHT_TIMEOUT = Duration.ofSeconds(5);
+
     private final CacheConfig config;
+    private final Duration inFlightTimeout;
     private final Cache<QueryKey, CacheEntry<?>> cache;
     private final ConcurrentMap<QueryKey, CompletableFuture<?>> inFlightRequests;
 
@@ -28,7 +31,12 @@ public class QueryCacheImpl implements QueryCache {
     private final ExecutorService revalidationExecutor;
 
     public QueryCacheImpl(CacheConfig config) {
+        this(config, DEFAULT_IN_FLIGHT_TIMEOUT);
+    }
+
+    QueryCacheImpl(CacheConfig config, Duration inFlightTimeout) {
         this.config = config;
+        this.inFlightTimeout = inFlightTimeout;
         this.inFlightRequests = new ConcurrentHashMap<>();
         this.revalidationExecutor = Executors.newCachedThreadPool(r -> {
             Thread t = new Thread(r, "QueryCache-Revalidation");
@@ -87,7 +95,7 @@ public class QueryCacheImpl implements QueryCache {
     }
 
     @SuppressWarnings("unchecked")
-    private <T> CompletableFuture<T> fetchWithDeduplication(QueryKey key, Supplier<CompletableFuture<T>> fetcher) {
+    <T> CompletableFuture<T> fetchWithDeduplication(QueryKey key, Supplier<CompletableFuture<T>> fetcher) {
         // Query deduplication: if there's already an in-flight request for this key, share it
         CompletableFuture<T> existing = (CompletableFuture<T>) inFlightRequests.get(key);
         if (existing != null) {
@@ -103,15 +111,21 @@ public class QueryCacheImpl implements QueryCache {
                     cache.put(key, newEntry);
                     return data;
                 })
-                .whenComplete((result, error) -> {
-                    inFlightRequests.remove(key);
-                });
+                .orTimeout(inFlightTimeout.toMillis(), TimeUnit.MILLISECONDS)
+                .whenComplete((result, error) -> inFlightRequests.remove(key));
 
         // Use putIfAbsent to handle race conditions
         CompletableFuture<?> previousFuture = inFlightRequests.putIfAbsent(key, future);
         if (previousFuture != null) {
             // Another thread beat us to it, use their future
             return (CompletableFuture<T>) previousFuture;
+        }
+
+        // If the future already completed before putIfAbsent ran (e.g. the fetcher
+        // returned a pre-completed future), whenComplete's remove was a no-op. Clean
+        // up here so subsequent callers don't dedup into a stale completed entry.
+        if (future.isDone()) {
+            inFlightRequests.remove(key, future);
         }
 
         return future;

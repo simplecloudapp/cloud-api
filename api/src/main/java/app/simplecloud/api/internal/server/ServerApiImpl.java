@@ -3,6 +3,7 @@ package app.simplecloud.api.internal.server;
 import app.simplecloud.api.CloudApiOptions;
 import app.simplecloud.api.cache.QueryCache;
 import app.simplecloud.api.cache.QueryKey;
+import app.simplecloud.api.internal.web.ApiClients;
 import app.simplecloud.api.server.Server;
 import app.simplecloud.api.server.ServerApi;
 import app.simplecloud.api.server.ServerQuery;
@@ -45,6 +46,7 @@ public class ServerApiImpl implements ServerApi {
         this.cache = cache;
         this.serversApi = new ServersApi();
         this.serversApi.setCustomBaseUrl(options.getControllerUrl());
+        ApiClients.applyTimeouts(this.serversApi.getApiClient(), options);
         if (options.getComponent() != null && !options.getComponent().isBlank()) {
             this.serversApi.getApiClient().addDefaultHeader("X-SC-Component", options.getComponent());
         }

@@ -1,6 +1,7 @@
 package app.simplecloud.api.internal.player;
 
 import app.simplecloud.api.CloudApiOptions;
+import app.simplecloud.api.internal.web.ApiClients;
 import app.simplecloud.api.player.CloudPlayer;
 import app.simplecloud.api.player.PlayerApi;
 import app.simplecloud.api.web.ApiException;
@@ -38,6 +39,7 @@ public class PlayerApiImpl implements PlayerApi {
         this.natsConnection = natsConnection;
         this.playersApi = new PlayersApi();
         this.playersApi.setCustomBaseUrl(options.getControllerUrl());
+        ApiClients.applyTimeouts(this.playersApi.getApiClient(), options);
         if (options.getComponent() != null && !options.getComponent().isBlank()) {
             this.playersApi.getApiClient().addDefaultHeader("X-SC-Component", options.getComponent());
         }
