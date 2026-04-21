@@ -4,10 +4,12 @@ import app.simplecloud.api.event.EventApi;
 import app.simplecloud.api.event.blueprint.BlueprintEventApi;
 import app.simplecloud.api.event.group.GroupEventApi;
 import app.simplecloud.api.event.persistentserver.PersistentServerEventApi;
+import app.simplecloud.api.event.player.PlayerEventApi;
 import app.simplecloud.api.event.server.ServerEventApi;
 import app.simplecloud.api.internal.event.blueprint.BlueprintEventApiImpl;
 import app.simplecloud.api.internal.event.group.GroupEventApiImpl;
 import app.simplecloud.api.internal.event.persistentserver.PersistentServerEventApiImpl;
+import app.simplecloud.api.internal.event.player.PlayerEventApiImpl;
 import app.simplecloud.api.internal.event.server.ServerEventApiImpl;
 import io.nats.client.Connection;
 
@@ -19,6 +21,7 @@ public class EventApiImpl implements EventApi {
     private final ServerEventApi serverEventApi;
     private final PersistentServerEventApi persistentServerEventApi;
     private final BlueprintEventApi blueprintEventApi;
+    private final PlayerEventApi playerEventApi;
 
     public EventApiImpl(Connection natsClient, String networkId) {
         this.natsClient = natsClient;
@@ -27,6 +30,7 @@ public class EventApiImpl implements EventApi {
         this.serverEventApi = new ServerEventApiImpl(natsClient, networkId);
         this.persistentServerEventApi = new PersistentServerEventApiImpl(natsClient, networkId);
         this.blueprintEventApi = new BlueprintEventApiImpl(natsClient, networkId);
+        this.playerEventApi = new PlayerEventApiImpl(natsClient, networkId);
     }
 
     @Override
@@ -47,6 +51,11 @@ public class EventApiImpl implements EventApi {
     @Override
     public BlueprintEventApi blueprint() {
         return blueprintEventApi;
+    }
+
+    @Override
+    public PlayerEventApi player() {
+        return playerEventApi;
     }
 
 }

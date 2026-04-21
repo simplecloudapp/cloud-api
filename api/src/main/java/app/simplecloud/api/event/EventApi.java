@@ -3,6 +3,7 @@ package app.simplecloud.api.event;
 import app.simplecloud.api.event.blueprint.BlueprintEventApi;
 import app.simplecloud.api.event.group.GroupEventApi;
 import app.simplecloud.api.event.persistentserver.PersistentServerEventApi;
+import app.simplecloud.api.event.player.PlayerEventApi;
 import app.simplecloud.api.event.server.ServerEventApi;
 
 /**
@@ -41,6 +42,13 @@ public interface EventApi {
      * @return the blueprint event API
      */
     BlueprintEventApi blueprint();
+
+    /**
+     * Returns the event API for player events.
+     *
+     * @return the player event API
+     */
+    PlayerEventApi player();
 
 }
 
