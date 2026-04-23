@@ -1,5 +1,6 @@
 package app.simplecloud.api.group;
 
+import app.simplecloud.api.blueprint.CreateBlueprintRequest;
 import org.jetbrains.annotations.Nullable;
 
 import java.util.List;
@@ -20,6 +21,7 @@ public class CreateGroupRequest {
     private DeploymentConfig deployment;
     private ScalingConfig scaling;
     private SourceConfig source;
+    private CreateBlueprintRequest createBlueprint;
     private WorkflowsConfig workflows;
     private Map<String, Object> properties;
     private List<String> tags;
@@ -119,6 +121,16 @@ public class CreateGroupRequest {
 
     public CreateGroupRequest setSource(SourceConfig source) {
         this.source = source;
+        return this;
+    }
+
+    @Nullable
+    public CreateBlueprintRequest getCreateBlueprint() {
+        return createBlueprint;
+    }
+
+    public CreateGroupRequest setCreateBlueprint(@Nullable CreateBlueprintRequest createBlueprint) {
+        this.createBlueprint = createBlueprint;
         return this;
     }
 

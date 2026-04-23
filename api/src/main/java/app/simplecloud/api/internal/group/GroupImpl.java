@@ -268,8 +268,8 @@ public class GroupImpl implements app.simplecloud.api.group.Group {
         String strategyStr = config.getStrategy();
         if (strategyStr != null) {
             try {
-                result.setStrategy(DeploymentStrategy.valueOf(strategyStr));
-            } catch (IllegalArgumentException e) {
+                result.setStrategy(DeploymentStrategy.valueOf(strategyStr.toUpperCase()));
+            } catch (IllegalArgumentException ignored) {
             }
         }
         if (config.getHosts() != null) {
@@ -291,22 +291,34 @@ public class GroupImpl implements app.simplecloud.api.group.Group {
         result.setAvailableSlots(config.getAvailableSlots() != null ? config.getAvailableSlots() : 0);
         result.setMaxServers(config.getMaxServers() != null ? config.getMaxServers() : 0);
         result.setMinServers(config.getMinServers() != null ? config.getMinServers() : 0);
-        result.setPlayerThreshold(config.getPlayerThreshold() != null ? config.getPlayerThreshold().doubleValue() : 0.0);
-        assert config.getScalingMode() != null;
-        String scalingModeStr = config.getScalingMode().toString();
-        if (scalingModeStr != null) {
-            try {
-                result.setScalingMode(ScalingMode.valueOf(scalingModeStr));
-            } catch (IllegalArgumentException e) {
+        if (config.getPlayerThreshold() != null) {
+            result.setPlayerThreshold(config.getPlayerThreshold().doubleValue());
+        }
+        if (config.getScalingMode() != null) {
+            ScalingMode scalingMode = convertScalingMode(config.getScalingMode());
+            if (scalingMode != null) {
+                result.setScalingMode(scalingMode);
             }
         }
         if (config.getScaleDown() != null) {
             ScaleDownConfig scaleDown = new ScaleDownConfig();
             scaleDown.setIdleTime(config.getScaleDown().getIdleTime());
-            scaleDown.setIgnorePlayers(config.getScaleDown().getIgnorePlayers() != null && config.getScaleDown().getIgnorePlayers());
+            if (config.getScaleDown().getIgnorePlayers() != null) {
+                scaleDown.setIgnorePlayers(config.getScaleDown().getIgnorePlayers());
+            }
             result.setScaleDown(scaleDown);
         }
         return result;
+    }
+
+    @Nullable
+    private ScalingMode convertScalingMode(app.simplecloud.api.web.models.ModelsScalingMode scalingMode) {
+        String value = scalingMode.getValue();
+        return switch (value) {
+            case "SLOTS" -> ScalingMode.SLOTS;
+            case "SERVERS" -> ScalingMode.PLAYERS;
+            default -> null;
+        };
     }
 
     private SourceConfig convertSourceConfig(app.simplecloud.api.web.models.ModelsSourceConfig config) {

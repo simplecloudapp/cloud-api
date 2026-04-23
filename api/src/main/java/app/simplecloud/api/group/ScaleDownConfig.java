@@ -6,6 +6,7 @@ public class ScaleDownConfig {
     @Nullable
     private String idleTime;
     private boolean ignorePlayers;
+    private boolean ignorePlayersSet;
 
     public ScaleDownConfig() {
     }
@@ -25,5 +26,10 @@ public class ScaleDownConfig {
 
     public void setIgnorePlayers(boolean ignorePlayers) {
         this.ignorePlayers = ignorePlayers;
+        this.ignorePlayersSet = true;
+    }
+
+    public boolean hasIgnorePlayers() {
+        return ignorePlayersSet;
     }
 }

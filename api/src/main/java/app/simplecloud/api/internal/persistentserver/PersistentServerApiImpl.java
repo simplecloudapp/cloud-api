@@ -1,13 +1,18 @@
 package app.simplecloud.api.internal.persistentserver;
 
 import app.simplecloud.api.CloudApiOptions;
+import app.simplecloud.api.blueprint.CreateBlueprintRequest;
 import app.simplecloud.api.cache.QueryCache;
 import app.simplecloud.api.cache.QueryKey;
-import app.simplecloud.api.internal.web.ApiClients;
+import app.simplecloud.api.group.GroupServerType;
 import app.simplecloud.api.group.SourceConfig;
 import app.simplecloud.api.group.WorkflowsConfig;
+import app.simplecloud.api.internal.blueprint.InlineBlueprintSupport;
+import app.simplecloud.api.internal.create.CreateRequestDefaults;
+import app.simplecloud.api.internal.web.ApiClients;
 import app.simplecloud.api.persistentserver.*;
 import app.simplecloud.api.web.ApiException;
+import app.simplecloud.api.web.apis.BlueprintsApi;
 import app.simplecloud.api.web.apis.PersistentServersApi;
 import app.simplecloud.api.web.models.*;
 import org.jetbrains.annotations.Nullable;
@@ -24,17 +29,23 @@ public class PersistentServerApiImpl implements PersistentServerApi {
 
     private final CloudApiOptions options;
     private final PersistentServersApi persistentServersApi;
+    private final InlineBlueprintSupport inlineBlueprintSupport;
+    private final CreateRequestDefaults createRequestDefaults;
     private final QueryCache cache;
 
     public PersistentServerApiImpl(CloudApiOptions options, QueryCache cache) {
+        this(options, cache, createPersistentServersApi(options), createBlueprintsApi(options));
+    }
+
+    PersistentServerApiImpl(CloudApiOptions options,
+                            QueryCache cache,
+                            PersistentServersApi persistentServersApi,
+                            BlueprintsApi blueprintsApi) {
         this.options = options;
         this.cache = cache;
-        this.persistentServersApi = new PersistentServersApi();
-        this.persistentServersApi.setCustomBaseUrl(options.getControllerUrl());
-        ApiClients.applyTimeouts(this.persistentServersApi.getApiClient(), options);
-        if (options.getComponent() != null && !options.getComponent().isBlank()) {
-            this.persistentServersApi.getApiClient().addDefaultHeader("X-SC-Component", options.getComponent());
-        }
+        this.persistentServersApi = persistentServersApi;
+        this.inlineBlueprintSupport = new InlineBlueprintSupport(options, blueprintsApi);
+        this.createRequestDefaults = new CreateRequestDefaults();
     }
 
     @Override
@@ -124,6 +135,28 @@ public class PersistentServerApiImpl implements PersistentServerApi {
         );
     }
 
+    private boolean persistentServerExistsWithBlueprint(String name, @Nullable String blueprintId) {
+        if (blueprintId == null) {
+            return false;
+        }
+
+        try {
+            ModelsListPersistentServersResponse response = persistentServersApi.v0PersistentServersGet(
+                    options.getNetworkId(),
+                    options.getNetworkSecret()
+            );
+            List<ModelsPersistentServerSummary> servers = response.getPersistentServers();
+            if (servers == null) {
+                return false;
+            }
+
+            return servers.stream()
+                    .anyMatch(summary -> name.equals(summary.getName()) && sourceReferencesBlueprint(summary.getSource(), blueprintId));
+        } catch (ApiException e) {
+            throw new RuntimeException(e);
+        }
+    }
+
     private CompletableFuture<PersistentServer> fetchPersistentServerByIdFromController(String id) {
         return CompletableFuture.supplyAsync(() -> {
             try {
@@ -173,39 +206,70 @@ public class PersistentServerApiImpl implements PersistentServerApi {
     @Override
     public CompletableFuture<PersistentServer> createPersistentServer(CreatePersistentServerRequest request) {
         return CompletableFuture.supplyAsync(() -> {
+            WorkflowsConfig effectiveWorkflows = createRequestDefaults.defaultWorkflows(request.getWorkflows());
+            CreateBlueprintRequest effectiveCreateBlueprint = createRequestDefaults.defaultInlineBlueprint(
+                    request.getCreateBlueprint(),
+                    effectiveWorkflows
+            );
+            GroupServerType effectiveType = createRequestDefaults.defaultType(request.getType());
+            int effectiveMaxPlayers = createRequestDefaults.defaultMaxPlayers(request.getMaxPlayers());
+            boolean effectiveActive = createRequestDefaults.defaultActive(request.getActive());
+            Map<String, Object> effectiveProperties = createRequestDefaults.defaultProperties(request.getProperties());
+            List<String> effectiveTags = createRequestDefaults.defaultTags(request.getName(), request.getTags());
+
+            inlineBlueprintSupport.validateInlineBlueprintSource(effectiveCreateBlueprint, request.getSource());
+            String createdBlueprintId = null;
             try {
+                createdBlueprintId = inlineBlueprintSupport.createBlueprint(request.getName(), effectiveCreateBlueprint);
+                SourceConfig effectiveSource = createdBlueprintId != null
+                        ? inlineBlueprintSupport.buildInlineBlueprintSource(request.getSource(), createdBlueprintId)
+                        : request.getSource();
+
                 ModelsCreatePersistentServerRequest apiRequest = new ModelsCreatePersistentServerRequest();
                 apiRequest.setName(request.getName());
                 apiRequest.setMinMemory(request.getMinMemory());
                 apiRequest.setMaxMemory(request.getMaxMemory());
-                apiRequest.setMaxPlayers(request.getMaxPlayers());
-                apiRequest.setActive(request.getActive());
+                apiRequest.setMaxPlayers(effectiveMaxPlayers);
+                apiRequest.setActive(effectiveActive);
                 apiRequest.setPriority(request.getPriority());
                 apiRequest.setServerhostId(request.getServerhostId());
-                apiRequest.setProperties(request.getProperties());
-                apiRequest.setTags(request.getTags());
+                apiRequest.setProperties(effectiveProperties);
+                apiRequest.setTags(effectiveTags);
+                apiRequest.setType(effectiveType.name());
+                if (effectiveSource != null) {
+                    apiRequest.setSource(convertSourceConfig(effectiveSource));
+                }
+                apiRequest.setWorkflows(convertWorkflowsConfig(effectiveWorkflows));
 
-                if (request.getType() != null) {
-                    apiRequest.setType(request.getType().name());
+                ModelsCreatePersistentServerResponse response;
+                try {
+                    response = persistentServersApi.v0PersistentServersPost(
+                            options.getNetworkId(),
+                            options.getNetworkSecret(),
+                            new V0PersistentServersPostRequest(apiRequest)
+                    );
+                } catch (ApiException e) {
+                    String blueprintId = createdBlueprintId;
+                    ApiException rollbackFailure = inlineBlueprintSupport.rollbackBlueprintAfterCreateFailure(
+                            blueprintId,
+                            e,
+                            () -> persistentServerExistsWithBlueprint(request.getName(), blueprintId)
+                    );
+                    if (rollbackFailure != null) {
+                        RuntimeException failure = new RuntimeException(
+                                "Failed to create persistent server and rollback inline blueprint " + blueprintId,
+                                e
+                        );
+                        failure.addSuppressed(rollbackFailure);
+                        throw failure;
+                    }
+                    throw e;
                 }
-                if (request.getSource() != null) {
-                    apiRequest.setSource(convertSourceConfig(request.getSource()));
-                }
-                if (request.getWorkflows() != null) {
-                    apiRequest.setWorkflows(convertWorkflowsConfig(request.getWorkflows()));
-                }
-
-                ModelsCreatePersistentServerResponse response = persistentServersApi.v0PersistentServersPost(
-                        options.getNetworkId(),
-                        options.getNetworkSecret(),
-                        new V0PersistentServersPostRequest(apiRequest)
-                );
 
                 // Invalidate list caches (new persistent server created)
                 cache.invalidateAll(QueryKey.of("persistentServers"));
 
-                // Re-fetch to get the full object
-                return getPersistentServerById(response.getPersistentServerId()).join();
+                return new PersistentServerImpl(toSummary(response));
             } catch (ApiException e) {
                 throw new RuntimeException(e);
             }
@@ -337,6 +401,31 @@ public class PersistentServerApiImpl implements PersistentServerApi {
         return result;
     }
 
+    private ModelsPersistentServerSummary toSummary(ModelsCreatePersistentServerResponse response) {
+        ModelsPersistentServerSummary summary = new ModelsPersistentServerSummary();
+        summary.setPersistentServerId(response.getPersistentServerId());
+        summary.setName(response.getName());
+        summary.setType(response.getType());
+        summary.setMinMemory(response.getMinMemory());
+        summary.setMaxMemory(response.getMaxMemory());
+        summary.setMaxPlayers(response.getMaxPlayers());
+        summary.setActive(response.getActive());
+        summary.setPriority(response.getPriority());
+        summary.setPlayerCount(response.getPlayerCount());
+        summary.setServerhostId(response.getServerhostId());
+        summary.setSource(response.getSource());
+        summary.setWorkflows(response.getWorkflows());
+        summary.setProperties(response.getProperties());
+        summary.setTags(response.getTags());
+        summary.setCreatedAt(response.getCreatedAt());
+        summary.setUpdatedAt(response.getUpdatedAt());
+        return summary;
+    }
+
+    private boolean sourceReferencesBlueprint(@Nullable ModelsSourceConfig source, String blueprintId) {
+        return source != null && blueprintId.equals(source.getBlueprint());
+    }
+
     private ModelsWorkflowsConfig convertWorkflowsConfig(WorkflowsConfig config) {
         ModelsWorkflowsConfig result = new ModelsWorkflowsConfig();
         result.setManual(config.getManual());
@@ -349,5 +438,25 @@ public class PersistentServerApiImpl implements PersistentServerApi {
         }
 
         return result;
+    }
+
+    private static PersistentServersApi createPersistentServersApi(CloudApiOptions options) {
+        PersistentServersApi api = new PersistentServersApi();
+        api.setCustomBaseUrl(options.getControllerUrl());
+        ApiClients.applyTimeouts(api.getApiClient(), options);
+        if (options.getComponent() != null && !options.getComponent().isBlank()) {
+            api.getApiClient().addDefaultHeader("X-SC-Component", options.getComponent());
+        }
+        return api;
+    }
+
+    private static BlueprintsApi createBlueprintsApi(CloudApiOptions options) {
+        BlueprintsApi api = new BlueprintsApi();
+        api.setCustomBaseUrl(options.getControllerUrl());
+        ApiClients.applyTimeouts(api.getApiClient(), options);
+        if (options.getComponent() != null && !options.getComponent().isBlank()) {
+            api.getApiClient().addDefaultHeader("X-SC-Component", options.getComponent());
+        }
+        return api;
     }
 }

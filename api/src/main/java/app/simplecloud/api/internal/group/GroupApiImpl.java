@@ -3,16 +3,20 @@ package app.simplecloud.api.internal.group;
 import app.simplecloud.api.CloudApiOptions;
 import app.simplecloud.api.cache.QueryCache;
 import app.simplecloud.api.cache.QueryKey;
+import app.simplecloud.api.blueprint.CreateBlueprintRequest;
 import app.simplecloud.api.group.*;
+import app.simplecloud.api.internal.blueprint.InlineBlueprintSupport;
+import app.simplecloud.api.internal.create.CreateRequestDefaults;
 import app.simplecloud.api.internal.web.ApiClients;
 import app.simplecloud.api.web.ApiException;
+import app.simplecloud.api.web.apis.BlueprintsApi;
 import app.simplecloud.api.web.apis.ServerGroupsApi;
 import app.simplecloud.api.web.models.*;
+import org.jetbrains.annotations.Nullable;
 
 import java.time.Duration;
 import java.util.HashMap;
 import java.util.List;
-import java.util.Locale;
 import java.util.Map;
 import java.util.concurrent.CompletableFuture;
 
@@ -22,17 +26,23 @@ public class GroupApiImpl implements GroupApi {
 
     private final CloudApiOptions options;
     private final ServerGroupsApi serverGroupsApi;
+    private final InlineBlueprintSupport inlineBlueprintSupport;
+    private final CreateRequestDefaults createRequestDefaults;
     private final QueryCache cache;
 
     public GroupApiImpl(CloudApiOptions options, QueryCache cache) {
+        this(options, cache, createServerGroupsApi(options), createBlueprintsApi(options));
+    }
+
+    GroupApiImpl(CloudApiOptions options,
+                 QueryCache cache,
+                 ServerGroupsApi serverGroupsApi,
+                 BlueprintsApi blueprintsApi) {
         this.options = options;
         this.cache = cache;
-        this.serverGroupsApi = new ServerGroupsApi();
-        this.serverGroupsApi.setCustomBaseUrl(options.getControllerUrl());
-        ApiClients.applyTimeouts(this.serverGroupsApi.getApiClient(), options);
-        if (options.getComponent() != null && !options.getComponent().isBlank()) {
-            this.serverGroupsApi.getApiClient().addDefaultHeader("X-SC-Component", options.getComponent());
-        }
+        this.serverGroupsApi = serverGroupsApi;
+        this.inlineBlueprintSupport = new InlineBlueprintSupport(options, blueprintsApi);
+        this.createRequestDefaults = new CreateRequestDefaults();
     }
 
     @Override
@@ -196,6 +206,25 @@ public class GroupApiImpl implements GroupApi {
         );
     }
 
+    private boolean groupExistsWithBlueprint(String name, @Nullable String blueprintId) {
+        if (blueprintId == null) {
+            return false;
+        }
+
+        try {
+            ModelsListServerGroupsResponse response = executeQuery(null);
+            List<ModelsServerGroupSummary> groups = response.getServerGroups();
+            if (groups == null) {
+                return false;
+            }
+
+            return groups.stream()
+                    .anyMatch(summary -> name.equals(summary.getName()) && sourceReferencesBlueprint(summary.getSource(), blueprintId));
+        } catch (ApiException e) {
+            throw new RuntimeException(e);
+        }
+    }
+
     private CompletableFuture<Group> fetchGroupByNameFromController(String name) {
         return CompletableFuture.supplyAsync(() -> {
             try {
@@ -239,38 +268,68 @@ public class GroupApiImpl implements GroupApi {
     @Override
     public CompletableFuture<Group> createGroup(CreateGroupRequest request) {
         return CompletableFuture.supplyAsync(() -> {
+            WorkflowsConfig effectiveWorkflows = createRequestDefaults.defaultWorkflows(request.getWorkflows());
+            CreateBlueprintRequest effectiveCreateBlueprint = createRequestDefaults.defaultInlineBlueprint(
+                    request.getCreateBlueprint(),
+                    effectiveWorkflows
+            );
+            GroupServerType effectiveType = createRequestDefaults.defaultType(request.getType());
+            int effectiveMaxPlayers = createRequestDefaults.defaultMaxPlayers(request.getMaxPlayers());
+            boolean effectiveActive = createRequestDefaults.defaultActive(request.getActive());
+            Map<String, Object> effectiveProperties = createRequestDefaults.defaultProperties(request.getProperties());
+            List<String> effectiveTags = createRequestDefaults.defaultTags(request.getName(), request.getTags());
+            DeploymentConfig effectiveDeployment = createRequestDefaults.defaultDeployment(request.getDeployment());
+            ScalingConfig effectiveScaling = createRequestDefaults.defaultGroupScaling(request.getScaling());
+
+            inlineBlueprintSupport.validateInlineBlueprintSource(effectiveCreateBlueprint, request.getSource());
+            String createdBlueprintId = null;
             try {
+                createdBlueprintId = inlineBlueprintSupport.createBlueprint(request.getName(), effectiveCreateBlueprint);
+                SourceConfig effectiveSource = createdBlueprintId != null
+                        ? inlineBlueprintSupport.buildInlineBlueprintSource(request.getSource(), createdBlueprintId)
+                        : request.getSource();
+
                 ModelsCreateServerGroupRequest apiRequest = new ModelsCreateServerGroupRequest();
                 apiRequest.setName(request.getName());
-                if (request.getType() != null) {
-                    apiRequest.setType(request.getType().name());
-                }
+                apiRequest.setType(effectiveType.name());
                 apiRequest.setMinMemory(request.getMinMemory());
                 apiRequest.setMaxMemory(request.getMaxMemory());
-                apiRequest.setMaxPlayers(request.getMaxPlayers());
-                apiRequest.setActive(request.getActive());
+                apiRequest.setMaxPlayers(effectiveMaxPlayers);
+                apiRequest.setActive(effectiveActive);
                 apiRequest.setPriority(request.getPriority());
-                apiRequest.setProperties(request.getProperties());
-                apiRequest.setTags(request.getTags());
+                apiRequest.setProperties(effectiveProperties);
+                apiRequest.setTags(effectiveTags);
+                apiRequest.setDeployment(convertDeploymentConfig(effectiveDeployment));
+                apiRequest.setScaling(convertScalingConfig(effectiveScaling));
+                if (effectiveSource != null) {
+                    apiRequest.setSource(convertSourceConfig(effectiveSource));
+                }
+                apiRequest.setWorkflows(convertWorkflowsConfig(effectiveWorkflows));
 
-                if (request.getDeployment() != null) {
-                    apiRequest.setDeployment(convertDeploymentConfig(request.getDeployment()));
+                ModelsCreateServerGroupResponse response;
+                try {
+                    response = serverGroupsApi.v0ServerGroupsPost(
+                            this.options.getNetworkId(),
+                            this.options.getNetworkSecret(),
+                            new V0ServerGroupsPostRequest(apiRequest)
+                    );
+                } catch (ApiException e) {
+                    String blueprintId = createdBlueprintId;
+                    ApiException rollbackFailure = inlineBlueprintSupport.rollbackBlueprintAfterCreateFailure(
+                            blueprintId,
+                            e,
+                            () -> groupExistsWithBlueprint(request.getName(), blueprintId)
+                    );
+                    if (rollbackFailure != null) {
+                        RuntimeException failure = new RuntimeException(
+                                "Failed to create group and rollback inline blueprint " + blueprintId,
+                                e
+                        );
+                        failure.addSuppressed(rollbackFailure);
+                        throw failure;
+                    }
+                    throw e;
                 }
-                if (request.getScaling() != null) {
-                    apiRequest.setScaling(convertScalingConfig(request.getScaling()));
-                }
-                if (request.getSource() != null) {
-                    apiRequest.setSource(convertSourceConfig(request.getSource()));
-                }
-                if (request.getWorkflows() != null) {
-                    apiRequest.setWorkflows(convertWorkflowsConfig(request.getWorkflows()));
-                }
-
-                ModelsCreateServerGroupResponse response = serverGroupsApi.v0ServerGroupsPost(
-                        this.options.getNetworkId(),
-                        this.options.getNetworkSecret(),
-                        new V0ServerGroupsPostRequest(apiRequest)
-                );
 
                 // Invalidate group list caches (new group created)
                 cache.invalidateAll(QueryKey.of("groups"));
@@ -371,7 +430,7 @@ public class GroupApiImpl implements GroupApi {
     private ModelsDeploymentConfig convertDeploymentConfig(DeploymentConfig config) {
         ModelsDeploymentConfig result = new ModelsDeploymentConfig();
         if (config.getStrategy() != null) {
-            result.setStrategy(config.getStrategy().name());
+            result.setStrategy(convertDeploymentStrategy(config.getStrategy()));
         }
 
         if (config.getHosts() != null && config.getHosts().length > 0) {
@@ -386,6 +445,16 @@ public class GroupApiImpl implements GroupApi {
         return result;
     }
 
+    private String convertDeploymentStrategy(DeploymentStrategy strategy) {
+        return switch (strategy) {
+            case WHITELIST -> "whitelist";
+            case BLACKLIST -> "blacklist";
+            case RANDOM, PRIORITY, ROUND_ROBIN -> throw new IllegalArgumentException(
+                    "DeploymentStrategy." + strategy.name() + " is not supported by the controller REST API. Supported strategies are WHITELIST and BLACKLIST."
+            );
+        };
+    }
+
     private ModelsScalingConfig convertScalingConfig(ScalingConfig config) {
         ModelsScalingConfig result = new ModelsScalingConfig();
         result.setAvailableSlots(config.getAvailableSlots());
@@ -393,7 +462,7 @@ public class GroupApiImpl implements GroupApi {
         result.setMinServers(config.getMinServers());
         result.setPlayerThreshold(java.math.BigDecimal.valueOf(config.getPlayerThreshold()));
         if (config.getScalingMode() != null) {
-            result.setScalingMode(ModelsScalingMode.valueOf(config.getScalingMode().name().toUpperCase(Locale.ROOT)));
+            result.setScalingMode(convertScalingMode(config.getScalingMode()));
         }
 
         if (config.getScaleDown() != null) {
@@ -404,6 +473,16 @@ public class GroupApiImpl implements GroupApi {
         }
 
         return result;
+    }
+
+    private ModelsScalingMode convertScalingMode(ScalingMode scalingMode) {
+        return switch (scalingMode) {
+            case SLOTS -> ModelsScalingMode.fromValue("SLOTS");
+            case PLAYERS -> ModelsScalingMode.fromValue("SERVERS");
+            case MANUAL -> throw new IllegalArgumentException(
+                    "ScalingMode.MANUAL is not supported by the controller REST API. Supported modes are SLOTS and PLAYERS."
+            );
+        };
     }
 
     private ModelsSourceConfig convertSourceConfig(SourceConfig config) {
@@ -428,6 +507,10 @@ public class GroupApiImpl implements GroupApi {
         }
 
         return result;
+    }
+
+    private boolean sourceReferencesBlueprint(@Nullable ModelsSourceConfig source, String blueprintId) {
+        return source != null && blueprintId.equals(source.getBlueprint());
     }
 
     @Override
@@ -537,5 +620,25 @@ public class GroupApiImpl implements GroupApi {
             return null;
         }
         return value;
+    }
+
+    private static ServerGroupsApi createServerGroupsApi(CloudApiOptions options) {
+        ServerGroupsApi api = new ServerGroupsApi();
+        api.setCustomBaseUrl(options.getControllerUrl());
+        ApiClients.applyTimeouts(api.getApiClient(), options);
+        if (options.getComponent() != null && !options.getComponent().isBlank()) {
+            api.getApiClient().addDefaultHeader("X-SC-Component", options.getComponent());
+        }
+        return api;
+    }
+
+    private static BlueprintsApi createBlueprintsApi(CloudApiOptions options) {
+        BlueprintsApi api = new BlueprintsApi();
+        api.setCustomBaseUrl(options.getControllerUrl());
+        ApiClients.applyTimeouts(api.getApiClient(), options);
+        if (options.getComponent() != null && !options.getComponent().isBlank()) {
+            api.getApiClient().addDefaultHeader("X-SC-Component", options.getComponent());
+        }
+        return api;
     }
 }

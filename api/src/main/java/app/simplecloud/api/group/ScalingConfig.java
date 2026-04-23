@@ -7,6 +7,7 @@ public class ScalingConfig {
     private int maxServers;
     private int minServers;
     private double playerThreshold;
+    private boolean playerThresholdSet;
     @Nullable
     private ScaleDownConfig scaleDown;
     @Nullable
@@ -45,6 +46,11 @@ public class ScalingConfig {
 
     public void setPlayerThreshold(double playerThreshold) {
         this.playerThreshold = playerThreshold;
+        this.playerThresholdSet = true;
+    }
+
+    public boolean hasPlayerThreshold() {
+        return playerThresholdSet;
     }
 
     @Nullable

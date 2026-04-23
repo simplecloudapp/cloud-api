@@ -1,5 +1,6 @@
 package app.simplecloud.api.persistentserver;
 
+import app.simplecloud.api.blueprint.CreateBlueprintRequest;
 import app.simplecloud.api.group.SourceConfig;
 import app.simplecloud.api.group.WorkflowsConfig;
 import app.simplecloud.api.group.GroupServerType;
@@ -21,6 +22,7 @@ public class CreatePersistentServerRequest {
     private final String serverhostId;
     private final GroupServerType type;
     private final SourceConfig source;
+    private final CreateBlueprintRequest createBlueprint;
     private final WorkflowsConfig workflows;
     private final Map<String, Object> properties;
     private final List<String> tags;
@@ -35,6 +37,7 @@ public class CreatePersistentServerRequest {
         this.serverhostId = builder.serverhostId;
         this.type = builder.type;
         this.source = builder.source;
+        this.createBlueprint = builder.createBlueprint;
         this.workflows = builder.workflows;
         this.properties = builder.properties;
         this.tags = builder.tags;
@@ -85,6 +88,11 @@ public class CreatePersistentServerRequest {
     }
 
     @Nullable
+    public CreateBlueprintRequest getCreateBlueprint() {
+        return createBlueprint;
+    }
+
+    @Nullable
     public WorkflowsConfig getWorkflows() {
         return workflows;
     }
@@ -113,6 +121,7 @@ public class CreatePersistentServerRequest {
         private String serverhostId;
         private GroupServerType type;
         private SourceConfig source;
+        private CreateBlueprintRequest createBlueprint;
         private WorkflowsConfig workflows;
         private Map<String, Object> properties;
         private List<String> tags;
@@ -159,6 +168,11 @@ public class CreatePersistentServerRequest {
 
         public Builder source(SourceConfig source) {
             this.source = source;
+            return this;
+        }
+
+        public Builder createBlueprint(CreateBlueprintRequest createBlueprint) {
+            this.createBlueprint = createBlueprint;
             return this;
         }
 
