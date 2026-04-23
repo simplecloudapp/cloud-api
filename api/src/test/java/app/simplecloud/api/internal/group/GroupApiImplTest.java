@@ -50,18 +50,22 @@ class GroupApiImplTest {
         FakeServerGroupsApi serverGroupsApi = new FakeServerGroupsApi(order);
         GroupApiImpl api = new GroupApiImpl(options(), new NoOpQueryCache(), serverGroupsApi, blueprintsApi);
 
-        RuntimeConfig runtimeConfig = new RuntimeConfig();
-        runtimeConfig.setType(RuntimeType.JAVA);
-        runtimeConfig.setWith(Map.of("distribution", "temurin"));
+        RuntimeConfig runtimeConfig = RuntimeConfig.builder()
+                .type(RuntimeType.JAVA)
+                .with(Map.of("distribution", "temurin"))
+                .build();
 
-        CreateBlueprintRequest createBlueprint = new CreateBlueprintRequest()
-                .setConfigurator("paper")
-                .setRuntimeConfig(runtimeConfig)
-                .setWorkflowSteps(List.of("download", "patch"));
+        CreateBlueprintRequest createBlueprint = CreateBlueprintRequest.builder()
+                .configurator("paper")
+                .runtimeConfig(runtimeConfig)
+                .workflowSteps(List.of("download", "patch"))
+                .build();
 
-        CreateGroupRequest request = new CreateGroupRequest("Lobby")
-                .setType(GroupServerType.SERVER)
-                .setCreateBlueprint(createBlueprint);
+        CreateGroupRequest request = CreateGroupRequest.builder()
+                .name("Lobby")
+                .type(GroupServerType.SERVER)
+                .createBlueprint(createBlueprint)
+                .build();
 
         Group group = api.createGroup(request).join();
 
@@ -85,16 +89,19 @@ class GroupApiImplTest {
         FakeServerGroupsApi serverGroupsApi = new FakeServerGroupsApi(order);
         GroupApiImpl api = new GroupApiImpl(options(), new NoOpQueryCache(), serverGroupsApi, blueprintsApi);
 
-        ScalingConfig scaling = new ScalingConfig();
-        scaling.setMinServers(1);
-        scaling.setMaxServers(3);
-        scaling.setAvailableSlots(50);
-        scaling.setPlayerThreshold(0.8);
-        scaling.setScalingMode(ScalingMode.SLOTS);
+        ScalingConfig scaling = ScalingConfig.builder()
+                .minServers(1)
+                .maxServers(3)
+                .availableSlots(50)
+                .playerThreshold(0.8)
+                .scalingMode(ScalingMode.SLOTS)
+                .build();
 
-        CreateGroupRequest request = new CreateGroupRequest("Lobby")
-                .setType(GroupServerType.SERVER)
-                .setScaling(scaling);
+        CreateGroupRequest request = CreateGroupRequest.builder()
+                .name("Lobby")
+                .type(GroupServerType.SERVER)
+                .scaling(scaling)
+                .build();
 
         Group group = api.createGroup(request).join();
 
@@ -112,10 +119,13 @@ class GroupApiImplTest {
         FakeServerGroupsApi serverGroupsApi = new FakeServerGroupsApi(order);
         GroupApiImpl api = new GroupApiImpl(options(), new NoOpQueryCache(), serverGroupsApi, blueprintsApi);
 
-        CreateGroupRequest request = new CreateGroupRequest("Lobby")
-                .setCreateBlueprint(new CreateBlueprintRequest()
-                        .setConfigurator("paper")
-                        .setServerSoftware("paper"));
+        CreateGroupRequest request = CreateGroupRequest.builder()
+                .name("Lobby")
+                .createBlueprint(CreateBlueprintRequest.builder()
+                        .configurator("paper")
+                        .serverSoftware("paper")
+                        .build())
+                .build();
 
         api.createGroup(request).join();
 
@@ -148,15 +158,19 @@ class GroupApiImplTest {
         FakeServerGroupsApi serverGroupsApi = new FakeServerGroupsApi(order);
         GroupApiImpl api = new GroupApiImpl(options(), new NoOpQueryCache(), serverGroupsApi, blueprintsApi);
 
-        ScaleDownConfig scaleDown = new ScaleDownConfig();
-        scaleDown.setIdleTime("5m");
+        ScaleDownConfig scaleDown = ScaleDownConfig.builder()
+                .idleTime("5m")
+                .build();
 
-        ScalingConfig scaling = new ScalingConfig();
-        scaling.setMinServers(1);
-        scaling.setScaleDown(scaleDown);
+        ScalingConfig scaling = ScalingConfig.builder()
+                .minServers(1)
+                .scaleDown(scaleDown)
+                .build();
 
-        CreateGroupRequest request = new CreateGroupRequest("Lobby")
-                .setScaling(scaling);
+        CreateGroupRequest request = CreateGroupRequest.builder()
+                .name("Lobby")
+                .scaling(scaling)
+                .build();
 
         api.createGroup(request).join();
 
@@ -172,13 +186,17 @@ class GroupApiImplTest {
         FakeServerGroupsApi serverGroupsApi = new FakeServerGroupsApi(order);
         GroupApiImpl api = new GroupApiImpl(options(), new NoOpQueryCache(), serverGroupsApi, blueprintsApi);
 
-        RuntimeConfig runtimeConfig = new RuntimeConfig();
-        runtimeConfig.setType(RuntimeType.NODE);
-        runtimeConfig.setWith(Map.of("entrypoint", "server.js"));
+        RuntimeConfig runtimeConfig = RuntimeConfig.builder()
+                .type(RuntimeType.NODE)
+                .with(Map.of("entrypoint", "server.js"))
+                .build();
 
-        CreateGroupRequest request = new CreateGroupRequest("Lobby")
-                .setCreateBlueprint(new CreateBlueprintRequest()
-                        .setRuntimeConfig(runtimeConfig));
+        CreateGroupRequest request = CreateGroupRequest.builder()
+                .name("Lobby")
+                .createBlueprint(CreateBlueprintRequest.builder()
+                        .runtimeConfig(runtimeConfig)
+                        .build())
+                .build();
 
         api.createGroup(request).join();
 
@@ -196,12 +214,15 @@ class GroupApiImplTest {
         FakeServerGroupsApi serverGroupsApi = new FakeServerGroupsApi(order);
         GroupApiImpl api = new GroupApiImpl(options(), new NoOpQueryCache(), serverGroupsApi, blueprintsApi);
 
-        ScalingConfig scaling = new ScalingConfig();
-        scaling.setPlayerThreshold(75);
+        ScalingConfig scaling = ScalingConfig.builder()
+                .playerThreshold(75)
+                .build();
 
-        CreateGroupRequest request = new CreateGroupRequest("Lobby")
-                .setScaling(scaling)
-                .setCreateBlueprint(new CreateBlueprintRequest().setConfigurator("paper"));
+        CreateGroupRequest request = CreateGroupRequest.builder()
+                .name("Lobby")
+                .scaling(scaling)
+                .createBlueprint(CreateBlueprintRequest.builder().configurator("paper").build())
+                .build();
 
         CompletionException failure = assertThrows(CompletionException.class, () -> api.createGroup(request).join());
 
@@ -219,8 +240,10 @@ class GroupApiImplTest {
         serverGroupsApi.postFailure = new ApiException(400, "bad request");
 
         GroupApiImpl api = new GroupApiImpl(options(), new NoOpQueryCache(), serverGroupsApi, blueprintsApi);
-        CreateGroupRequest request = new CreateGroupRequest("Lobby")
-                .setCreateBlueprint(new CreateBlueprintRequest());
+        CreateGroupRequest request = CreateGroupRequest.builder()
+                .name("Lobby")
+                .createBlueprint(CreateBlueprintRequest.builder().build())
+                .build();
 
         CompletionException failure = assertThrows(CompletionException.class, () -> api.createGroup(request).join());
 
@@ -238,8 +261,10 @@ class GroupApiImplTest {
         blueprintsApi.deleteFailure = new ApiException(500, "delete failed");
 
         GroupApiImpl api = new GroupApiImpl(options(), new NoOpQueryCache(), serverGroupsApi, blueprintsApi);
-        CreateGroupRequest request = new CreateGroupRequest("Lobby")
-                .setCreateBlueprint(new CreateBlueprintRequest().setConfigurator("paper"));
+        CreateGroupRequest request = CreateGroupRequest.builder()
+                .name("Lobby")
+                .createBlueprint(CreateBlueprintRequest.builder().configurator("paper").build())
+                .build();
 
         CompletionException failure = assertThrows(CompletionException.class, () -> api.createGroup(request).join());
 
@@ -258,8 +283,10 @@ class GroupApiImplTest {
         serverGroupsApi.listResponse = listResponseWithGroup("Lobby", "bp-1");
 
         GroupApiImpl api = new GroupApiImpl(options(), new NoOpQueryCache(), serverGroupsApi, blueprintsApi);
-        CreateGroupRequest request = new CreateGroupRequest("Lobby")
-                .setCreateBlueprint(new CreateBlueprintRequest());
+        CreateGroupRequest request = CreateGroupRequest.builder()
+                .name("Lobby")
+                .createBlueprint(CreateBlueprintRequest.builder().build())
+                .build();
 
         assertThrows(CompletionException.class, () -> api.createGroup(request).join());
 
@@ -275,8 +302,10 @@ class GroupApiImplTest {
         serverGroupsApi.postFailure = new ApiException(500, "controller unavailable");
 
         GroupApiImpl api = new GroupApiImpl(options(), new NoOpQueryCache(), serverGroupsApi, blueprintsApi);
-        CreateGroupRequest request = new CreateGroupRequest("Lobby")
-                .setCreateBlueprint(new CreateBlueprintRequest());
+        CreateGroupRequest request = CreateGroupRequest.builder()
+                .name("Lobby")
+                .createBlueprint(CreateBlueprintRequest.builder().build())
+                .build();
 
         CompletionException failure = assertThrows(CompletionException.class, () -> api.createGroup(request).join());
 
@@ -293,12 +322,15 @@ class GroupApiImplTest {
 
         GroupApiImpl api = new GroupApiImpl(options(), new NoOpQueryCache(), serverGroupsApi, blueprintsApi);
 
-        SourceConfig source = new SourceConfig();
-        source.setImage("ghcr.io/example/server:latest");
+        SourceConfig source = SourceConfig.builder()
+                .image("ghcr.io/example/server:latest")
+                .build();
 
-        CreateGroupRequest request = new CreateGroupRequest("Lobby")
-                .setSource(source)
-                .setCreateBlueprint(new CreateBlueprintRequest());
+        CreateGroupRequest request = CreateGroupRequest.builder()
+                .name("Lobby")
+                .source(source)
+                .createBlueprint(CreateBlueprintRequest.builder().build())
+                .build();
 
         CompletionException failure = assertThrows(CompletionException.class, () -> api.createGroup(request).join());
 

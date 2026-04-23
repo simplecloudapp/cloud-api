@@ -11,6 +11,10 @@ public class DeploymentConfig {
         this.hosts = new DeploymentHost[0];
     }
 
+    public static Builder builder() {
+        return new Builder();
+    }
+
     public DeploymentHost[] getHosts() {
         return hosts;
     }
@@ -27,6 +31,31 @@ public class DeploymentConfig {
     public void setStrategy(@Nullable DeploymentStrategy strategy) {
         this.strategy = strategy;
     }
-}
 
+    public static class Builder {
+        private DeploymentHost[] hosts;
+        private boolean hostsSet;
+        private DeploymentStrategy strategy;
+
+        public Builder hosts(DeploymentHost... hosts) {
+            this.hosts = hosts;
+            this.hostsSet = true;
+            return this;
+        }
+
+        public Builder strategy(DeploymentStrategy strategy) {
+            this.strategy = strategy;
+            return this;
+        }
+
+        public DeploymentConfig build() {
+            DeploymentConfig config = new DeploymentConfig();
+            if (hostsSet) {
+                config.setHosts(hosts);
+            }
+            config.setStrategy(strategy);
+            return config;
+        }
+    }
+}
 

@@ -16,6 +16,10 @@ public class ScalingConfig {
     public ScalingConfig() {
     }
 
+    public static Builder builder() {
+        return new Builder();
+    }
+
     public int getAvailableSlots() {
         return availableSlots;
     }
@@ -69,5 +73,59 @@ public class ScalingConfig {
 
     public void setScalingMode(@Nullable ScalingMode scalingMode) {
         this.scalingMode = scalingMode;
+    }
+
+    public static class Builder {
+        private int availableSlots;
+        private int maxServers;
+        private int minServers;
+        private double playerThreshold;
+        private boolean playerThresholdSet;
+        private ScaleDownConfig scaleDown;
+        private ScalingMode scalingMode;
+
+        public Builder availableSlots(int availableSlots) {
+            this.availableSlots = availableSlots;
+            return this;
+        }
+
+        public Builder maxServers(int maxServers) {
+            this.maxServers = maxServers;
+            return this;
+        }
+
+        public Builder minServers(int minServers) {
+            this.minServers = minServers;
+            return this;
+        }
+
+        public Builder playerThreshold(double playerThreshold) {
+            this.playerThreshold = playerThreshold;
+            this.playerThresholdSet = true;
+            return this;
+        }
+
+        public Builder scaleDown(ScaleDownConfig scaleDown) {
+            this.scaleDown = scaleDown;
+            return this;
+        }
+
+        public Builder scalingMode(ScalingMode scalingMode) {
+            this.scalingMode = scalingMode;
+            return this;
+        }
+
+        public ScalingConfig build() {
+            ScalingConfig config = new ScalingConfig();
+            config.setAvailableSlots(availableSlots);
+            config.setMaxServers(maxServers);
+            config.setMinServers(minServers);
+            if (playerThresholdSet) {
+                config.setPlayerThreshold(playerThreshold);
+            }
+            config.setScaleDown(scaleDown);
+            config.setScalingMode(scalingMode);
+            return config;
+        }
     }
 }

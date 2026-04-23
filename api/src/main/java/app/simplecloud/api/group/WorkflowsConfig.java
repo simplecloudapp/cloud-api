@@ -13,6 +13,10 @@ public class WorkflowsConfig {
     public WorkflowsConfig() {
     }
 
+    public static Builder builder() {
+        return new Builder();
+    }
+
     @Nullable
     public List<String> getManual() {
         return manual;
@@ -29,5 +33,27 @@ public class WorkflowsConfig {
 
     public void setWhen(@Nullable WorkflowWhen when) {
         this.when = when;
+    }
+
+    public static class Builder {
+        private List<String> manual;
+        private WorkflowWhen when;
+
+        public Builder manual(List<String> manual) {
+            this.manual = manual;
+            return this;
+        }
+
+        public Builder when(WorkflowWhen when) {
+            this.when = when;
+            return this;
+        }
+
+        public WorkflowsConfig build() {
+            WorkflowsConfig config = new WorkflowsConfig();
+            config.setManual(manual);
+            config.setWhen(when);
+            return config;
+        }
     }
 }

@@ -13,6 +13,10 @@ public class WorkflowWhen {
     public WorkflowWhen() {
     }
 
+    public static Builder builder() {
+        return new Builder();
+    }
+
     @Nullable
     public List<String> getStart() {
         return start;
@@ -29,5 +33,27 @@ public class WorkflowWhen {
 
     public void setStop(@Nullable List<String> stop) {
         this.stop = stop;
+    }
+
+    public static class Builder {
+        private List<String> start;
+        private List<String> stop;
+
+        public Builder start(List<String> start) {
+            this.start = start;
+            return this;
+        }
+
+        public Builder stop(List<String> stop) {
+            this.stop = stop;
+            return this;
+        }
+
+        public WorkflowWhen build() {
+            WorkflowWhen when = new WorkflowWhen();
+            when.setStart(start);
+            when.setStop(stop);
+            return when;
+        }
     }
 }

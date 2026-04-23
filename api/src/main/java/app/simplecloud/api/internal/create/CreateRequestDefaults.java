@@ -58,34 +58,35 @@ public final class CreateRequestDefaults {
     public WorkflowsConfig defaultWorkflows(@Nullable WorkflowsConfig workflows) {
         WorkflowWhen sourceWhen = workflows != null ? workflows.getWhen() : null;
 
-        WorkflowWhen effectiveWhen = new WorkflowWhen();
-        effectiveWhen.setStart(copyOrDefault(sourceWhen != null ? sourceWhen.getStart() : null, DEFAULT_WORKFLOW_START));
-        effectiveWhen.setStop(copyOrDefault(sourceWhen != null ? sourceWhen.getStop() : null, DEFAULT_WORKFLOW_STOP));
+        WorkflowWhen effectiveWhen = WorkflowWhen.builder()
+                .start(copyOrDefault(sourceWhen != null ? sourceWhen.getStart() : null, DEFAULT_WORKFLOW_START))
+                .stop(copyOrDefault(sourceWhen != null ? sourceWhen.getStop() : null, DEFAULT_WORKFLOW_STOP))
+                .build();
 
-        WorkflowsConfig effective = new WorkflowsConfig();
-        effective.setWhen(effectiveWhen);
-        effective.setManual(copyOrDefault(workflows != null ? workflows.getManual() : null, DEFAULT_MANUAL_WORKFLOWS));
-        return effective;
+        return WorkflowsConfig.builder()
+                .when(effectiveWhen)
+                .manual(copyOrDefault(workflows != null ? workflows.getManual() : null, DEFAULT_MANUAL_WORKFLOWS))
+                .build();
     }
 
     public DeploymentConfig defaultDeployment(@Nullable DeploymentConfig deployment) {
-        DeploymentConfig effective = new DeploymentConfig();
-        effective.setStrategy(deployment != null && deployment.getStrategy() != null
-                ? deployment.getStrategy()
-                : DeploymentStrategy.BLACKLIST);
-        effective.setHosts(copyHosts(deployment != null ? deployment.getHosts() : null));
-        return effective;
+        return DeploymentConfig.builder()
+                .strategy(deployment != null && deployment.getStrategy() != null
+                        ? deployment.getStrategy()
+                        : DeploymentStrategy.BLACKLIST)
+                .hosts(copyHosts(deployment != null ? deployment.getHosts() : null))
+                .build();
     }
 
     public ScalingConfig defaultGroupScaling(@Nullable ScalingConfig scaling) {
-        ScalingConfig effective = new ScalingConfig();
         if (scaling == null) {
-            effective.setMinServers(0);
-            effective.setMaxServers(0);
-            effective.setPlayerThreshold(DEFAULT_PLAYER_THRESHOLD);
-            effective.setScalingMode(ScalingMode.SLOTS);
-            effective.setScaleDown(defaultScaleDown(null));
-            return effective;
+            return ScalingConfig.builder()
+                    .minServers(0)
+                    .maxServers(0)
+                    .playerThreshold(DEFAULT_PLAYER_THRESHOLD)
+                    .scalingMode(ScalingMode.SLOTS)
+                    .scaleDown(defaultScaleDown(null))
+                    .build();
         }
 
         double playerThreshold = scaling.hasPlayerThreshold()
@@ -95,13 +96,14 @@ public final class CreateRequestDefaults {
             throw new IllegalArgumentException("playerThreshold must be between 0 and 1");
         }
 
-        effective.setAvailableSlots(scaling.getAvailableSlots());
-        effective.setMinServers(scaling.getMinServers());
-        effective.setMaxServers(scaling.getMaxServers());
-        effective.setPlayerThreshold(playerThreshold);
-        effective.setScalingMode(scaling.getScalingMode() != null ? scaling.getScalingMode() : ScalingMode.SLOTS);
-        effective.setScaleDown(defaultScaleDown(scaling.getScaleDown()));
-        return effective;
+        return ScalingConfig.builder()
+                .availableSlots(scaling.getAvailableSlots())
+                .minServers(scaling.getMinServers())
+                .maxServers(scaling.getMaxServers())
+                .playerThreshold(playerThreshold)
+                .scalingMode(scaling.getScalingMode() != null ? scaling.getScalingMode() : ScalingMode.SLOTS)
+                .scaleDown(defaultScaleDown(scaling.getScaleDown()))
+                .build();
     }
 
     @Nullable
@@ -111,34 +113,32 @@ public final class CreateRequestDefaults {
             return null;
         }
 
-        CreateBlueprintRequest effective = new CreateBlueprintRequest();
-        effective.setConfigurator(createBlueprint.getConfigurator());
-        effective.setMinecraftVersion(createBlueprint.getMinecraftVersion());
-        effective.setRuntimeConfig(defaultRuntimeConfig(createBlueprint.getRuntimeConfig()));
-        effective.setServerSoftware(createBlueprint.getServerSoftware());
-        effective.setServerUrl(createBlueprint.getServerUrl());
-        effective.setSoftwareVersion(createBlueprint.getSoftwareVersion());
-        effective.setWorkflowSteps(createBlueprint.getWorkflowSteps() != null
-                ? List.copyOf(createBlueprint.getWorkflowSteps())
-                : List.copyOf(workflows.getWhen().getStart()));
-        return effective;
+        return CreateBlueprintRequest.builder()
+                .configurator(createBlueprint.getConfigurator())
+                .minecraftVersion(createBlueprint.getMinecraftVersion())
+                .runtimeConfig(defaultRuntimeConfig(createBlueprint.getRuntimeConfig()))
+                .serverSoftware(createBlueprint.getServerSoftware())
+                .serverUrl(createBlueprint.getServerUrl())
+                .softwareVersion(createBlueprint.getSoftwareVersion())
+                .workflowSteps(createBlueprint.getWorkflowSteps() != null
+                        ? List.copyOf(createBlueprint.getWorkflowSteps())
+                        : List.copyOf(workflows.getWhen().getStart()))
+                .build();
     }
 
     private ScaleDownConfig defaultScaleDown(@Nullable ScaleDownConfig scaleDown) {
-        ScaleDownConfig effective = new ScaleDownConfig();
-        effective.setIdleTime(scaleDown != null && scaleDown.getIdleTime() != null
-                ? scaleDown.getIdleTime()
-                : DEFAULT_SCALE_DOWN_IDLE_TIME);
-        effective.setIgnorePlayers(scaleDown == null || !scaleDown.hasIgnorePlayers() || scaleDown.isIgnorePlayers());
-        return effective;
+        return ScaleDownConfig.builder()
+                .idleTime(scaleDown != null && scaleDown.getIdleTime() != null
+                        ? scaleDown.getIdleTime()
+                        : DEFAULT_SCALE_DOWN_IDLE_TIME)
+                .ignorePlayers(scaleDown == null || !scaleDown.hasIgnorePlayers() || scaleDown.isIgnorePlayers())
+                .build();
     }
 
     private RuntimeConfig defaultRuntimeConfig(@Nullable RuntimeConfig runtimeConfig) {
-        RuntimeConfig effective = new RuntimeConfig();
         RuntimeType effectiveType = runtimeConfig != null && runtimeConfig.getType() != null
                 ? runtimeConfig.getType()
                 : RuntimeType.JAVA;
-        effective.setType(effectiveType);
 
         Map<String, Object> runtimeWith = new LinkedHashMap<>();
         if (effectiveType == RuntimeType.JAVA) {
@@ -151,8 +151,10 @@ public final class CreateRequestDefaults {
         if (preserveExplicitWith) {
             runtimeWith.putAll(runtimeConfig.getWith());
         }
-        effective.setWith(!runtimeWith.isEmpty() || preserveExplicitWith ? runtimeWith : null);
-        return effective;
+        return RuntimeConfig.builder()
+                .type(effectiveType)
+                .with(!runtimeWith.isEmpty() || preserveExplicitWith ? runtimeWith : null)
+                .build();
     }
 
     private DeploymentHost[] copyHosts(@Nullable DeploymentHost[] hosts) {
@@ -163,12 +165,12 @@ public final class CreateRequestDefaults {
         DeploymentHost[] copy = new DeploymentHost[hosts.length];
         for (int i = 0; i < hosts.length; i++) {
             DeploymentHost source = hosts[i];
-            DeploymentHost target = new DeploymentHost();
-            if (source != null) {
-                target.setName(source.getName());
-                target.setPriority(source.getPriority());
-            }
-            copy[i] = target;
+            copy[i] = source == null
+                    ? DeploymentHost.builder().build()
+                    : DeploymentHost.builder()
+                            .name(source.getName())
+                            .priority(source.getPriority())
+                            .build();
         }
         return copy;
     }

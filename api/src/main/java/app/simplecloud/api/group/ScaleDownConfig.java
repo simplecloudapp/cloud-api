@@ -11,6 +11,10 @@ public class ScaleDownConfig {
     public ScaleDownConfig() {
     }
 
+    public static Builder builder() {
+        return new Builder();
+    }
+
     @Nullable
     public String getIdleTime() {
         return idleTime;
@@ -31,5 +35,31 @@ public class ScaleDownConfig {
 
     public boolean hasIgnorePlayers() {
         return ignorePlayersSet;
+    }
+
+    public static class Builder {
+        private String idleTime;
+        private boolean ignorePlayers;
+        private boolean ignorePlayersSet;
+
+        public Builder idleTime(String idleTime) {
+            this.idleTime = idleTime;
+            return this;
+        }
+
+        public Builder ignorePlayers(boolean ignorePlayers) {
+            this.ignorePlayers = ignorePlayers;
+            this.ignorePlayersSet = true;
+            return this;
+        }
+
+        public ScaleDownConfig build() {
+            ScaleDownConfig config = new ScaleDownConfig();
+            config.setIdleTime(idleTime);
+            if (ignorePlayersSet) {
+                config.setIgnorePlayers(ignorePlayers);
+            }
+            return config;
+        }
     }
 }

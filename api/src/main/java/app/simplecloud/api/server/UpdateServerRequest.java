@@ -24,6 +24,10 @@ public class UpdateServerRequest {
     public UpdateServerRequest() {
     }
 
+    public static Builder builder() {
+        return new Builder();
+    }
+
     @Nullable
     public Integer getPlayerCount() {
         return playerCount;
@@ -77,6 +81,55 @@ public class UpdateServerRequest {
     public void setMaxPlayers(@Nullable Integer maxPlayers) {
         this.maxPlayers = maxPlayers;
     }
-}
 
+    public static class Builder {
+        private Integer playerCount;
+        private ServerState state;
+        private Map<String, Object> properties;
+        private Integer minMemory;
+        private Integer maxMemory;
+        private Integer maxPlayers;
+
+        public Builder playerCount(Integer playerCount) {
+            this.playerCount = playerCount;
+            return this;
+        }
+
+        public Builder state(ServerState state) {
+            this.state = state;
+            return this;
+        }
+
+        public Builder properties(Map<String, Object> properties) {
+            this.properties = properties;
+            return this;
+        }
+
+        public Builder minMemory(Integer minMemory) {
+            this.minMemory = minMemory;
+            return this;
+        }
+
+        public Builder maxMemory(Integer maxMemory) {
+            this.maxMemory = maxMemory;
+            return this;
+        }
+
+        public Builder maxPlayers(Integer maxPlayers) {
+            this.maxPlayers = maxPlayers;
+            return this;
+        }
+
+        public UpdateServerRequest build() {
+            UpdateServerRequest request = new UpdateServerRequest();
+            request.setPlayerCount(playerCount);
+            request.setState(state);
+            request.setProperties(properties);
+            request.setMinMemory(minMemory);
+            request.setMaxMemory(maxMemory);
+            request.setMaxPlayers(maxPlayers);
+            return request;
+        }
+    }
+}
 

@@ -30,6 +30,10 @@ public class CreateGroupRequest {
         this.name = name;
     }
 
+    public static Builder builder() {
+        return new Builder();
+    }
+
     public String getName() {
         return name;
     }
@@ -162,5 +166,113 @@ public class CreateGroupRequest {
     public CreateGroupRequest setTags(List<String> tags) {
         this.tags = tags;
         return this;
+    }
+
+    public static class Builder {
+        private String name;
+        private GroupServerType type;
+        private Integer minMemory;
+        private Integer maxMemory;
+        private Integer maxPlayers;
+        private Boolean active;
+        private Integer priority;
+        private DeploymentConfig deployment;
+        private ScalingConfig scaling;
+        private SourceConfig source;
+        private CreateBlueprintRequest createBlueprint;
+        private WorkflowsConfig workflows;
+        private Map<String, Object> properties;
+        private List<String> tags;
+
+        public Builder name(String name) {
+            this.name = name;
+            return this;
+        }
+
+        public Builder type(GroupServerType type) {
+            this.type = type;
+            return this;
+        }
+
+        public Builder minMemory(Integer minMemory) {
+            this.minMemory = minMemory;
+            return this;
+        }
+
+        public Builder maxMemory(Integer maxMemory) {
+            this.maxMemory = maxMemory;
+            return this;
+        }
+
+        public Builder maxPlayers(Integer maxPlayers) {
+            this.maxPlayers = maxPlayers;
+            return this;
+        }
+
+        public Builder active(Boolean active) {
+            this.active = active;
+            return this;
+        }
+
+        public Builder priority(Integer priority) {
+            this.priority = priority;
+            return this;
+        }
+
+        public Builder deployment(DeploymentConfig deployment) {
+            this.deployment = deployment;
+            return this;
+        }
+
+        public Builder scaling(ScalingConfig scaling) {
+            this.scaling = scaling;
+            return this;
+        }
+
+        public Builder source(SourceConfig source) {
+            this.source = source;
+            return this;
+        }
+
+        public Builder createBlueprint(CreateBlueprintRequest createBlueprint) {
+            this.createBlueprint = createBlueprint;
+            return this;
+        }
+
+        public Builder workflows(WorkflowsConfig workflows) {
+            this.workflows = workflows;
+            return this;
+        }
+
+        public Builder properties(Map<String, Object> properties) {
+            this.properties = properties;
+            return this;
+        }
+
+        public Builder tags(List<String> tags) {
+            this.tags = tags;
+            return this;
+        }
+
+        public CreateGroupRequest build() {
+            if (name == null) {
+                throw new IllegalStateException("name is required");
+            }
+
+            return new CreateGroupRequest(name)
+                    .setType(type)
+                    .setMinMemory(minMemory)
+                    .setMaxMemory(maxMemory)
+                    .setMaxPlayers(maxPlayers)
+                    .setActive(active)
+                    .setPriority(priority)
+                    .setDeployment(deployment)
+                    .setScaling(scaling)
+                    .setSource(source)
+                    .setCreateBlueprint(createBlueprint)
+                    .setWorkflows(workflows)
+                    .setProperties(properties)
+                    .setTags(tags);
+        }
     }
 }

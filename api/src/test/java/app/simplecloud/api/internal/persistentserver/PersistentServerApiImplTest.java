@@ -45,7 +45,7 @@ class PersistentServerApiImplTest {
                 .name("Lobby-1")
                 .serverhostId("host-1")
                 .type(GroupServerType.SERVER)
-                .createBlueprint(new CreateBlueprintRequest())
+                .createBlueprint(CreateBlueprintRequest.builder().build())
                 .build();
 
         PersistentServer persistentServer = api.createPersistentServer(request).join();
@@ -70,9 +70,10 @@ class PersistentServerApiImplTest {
 
         CreatePersistentServerRequest request = CreatePersistentServerRequest.builder()
                 .name("Proxy-1")
-                .createBlueprint(new CreateBlueprintRequest()
-                        .setConfigurator("velocity")
-                        .setServerSoftware("velocity"))
+                .createBlueprint(CreateBlueprintRequest.builder()
+                        .configurator("velocity")
+                        .serverSoftware("velocity")
+                        .build())
                 .build();
 
         api.createPersistentServer(request).join();
@@ -101,7 +102,7 @@ class PersistentServerApiImplTest {
         PersistentServerApiImpl api = new PersistentServerApiImpl(options(), new NoOpQueryCache(), persistentServersApi, blueprintsApi);
         CreatePersistentServerRequest request = CreatePersistentServerRequest.builder()
                 .name("Lobby-1")
-                .createBlueprint(new CreateBlueprintRequest())
+                .createBlueprint(CreateBlueprintRequest.builder().build())
                 .build();
 
         CompletionException failure = assertThrows(CompletionException.class, () -> api.createPersistentServer(request).join());
@@ -121,7 +122,7 @@ class PersistentServerApiImplTest {
         PersistentServerApiImpl api = new PersistentServerApiImpl(options(), new NoOpQueryCache(), persistentServersApi, blueprintsApi);
         CreatePersistentServerRequest request = CreatePersistentServerRequest.builder()
                 .name("Lobby-1")
-                .createBlueprint(new CreateBlueprintRequest())
+                .createBlueprint(CreateBlueprintRequest.builder().build())
                 .build();
 
         CompletionException failure = assertThrows(CompletionException.class, () -> api.createPersistentServer(request).join());

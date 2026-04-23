@@ -19,6 +19,10 @@ public class CreateBlueprintRequest {
     public CreateBlueprintRequest() {
     }
 
+    public static Builder builder() {
+        return new Builder();
+    }
+
     @Nullable
     public String getConfigurator() {
         return configurator;
@@ -87,5 +91,61 @@ public class CreateBlueprintRequest {
     public CreateBlueprintRequest setWorkflowSteps(@Nullable List<String> workflowSteps) {
         this.workflowSteps = workflowSteps;
         return this;
+    }
+
+    public static class Builder {
+        private String configurator;
+        private String minecraftVersion;
+        private RuntimeConfig runtimeConfig;
+        private String serverSoftware;
+        private String serverUrl;
+        private String softwareVersion;
+        private List<String> workflowSteps;
+
+        public Builder configurator(String configurator) {
+            this.configurator = configurator;
+            return this;
+        }
+
+        public Builder minecraftVersion(String minecraftVersion) {
+            this.minecraftVersion = minecraftVersion;
+            return this;
+        }
+
+        public Builder runtimeConfig(RuntimeConfig runtimeConfig) {
+            this.runtimeConfig = runtimeConfig;
+            return this;
+        }
+
+        public Builder serverSoftware(String serverSoftware) {
+            this.serverSoftware = serverSoftware;
+            return this;
+        }
+
+        public Builder serverUrl(String serverUrl) {
+            this.serverUrl = serverUrl;
+            return this;
+        }
+
+        public Builder softwareVersion(String softwareVersion) {
+            this.softwareVersion = softwareVersion;
+            return this;
+        }
+
+        public Builder workflowSteps(List<String> workflowSteps) {
+            this.workflowSteps = workflowSteps;
+            return this;
+        }
+
+        public CreateBlueprintRequest build() {
+            return new CreateBlueprintRequest()
+                    .setConfigurator(configurator)
+                    .setMinecraftVersion(minecraftVersion)
+                    .setRuntimeConfig(runtimeConfig)
+                    .setServerSoftware(serverSoftware)
+                    .setServerUrl(serverUrl)
+                    .setSoftwareVersion(softwareVersion)
+                    .setWorkflowSteps(workflowSteps);
+        }
     }
 }
