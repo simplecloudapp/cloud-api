@@ -152,6 +152,37 @@ class GroupApiImplTest {
     }
 
     @Test
+    void createGroup_inlineBlueprint_resolvesServerUrlFromManifest() {
+        AtomicInteger order = new AtomicInteger();
+        FakeBlueprintsApi blueprintsApi = new FakeBlueprintsApi(order);
+        FakeServerGroupsApi serverGroupsApi = new FakeServerGroupsApi(order);
+        GroupApiImpl api = new GroupApiImpl(
+                options(),
+                new NoOpQueryCache(),
+                serverGroupsApi,
+                blueprintsApi,
+                request -> {
+                    if ("paper".equals(request.getServerSoftware()) && "1.21.11".equals(request.getMinecraftVersion())) {
+                        return "https://example.com/paper-1.21.11.jar";
+                    }
+                    return null;
+                }
+        );
+
+        CreateGroupRequest request = CreateGroupRequest.builder()
+                .name("Lobby")
+                .createBlueprint(CreateBlueprintRequest.builder()
+                        .serverSoftware("paper")
+                        .minecraftVersion("1.21.11")
+                        .build())
+                .build();
+
+        api.createGroup(request).join();
+
+        assertEquals("https://example.com/paper-1.21.11.jar", blueprintsApi.lastCreateRequest.getServerUrl());
+    }
+
+    @Test
     void createGroup_partialScaling_appliesDefaultsForUnsetPrimitiveFields() {
         AtomicInteger order = new AtomicInteger();
         FakeBlueprintsApi blueprintsApi = new FakeBlueprintsApi(order);

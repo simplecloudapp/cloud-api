@@ -48,6 +48,18 @@ public class PersistentServerApiImpl implements PersistentServerApi {
         this.createRequestDefaults = new CreateRequestDefaults();
     }
 
+    PersistentServerApiImpl(CloudApiOptions options,
+                            QueryCache cache,
+                            PersistentServersApi persistentServersApi,
+                            BlueprintsApi blueprintsApi,
+                            InlineBlueprintSupport.ServerUrlResolver serverUrlResolver) {
+        this.options = options;
+        this.cache = cache;
+        this.persistentServersApi = persistentServersApi;
+        this.inlineBlueprintSupport = new InlineBlueprintSupport(options, blueprintsApi, serverUrlResolver);
+        this.createRequestDefaults = new CreateRequestDefaults();
+    }
+
     @Override
     public CompletableFuture<PersistentServer> getPersistentServerById(String id) {
         QueryKey key = QueryKey.of("persistentServer", id);

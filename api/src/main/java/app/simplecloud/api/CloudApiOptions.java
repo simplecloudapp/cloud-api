@@ -17,6 +17,7 @@ public class CloudApiOptions {
     private final String component;
     private final String networkId;
     private final String networkSecret;
+    private final String serverVersionManifestUrl;
     private final CacheConfig cacheConfig;
     private final Duration httpConnectTimeout;
     private final Duration httpReadTimeout;
@@ -29,6 +30,7 @@ public class CloudApiOptions {
         this.component = builder.component;
         this.networkId = builder.networkId;
         this.networkSecret = builder.networkSecret;
+        this.serverVersionManifestUrl = builder.serverVersionManifestUrl;
         this.cacheConfig = builder.cacheConfig;
         this.httpConnectTimeout = builder.httpConnectTimeout;
         this.httpReadTimeout = builder.httpReadTimeout;
@@ -57,6 +59,14 @@ public class CloudApiOptions {
 
     public String getNetworkSecret() {
         return networkSecret;
+    }
+
+    /**
+     * Returns the manifest URL used to resolve software versions to download URLs
+     * when inline blueprints omit {@code serverUrl}.
+     */
+    public String getServerVersionManifestUrl() {
+        return serverVersionManifestUrl;
     }
 
     /**
@@ -101,6 +111,7 @@ public class CloudApiOptions {
         private String component;
         private String networkId;
         private String networkSecret;
+        private String serverVersionManifestUrl;
         private CacheConfig cacheConfig = CacheConfig.DEFAULT;
         private Duration httpConnectTimeout = Duration.ofSeconds(5);
         private Duration httpReadTimeout = Duration.ofSeconds(10);
@@ -115,6 +126,10 @@ public class CloudApiOptions {
             this.controllerUrl = System.getenv().getOrDefault("SIMPLECLOUD_CONTROLLER_URL", "https://controller.simplecloud.app");
             this.networkId = System.getenv().getOrDefault("SIMPLECLOUD_NETWORK_ID", "default");
             this.networkSecret = System.getenv().getOrDefault("SIMPLECLOUD_NETWORK_SECRET", "");
+            this.serverVersionManifestUrl = System.getenv().getOrDefault(
+                    "SIMPLECLOUD_SERVER_VERSION_MANIFEST_URL",
+                    "https://raw.githubusercontent.com/theSimpleCloud/simplecloud-manifest/refs/heads/main/server_versions.json"
+            );
         }
 
         public Builder natsUrl(String natsUrl) {
@@ -156,6 +171,18 @@ public class CloudApiOptions {
 
         public Builder networkSecret(String networkSecret) {
             this.networkSecret = networkSecret;
+            return this;
+        }
+
+        /**
+         * Sets the manifest URL used to resolve software versions into concrete download URLs
+         * for inline blueprint creation.
+         *
+         * @param serverVersionManifestUrl manifest endpoint returning {@code server_versions.json}
+         * @return this builder
+         */
+        public Builder serverVersionManifestUrl(String serverVersionManifestUrl) {
+            this.serverVersionManifestUrl = serverVersionManifestUrl;
             return this;
         }
 

@@ -27,10 +27,18 @@ public final class InlineBlueprintSupport {
 
     private final CloudApiOptions options;
     private final BlueprintsApi blueprintsApi;
+    private final ServerUrlResolver serverUrlResolver;
 
     public InlineBlueprintSupport(CloudApiOptions options, BlueprintsApi blueprintsApi) {
+        this(options, blueprintsApi, new ManifestServerUrlResolver(options));
+    }
+
+    public InlineBlueprintSupport(CloudApiOptions options,
+                                  BlueprintsApi blueprintsApi,
+                                  ServerUrlResolver serverUrlResolver) {
         this.options = options;
         this.blueprintsApi = blueprintsApi;
+        this.serverUrlResolver = serverUrlResolver;
     }
 
     public void validateInlineBlueprintSource(@Nullable CreateBlueprintRequest createBlueprint,
@@ -149,7 +157,7 @@ public final class InlineBlueprintSupport {
         apiRequest.setConfigurator(request.getConfigurator());
         apiRequest.setMinecraftVersion(request.getMinecraftVersion());
         apiRequest.setServerSoftware(request.getServerSoftware());
-        apiRequest.setServerUrl(request.getServerUrl());
+        apiRequest.setServerUrl(resolveServerUrl(request));
         apiRequest.setSoftwareVersion(request.getSoftwareVersion());
         apiRequest.setWorkflowSteps(request.getWorkflowSteps());
 
@@ -166,8 +174,44 @@ public final class InlineBlueprintSupport {
         return apiRequest;
     }
 
+    private @Nullable String resolveServerUrl(CreateBlueprintRequest request) {
+        String explicitServerUrl = normalize(request.getServerUrl());
+        if (explicitServerUrl != null) {
+            return explicitServerUrl;
+        }
+
+        String software = normalize(request.getServerSoftware());
+        String version = resolveRequestedVersion(request);
+        if (software == null || version == null) {
+            return null;
+        }
+
+        String resolvedServerUrl = normalize(serverUrlResolver.resolve(request));
+        if (resolvedServerUrl == null) {
+            throw new IllegalArgumentException(
+                    "No manifest download link found for software '" + software + "' and version '" + version + "'"
+            );
+        }
+        return resolvedServerUrl;
+    }
+
     private boolean hasText(@Nullable String value) {
         return value != null && !value.isBlank();
+    }
+
+    private @Nullable String resolveRequestedVersion(CreateBlueprintRequest request) {
+        String minecraftVersion = normalize(request.getMinecraftVersion());
+        if (minecraftVersion != null) {
+            return minecraftVersion;
+        }
+        return normalize(request.getSoftwareVersion());
+    }
+
+    private @Nullable String normalize(@Nullable String value) {
+        if (!hasText(value)) {
+            return null;
+        }
+        return value.trim();
     }
 
     private void sleepQuietly(Duration delay) {
@@ -176,5 +220,10 @@ public final class InlineBlueprintSupport {
         } catch (InterruptedException interrupted) {
             Thread.currentThread().interrupt();
         }
+    }
+
+    @FunctionalInterface
+    public interface ServerUrlResolver {
+        @Nullable String resolve(CreateBlueprintRequest request);
     }
 }

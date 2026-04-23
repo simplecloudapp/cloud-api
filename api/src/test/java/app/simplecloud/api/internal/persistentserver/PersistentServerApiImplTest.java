@@ -93,6 +93,37 @@ class PersistentServerApiImplTest {
     }
 
     @Test
+    void createPersistentServer_inlineBlueprint_resolvesServerUrlFromManifest() {
+        AtomicInteger order = new AtomicInteger();
+        FakeBlueprintsApi blueprintsApi = new FakeBlueprintsApi(order);
+        FakePersistentServersApi persistentServersApi = new FakePersistentServersApi(order);
+        PersistentServerApiImpl api = new PersistentServerApiImpl(
+                options(),
+                new NoOpQueryCache(),
+                persistentServersApi,
+                blueprintsApi,
+                request -> {
+                    if ("velocity".equals(request.getServerSoftware()) && "3.4.0-SNAPSHOT".equals(request.getSoftwareVersion())) {
+                        return "https://example.com/velocity-3.4.0-SNAPSHOT.jar";
+                    }
+                    return null;
+                }
+        );
+
+        CreatePersistentServerRequest request = CreatePersistentServerRequest.builder()
+                .name("Proxy-1")
+                .createBlueprint(CreateBlueprintRequest.builder()
+                        .serverSoftware("velocity")
+                        .softwareVersion("3.4.0-SNAPSHOT")
+                        .build())
+                .build();
+
+        api.createPersistentServer(request).join();
+
+        assertEquals("https://example.com/velocity-3.4.0-SNAPSHOT.jar", blueprintsApi.lastCreateRequest.getServerUrl());
+    }
+
+    @Test
     void createPersistentServer_httpFailure_rollsBackInlineBlueprint() {
         AtomicInteger order = new AtomicInteger();
         FakeBlueprintsApi blueprintsApi = new FakeBlueprintsApi(order);

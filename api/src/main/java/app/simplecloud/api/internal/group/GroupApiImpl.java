@@ -45,6 +45,18 @@ public class GroupApiImpl implements GroupApi {
         this.createRequestDefaults = new CreateRequestDefaults();
     }
 
+    GroupApiImpl(CloudApiOptions options,
+                 QueryCache cache,
+                 ServerGroupsApi serverGroupsApi,
+                 BlueprintsApi blueprintsApi,
+                 InlineBlueprintSupport.ServerUrlResolver serverUrlResolver) {
+        this.options = options;
+        this.cache = cache;
+        this.serverGroupsApi = serverGroupsApi;
+        this.inlineBlueprintSupport = new InlineBlueprintSupport(options, blueprintsApi, serverUrlResolver);
+        this.createRequestDefaults = new CreateRequestDefaults();
+    }
+
     @Override
     public CompletableFuture<GroupStartQueue> getServerStartQueue() {
         return CompletableFuture.supplyAsync(() -> {
