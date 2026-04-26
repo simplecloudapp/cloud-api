@@ -246,7 +246,7 @@ public final class NatsFailoverConnectionManager {
                     String subject = (String) args[0];
                     MessageHandler handlerArg = (MessageHandler) args[1];
                     Subscription created = (Subscription) invoke(method, delegateRef.get(), args);
-                    SubscriptionProxyState subState = new SubscriptionProxyState(subject, handlerArg, created);
+                    SubscriptionProxyState subState = new SubscriptionProxyState(this, subject, handlerArg, created);
                     subscriptions.add(subState);
                     return subState.proxy;
                 }
@@ -286,13 +286,20 @@ public final class NatsFailoverConnectionManager {
     }
 
     private final class SubscriptionProxyState {
+        private final DispatcherProxyState dispatcherState;
         private final String subject;
         private final MessageHandler messageHandler;
         private final AtomicReference<Subscription> delegateRef;
         private final AtomicBoolean active = new AtomicBoolean(true);
         private final Subscription proxy;
 
-        private SubscriptionProxyState(String subject, MessageHandler messageHandler, Subscription initialDelegate) {
+        private SubscriptionProxyState(
+                DispatcherProxyState dispatcherState,
+                String subject,
+                MessageHandler messageHandler,
+                Subscription initialDelegate
+        ) {
+            this.dispatcherState = dispatcherState;
             this.subject = subject;
             this.messageHandler = messageHandler;
             this.delegateRef = new AtomicReference<>(initialDelegate);
@@ -301,8 +308,16 @@ public final class NatsFailoverConnectionManager {
 
         private Subscription createSubscriptionProxy() {
             InvocationHandler handler = (proxy, method, args) -> {
-                if (method.getName().equals("unsubscribe") || method.getName().equals("drain")) {
-                    deactivate();
+                if (method.getName().equals("unsubscribe")) {
+                    unsubscribe(args);
+                    if (method.getReturnType() == Subscription.class) {
+                        return this.proxy;
+                    }
+                    return null;
+                }
+                if (method.getName().equals("drain")) {
+                    unsubscribe(null);
+                    return java.util.concurrent.CompletableFuture.completedFuture(Boolean.TRUE);
                 }
                 return invoke(method, delegateRef.get(), args);
             };
@@ -316,6 +331,19 @@ public final class NatsFailoverConnectionManager {
 
         private void deactivate() {
             active.set(false);
+        }
+
+        private void unsubscribe(Object[] args) {
+            if (!active.compareAndSet(true, false)) {
+                return;
+            }
+
+            Dispatcher dispatcher = dispatcherState.delegateRef.get();
+            if (args != null && args.length == 1 && args[0] instanceof Integer maxMessages) {
+                dispatcher.unsubscribe(subject, maxMessages);
+                return;
+            }
+            dispatcher.unsubscribe(subject);
         }
 
         private void rebind(Dispatcher newDispatcher) {
