@@ -96,11 +96,6 @@ public final class ProxyPresenceResponder {
             int localHash = computeHash(players);
             boolean match = localHash == request.getHash();
 
-            LOGGER.info("[Presence] Compare request received — controller hash: " + request.getHash()
-                    + ", local hash: " + localHash + ", match: " + match
-                    + ", online players (" + players.size() + "): "
-                    + players.stream().map(p -> p.getName() + "(" + p.getPlayerId() + ")").toList());
-
             ProxyPresenceCompareResponse.Builder response = ProxyPresenceCompareResponse.newBuilder()
                     .setMatch(match);
 
