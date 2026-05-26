@@ -18,9 +18,6 @@ import app.simplecloud.api.web.models.ModelsPatchPropertiesResponse;
 import app.simplecloud.api.web.models.ModelsPatchServerRequest;
 import app.simplecloud.api.web.models.ModelsPatchServerResponse;
 import app.simplecloud.api.web.models.ModelsServerSummary;
-import app.simplecloud.api.web.models.V0PersistentServersPropertiesDeleteRequest;
-import app.simplecloud.api.web.models.V0PersistentServersPropertiesPatchRequest;
-import app.simplecloud.api.web.models.V0ServersPatchRequest;
 import org.jetbrains.annotations.NotNull;
 import org.jetbrains.annotations.Nullable;
 
@@ -368,7 +365,7 @@ public class ServerApiImpl implements ServerApi {
                         this.options.getNetworkId(),
                         this.options.getNetworkSecret(),
                         id,
-                        new V0ServersPatchRequest(patchRequest)
+                        patchRequest
                 );
 
                 if (response.getServer() == null) {
@@ -424,7 +421,7 @@ public class ServerApiImpl implements ServerApi {
                         this.options.getNetworkId(),
                         this.options.getNetworkSecret(),
                         id,
-                        new V0PersistentServersPropertiesPatchRequest(request)
+                        request
                 );
 
                 // Invalidate server cache (properties changed)
@@ -450,7 +447,7 @@ public class ServerApiImpl implements ServerApi {
                         this.options.getNetworkId(),
                         this.options.getNetworkSecret(),
                         id,
-                        new V0PersistentServersPropertiesDeleteRequest(request)
+                        request
                 );
 
                 // Invalidate server cache (properties changed)

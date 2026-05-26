@@ -100,7 +100,7 @@ public class GroupApiImpl implements GroupApi {
                 serverGroupsApi.v0ServerGroupsStartQueuePost(
                         options.getNetworkId(),
                         options.getNetworkSecret(),
-                        new V0ServerGroupsStartQueuePostRequest(request)
+                        request
                 );
             } catch (ApiException e) {
                 throw new RuntimeException(e);
@@ -323,7 +323,7 @@ public class GroupApiImpl implements GroupApi {
                     response = serverGroupsApi.v0ServerGroupsPost(
                             this.options.getNetworkId(),
                             this.options.getNetworkSecret(),
-                            new V0ServerGroupsPostRequest(apiRequest)
+                            apiRequest
                     );
                 } catch (ApiException e) {
                     String blueprintId = createdBlueprintId;
@@ -405,7 +405,7 @@ public class GroupApiImpl implements GroupApi {
                         this.options.getNetworkId(),
                         this.options.getNetworkSecret(),
                         id,
-                        new V0ServerGroupsPutRequest(apiRequest)
+                        apiRequest
                 );
 
                 ModelsServerGroupSummary summary = new ModelsServerGroupSummary();
@@ -487,10 +487,10 @@ public class GroupApiImpl implements GroupApi {
         return result;
     }
 
-    private ModelsScalingMode convertScalingMode(ScalingMode scalingMode) {
+    private String convertScalingMode(ScalingMode scalingMode) {
         return switch (scalingMode) {
-            case SLOTS -> ModelsScalingMode.fromValue("SLOTS");
-            case PLAYERS -> ModelsScalingMode.fromValue("SERVERS");
+            case SLOTS -> "SLOTS";
+            case PLAYERS -> "SERVERS";
             case MANUAL -> throw new IllegalArgumentException(
                     "ScalingMode.MANUAL is not supported by the controller REST API. Supported modes are SLOTS and PLAYERS."
             );
@@ -555,7 +555,7 @@ public class GroupApiImpl implements GroupApi {
                         this.options.getNetworkId(),
                         this.options.getNetworkSecret(),
                         id,
-                        new V0PersistentServersPropertiesPatchRequest(request)
+                        request
                 );
 
                 // Invalidate group cache (properties changed)
@@ -581,7 +581,7 @@ public class GroupApiImpl implements GroupApi {
                         this.options.getNetworkId(),
                         this.options.getNetworkSecret(),
                         id,
-                        new V0PersistentServersPropertiesDeleteRequest(request)
+                        request
                 );
 
                 // Invalidate group cache (properties changed)

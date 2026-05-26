@@ -14,8 +14,6 @@ import app.simplecloud.api.web.models.ModelsPlayerPropertiesResponse;
 import app.simplecloud.api.web.models.ModelsPlayerResponse;
 import app.simplecloud.api.web.models.ModelsUpdatePlayerPropertiesRequest;
 import app.simplecloud.api.web.models.ModelsUpdatePlayerPropertiesResponse;
-import app.simplecloud.api.web.models.V0PlayersPropertiesDeleteRequest;
-import app.simplecloud.api.web.models.V0PlayersPropertiesPutRequest;
 import io.nats.client.Connection;
 
 import java.util.ArrayList;
@@ -144,7 +142,7 @@ public class PlayerApiImpl implements PlayerApi {
                         options.getNetworkId(),
                         options.getNetworkSecret(),
                         uniqueId.toString(),
-                        new V0PlayersPropertiesPutRequest(request)
+                        request
                 );
                 return toPropertiesMap(response.getProperties());
             } catch (ApiException e) {
@@ -164,7 +162,7 @@ public class PlayerApiImpl implements PlayerApi {
                         options.getNetworkId(),
                         options.getNetworkSecret(),
                         uniqueId.toString(),
-                        new V0PlayersPropertiesDeleteRequest(request)
+                        request
                 );
                 return getPlayerProperties(uniqueId);
             } catch (ApiException e) {

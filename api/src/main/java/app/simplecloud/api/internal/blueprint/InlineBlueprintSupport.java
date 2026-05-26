@@ -10,7 +10,6 @@ import app.simplecloud.api.web.apis.BlueprintsApi;
 import app.simplecloud.api.web.models.ModelsCreateBlueprintRequest;
 import app.simplecloud.api.web.models.ModelsCreateBlueprintResponse;
 import app.simplecloud.api.web.models.ModelsRuntimeConfig;
-import app.simplecloud.api.web.models.V0BlueprintsPostRequest;
 import org.jetbrains.annotations.Nullable;
 
 import java.time.Duration;
@@ -68,7 +67,7 @@ public final class InlineBlueprintSupport {
         ModelsCreateBlueprintResponse response = blueprintsApi.v0BlueprintsPost(
                 options.getNetworkId(),
                 options.getNetworkSecret(),
-                new V0BlueprintsPostRequest(apiRequest)
+                apiRequest
         );
 
         String blueprintId = response.getBlueprintId();

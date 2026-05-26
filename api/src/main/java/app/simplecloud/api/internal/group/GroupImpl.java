@@ -312,9 +312,8 @@ public class GroupImpl implements app.simplecloud.api.group.Group {
     }
 
     @Nullable
-    private ScalingMode convertScalingMode(app.simplecloud.api.web.models.ModelsScalingMode scalingMode) {
-        String value = scalingMode.getValue();
-        return switch (value) {
+    private ScalingMode convertScalingMode(String scalingMode) {
+        return switch (scalingMode) {
             case "SLOTS" -> ScalingMode.SLOTS;
             case "SERVERS" -> ScalingMode.PLAYERS;
             default -> null;

@@ -4,7 +4,6 @@ import app.simplecloud.api.group.Group;
 import app.simplecloud.api.group.GroupServerType;
 import app.simplecloud.api.group.ScalingMode;
 import app.simplecloud.api.web.models.ModelsScalingConfig;
-import app.simplecloud.api.web.models.ModelsScalingMode;
 import app.simplecloud.api.web.models.ModelsServerGroupSummary;
 import org.junit.jupiter.api.Test;
 
@@ -20,7 +19,7 @@ class GroupImplTest {
         scaling.setMaxServers(2);
         scaling.setAvailableSlots(25);
         scaling.setPlayerThreshold(java.math.BigDecimal.valueOf(0.75));
-        scaling.setScalingMode(ModelsScalingMode.fromValue("SERVERS"));
+        scaling.setScalingMode("SERVERS");
 
         ModelsServerGroupSummary summary = new ModelsServerGroupSummary();
         summary.setServerGroupId("group-1");

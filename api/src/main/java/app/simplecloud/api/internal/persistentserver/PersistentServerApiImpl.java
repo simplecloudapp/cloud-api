@@ -258,7 +258,7 @@ public class PersistentServerApiImpl implements PersistentServerApi {
                     response = persistentServersApi.v0PersistentServersPost(
                             options.getNetworkId(),
                             options.getNetworkSecret(),
-                            new V0PersistentServersPostRequest(apiRequest)
+                            apiRequest
                     );
                 } catch (ApiException e) {
                     String blueprintId = createdBlueprintId;
@@ -317,7 +317,7 @@ public class PersistentServerApiImpl implements PersistentServerApi {
                         options.getNetworkId(),
                         options.getNetworkSecret(),
                         id,
-                        new V0PersistentServersPutRequest(apiRequest)
+                        apiRequest
                 );
 
                 // Invalidate cache before re-fetching
@@ -362,7 +362,7 @@ public class PersistentServerApiImpl implements PersistentServerApi {
                         options.getNetworkId(),
                         options.getNetworkSecret(),
                         id,
-                        new V0PersistentServersPropertiesPatchRequest(request)
+                        request
                 );
 
                 // Invalidate persistent server cache (properties changed)
@@ -388,7 +388,7 @@ public class PersistentServerApiImpl implements PersistentServerApi {
                         options.getNetworkId(),
                         options.getNetworkSecret(),
                         id,
-                        new V0PersistentServersPropertiesDeleteRequest(request)
+                        request
                 );
 
                 // Invalidate persistent server cache (properties changed)

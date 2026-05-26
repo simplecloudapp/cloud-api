@@ -22,8 +22,6 @@ import app.simplecloud.api.web.models.ModelsCreateServerGroupResponse;
 import app.simplecloud.api.web.models.ModelsListServerGroupsResponse;
 import app.simplecloud.api.web.models.ModelsServerGroupSummary;
 import app.simplecloud.api.web.models.ModelsSourceConfig;
-import app.simplecloud.api.web.models.V0BlueprintsPostRequest;
-import app.simplecloud.api.web.models.V0ServerGroupsPostRequest;
 import org.junit.jupiter.api.Test;
 
 import java.io.IOException;
@@ -107,7 +105,7 @@ class GroupApiImplTest {
 
         assertNotNull(serverGroupsApi.lastCreateRequest.getScaling());
         assertNotNull(serverGroupsApi.lastCreateRequest.getScaling().getScalingMode());
-        assertEquals("SLOTS", serverGroupsApi.lastCreateRequest.getScaling().getScalingMode().getValue());
+        assertEquals("SLOTS", serverGroupsApi.lastCreateRequest.getScaling().getScalingMode());
         assertNotNull(group.getScaling());
         assertEquals(ScalingMode.SLOTS, group.getScaling().getScalingMode());
     }
@@ -143,7 +141,7 @@ class GroupApiImplTest {
         assertEquals(Map.of(), serverGroupsApi.lastCreateRequest.getProperties());
         assertEquals("blacklist", serverGroupsApi.lastCreateRequest.getDeployment().getStrategy());
         assertEquals(BigDecimal.valueOf(0.75), serverGroupsApi.lastCreateRequest.getScaling().getPlayerThreshold());
-        assertEquals("SLOTS", serverGroupsApi.lastCreateRequest.getScaling().getScalingMode().getValue());
+        assertEquals("SLOTS", serverGroupsApi.lastCreateRequest.getScaling().getScalingMode());
         assertEquals("3m", serverGroupsApi.lastCreateRequest.getScaling().getScaleDown().getIdleTime());
         assertEquals(Boolean.TRUE, serverGroupsApi.lastCreateRequest.getScaling().getScaleDown().getIgnorePlayers());
         assertEquals(List.of("internal/setup"), serverGroupsApi.lastCreateRequest.getWorkflows().getWhen().getStart());
@@ -413,10 +411,10 @@ class GroupApiImplTest {
         @Override
         public ModelsCreateBlueprintResponse v0BlueprintsPost(String xNetworkID,
                                                               String xNetworkSecret,
-                                                              V0BlueprintsPostRequest request) {
+                                                              ModelsCreateBlueprintRequest request) {
             postCalls++;
             postOrder = order.incrementAndGet();
-            lastCreateRequest = request.getModelsCreateBlueprintRequest();
+            lastCreateRequest = request;
 
             ModelsCreateBlueprintResponse response = new ModelsCreateBlueprintResponse();
             response.setBlueprintId("bp-1");
@@ -458,10 +456,10 @@ class GroupApiImplTest {
         @Override
         public ModelsCreateServerGroupResponse v0ServerGroupsPost(String xNetworkID,
                                                                   String xNetworkSecret,
-                                                                  V0ServerGroupsPostRequest request) throws ApiException {
+                                                                  ModelsCreateServerGroupRequest request) throws ApiException {
             postCalls++;
             postOrder = order.incrementAndGet();
-            lastCreateRequest = request.getModelsCreateServerGroupRequest();
+            lastCreateRequest = request;
             if (postFailure != null) {
                 throw postFailure;
             }

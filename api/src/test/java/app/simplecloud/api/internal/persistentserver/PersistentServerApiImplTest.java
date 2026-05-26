@@ -16,8 +16,6 @@ import app.simplecloud.api.web.models.ModelsCreatePersistentServerResponse;
 import app.simplecloud.api.web.models.ModelsListPersistentServersResponse;
 import app.simplecloud.api.web.models.ModelsPersistentServerSummary;
 import app.simplecloud.api.web.models.ModelsSourceConfig;
-import app.simplecloud.api.web.models.V0BlueprintsPostRequest;
-import app.simplecloud.api.web.models.V0PersistentServersPostRequest;
 import org.junit.jupiter.api.Test;
 
 import java.util.ArrayList;
@@ -186,10 +184,10 @@ class PersistentServerApiImplTest {
         @Override
         public ModelsCreateBlueprintResponse v0BlueprintsPost(String xNetworkID,
                                                               String xNetworkSecret,
-                                                              V0BlueprintsPostRequest request) {
+                                                              ModelsCreateBlueprintRequest request) {
             postCalls++;
             postOrder = order.incrementAndGet();
-            lastCreateRequest = request.getModelsCreateBlueprintRequest();
+            lastCreateRequest = request;
 
             ModelsCreateBlueprintResponse response = new ModelsCreateBlueprintResponse();
             response.setBlueprintId("bp-1");
@@ -223,10 +221,10 @@ class PersistentServerApiImplTest {
         @Override
         public ModelsCreatePersistentServerResponse v0PersistentServersPost(String xNetworkID,
                                                                             String xNetworkSecret,
-                                                                            V0PersistentServersPostRequest request) throws ApiException {
+                                                                            ModelsCreatePersistentServerRequest request) throws ApiException {
             postCalls++;
             postOrder = order.incrementAndGet();
-            lastCreateRequest = request.getModelsCreatePersistentServerRequest();
+            lastCreateRequest = request;
             if (postFailure != null) {
                 throw postFailure;
             }
