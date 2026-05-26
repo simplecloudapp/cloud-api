@@ -54,13 +54,13 @@ public final class NatsFailoverConnectionManager {
         this.networkSecret = networkSecret;
         this.failoverReconnectAfter = failoverReconnectAfter == null ? Duration.ofSeconds(30) : failoverReconnectAfter;
 
-        Connection initialConnection = createConnection();
-        this.connectionRef = new AtomicReference<>(initialConnection);
+        this.connectionRef = new AtomicReference<>(null);
         this.connectionProxy = createConnectionProxy();
 
         this.monitorExecutor = Executors.newSingleThreadScheduledExecutor(daemonFactory("simplecloud-nats-failover-monitor"));
         this.reconnectExecutor = Executors.newSingleThreadScheduledExecutor(daemonFactory("simplecloud-nats-failover-reconnect"));
 
+        scheduleReconnect("no NATS connection has been established");
         this.monitorExecutor.scheduleAtFixedRate(this::monitorConnection, 2, 2, TimeUnit.SECONDS);
     }
 
@@ -85,6 +85,8 @@ public final class NatsFailoverConnectionManager {
         try {
             Connection connection = connectionRef.get();
             if (connection == null) {
+                reconnectingSince.set(-1);
+                scheduleReconnect("no NATS connection has been established");
                 return;
             }
 
@@ -202,7 +204,18 @@ public final class NatsFailoverConnectionManager {
                 return null;
             }
 
-            return invoke(method, connectionRef.get(), args);
+            Connection connection = connectionRef.get();
+            if (connection == null) {
+                return switch (method.getName()) {
+                    case "getStatus" -> Connection.Status.DISCONNECTED;
+                    case "toString" -> "NATS connection proxy (disconnected)";
+                    case "hashCode" -> System.identityHashCode(connectionProxy);
+                    case "equals" -> args != null && args.length > 0 && proxy == args[0];
+                    default -> throw new IllegalStateException("NATS connection is not established");
+                };
+            }
+
+            return invoke(method, connection, args);
         };
 
         return (Connection) Proxy.newProxyInstance(
@@ -236,7 +249,10 @@ public final class NatsFailoverConnectionManager {
 
         private DispatcherProxyState(MessageHandler messageHandler) {
             this.messageHandler = messageHandler;
-            this.delegateRef = new AtomicReference<>(connectionRef.get().createDispatcher(messageHandler));
+            Connection connection = connectionRef.get();
+            this.delegateRef = new AtomicReference<>(
+                    connection == null ? null : connection.createDispatcher(messageHandler)
+            );
             this.proxy = createDispatcherProxy();
         }
 
@@ -245,7 +261,8 @@ public final class NatsFailoverConnectionManager {
                 if (isSubscribeMethod(method)) {
                     String subject = (String) args[0];
                     MessageHandler handlerArg = (MessageHandler) args[1];
-                    Subscription created = (Subscription) invoke(method, delegateRef.get(), args);
+                    Dispatcher dispatcher = delegateRef.get();
+                    Subscription created = dispatcher == null ? null : (Subscription) invoke(method, dispatcher, args);
                     SubscriptionProxyState subState = new SubscriptionProxyState(this, subject, handlerArg, created);
                     subscriptions.add(subState);
                     return subState.proxy;
@@ -258,9 +275,21 @@ public final class NatsFailoverConnectionManager {
                             subscription.deactivate();
                         }
                     }
+                    if (delegateRef.get() == null) {
+                        return null;
+                    }
                 }
 
-                return invoke(method, delegateRef.get(), args);
+                Dispatcher dispatcher = delegateRef.get();
+                if (dispatcher == null) {
+                    return switch (method.getName()) {
+                        case "toString" -> "NATS dispatcher proxy (disconnected)";
+                        case "hashCode" -> System.identityHashCode(this.proxy);
+                        case "equals" -> args != null && args.length > 0 && proxy == args[0];
+                        default -> throw new IllegalStateException("NATS dispatcher is not established");
+                    };
+                }
+                return invoke(method, dispatcher, args);
             };
 
             return (Dispatcher) Proxy.newProxyInstance(
@@ -319,7 +348,18 @@ public final class NatsFailoverConnectionManager {
                     unsubscribe(null);
                     return java.util.concurrent.CompletableFuture.completedFuture(Boolean.TRUE);
                 }
-                return invoke(method, delegateRef.get(), args);
+                Subscription subscription = delegateRef.get();
+                if (subscription == null) {
+                    return switch (method.getName()) {
+                        case "getSubject" -> subject;
+                        case "isActive" -> active.get();
+                        case "toString" -> "NATS subscription proxy (disconnected)";
+                        case "hashCode" -> System.identityHashCode(this.proxy);
+                        case "equals" -> args != null && args.length > 0 && proxy == args[0];
+                        default -> throw new IllegalStateException("NATS subscription is not established");
+                    };
+                }
+                return invoke(method, subscription, args);
             };
 
             return (Subscription) Proxy.newProxyInstance(
@@ -339,6 +379,9 @@ public final class NatsFailoverConnectionManager {
             }
 
             Dispatcher dispatcher = dispatcherState.delegateRef.get();
+            if (dispatcher == null) {
+                return;
+            }
             if (args != null && args.length == 1 && args[0] instanceof Integer maxMessages) {
                 dispatcher.unsubscribe(subject, maxMessages);
                 return;
