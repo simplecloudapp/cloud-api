@@ -40,7 +40,6 @@ modrinth {
         "26.2",
     )
     loaders.add("spigot")
-    loaders.add("paper")
     changelog.set("https://docs.simplecloud.app/changelog")
     syncBodyFrom.set(rootProject.file("README.md").readText())
 }
