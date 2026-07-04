@@ -102,7 +102,6 @@ jobs:
             if ./gradlew modrinth \
               --parallel \
               --build-cache \
-              --configuration-cache \
               -Dorg.gradle.internal.http.socketTimeout=180000 \
               -Dorg.gradle.internal.http.connectionTimeout=180000; then
               echo "✓ Modrinth upload successful"
@@ -122,8 +121,7 @@ jobs:
 
       - name: Sync Modrinth Body
         run: |
-          ./gradlew modrinthSyncBody \
-            --configuration-cache
+          ./gradlew modrinthSyncBody
         env:
           MODRINTH_TOKEN: ${{ secrets.MODRINTH_TOKEN }}
 
