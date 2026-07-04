@@ -88,7 +88,6 @@ jobs:
             cp platform/spigot-legacy/build/libs/cloud-api-spigot-legacy.jar artifacts/spigot-legacy.jar
           fi
         env:
-          COMMIT_HASH: ${{ steps.versions.outputs.commit_hash }}
           SIMPLECLOUD_USERNAME: ${{ secrets.SIMPLECLOUD_USERNAME }}
           SIMPLECLOUD_PASSWORD: ${{ secrets.SIMPLECLOUD_PASSWORD }}
 
@@ -119,7 +118,6 @@ jobs:
             fi
           done
         env:
-          COMMIT_HASH: ${{ steps.versions.outputs.commit_hash }}
           MODRINTH_TOKEN: ${{ secrets.MODRINTH_TOKEN }}
 
       - name: Sync Modrinth Body
@@ -266,15 +264,14 @@ jobs:
       - name: Create GitHub Release
         id: create_release
         run: |
-          RELEASE_TAG="v${{ needs.build-and-publish.outputs.gradle_version }}-dev.${{ needs.build-and-publish.outputs.commit_hash }}"
-          RELEASE_NAME="v${{ needs.build-and-publish.outputs.gradle_version }}-dev.${{ needs.build-and-publish.outputs.commit_hash }}"
-          RELEASE_BODY="This release contains dev builds for all platform modules."
+          RELEASE_TAG="v${{ needs.build-and-publish.outputs.gradle_version }}"
+          RELEASE_NAME="v${{ needs.build-and-publish.outputs.gradle_version }}"
+          RELEASE_BODY="This release contains release builds for all platform modules."
 
           gh release create "$RELEASE_TAG" \
             --title "$RELEASE_NAME" \
             --notes "$RELEASE_BODY" \
-            --target main \
-            --prerelease
+            --target main
 
           echo "RELEASE_TAG=$RELEASE_TAG" >> $GITHUB_ENV
         env:
