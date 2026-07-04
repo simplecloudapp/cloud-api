@@ -15,13 +15,19 @@ tasks.register("generateArtifactsClass") {
     description = "Generates a Java class containing artifact information"
 
     val outputDir = layout.buildDirectory.dir("generated/src/main/java/app/simplecloud/generated")
-    val outputFile = outputDir.get().file("SimpleCloudArtifacts.java")
+    val outputFile = outputDir.map { it.file("SimpleCloudArtifacts.java") }
+    val controllerProtoVersion = rootProject.libs.versions.controller.proto.get()
+    val adventureProtoVersion = rootProject.libs.versions.adventure.proto.get()
+    val jnatsVersion = rootProject.libs.versions.jnats.get()
 
     outputs.file(outputFile)
 
     doLast {
-        outputDir.get().asFile.mkdirs()
-        outputFile.asFile.writeText(
+        val outputDirFile = outputDir.get().asFile
+        val outputFileFile = outputFile.get().asFile
+
+        outputDirFile.mkdirs()
+        outputFileFile.writeText(
             """
             package app.simplecloud.generated;
             
@@ -31,22 +37,17 @@ tasks.register("generateArtifactsClass") {
                 // StringBuilder prevents shadow relocation of maven coordinates (not inlined by javac)
                 // Split patterns: "build.buf" and "io.nats" to avoid shadow matching
                 public static final List<String> artifacts = List.of(
-                    new StringBuilder("build.").append("buf.gen:simplecloud_controller_protocolbuffers_java_lite:${rootProject.libs.versions.controller.proto.get()}").toString(),
-                    new StringBuilder("build.").append("buf.gen:simplecloud_adventure_protocolbuffers_java_lite:${rootProject.libs.versions.adventure.proto.get()}").toString(),
-                    new StringBuilder("io.").append("nats:jnats:${rootProject.libs.versions.jnats.get()}").toString()
+                    new StringBuilder("build.").append("buf.gen:simplecloud_controller_protocolbuffers_java_lite:$controllerProtoVersion").toString(),
+                    new StringBuilder("build.").append("buf.gen:simplecloud_adventure_protocolbuffers_java_lite:$adventureProtoVersion").toString(),
+                    new StringBuilder("io.").append("nats:jnats:$jnatsVersion").toString()
                 );
             }
             """.trimIndent()
         )
-        println("Generated Artifacts.java at ${outputFile.asFile.absolutePath}")
+        println("Generated Artifacts.java at ${outputFileFile.absolutePath}")
     }
 }
 
 tasks.named("compileJava") {
     dependsOn("generateArtifactsClass")
 }
-
-sourceSets.main {
-    java.srcDir(layout.buildDirectory.dir("generated/src/main/java"))
-}
-

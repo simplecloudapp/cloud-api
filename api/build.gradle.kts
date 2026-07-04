@@ -1,3 +1,5 @@
+import app.simplecloud.gradle.AddProtoDependencyToPom
+import app.simplecloud.gradle.FixOpenApiGeneratedCode
 import com.github.jengelman.gradle.plugins.shadow.tasks.ShadowJar
 
 plugins {
@@ -66,7 +68,7 @@ tasks.named<Jar>("jar") {
 sourceSets {
     main {
         java {
-            srcDir("$buildDir/generated/src/main/java")
+            srcDir(layout.buildDirectory.dir("generated/src/main/java"))
         }
     }
 }
@@ -75,7 +77,7 @@ openApiGenerate {
     generatorName.set("java")
     remoteInputSpec.set("https://controller.simplecloud.app/swagger/doc.json")
 
-    outputDir.set("$buildDir/generated")
+    outputDir.set(layout.buildDirectory.dir("generated").map { it.asFile.absolutePath })
 
 //    generateSupportingFiles.set(false)
     generateApiDocumentation.set(false)
@@ -97,48 +99,29 @@ openApiGenerate {
     )
 }
 
-// Fix OpenAPI generator bug: oneOf schemas with Object option have wrong instanceof order
-// The generator checks "instanceof Object" before specific types, which always matches
-tasks.register("fixOpenApiGeneratedCode") {
+val fixOpenApiGeneratedCode by tasks.registering(FixOpenApiGeneratedCode::class) {
     dependsOn("openApiGenerate")
-    doLast {
-        val modelsDir = file("$buildDir/generated/src/main/java/app/simplecloud/api/web/models")
-        modelsDir.listFiles()?.filter { it.name.startsWith("V0") && it.name.endsWith(".java") }?.forEach { file ->
-            var content = file.readText()
+    modelsDir.set(layout.buildDirectory.dir("generated/src/main/java/app/simplecloud/api/web/models"))
+    markerFile.set(layout.buildDirectory.file("generated/.fixOpenApiGeneratedCode"))
+}
 
-            // Fix the write() method: move "instanceof Object" check to the end
-            // Pattern: check for specific type first, then Object
-            val writeMethodPattern = Regex(
-                """(// check if the actual instance is of the type `Object`\s+if \(value\.getActualInstance\(\) instanceof Object\) \{[^}]+\}\s+)(// check if the actual instance is of the type `(\w+)`\s+if \(value\.getActualInstance\(\) instanceof \3\) \{[^}]+\})""",
-                RegexOption.DOT_MATCHES_ALL
-            )
-            content = content.replace(writeMethodPattern) { match ->
-                // Swap: put specific type check before Object check
-                "${match.groupValues[2]}\n                    ${match.groupValues[1]}"
-            }
-
-            // Fix setActualInstance(): move "instanceof Object" check to the end
-            val setInstancePattern = Regex(
-                """(public void setActualInstance\(Object instance\) \{\s+)(if \(instance instanceof Object\) \{\s+super\.setActualInstance\(instance\);\s+return;\s+\}\s+)(if \(instance instanceof (\w+)\) \{)""",
-                RegexOption.DOT_MATCHES_ALL
-            )
-            content = content.replace(setInstancePattern) { match ->
-                "${match.groupValues[1]}${match.groupValues[3]}"
-            }
-
-            file.writeText(content)
-        }
-    }
+val prepareGeneratedSources by tasks.registering {
+    group = "build"
+    description = "Generates and patches OpenAPI sources used by the API module."
+    dependsOn(fixOpenApiGeneratedCode)
 }
 
 tasks.compileJava {
-    dependsOn("fixOpenApiGeneratedCode")
+    dependsOn(prepareGeneratedSources)
 }
 
 tasks.named<Javadoc>("javadoc") {
+    dependsOn(prepareGeneratedSources)
     isFailOnError = false
     options {
         (this as StandardJavadocDocletOptions).apply {
+            addBooleanOption("Xdoclint:none", true)
+            addBooleanOption("quiet", true)
             addStringOption("Xmaxerrs", "10000")
             addStringOption("Xmaxwarns", "10000")
         }
@@ -146,8 +129,10 @@ tasks.named<Javadoc>("javadoc") {
 }
 
 tasks.named<Jar>("sourcesJar") {
-    dependsOn("openApiGenerate")
+    dependsOn(prepareGeneratedSources)
 }
+
+val controllerProtoDependencyVersion = rootProject.libs.controller.proto.get().version.toString()
 
 publishing {
     publications {
@@ -184,26 +169,8 @@ publishing {
                     url.set("https://github.com/simplecloudapp/cloud-api")
                 }
 
-                withXml {
-                    val root = asNode()
-
-                    // Add dependencies node if it doesn't exist
-                    var dependenciesNode = root["dependencies"] as? groovy.util.Node
-                    if (dependenciesNode == null) {
-                        dependenciesNode = root.appendNode("dependencies")
-                    }
-
-                    // Add proto dependency (needed for compilation since proto classes aren't relocated)
-                    dependenciesNode?.let { deps ->
-                        val protoDep = deps.appendNode("dependency")
-                        protoDep.appendNode("groupId", "build.buf.gen")
-                        protoDep.appendNode("artifactId", "simplecloud_controller_protocolbuffers_java_lite")
-                        protoDep.appendNode("version", rootProject.libs.controller.proto.get().version.toString())
-                        protoDep.appendNode("scope", "compile")
-                    }
-
-                    // Note: io.nats, com.squareup.okhttp3, com.google.code.gson, and io.gsonfire are NOT added because they're shaded
-                }
+                // Note: io.nats, okhttp3, gson, and gsonfire are not added because they're shaded.
+                withXml(AddProtoDependencyToPom(controllerProtoDependencyVersion))
             }
         }
     }

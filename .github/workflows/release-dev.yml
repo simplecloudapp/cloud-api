@@ -36,19 +36,18 @@ jobs:
       commit_hash: ${{ steps.versions.outputs.commit_hash }}
     steps:
       - name: Checkout repository
-        uses: actions/checkout@v4
+        uses: actions/checkout@v7
         with:
           ref: main
 
       - name: Set up JDK 21
-        uses: actions/setup-java@v4
+        uses: actions/setup-java@v5
         with:
           distribution: 'temurin'
           java-version: '21'
-          cache: 'gradle'
 
       - name: Setup Gradle
-        uses: gradle/actions/setup-gradle@v3
+        uses: gradle/actions/setup-gradle@v6
         with:
           cache-read-only: false
 
@@ -58,33 +57,36 @@ jobs:
       - name: Get Versions
         id: versions
         run: |
-          echo "gradle_version=$(./gradlew properties -q | grep "version:" | awk '{print $2}')" >> $GITHUB_OUTPUT
-          echo "commit_hash=$(git rev-parse --short HEAD)" >> $GITHUB_OUTPUT
+          BASE_VERSION=$(sed -nE 's/^val baseVersion = "([^"]+)"/\1/p' build.gradle.kts)
+          if [ -z "$BASE_VERSION" ]; then
+            echo "Unable to read baseVersion from build.gradle.kts" >&2
+            exit 1
+          fi
 
-      - name: Build Artifacts
+          echo "gradle_version=$BASE_VERSION" >> "$GITHUB_OUTPUT"
+          echo "commit_hash=$(git rev-parse --short HEAD)" >> "$GITHUB_OUTPUT"
+
+      - name: Build and Publish Artifacts
         run: |
-          ./gradlew clean build shadowJar \
+          ./gradlew :api:prepareGeneratedSources \
+            :api:check \
+            :platform:spigot:shadowJar \
+            :platform:spigot-legacy:shadowJar \
+            :platform:bungeecord:shadowJar \
+            :platform:velocity:shadowJar \
+            :api:publishMavenPublicationToSimplecloudRepository \
             --parallel \
             --build-cache \
-            --no-configuration-cache
+            --configuration-cache
           
           mkdir -p artifacts
-          cp platform/spigot/build/libs/spigot.jar artifacts/
-          cp platform/bungeecord/build/libs/bungeecord.jar artifacts/
-          cp platform/velocity/build/libs/velocity.jar artifacts/
+          cp platform/spigot/build/libs/cloud-api-spigot.jar artifacts/spigot.jar
+          cp platform/bungeecord/build/libs/cloud-api-bungeecord.jar artifacts/bungeecord.jar
+          cp platform/velocity/build/libs/cloud-api-velocity.jar artifacts/velocity.jar
           # Add spigot-legacy if it exists
-          if [ -f platform/spigot-legacy/build/libs/spigot-legacy.jar ]; then
-            cp platform/spigot-legacy/build/libs/spigot-legacy.jar artifacts/
+          if [ -f platform/spigot-legacy/build/libs/cloud-api-spigot-legacy.jar ]; then
+            cp platform/spigot-legacy/build/libs/cloud-api-spigot-legacy.jar artifacts/spigot-legacy.jar
           fi
-        env:
-          COMMIT_HASH: ${{ steps.versions.outputs.commit_hash }}
-
-      - name: Publish to Maven
-        run: |
-          ./gradlew publishMavenJavaPublicationToSimplecloudRepository \
-            --parallel \
-            --build-cache \
-            --no-configuration-cache
         env:
           COMMIT_HASH: ${{ steps.versions.outputs.commit_hash }}
           SIMPLECLOUD_USERNAME: ${{ secrets.SIMPLECLOUD_USERNAME }}
@@ -101,7 +103,7 @@ jobs:
             if ./gradlew modrinth \
               --parallel \
               --build-cache \
-              --no-configuration-cache \
+              --configuration-cache \
               -Dorg.gradle.internal.http.socketTimeout=180000 \
               -Dorg.gradle.internal.http.connectionTimeout=180000; then
               echo "✓ Modrinth upload successful"
@@ -123,12 +125,12 @@ jobs:
       - name: Sync Modrinth Body
         run: |
           ./gradlew modrinthSyncBody \
-            --no-configuration-cache
+            --configuration-cache
         env:
           MODRINTH_TOKEN: ${{ secrets.MODRINTH_TOKEN }}
 
       - name: Upload artifacts
-        uses: actions/upload-artifact@v4
+        uses: actions/upload-artifact@v7
         with:
           name: build-artifacts
           path: artifacts/*.jar
@@ -139,7 +141,7 @@ jobs:
     runs-on: blacksmith-4vcpu-ubuntu-2404
     steps:
       - name: Download artifacts
-        uses: actions/download-artifact@v4
+        uses: actions/download-artifact@v8
         with:
           name: build-artifacts
           path: artifacts
@@ -249,14 +251,14 @@ jobs:
     runs-on: blacksmith-4vcpu-ubuntu-2404
     steps:
       - name: Checkout repository
-        uses: actions/checkout@v4
+        uses: actions/checkout@v7
         with:
           ref: main
           sparse-checkout: |
             .github
 
       - name: Download artifacts
-        uses: actions/download-artifact@v4
+        uses: actions/download-artifact@v8
         with:
           name: build-artifacts
           path: artifacts

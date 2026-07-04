@@ -9,13 +9,29 @@ plugins {
     `signing`
 }
 
-val baseVersion = "0.1.0-platform.30"
+val baseVersion = "0.1.0-platform.31"
 val commitHash = System.getenv("COMMIT_HASH")
 val isSnapshot = commitHash != null
 
+fun devBuildId(): String {
+    val githubRunNumber = System.getenv("GITHUB_RUN_NUMBER")
+    val githubRunAttempt = System.getenv("GITHUB_RUN_ATTEMPT")
+
+    if (!githubRunNumber.isNullOrBlank()) {
+        return listOfNotNull(
+            githubRunNumber,
+            githubRunAttempt?.takeIf { it.isNotBlank() }
+        ).joinToString(".")
+    }
+
+    return System.getenv("BUILD_NUMBER")
+        ?: System.getenv("CI_PIPELINE_ID")
+        ?: System.currentTimeMillis().toString()
+}
+
 allprojects {
     group = "app.simplecloud.api"
-    version = if (isSnapshot) "${baseVersion}-dev.${System.currentTimeMillis()}-${commitHash}" else baseVersion
+    version = if (isSnapshot) "${baseVersion}-dev.${devBuildId()}-${commitHash}" else baseVersion
 
     repositories {
         mavenCentral()
