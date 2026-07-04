@@ -74,7 +74,6 @@ jobs:
             :platform:spigot-legacy:shadowJar \
             :platform:bungeecord:shadowJar \
             :platform:velocity:shadowJar \
-            :api:publishMavenPublicationToSimplecloudRepository \
             --parallel \
             --build-cache \
             --configuration-cache
@@ -87,7 +86,14 @@ jobs:
           if [ -f platform/spigot-legacy/build/libs/cloud-api-spigot-legacy.jar ]; then
             cp platform/spigot-legacy/build/libs/cloud-api-spigot-legacy.jar artifacts/spigot-legacy.jar
           fi
+
+      - name: Publish API Snapshot
+        run: |
+          ./gradlew :api:publishMavenPublicationToSimplecloudRepository \
+            --parallel \
+            --build-cache
         env:
+          COMMIT_HASH: ${{ steps.versions.outputs.commit_hash }}
           SIMPLECLOUD_USERNAME: ${{ secrets.SIMPLECLOUD_USERNAME }}
           SIMPLECLOUD_PASSWORD: ${{ secrets.SIMPLECLOUD_PASSWORD }}
 
