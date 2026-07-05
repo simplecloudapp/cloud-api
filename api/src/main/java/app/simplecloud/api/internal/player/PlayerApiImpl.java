@@ -10,6 +10,8 @@ import app.simplecloud.api.web.models.ModelsDeletePlayerPropertiesRequest;
 import app.simplecloud.api.web.models.ModelsOnlinePlayerCountResponse;
 import app.simplecloud.api.web.models.ModelsOnlinePlayerResponse;
 import app.simplecloud.api.web.models.ModelsOnlinePlayersResponse;
+import app.simplecloud.api.web.models.ModelsPatchPlayerRequest;
+import app.simplecloud.api.web.models.ModelsPlayerOnlineTimeResponse;
 import app.simplecloud.api.web.models.ModelsPlayerPropertiesResponse;
 import app.simplecloud.api.web.models.ModelsPlayerResponse;
 import app.simplecloud.api.web.models.ModelsUpdatePlayerPropertiesRequest;
@@ -33,9 +35,13 @@ public class PlayerApiImpl implements PlayerApi {
     private final PlayersApi playersApi;
 
     public PlayerApiImpl(CloudApiOptions options, Connection natsConnection) {
+        this(options, natsConnection, new PlayersApi());
+    }
+
+    PlayerApiImpl(CloudApiOptions options, Connection natsConnection, PlayersApi playersApi) {
         this.options = options;
         this.natsConnection = natsConnection;
-        this.playersApi = new PlayersApi();
+        this.playersApi = playersApi;
         this.playersApi.setCustomBaseUrl(options.getControllerUrl());
         ApiClients.applyTimeouts(this.playersApi.getApiClient(), options);
         if (options.getComponent() != null && !options.getComponent().isBlank()) {
@@ -132,6 +138,48 @@ public class PlayerApiImpl implements PlayerApi {
     }
 
     @Override
+    public CompletableFuture<Long> getOnlineTimeSeconds(UUID uniqueId) {
+        return CompletableFuture.supplyAsync(() -> {
+            try {
+                ModelsPlayerOnlineTimeResponse response = playersApi.v0PlayersOnlineTimeGet(
+                        options.getNetworkId(),
+                        options.getNetworkSecret(),
+                        uniqueId.toString()
+                );
+
+                if (response == null || response.getOnlineTimeSeconds() == null) {
+                    return 0L;
+                }
+                return response.getOnlineTimeSeconds().longValue();
+            } catch (ApiException e) {
+                throw new RuntimeException(e);
+            }
+        });
+    }
+
+    @Override
+    public CompletableFuture<CloudPlayer> setOnlineTimeSeconds(UUID uniqueId, long seconds) {
+        int controllerSeconds = toControllerOnlineTimeSeconds(seconds);
+
+        return CompletableFuture.supplyAsync(() -> {
+            try {
+                ModelsPatchPlayerRequest request = new ModelsPatchPlayerRequest();
+                request.setOnlineTimeSeconds(controllerSeconds);
+
+                ModelsPlayerResponse response = playersApi.v0PlayersPatch(
+                        options.getNetworkId(),
+                        options.getNetworkSecret(),
+                        uniqueId.toString(),
+                        request
+                );
+                return convertPlayerResponse(response);
+            } catch (ApiException e) {
+                throw new RuntimeException(e);
+            }
+        });
+    }
+
+    @Override
     public CompletableFuture<Map<String, String>> updatePlayerProperties(UUID uniqueId, Map<String, String> properties) {
         return CompletableFuture.supplyAsync(() -> {
             try {
@@ -181,7 +229,7 @@ public class PlayerApiImpl implements PlayerApi {
                 player.getConnectedProxyName(),
                 player.getConnectedServerName(),
                 player.getOnline() != null && player.getOnline(),
-                player.getOnlineTimeSeconds() != null ? player.getOnlineTimeSeconds().longValue() : 0L,
+                toOnlineTimeSeconds(player),
                 player.getSessionId(),
                 player.getFirstSeen(),
                 player.getLastSeen(),
@@ -199,7 +247,7 @@ public class PlayerApiImpl implements PlayerApi {
                 player.getConnectedProxyName(),
                 player.getConnectedServerName(),
                 player.getOnline() != null && player.getOnline(),
-                player.getOnlineTimeSeconds() != null ? player.getOnlineTimeSeconds().longValue() : 0L,
+                toOnlineTimeSeconds(player),
                 player.getSessionId(),
                 player.getFirstSeen(),
                 player.getLastSeen(),
@@ -218,5 +266,20 @@ public class PlayerApiImpl implements PlayerApi {
 
     private Map<String, String> toPropertiesMap(Map<String, String> properties) {
         return properties != null ? properties : new HashMap<>();
+    }
+
+    private static int toControllerOnlineTimeSeconds(long seconds) {
+        if (seconds < 0 || seconds > Integer.MAX_VALUE) {
+            throw new IllegalArgumentException("seconds must be between 0 and " + Integer.MAX_VALUE);
+        }
+        return (int) seconds;
+    }
+
+    private static long toOnlineTimeSeconds(ModelsOnlinePlayerResponse player) {
+        return player.getOnlineTimeSeconds() != null ? player.getOnlineTimeSeconds().longValue() : 0L;
+    }
+
+    private static long toOnlineTimeSeconds(ModelsPlayerResponse player) {
+        return player.getOnlineTimeSeconds() != null ? player.getOnlineTimeSeconds().longValue() : 0L;
     }
 }

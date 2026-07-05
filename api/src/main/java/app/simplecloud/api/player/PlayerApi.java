@@ -4,6 +4,7 @@ import java.util.List;
 import java.util.Map;
 import java.util.UUID;
 import java.util.concurrent.CompletableFuture;
+import java.util.function.LongUnaryOperator;
 
 /**
  * API for querying and managing players connected to the cloud network.
@@ -61,6 +62,82 @@ public interface PlayerApi {
      * @return a future containing the online player count
      */
     CompletableFuture<Integer> getOnlinePlayerCount();
+
+    /**
+     * Gets the accumulated online time for a player in seconds.
+     *
+     * @param uniqueId the player's UUID
+     * @return a future containing the accumulated online time in seconds
+     */
+    CompletableFuture<Long> getOnlineTimeSeconds(UUID uniqueId);
+
+    /**
+     * Sets the accumulated online time for a player.
+     *
+     * @param uniqueId the player's UUID
+     * @param seconds the new accumulated online time in seconds
+     * @return a future containing the updated player
+     */
+    CompletableFuture<CloudPlayer> setOnlineTimeSeconds(UUID uniqueId, long seconds);
+
+    /**
+     * Resets the accumulated online time for a player.
+     *
+     * @param uniqueId the player's UUID
+     * @return a future containing the updated player
+     */
+    default CompletableFuture<CloudPlayer> resetOnlineTime(UUID uniqueId) {
+        return setOnlineTimeSeconds(uniqueId, 0L);
+    }
+
+    /**
+     * Updates the accumulated online time by reading the current value, applying
+     * the updater, and writing the resulting value.
+     *
+     * <p>This is a client-side read-modify-write helper. Callers that need
+     * strict atomicity should prefer a controller-side delta endpoint when one
+     * is available.
+     *
+     * @param uniqueId the player's UUID
+     * @param updater function receiving the current online time in seconds
+     * @return a future containing the updated player
+     */
+    default CompletableFuture<CloudPlayer> updateOnlineTimeSeconds(UUID uniqueId, LongUnaryOperator updater) {
+        if (updater == null) {
+            throw new IllegalArgumentException("updater must not be null");
+        }
+        return getOnlineTimeSeconds(uniqueId).thenCompose(current -> setOnlineTimeSeconds(uniqueId, updater.applyAsLong(current)));
+    }
+
+    /**
+     * Adds seconds to the accumulated online time for a player.
+     *
+     * @param uniqueId the player's UUID
+     * @param seconds the seconds to add
+     * @return a future containing the updated player
+     */
+    default CompletableFuture<CloudPlayer> addOnlineTimeSeconds(UUID uniqueId, long seconds) {
+        if (seconds < 0) {
+            throw new IllegalArgumentException("seconds must be >= 0");
+        }
+        return updateOnlineTimeSeconds(uniqueId, current -> Math.addExact(current, seconds));
+    }
+
+    /**
+     * Removes seconds from the accumulated online time for a player.
+     *
+     * <p>The resulting online time is clamped to zero.
+     *
+     * @param uniqueId the player's UUID
+     * @param seconds the seconds to remove
+     * @return a future containing the updated player
+     */
+    default CompletableFuture<CloudPlayer> removeOnlineTimeSeconds(UUID uniqueId, long seconds) {
+        if (seconds < 0) {
+            throw new IllegalArgumentException("seconds must be >= 0");
+        }
+        return updateOnlineTimeSeconds(uniqueId, current -> current <= seconds ? 0L : current - seconds);
+    }
 
     /**
      * Updates player properties by merging with existing properties.
