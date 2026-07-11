@@ -22,6 +22,7 @@ velocity = "3.5.0-SNAPSHOT"
 bungeecord = "1.21-R0.4"
 paper = "1.21.4-R0.1-SNAPSHOT"
 folia = "1.21.4-R0.1-SNAPSHOT"
+luckperms = "5.5"
 
 adventure = "4.25.0"
 adventure-platform = "4.4.1"
@@ -52,6 +53,7 @@ paper-api = { module = "io.papermc.paper:paper-api", version.ref = "paper" }
 folia-api = { module = "dev.folia:folia-api", version.ref = "folia" }
 velocity = { module = "com.velocitypowered:velocity-api", version.ref = "velocity" }
 bungeecord = { module = "net.md-5:bungeecord-api", version.ref = "bungeecord" }
+luckperms = { module = "net.luckperms:api", version.ref = "luckperms" }
 
 adventure-api = { module = "net.kyori:adventure-api", version.ref = "adventure" }
 adventure-gson = { module = "net.kyori:adventure-text-serializer-gson", version.ref = "adventure" }

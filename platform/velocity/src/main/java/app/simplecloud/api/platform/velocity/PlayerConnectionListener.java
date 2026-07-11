@@ -11,7 +11,9 @@ import com.velocitypowered.api.proxy.Player;
 import org.slf4j.Logger;
 import org.slf4j.LoggerFactory;
 
+import java.util.UUID;
 import java.util.concurrent.CompletableFuture;
+import java.util.function.Consumer;
 
 public class PlayerConnectionListener {
 
@@ -21,17 +23,23 @@ public class PlayerConnectionListener {
     private final PlayerIntegration playerIntegration;
     private final ProxyPresenceTracker proxyPresenceTracker;
     private final String proxyName;
+    private final Consumer<UUID> synchronizePlayerProperties;
+    private final Consumer<UUID> forgetPlayerProperties;
 
     public PlayerConnectionListener(
             PlayerSynchronizer playerSynchronizer,
             PlayerIntegration playerIntegration,
             ProxyPresenceTracker proxyPresenceTracker,
-            String proxyName
+            String proxyName,
+            Consumer<UUID> synchronizePlayerProperties,
+            Consumer<UUID> forgetPlayerProperties
     ) {
         this.playerSynchronizer = playerSynchronizer;
         this.playerIntegration = playerIntegration;
         this.proxyPresenceTracker = proxyPresenceTracker;
         this.proxyName = proxyName;
+        this.synchronizePlayerProperties = synchronizePlayerProperties;
+        this.forgetPlayerProperties = forgetPlayerProperties;
     }
 
     @Subscribe
@@ -61,6 +69,7 @@ public class PlayerConnectionListener {
         ).thenAccept(result -> {
             if (result.isSuccess()) {
                 proxyPresenceTracker.updateSessionId(playerId, result.getSessionId());
+                synchronizePlayerProperties.accept(player.getUniqueId());
             }
             if (!result.isSuccess()) {
                 logger.warn("Login failed for {}: {}", player.getUsername(), result.getErrorMessage());
@@ -84,6 +93,7 @@ public class PlayerConnectionListener {
                     return null;
                 });
         proxyPresenceTracker.remove(playerId);
+        forgetPlayerProperties.accept(player.getUniqueId());
 
         CompletableFuture.runAsync(() -> playerSynchronizer.updatePlayerCount());
     }

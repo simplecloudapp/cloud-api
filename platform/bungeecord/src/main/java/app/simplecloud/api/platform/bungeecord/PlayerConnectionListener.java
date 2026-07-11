@@ -12,7 +12,9 @@ import net.md_5.bungee.api.plugin.Listener;
 import net.md_5.bungee.event.EventHandler;
 import net.md_5.bungee.event.EventPriority;
 
+import java.util.UUID;
 import java.util.concurrent.CompletableFuture;
+import java.util.function.Consumer;
 import java.util.logging.Level;
 import java.util.logging.Logger;
 
@@ -24,17 +26,23 @@ public class PlayerConnectionListener implements Listener {
     private final PlayerIntegration playerIntegration;
     private final ProxyPresenceTracker proxyPresenceTracker;
     private final String proxyName;
+    private final Consumer<UUID> synchronizePlayerProperties;
+    private final Consumer<UUID> forgetPlayerProperties;
 
     public PlayerConnectionListener(
             PlayerSynchronizer playerSynchronizer,
             PlayerIntegration playerIntegration,
             ProxyPresenceTracker proxyPresenceTracker,
-            String proxyName
+            String proxyName,
+            Consumer<UUID> synchronizePlayerProperties,
+            Consumer<UUID> forgetPlayerProperties
     ) {
         this.playerSynchronizer = playerSynchronizer;
         this.playerIntegration = playerIntegration;
         this.proxyPresenceTracker = proxyPresenceTracker;
         this.proxyName = proxyName;
+        this.synchronizePlayerProperties = synchronizePlayerProperties;
+        this.forgetPlayerProperties = forgetPlayerProperties;
     }
 
     @EventHandler(priority = EventPriority.LOW)
@@ -57,6 +65,7 @@ public class PlayerConnectionListener implements Listener {
         ).thenAccept(result -> {
             if (result.isSuccess()) {
                 proxyPresenceTracker.updateSessionId(playerId, result.getSessionId());
+                synchronizePlayerProperties.accept(player.getUniqueId());
             }
             if (!result.isSuccess()) {
                 logger.warning("Login failed for " + player.getName() + ": " + result.getErrorMessage());
@@ -80,6 +89,7 @@ public class PlayerConnectionListener implements Listener {
                     return null;
                 });
         proxyPresenceTracker.remove(playerId);
+        forgetPlayerProperties.accept(player.getUniqueId());
 
         CompletableFuture.runAsync(() -> playerSynchronizer.updatePlayerCount());
     }

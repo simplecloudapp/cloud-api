@@ -9,16 +9,19 @@ import app.simplecloud.api.presence.ProxyPresencePlayer;
 import app.simplecloud.api.presence.ProxyPresencePlayerProvider;
 import app.simplecloud.api.player.CloudPlayer;
 import app.simplecloud.api.runtime.SimpleCloudRuntime;
+import app.simplecloud.api.platform.shared.LuckPermsPlayerPropertySynchronizer;
 import app.simplecloud.api.platform.shared.PlayerSynchronizer;
 import com.google.inject.Inject;
 import com.velocitypowered.api.event.Subscribe;
 import com.velocitypowered.api.event.proxy.ProxyInitializeEvent;
 import com.velocitypowered.api.event.proxy.ProxyShutdownEvent;
+import com.velocitypowered.api.plugin.Dependency;
 import com.velocitypowered.api.plugin.Plugin;
 import com.velocitypowered.api.proxy.ConnectionRequestBuilder;
 import com.velocitypowered.api.proxy.Player;
 import com.velocitypowered.api.proxy.ProxyServer;
 import net.kyori.adventure.text.serializer.gson.GsonComponentSerializer;
+import net.luckperms.api.LuckPermsProvider;
 import org.slf4j.Logger;
 
 import java.util.List;
@@ -30,7 +33,8 @@ import java.util.concurrent.CompletableFuture;
         id = "simplecloud-api",
         name = "SimpleCloud API",
         version = "1.0",
-        authors = {"Fllip"}
+        authors = {"Fllip"},
+        dependencies = {@Dependency(id = "luckperms", optional = true)}
 )
 public class CloudApiVelocityPlugin implements ProxyPresencePlayerProvider {
 
@@ -42,6 +46,7 @@ public class CloudApiVelocityPlugin implements ProxyPresencePlayerProvider {
     private final PlayerIntegration playerIntegration;
     private final ProxyPresenceTracker proxyPresenceTracker;
     private final ProxyPresenceResponder proxyPresenceResponder;
+    private LuckPermsPlayerPropertySynchronizer luckPermsSynchronizer;
 
     private final GsonComponentSerializer gsonComponentSerializer = GsonComponentSerializer.gson();
 
@@ -71,11 +76,14 @@ public class CloudApiVelocityPlugin implements ProxyPresencePlayerProvider {
     @Subscribe
     public void onProxyInitialize(ProxyInitializeEvent event) {
         logger.info("SimpleCloud v3 API provider initialized!");
+        initializeLuckPermsIntegration();
         proxyServer.getEventManager().register(this, new PlayerConnectionListener(
                 playerSynchronizer,
                 playerIntegration,
                 proxyPresenceTracker,
-                proxyName
+                proxyName,
+                this::synchronizeLuckPermsProperties,
+                this::forgetLuckPermsProperties
         ));
 
         playerSynchronizer.start();
@@ -87,9 +95,44 @@ public class CloudApiVelocityPlugin implements ProxyPresencePlayerProvider {
     public void onProxyShutdown(ProxyShutdownEvent event) {
         logger.info("SimpleCloud v3 API provider uninitialized!");
         proxyPresenceResponder.stop();
+        if (luckPermsSynchronizer != null) {
+            luckPermsSynchronizer.stop();
+        }
         playerSynchronizer.stop();
         playerIntegration.stop();
         cloudApi.close();
+    }
+
+    private void initializeLuckPermsIntegration() {
+        if (!proxyServer.getPluginManager().isLoaded("luckperms")) {
+            return;
+        }
+        try {
+            luckPermsSynchronizer = new LuckPermsPlayerPropertySynchronizer(
+                    cloudApi,
+                    LuckPermsProvider.get(),
+                    this,
+                    uniqueId -> proxyServer.getPlayer(uniqueId).isPresent(),
+                    (message, throwable) -> logger.error(message, throwable)
+            );
+            luckPermsSynchronizer.start();
+            logger.info("LuckPerms player property synchronization enabled");
+        } catch (IllegalStateException exception) {
+            luckPermsSynchronizer = null;
+            logger.warn("LuckPerms is present but its API is not available", exception);
+        }
+    }
+
+    private void synchronizeLuckPermsProperties(UUID uniqueId) {
+        if (luckPermsSynchronizer != null) {
+            luckPermsSynchronizer.synchronize(uniqueId);
+        }
+    }
+
+    private void forgetLuckPermsProperties(UUID uniqueId) {
+        if (luckPermsSynchronizer != null) {
+            luckPermsSynchronizer.forget(uniqueId);
+        }
     }
 
     @Override
