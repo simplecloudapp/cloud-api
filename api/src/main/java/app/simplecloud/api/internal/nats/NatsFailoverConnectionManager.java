@@ -178,11 +178,14 @@ public final class NatsFailoverConnectionManager {
     }
 
     private Connection createConnection() throws IOException, InterruptedException {
+        SimpleCloudNatsListener listener = new SimpleCloudNatsListener();
         return Nats.connect(
                 Options.builder()
                         .server(natsUrl)
                         .userInfo(networkId, networkSecret)
                         .maxReconnects(-1)
+                        .errorListener(listener)
+                        .connectionListener(listener)
                         .build()
         );
     }
