@@ -164,7 +164,7 @@ public class GroupImpl implements app.simplecloud.api.group.Group {
                 app.simplecloud.api.web.models.ModelsSourceInfo sourceInfo = infoDelegate.getSource();
                 if (sourceInfo != null) {
                     config = new app.simplecloud.api.web.models.ModelsSourceConfig();
-                    config.setType(sourceInfo.getType());
+                    config.setType(app.simplecloud.api.web.models.ModelsSourceConfig.TypeEnum.fromValue(sourceInfo.getType()));
                     app.simplecloud.api.web.models.ModelsBlueprintInfo blueprintInfo = sourceInfo.getBlueprint();
                     if (blueprintInfo != null) {
                         config.setBlueprint(blueprintInfo.getId());
@@ -322,7 +322,7 @@ public class GroupImpl implements app.simplecloud.api.group.Group {
 
     private SourceConfig convertSourceConfig(app.simplecloud.api.web.models.ModelsSourceConfig config) {
         SourceConfig result = new SourceConfig();
-        String typeStr = config.getType();
+        String typeStr = config.getType() == null ? null : config.getType().getValue();
         if (typeStr != null) {
             try {
                 result.setType(SourceType.valueOf(typeStr.toUpperCase()));

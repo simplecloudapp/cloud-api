@@ -102,33 +102,15 @@ public class PersistentServerApiImpl implements PersistentServerApi {
 
         return cache.fetch(key, () -> CompletableFuture.supplyAsync(() -> {
             try {
-                ModelsListPersistentServersResponse response = persistentServersApi.v0PersistentServersGet(
-                        options.getNetworkId(),
-                        options.getNetworkSecret()
-                );
+                ModelsListPersistentServersResponse response = executeQuery(query, null, null);
                 List<ModelsPersistentServerSummary> servers = response.getPersistentServers();
                 if (servers == null) {
                     return List.of();
                 }
 
-                List<PersistentServer> result = servers.stream()
+                return servers.stream()
                         .<PersistentServer>map(PersistentServerImpl::new)
                         .toList();
-
-                if (query != null) {
-                    result = result.stream()
-                            .filter(ps -> query.getActive() == null || query.getActive().equals(ps.isActive()))
-                            .filter(ps -> query.getServerhostId() == null || query.getServerhostId().equals(ps.getServerhostId()))
-                            .filter(ps -> query.getTags() == null || query.getTags().isEmpty() ||
-                                    (ps.getTags() != null && query.getTags().stream().anyMatch(ps.getTags()::contains)))
-                            .toList();
-
-                    if (query.getLimit() != null && result.size() > query.getLimit()) {
-                        result = result.subList(0, query.getLimit());
-                    }
-                }
-
-                return result;
             } catch (ApiException e) {
                 throw new RuntimeException(e);
             }
@@ -153,10 +135,7 @@ public class PersistentServerApiImpl implements PersistentServerApi {
         }
 
         try {
-            ModelsListPersistentServersResponse response = persistentServersApi.v0PersistentServersGet(
-                    options.getNetworkId(),
-                    options.getNetworkSecret()
-            );
+            ModelsListPersistentServersResponse response = executeQuery(null, null, name);
             List<ModelsPersistentServerSummary> servers = response.getPersistentServers();
             if (servers == null) {
                 return false;
@@ -172,10 +151,7 @@ public class PersistentServerApiImpl implements PersistentServerApi {
     private CompletableFuture<PersistentServer> fetchPersistentServerByIdFromController(String id) {
         return CompletableFuture.supplyAsync(() -> {
             try {
-                ModelsListPersistentServersResponse response = persistentServersApi.v0PersistentServersGet(
-                        options.getNetworkId(),
-                        options.getNetworkSecret()
-                );
+                ModelsListPersistentServersResponse response = executeQuery(null, id, null);
                 List<ModelsPersistentServerSummary> servers = response.getPersistentServers();
                 if (servers == null) {
                     return null;
@@ -195,10 +171,7 @@ public class PersistentServerApiImpl implements PersistentServerApi {
     private CompletableFuture<PersistentServer> fetchPersistentServerByNameFromController(String name) {
         return CompletableFuture.supplyAsync(() -> {
             try {
-                ModelsListPersistentServersResponse response = persistentServersApi.v0PersistentServersGet(
-                        options.getNetworkId(),
-                        options.getNetworkSecret()
-                );
+                ModelsListPersistentServersResponse response = executeQuery(null, null, name);
                 List<ModelsPersistentServerSummary> servers = response.getPersistentServers();
                 if (servers == null) {
                     return null;
@@ -213,6 +186,28 @@ public class PersistentServerApiImpl implements PersistentServerApi {
                 throw new RuntimeException(e);
             }
         });
+    }
+
+    private ModelsListPersistentServersResponse executeQuery(@Nullable PersistentServerQuery query,
+                                                              @Nullable String persistentServerId,
+                                                              @Nullable String name) throws ApiException {
+        String tags = query == null || query.getTags() == null || query.getTags().isEmpty()
+                ? null
+                : String.join(",", query.getTags());
+        return persistentServersApi.v0PersistentServersGet(
+                options.getNetworkId(),
+                options.getNetworkSecret(),
+                persistentServerId,
+                name,
+                null,
+                tags,
+                query != null ? query.getActive() : null,
+                null,
+                null,
+                query != null ? query.getServerhostId() : null,
+                query != null ? query.getLimit() : null,
+                null
+        );
     }
 
     @Override
@@ -247,7 +242,7 @@ public class PersistentServerApiImpl implements PersistentServerApi {
                 apiRequest.setServerhostId(request.getServerhostId());
                 apiRequest.setProperties(effectiveProperties);
                 apiRequest.setTags(effectiveTags);
-                apiRequest.setType(effectiveType.name());
+                apiRequest.setType(ModelsCreatePersistentServerRequest.TypeEnum.valueOf(effectiveType.name()));
                 if (effectiveSource != null) {
                     apiRequest.setSource(convertSourceConfig(effectiveSource));
                 }
@@ -304,7 +299,7 @@ public class PersistentServerApiImpl implements PersistentServerApi {
                 apiRequest.setTags(request.getTags());
 
                 if (request.getType() != null) {
-                    apiRequest.setType(request.getType().name());
+                    apiRequest.setType(ModelsUpdatePersistentServerRequest.TypeEnum.valueOf(request.getType().name()));
                 }
                 if (request.getSource() != null) {
                     apiRequest.setSource(convertSourceConfig(request.getSource()));
@@ -406,7 +401,7 @@ public class PersistentServerApiImpl implements PersistentServerApi {
     private ModelsSourceConfig convertSourceConfig(SourceConfig config) {
         ModelsSourceConfig result = new ModelsSourceConfig();
         if (config.getType() != null) {
-            result.setType(config.getType().name().toLowerCase());
+            result.setType(ModelsSourceConfig.TypeEnum.valueOf(config.getType().name()));
         }
         result.setBlueprint(config.getBlueprint());
         result.setImage(config.getImage());

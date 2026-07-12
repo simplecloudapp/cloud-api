@@ -176,23 +176,9 @@ public class GroupApiImpl implements GroupApi {
                     return List.of();
                 }
 
-                List<Group> result = groups.stream()
+                return groups.stream()
                         .<Group>map(GroupImpl::new)
                         .toList();
-
-                if (query != null) {
-                    result = result.stream()
-                            .filter(group -> query.getType() == null || query.getType().equals(group.getType()))
-                            .filter(group -> query.getTag() == null ||
-                                    (group.getTags() != null && group.getTags().contains(query.getTag())))
-                            .toList();
-
-                    if (query.getLimit() != null && result.size() > query.getLimit()) {
-                        result = result.subList(0, query.getLimit());
-                    }
-                }
-
-                return result;
             } catch (ApiException e) {
                 throw new RuntimeException(e);
             }
@@ -211,9 +197,23 @@ public class GroupApiImpl implements GroupApi {
     }
 
     private ModelsListServerGroupsResponse executeQuery(@org.jetbrains.annotations.Nullable GroupQuery query) throws ApiException {
+        return executeQuery(query, null, null);
+    }
+
+    private ModelsListServerGroupsResponse executeQuery(@Nullable GroupQuery query,
+                                                         @Nullable String serverGroupId,
+                                                         @Nullable String name) throws ApiException {
         return serverGroupsApi.v0ServerGroupsGet(
                 this.options.getNetworkId(),
                 this.options.getNetworkSecret(),
+                serverGroupId,
+                name,
+                query != null && query.getType() != null ? query.getType().name() : null,
+                query != null ? query.getTag() : null,
+                null,
+                null,
+                null,
+                query != null ? query.getLimit() : null,
                 null
         );
     }
@@ -224,7 +224,7 @@ public class GroupApiImpl implements GroupApi {
         }
 
         try {
-            ModelsListServerGroupsResponse response = executeQuery(null);
+            ModelsListServerGroupsResponse response = executeQuery(null, null, name);
             List<ModelsServerGroupSummary> groups = response.getServerGroups();
             if (groups == null) {
                 return false;
@@ -240,7 +240,7 @@ public class GroupApiImpl implements GroupApi {
     private CompletableFuture<Group> fetchGroupByNameFromController(String name) {
         return CompletableFuture.supplyAsync(() -> {
             try {
-                ModelsListServerGroupsResponse response = executeQuery(null);
+                ModelsListServerGroupsResponse response = executeQuery(null, null, name);
                 List<ModelsServerGroupSummary> groups = response.getServerGroups();
                 if (groups == null) {
                     return null;
@@ -260,7 +260,7 @@ public class GroupApiImpl implements GroupApi {
     private CompletableFuture<Group> fetchGroupByIdFromController(String id) {
         return CompletableFuture.supplyAsync(() -> {
             try {
-                ModelsListServerGroupsResponse response = executeQuery(null);
+                ModelsListServerGroupsResponse response = executeQuery(null, id, null);
                 List<ModelsServerGroupSummary> groups = response.getServerGroups();
                 if (groups == null) {
                     return null;
@@ -303,7 +303,7 @@ public class GroupApiImpl implements GroupApi {
 
                 ModelsCreateServerGroupRequest apiRequest = new ModelsCreateServerGroupRequest();
                 apiRequest.setName(request.getName());
-                apiRequest.setType(effectiveType.name());
+                apiRequest.setType(ModelsCreateServerGroupRequest.TypeEnum.valueOf(effectiveType.name()));
                 apiRequest.setMinMemory(request.getMinMemory());
                 apiRequest.setMaxMemory(request.getMaxMemory());
                 apiRequest.setMaxPlayers(effectiveMaxPlayers);
@@ -378,7 +378,7 @@ public class GroupApiImpl implements GroupApi {
                 ModelsUpdateServerGroupRequest apiRequest = new ModelsUpdateServerGroupRequest();
                 apiRequest.setName(request.getName());
                 if (request.getType() != null) {
-                    apiRequest.setType(request.getType().name());
+                    apiRequest.setType(ModelsUpdateServerGroupRequest.TypeEnum.valueOf(request.getType().name()));
                 }
                 apiRequest.setMinMemory(request.getMinMemory());
                 apiRequest.setMaxMemory(request.getMaxMemory());
@@ -500,7 +500,7 @@ public class GroupApiImpl implements GroupApi {
     private ModelsSourceConfig convertSourceConfig(SourceConfig config) {
         ModelsSourceConfig result = new ModelsSourceConfig();
         if (config.getType() != null) {
-            result.setType(config.getType().name().toLowerCase());
+            result.setType(ModelsSourceConfig.TypeEnum.valueOf(config.getType().name()));
         }
         result.setBlueprint(config.getBlueprint());
         result.setImage(config.getImage());

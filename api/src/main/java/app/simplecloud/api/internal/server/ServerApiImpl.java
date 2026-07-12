@@ -39,14 +39,13 @@ public class ServerApiImpl implements ServerApi {
     private final QueryCache cache;
 
     public ServerApiImpl(CloudApiOptions options, QueryCache cache) {
+        this(options, cache, createServersApi(options));
+    }
+
+    ServerApiImpl(CloudApiOptions options, QueryCache cache, ServersApi serversApi) {
         this.options = options;
         this.cache = cache;
-        this.serversApi = new ServersApi();
-        this.serversApi.setCustomBaseUrl(options.getControllerUrl());
-        ApiClients.applyTimeouts(this.serversApi.getApiClient(), options);
-        if (options.getComponent() != null && !options.getComponent().isBlank()) {
-            this.serversApi.getApiClient().addDefaultHeader("X-SC-Component", options.getComponent());
-        }
+        this.serversApi = serversApi;
     }
 
     @Override
@@ -156,11 +155,22 @@ public class ServerApiImpl implements ServerApi {
     }
 
     private CompletableFuture<Server> fetchServerByIdFromController(String id) {
-        return fetchServersFromController(null)
-                .thenApply(servers -> servers.stream()
-                        .filter(server -> id.equals(server.getServerId()))
+        return CompletableFuture.supplyAsync(() -> {
+            try {
+                ModelsListServersResponse response = executeQuery(null, id);
+                List<ModelsServerSummary> servers = response.getServers();
+                if (servers == null || servers.isEmpty()) {
+                    return null;
+                }
+                return servers.stream()
+                        .filter(summary -> id.equals(summary.getServerId()))
                         .findFirst()
-                        .orElse(null));
+                        .<Server>map(ServerImpl::new)
+                        .orElse(null);
+            } catch (ApiException e) {
+                throw new RuntimeException(e);
+            }
+        });
     }
 
     private CompletableFuture<Server> fetchServerByNumericalIdFromController(String groupName, int numericalId) {
@@ -280,6 +290,10 @@ public class ServerApiImpl implements ServerApi {
     }
 
     private ModelsListServersResponse executeQuery(@Nullable ServerQuery query) throws ApiException {
+        return executeQuery(query, null);
+    }
+
+    private ModelsListServersResponse executeQuery(@Nullable ServerQuery query, @Nullable String serverId) throws ApiException {
         String serverGroupId = null;
         if (query != null && query.getServerGroupIds() != null && !query.getServerGroupIds().isEmpty()) {
             serverGroupId = String.join(",", query.getServerGroupIds());
@@ -323,6 +337,7 @@ public class ServerApiImpl implements ServerApi {
         return serversApi.v0ServersGet(
                 this.options.getNetworkId(),
                 this.options.getNetworkSecret(),
+                serverId,
                 serverGroupId,
                 state,
                 serverhostId,
@@ -332,8 +347,20 @@ public class ServerApiImpl implements ServerApi {
                 serverGroupTags,
                 numericalIds,
                 sortBy,
-                sortOrder
+                sortOrder,
+                null,
+                null
         );
+    }
+
+    private static ServersApi createServersApi(CloudApiOptions options) {
+        ServersApi serversApi = new ServersApi();
+        serversApi.setCustomBaseUrl(options.getControllerUrl());
+        ApiClients.applyTimeouts(serversApi.getApiClient(), options);
+        if (options.getComponent() != null && !options.getComponent().isBlank()) {
+            serversApi.getApiClient().addDefaultHeader("X-SC-Component", options.getComponent());
+        }
+        return serversApi;
     }
 
     @Override

@@ -42,6 +42,32 @@ import static org.junit.jupiter.api.Assertions.assertTrue;
 class GroupApiImplTest {
 
     @Test
+    void getGroupById_usesControllerIdFilter() {
+        AtomicInteger order = new AtomicInteger();
+        FakeServerGroupsApi serverGroupsApi = new FakeServerGroupsApi(order);
+        serverGroupsApi.listResponse = listResponseWithGroup("Lobby", null);
+        GroupApiImpl api = new GroupApiImpl(options(), new NoOpQueryCache(), serverGroupsApi, new FakeBlueprintsApi(order));
+
+        api.getGroupById("group-1").join();
+
+        assertEquals("group-1", serverGroupsApi.lastServerGroupId);
+        assertEquals(null, serverGroupsApi.lastName);
+    }
+
+    @Test
+    void getGroupByName_usesControllerNameFilter() {
+        AtomicInteger order = new AtomicInteger();
+        FakeServerGroupsApi serverGroupsApi = new FakeServerGroupsApi(order);
+        serverGroupsApi.listResponse = listResponseWithGroup("Lobby", null);
+        GroupApiImpl api = new GroupApiImpl(options(), new NoOpQueryCache(), serverGroupsApi, new FakeBlueprintsApi(order));
+
+        api.getGroupByName("Lobby").join();
+
+        assertEquals(null, serverGroupsApi.lastServerGroupId);
+        assertEquals("Lobby", serverGroupsApi.lastName);
+    }
+
+    @Test
     void createGroup_inlineBlueprint_createsBlueprintFirstAndUsesBlueprintSource() {
         AtomicInteger order = new AtomicInteger();
         FakeBlueprintsApi blueprintsApi = new FakeBlueprintsApi(order);
@@ -74,7 +100,7 @@ class GroupApiImplTest {
         assertNotNull(blueprintsApi.lastCreateRequest.getRuntimeConfig());
         assertEquals("java", blueprintsApi.lastCreateRequest.getRuntimeConfig().getType());
         assertEquals("bp-1", serverGroupsApi.lastCreateRequest.getSource().getBlueprint());
-        assertEquals("blueprint", serverGroupsApi.lastCreateRequest.getSource().getType());
+        assertEquals(ModelsSourceConfig.TypeEnum.BLUEPRINT, serverGroupsApi.lastCreateRequest.getSource().getType());
         assertNotNull(group.getSource());
         assertEquals("bp-1", group.getSource().getBlueprint());
         assertEquals("Lobby", group.getName());
@@ -134,7 +160,7 @@ class GroupApiImplTest {
         assertEquals(List.of("-Dcom.mojang.eula.agree=true"), blueprintsApi.lastCreateRequest.getRuntimeConfig().getWith().get("options"));
         assertEquals(List.of("nogui"), blueprintsApi.lastCreateRequest.getRuntimeConfig().getWith().get("args"));
 
-        assertEquals(GroupServerType.SERVER.name(), serverGroupsApi.lastCreateRequest.getType());
+        assertEquals(ModelsCreateServerGroupRequest.TypeEnum.SERVER, serverGroupsApi.lastCreateRequest.getType());
         assertEquals(Integer.valueOf(50), serverGroupsApi.lastCreateRequest.getMaxPlayers());
         assertEquals(Boolean.TRUE, serverGroupsApi.lastCreateRequest.getActive());
         assertEquals(List.of("Lobby"), serverGroupsApi.lastCreateRequest.getTags());
@@ -379,7 +405,7 @@ class GroupApiImplTest {
 
     private static ModelsListServerGroupsResponse listResponseWithGroup(String name, String blueprintId) {
         ModelsSourceConfig source = new ModelsSourceConfig();
-        source.setType("blueprint");
+        source.setType(ModelsSourceConfig.TypeEnum.BLUEPRINT);
         source.setBlueprint(blueprintId);
 
         ModelsServerGroupSummary summary = new ModelsServerGroupSummary();
@@ -445,6 +471,8 @@ class GroupApiImplTest {
         private int postCalls;
         private int postOrder;
         private int getCalls;
+        private String lastServerGroupId;
+        private String lastName;
         private ModelsCreateServerGroupRequest lastCreateRequest;
         private ApiException postFailure;
         private ModelsListServerGroupsResponse listResponse = new ModelsListServerGroupsResponse();
@@ -467,7 +495,7 @@ class GroupApiImplTest {
             ModelsCreateServerGroupResponse response = new ModelsCreateServerGroupResponse();
             response.setServerGroupId("group-1");
             response.setName(lastCreateRequest.getName());
-            response.setType(lastCreateRequest.getType());
+            response.setType(lastCreateRequest.getType().getValue());
             response.setMinMemory(lastCreateRequest.getMinMemory());
             response.setMaxMemory(lastCreateRequest.getMaxMemory());
             response.setMaxPlayers(lastCreateRequest.getMaxPlayers());
@@ -487,8 +515,18 @@ class GroupApiImplTest {
         @Override
         public ModelsListServerGroupsResponse v0ServerGroupsGet(String xNetworkID,
                                                                 String xNetworkSecret,
-                                                                Boolean active) {
+                                                                String serverGroupId,
+                                                                String name,
+                                                                String type,
+                                                                String tags,
+                                                                Boolean active,
+                                                                String sourceType,
+                                                                String blueprintId,
+                                                                Integer limit,
+                                                                Integer offset) {
             getCalls++;
+            lastServerGroupId = serverGroupId;
+            lastName = name;
             return listResponse;
         }
     }

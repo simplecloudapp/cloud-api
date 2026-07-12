@@ -312,7 +312,7 @@ final class ServerEventModelMapper {
         }
 
         ModelsSourceConfig result = new ModelsSourceConfig();
-        result.setType(toSourceType(sourceConfig.getSourceType()));
+        result.setType(ModelsSourceConfig.TypeEnum.fromValue(toSourceType(sourceConfig.getSourceType())));
         if (sourceConfig.hasBlueprint()) {
             result.setBlueprint(sourceConfig.getBlueprint().getBlueprintId());
         }

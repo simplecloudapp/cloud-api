@@ -33,6 +33,30 @@ import static org.junit.jupiter.api.Assertions.assertTrue;
 class PersistentServerApiImplTest {
 
     @Test
+    void getPersistentServerById_usesControllerIdFilter() {
+        AtomicInteger order = new AtomicInteger();
+        FakePersistentServersApi persistentServersApi = new FakePersistentServersApi(order);
+        PersistentServerApiImpl api = new PersistentServerApiImpl(options(), new NoOpQueryCache(), persistentServersApi, new FakeBlueprintsApi(order));
+
+        api.getPersistentServerById("persistent-1").join();
+
+        assertEquals("persistent-1", persistentServersApi.lastPersistentServerId);
+        assertEquals(null, persistentServersApi.lastName);
+    }
+
+    @Test
+    void getPersistentServerByName_usesControllerNameFilter() {
+        AtomicInteger order = new AtomicInteger();
+        FakePersistentServersApi persistentServersApi = new FakePersistentServersApi(order);
+        PersistentServerApiImpl api = new PersistentServerApiImpl(options(), new NoOpQueryCache(), persistentServersApi, new FakeBlueprintsApi(order));
+
+        api.getPersistentServerByName("Lobby-1").join();
+
+        assertEquals(null, persistentServersApi.lastPersistentServerId);
+        assertEquals("Lobby-1", persistentServersApi.lastName);
+    }
+
+    @Test
     void createPersistentServer_inlineBlueprint_usesCreateResponseWithoutRefetch() {
         AtomicInteger order = new AtomicInteger();
         FakeBlueprintsApi blueprintsApi = new FakeBlueprintsApi(order);
@@ -54,7 +78,7 @@ class PersistentServerApiImplTest {
         assertEquals(0, persistentServersApi.getCalls, "successful create should not do a follow-up GET");
         assertEquals("Lobby-1", blueprintsApi.lastCreateRequest.getName());
         assertEquals("bp-1", persistentServersApi.lastCreateRequest.getSource().getBlueprint());
-        assertEquals("blueprint", persistentServersApi.lastCreateRequest.getSource().getType());
+        assertEquals(ModelsSourceConfig.TypeEnum.BLUEPRINT, persistentServersApi.lastCreateRequest.getSource().getType());
         assertNotNull(persistentServer.getSource());
         assertEquals("bp-1", persistentServer.getSource().getBlueprint());
     }
@@ -80,7 +104,7 @@ class PersistentServerApiImplTest {
         assertEquals(List.of("internal/setup"), blueprintsApi.lastCreateRequest.getWorkflowSteps());
         assertEquals("java", blueprintsApi.lastCreateRequest.getRuntimeConfig().getType());
         assertEquals("21", blueprintsApi.lastCreateRequest.getRuntimeConfig().getWith().get("version"));
-        assertEquals(GroupServerType.SERVER.name(), persistentServersApi.lastCreateRequest.getType());
+        assertEquals(ModelsCreatePersistentServerRequest.TypeEnum.SERVER, persistentServersApi.lastCreateRequest.getType());
         assertEquals(Integer.valueOf(50), persistentServersApi.lastCreateRequest.getMaxPlayers());
         assertEquals(Boolean.TRUE, persistentServersApi.lastCreateRequest.getActive());
         assertEquals(List.of("Proxy-1"), persistentServersApi.lastCreateRequest.getTags());
@@ -211,6 +235,8 @@ class PersistentServerApiImplTest {
         private int postCalls;
         private int postOrder;
         private int getCalls;
+        private String lastPersistentServerId;
+        private String lastName;
         private ModelsCreatePersistentServerRequest lastCreateRequest;
         private ApiException postFailure;
 
@@ -232,7 +258,7 @@ class PersistentServerApiImplTest {
             ModelsCreatePersistentServerResponse response = new ModelsCreatePersistentServerResponse();
             response.setPersistentServerId("persistent-1");
             response.setName(lastCreateRequest.getName());
-            response.setType(lastCreateRequest.getType());
+            response.setType(lastCreateRequest.getType().getValue());
             response.setMinMemory(lastCreateRequest.getMinMemory());
             response.setMaxMemory(lastCreateRequest.getMaxMemory());
             response.setMaxPlayers(lastCreateRequest.getMaxPlayers());
@@ -250,8 +276,21 @@ class PersistentServerApiImplTest {
         }
 
         @Override
-        public ModelsListPersistentServersResponse v0PersistentServersGet(String xNetworkID, String xNetworkSecret) {
+        public ModelsListPersistentServersResponse v0PersistentServersGet(String xNetworkID,
+                                                                          String xNetworkSecret,
+                                                                          String persistentServerId,
+                                                                          String name,
+                                                                          String type,
+                                                                          String tags,
+                                                                          Boolean active,
+                                                                          String sourceType,
+                                                                          String blueprintId,
+                                                                          String serverhostId,
+                                                                          Integer limit,
+                                                                          Integer offset) {
             getCalls++;
+            lastPersistentServerId = persistentServerId;
+            lastName = name;
             ModelsPersistentServerSummary summary = new ModelsPersistentServerSummary();
             summary.setPersistentServerId("persistent-1");
             summary.setName("Lobby-1");

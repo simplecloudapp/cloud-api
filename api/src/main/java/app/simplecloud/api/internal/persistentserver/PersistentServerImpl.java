@@ -226,7 +226,7 @@ public class PersistentServerImpl implements PersistentServer {
 
     private SourceConfig convertSourceConfig(app.simplecloud.api.web.models.ModelsSourceConfig config) {
         SourceConfig result = new SourceConfig();
-        String typeStr = config.getType();
+        String typeStr = config.getType() == null ? null : config.getType().getValue();
         if (typeStr != null) {
             try {
                 result.setType(SourceType.valueOf(typeStr.toUpperCase()));
