@@ -1,5 +1,5 @@
 # Depot CI Migration
-# Source: .github/workflows/release-dev.yml
+# Source: .github/workflows/release-dev.yml.disabled
 #
 # Changes made:
 # - Changed runs-on from "blacksmith-4vcpu-ubuntu-2404" to "depot-ubuntu-latest" throughout
