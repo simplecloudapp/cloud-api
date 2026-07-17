@@ -1,0 +1,277 @@
+# Depot CI Migration
+# Source: .github/workflows/release-dev.yml
+#
+# Changes made:
+# - Changed runs-on from "blacksmith-4vcpu-ubuntu-2404" to "depot-ubuntu-latest" throughout
+
+name: Release and Publish
+on:
+  push:
+    branches:
+      - main
+  workflow_dispatch:
+env:
+  APP_SLUG: cloud-api-plugin
+  REGISTRY_URL: https://registry.simplecloud.app
+  MINECRAFT_VERSIONS: |
+    1.20
+    1.20.1
+    1.20.2
+    1.20.3
+    1.20.4
+    1.20.5
+    1.20.6
+    1.21
+    1.21.1
+    1.21.2
+    1.21.3
+    1.21.4
+    1.21.5
+    1.21.6
+    1.21.7
+    1.21.8
+    1.21.9
+jobs:
+  build-and-publish:
+    runs-on: depot-ubuntu-latest # was: blacksmith-4vcpu-ubuntu-2404. Nonstandard GitHub runner label detected, changed to default Depot runner.
+    outputs:
+      gradle_version: ${{ steps.versions.outputs.gradle_version }}
+      commit_hash: ${{ steps.versions.outputs.commit_hash }}
+    steps:
+      - name: Checkout repository
+        uses: actions/checkout@v7
+        with:
+          ref: main
+      - name: Set up JDK 21
+        uses: actions/setup-java@v5
+        with:
+          distribution: 'temurin'
+          java-version: '21'
+      - name: Setup Gradle
+        uses: gradle/actions/setup-gradle@v6
+        with:
+          cache-read-only: false
+      - name: Make gradlew executable
+        run: chmod +x ./gradlew
+      - name: Get Versions
+        id: versions
+        run: |
+          BASE_VERSION=$(sed -nE 's/^val baseVersion = "([^"]+)"/\1/p' build.gradle.kts)
+          if [ -z "$BASE_VERSION" ]; then
+            echo "Unable to read baseVersion from build.gradle.kts" >&2
+            exit 1
+          fi
+
+          echo "gradle_version=$BASE_VERSION" >> "$GITHUB_OUTPUT"
+          echo "commit_hash=$(git rev-parse --short HEAD)" >> "$GITHUB_OUTPUT"
+      - name: Build and Publish Artifacts
+        run: |
+          ./gradlew :api:prepareGeneratedSources \
+            :api:check \
+            :platform:spigot:shadowJar \
+            :platform:spigot-legacy:shadowJar \
+            :platform:bungeecord:shadowJar \
+            :platform:velocity:shadowJar \
+            :api:publishMavenPublicationToSimplecloudRepository \
+            --parallel \
+            --build-cache \
+            --configuration-cache
+
+          mkdir -p artifacts
+          cp platform/spigot/build/libs/cloud-api-spigot.jar artifacts/spigot.jar
+          cp platform/bungeecord/build/libs/cloud-api-bungeecord.jar artifacts/bungeecord.jar
+          cp platform/velocity/build/libs/cloud-api-velocity.jar artifacts/velocity.jar
+          # Add spigot-legacy if it exists
+          if [ -f platform/spigot-legacy/build/libs/cloud-api-spigot-legacy.jar ]; then
+            cp platform/spigot-legacy/build/libs/cloud-api-spigot-legacy.jar artifacts/spigot-legacy.jar
+          fi
+        env:
+          SIMPLECLOUD_USERNAME: ${{ secrets.SIMPLECLOUD_USERNAME }}
+          SIMPLECLOUD_PASSWORD: ${{ secrets.SIMPLECLOUD_PASSWORD }}
+      - name: Publish to Modrinth (with retries)
+        run: |
+          MAX_ATTEMPTS=3
+          ATTEMPT=1
+
+          while [ $ATTEMPT -le $MAX_ATTEMPTS ]; do
+            echo "Attempt $ATTEMPT of $MAX_ATTEMPTS..."
+
+            if ./gradlew modrinth \
+              --parallel \
+              --build-cache \
+              -Dorg.gradle.internal.http.socketTimeout=180000 \
+              -Dorg.gradle.internal.http.connectionTimeout=180000; then
+              echo "✓ Modrinth upload successful"
+              break
+            else
+              if [ $ATTEMPT -eq $MAX_ATTEMPTS ]; then
+                echo "✗ Modrinth upload failed after $MAX_ATTEMPTS attempts"
+                exit 1
+              fi
+              echo "⚠ Attempt $ATTEMPT failed, retrying in 30 seconds..."
+              sleep 30
+              ATTEMPT=$((ATTEMPT + 1))
+            fi
+          done
+        env:
+          MODRINTH_TOKEN: ${{ secrets.MODRINTH_TOKEN }}
+      - name: Sync Modrinth Body
+        run: |
+          ./gradlew modrinthSyncBody
+        env:
+          MODRINTH_TOKEN: ${{ secrets.MODRINTH_TOKEN }}
+      - name: Upload artifacts
+        uses: actions/upload-artifact@v7
+        with:
+          name: build-artifacts
+          path: artifacts/*.jar
+          compression-level: 0
+  publish-registry:
+    needs: build-and-publish
+    runs-on: depot-ubuntu-latest # was: blacksmith-4vcpu-ubuntu-2404. Nonstandard GitHub runner label detected, changed to default Depot runner.
+    steps:
+      - name: Download artifacts
+        uses: actions/download-artifact@v8
+        with:
+          name: build-artifacts
+          path: artifacts
+      - name: Create Registry Release
+        id: create_registry_release
+        run: |
+          RELEASE_URL="${REGISTRY_URL}/v1/applications/${APP_SLUG}/releases"
+          response=$(curl -s -w "\n%{http_code}" -X POST \
+            -H "Authorization: Bearer ${{ secrets.REGISTRY_TOKEN }}" \
+            -H "Content-Type: application/json" \
+            "$RELEASE_URL" \
+            -d '{
+              "version": "'"${{ needs.build-and-publish.outputs.gradle_version }}"'",
+              "manual_update": false
+            }')
+
+          http_code=$(echo "$response" | tail -n1)
+          body=$(echo "$response" | sed '$d')
+
+          if [ "$http_code" -ge 400 ]; then
+            echo "Error: HTTP $http_code"
+            echo "$body"
+            exit 1
+          fi
+
+          echo "Response: $body"
+          APP_ID=$(echo "$body" | jq -r '.release.application_id')
+          echo "APP_ID=$APP_ID" >> $GITHUB_ENV
+          echo "Release created with APP_ID: $APP_ID"
+      - name: Upload to Registry (Parallel)
+        run: |
+          PLATFORM_VERSIONS=$(echo "$MINECRAFT_VERSIONS" | jq -R -s 'split("\n") | map(select(length > 0))')
+
+          upload_file() {
+            local FILE=$1
+            local ARCH=$2
+            local URL="${REGISTRY_URL}/v1/applications/${APP_ID}/releases/${{ needs.build-and-publish.outputs.gradle_version }}/files"
+
+            echo "Uploading $ARCH..."
+
+            # Retry logic for each upload
+            MAX_ATTEMPTS=3
+            ATTEMPT=1
+
+            while [ $ATTEMPT -le $MAX_ATTEMPTS ]; do
+              response=$(curl -s -w "\n%{http_code}" -X POST \
+                --max-time 300 \
+                -H "Authorization: Bearer ${{ secrets.REGISTRY_TOKEN }}" \
+                -H "Content-Type: multipart/form-data" \
+                -F "file=@$FILE" \
+                -F "platform=minecraft_plugin" \
+                -F "arch=$ARCH" \
+                -F "platform_versions=$PLATFORM_VERSIONS" \
+                "$URL")
+
+              http_code=$(echo "$response" | tail -n1)
+              body=$(echo "$response" | sed '$d')
+
+              if [ "$http_code" -ge 200 ] && [ "$http_code" -lt 300 ]; then
+                echo "✓ $ARCH uploaded successfully"
+                return 0
+              fi
+
+              if [ $ATTEMPT -eq $MAX_ATTEMPTS ]; then
+                echo "✗ Error uploading $ARCH after $MAX_ATTEMPTS attempts: HTTP $http_code"
+                echo "$body"
+                return 1
+              fi
+
+              echo "⚠ Attempt $ATTEMPT failed for $ARCH (HTTP $http_code), retrying in 5 seconds..."
+              sleep 5
+              ATTEMPT=$((ATTEMPT + 1))
+            done
+          }
+
+          # Upload all platforms in parallel
+          upload_file "artifacts/spigot.jar" "spigot" &
+          PID_SPIGOT=$!
+
+          upload_file "artifacts/spigot.jar" "paper" &
+          PID_PAPER=$!
+
+          upload_file "artifacts/bungeecord.jar" "bungeecord" &
+          PID_BUNGEE=$!
+
+          upload_file "artifacts/velocity.jar" "velocity" &
+          PID_VELOCITY=$!
+
+          # Wait for all uploads and check exit codes
+          FAILED=0
+          wait $PID_SPIGOT || FAILED=1
+          wait $PID_PAPER || FAILED=1
+          wait $PID_BUNGEE || FAILED=1
+          wait $PID_VELOCITY || FAILED=1
+
+          if [ $FAILED -eq 1 ]; then
+            echo "One or more uploads failed"
+            exit 1
+          fi
+
+          echo "All uploads completed successfully"
+  create-github-release:
+    needs: [build-and-publish, publish-registry]
+    runs-on: depot-ubuntu-latest # was: blacksmith-4vcpu-ubuntu-2404. Nonstandard GitHub runner label detected, changed to default Depot runner.
+    steps:
+      - name: Checkout repository
+        uses: actions/checkout@v7
+        with:
+          ref: main
+          sparse-checkout: |
+            .github
+      - name: Download artifacts
+        uses: actions/download-artifact@v8
+        with:
+          name: build-artifacts
+          path: artifacts
+      - name: Create GitHub Release
+        id: create_release
+        run: |
+          RELEASE_TAG="v${{ needs.build-and-publish.outputs.gradle_version }}"
+          RELEASE_NAME="v${{ needs.build-and-publish.outputs.gradle_version }}"
+          RELEASE_BODY="This release contains release builds for all platform modules."
+
+          gh release create "$RELEASE_TAG" \
+            --title "$RELEASE_NAME" \
+            --notes "$RELEASE_BODY" \
+            --target main
+
+          echo "RELEASE_TAG=$RELEASE_TAG" >> $GITHUB_ENV
+        env:
+          GITHUB_TOKEN: ${{ secrets.GITHUB_TOKEN }}
+      - name: Upload JARs to GitHub Release
+        run: |
+          for jar in $(find ./artifacts -type f -name "*.jar"); do
+            if [[ $(basename "$jar") =~ -[0-9]+\.[0-9]+ ]]; then
+              echo "Skipping $jar due to version number"
+            else
+              echo "Uploading $jar"
+              gh release upload "$RELEASE_TAG" "$jar" --clobber
+            fi
+          done
+        env:
+          GITHUB_TOKEN: ${{ secrets.GITHUB_TOKEN }}
