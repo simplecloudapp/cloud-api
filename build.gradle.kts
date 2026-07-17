@@ -1,4 +1,5 @@
 import com.github.jengelman.gradle.plugins.shadow.tasks.ShadowJar
+import org.gradle.authentication.http.BasicAuthentication
 
 plugins {
     id("java")
@@ -9,7 +10,7 @@ plugins {
     `signing`
 }
 
-val baseVersion = "0.1.0-platform.42"
+val baseVersion = "0.1.0-platform.43"
 val commitHash = System.getenv("COMMIT_HASH")
 val isSnapshot = commitHash != null
 
@@ -96,6 +97,9 @@ subprojects {
                 credentials {
                     username = System.getenv("SIMPLECLOUD_USERNAME")
                     password = System.getenv("SIMPLECLOUD_PASSWORD")
+                }
+                authentication {
+                    create<BasicAuthentication>("basic")
                 }
             }
         }
