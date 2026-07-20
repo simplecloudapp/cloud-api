@@ -11,6 +11,8 @@ import app.simplecloud.api.player.CloudPlayer;
 import app.simplecloud.api.runtime.SimpleCloudRuntime;
 import app.simplecloud.api.platform.shared.LuckPermsPlayerPropertySynchronizer;
 import app.simplecloud.api.platform.shared.PlayerSynchronizer;
+import dev.faststats.Metrics;
+import dev.faststats.bungee.BungeeContext;
 import net.kyori.adventure.platform.bungeecord.BungeeAudiences;
 import net.kyori.adventure.text.serializer.bungeecord.BungeeComponentSerializer;
 import net.kyori.adventure.text.serializer.gson.GsonComponentSerializer;
@@ -26,6 +28,10 @@ import java.util.concurrent.CompletableFuture;
 
 public class BungeeCordApiProvider extends Plugin implements ProxyPresencePlayerProvider {
 
+    private final BungeeContext fastStatsContext = new BungeeContext.Factory(
+            this,
+            "2e8308cb6431a46a68fa0f59362978f7"
+    ).metrics(Metrics.Factory::create).create();
     private CloudApiImpl cloudApi;
     private String proxyName;
     private PlayerSynchronizer playerSynchronizer;
@@ -76,6 +82,7 @@ public class BungeeCordApiProvider extends Plugin implements ProxyPresencePlayer
         playerSynchronizer.start();
         playerIntegration.start();
         proxyPresenceResponder.start();
+        fastStatsContext.ready();
     }
 
     @Override
@@ -92,6 +99,7 @@ public class BungeeCordApiProvider extends Plugin implements ProxyPresencePlayer
             bungeeAudiences.close();
         }
         cloudApi.close();
+        fastStatsContext.shutdown();
     }
 
     private void initializeLuckPermsIntegration() {

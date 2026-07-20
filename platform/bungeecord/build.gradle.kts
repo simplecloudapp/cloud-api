@@ -12,6 +12,7 @@ dependencies {
         exclude(group = "net.kyori")
     }
     implementation(rootProject.libs.jnats)
+    implementation(rootProject.libs.faststats.bungeecord)
 }
 
 modrinth {

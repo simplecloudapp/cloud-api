@@ -5,6 +5,7 @@ shadow = "8.3.3"
 openapi-generator = "7.14.0"
 caffeine = "3.1.8"
 junit = "5.11.3"
+faststats = "0.28.0"
 
 controller-proto = "32.0.0.1.20260307111646.50c9870526a2"
 adventure-proto = "32.0.0.1.20260106101056.0d2c689e8f10"
@@ -54,6 +55,9 @@ folia-api = { module = "dev.folia:folia-api", version.ref = "folia" }
 velocity = { module = "com.velocitypowered:velocity-api", version.ref = "velocity" }
 bungeecord = { module = "net.md-5:bungeecord-api", version.ref = "bungeecord" }
 luckperms = { module = "net.luckperms:api", version.ref = "luckperms" }
+faststats-bukkit = { module = "dev.faststats.metrics:bukkit", version.ref = "faststats" }
+faststats-bungeecord = { module = "dev.faststats.metrics:bungeecord", version.ref = "faststats" }
+faststats-velocity = { module = "dev.faststats.metrics:velocity", version.ref = "faststats" }
 
 adventure-api = { module = "net.kyori:adventure-api", version.ref = "adventure" }
 adventure-gson = { module = "net.kyori:adventure-text-serializer-gson", version.ref = "adventure" }

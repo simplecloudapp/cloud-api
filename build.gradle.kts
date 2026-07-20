@@ -10,7 +10,7 @@ plugins {
     `signing`
 }
 
-val baseVersion = "0.1.0-platform.47"
+val baseVersion = "0.1.0-platform.48"
 val commitHash = System.getenv("COMMIT_HASH")
 val isSnapshot = commitHash != null
 
@@ -47,6 +47,7 @@ allprojects {
         maven("https://s01.oss.sonatype.org/content/repositories/snapshots/")
         maven("https://repo.papermc.io/repository/maven-public")
         maven("https://repo.simplecloud.app/snapshots")
+        maven("https://repo.faststats.dev/releases")
         maven("https://buf.build/gen/maven")
     }
 }
@@ -87,6 +88,7 @@ subprojects {
             relocate("google", "app.simplecloud.api.shaded.google")
             relocate("native", "app.simplecloud.api.shaded.native")
             relocate("core", "app.simplecloud.api.shaded.core")
+            relocate("dev.faststats", "app.simplecloud.api.shaded.faststats")
 
             exclude("META-INF/*.kotlin_module")
             exclude("META-INF/proguard/**")
