@@ -62,8 +62,51 @@ jobs:
             exit 1
           fi
 
-          echo "gradle_version=$BASE_VERSION" >> "$GITHUB_OUTPUT"
-          echo "commit_hash=$(git rev-parse --short HEAD)" >> "$GITHUB_OUTPUT"
+          COMMIT_HASH=$(git rev-parse --short HEAD)
+          # Mirrors the dev version built in build.gradle.kts (baseVersion-dev.<devBuildId>-<commitHash>)
+          DEV_BUILD_ID="${GITHUB_RUN_NUMBER}${GITHUB_RUN_ATTEMPT:+.$GITHUB_RUN_ATTEMPT}"
+          GRADLE_VERSION="${BASE_VERSION}-dev.${DEV_BUILD_ID}-${COMMIT_HASH}"
+
+          # Exported so every Gradle invocation in this job builds the same dev version
+          echo "COMMIT_HASH=$COMMIT_HASH" >> "$GITHUB_ENV"
+          echo "gradle_version=$GRADLE_VERSION" >> "$GITHUB_OUTPUT"
+          echo "commit_hash=$COMMIT_HASH" >> "$GITHUB_OUTPUT"
+      - name: Verify SimpleCloud Repository Credentials
+        run: |
+          if [ -z "${SIMPLECLOUD_USERNAME:-}" ] || [ -z "${SIMPLECLOUD_PASSWORD:-}" ]; then
+            echo "::error::SimpleCloud repository credentials are not configured"
+            exit 1
+          fi
+
+          RESPONSE_FILE=$(mktemp)
+          trap 'rm -f "$RESPONSE_FILE"' EXIT
+
+          echo "Checking Reposilite authentication for user: $SIMPLECLOUD_USERNAME"
+          if ! HTTP_STATUS=$(curl --silent --show-error \
+              --connect-timeout 5 \
+              --max-time 15 \
+              --user "$SIMPLECLOUD_USERNAME:$SIMPLECLOUD_PASSWORD" \
+              --output "$RESPONSE_FILE" \
+              --write-out '%{http_code}' \
+              https://repo.simplecloud.app/api/auth/me); then
+            echo "::error::Could not connect to Reposilite"
+            exit 1
+          fi
+
+          echo "Reposilite response status: $HTTP_STATUS"
+          if [[ ! "$HTTP_STATUS" =~ ^2 ]]; then
+            echo "Reposilite response:"
+            jq . "$RESPONSE_FILE" 2>/dev/null || sed -n '1,20p' "$RESPONSE_FILE"
+            echo "::error::Reposilite rejected the configured credentials (HTTP $HTTP_STATUS)"
+            exit 1
+          fi
+
+          echo "Reposilite authenticated session:"
+          jq . "$RESPONSE_FILE"
+          echo "Repository credential check passed"
+        env:
+          SIMPLECLOUD_USERNAME: ${{ secrets.SIMPLECLOUD_USERNAME }}
+          SIMPLECLOUD_PASSWORD: ${{ secrets.SIMPLECLOUD_PASSWORD }}
       - name: Build and Publish Artifacts
         run: |
           ./gradlew :api:prepareGeneratedSources \
