@@ -113,15 +113,18 @@ jobs:
             :api:check \
             :platform:spigot:shadowJar \
             :platform:spigot-legacy:shadowJar \
+            :platform:paper:shadowJar \
+            :platform:folia:shadowJar \
             :platform:bungeecord:shadowJar \
             :platform:velocity:shadowJar \
             :api:publishMavenPublicationToSimplecloudRepository \
             --parallel \
-            --build-cache \
-            --configuration-cache
+            --build-cache
 
           mkdir -p artifacts
           cp platform/spigot/build/libs/cloud-api-spigot.jar artifacts/spigot.jar
+          cp platform/paper/build/libs/cloud-api-paper.jar artifacts/paper.jar
+          cp platform/folia/build/libs/cloud-api-folia.jar artifacts/folia.jar
           cp platform/bungeecord/build/libs/cloud-api-bungeecord.jar artifacts/bungeecord.jar
           cp platform/velocity/build/libs/cloud-api-velocity.jar artifacts/velocity.jar
           # Add spigot-legacy if it exists
@@ -139,7 +142,8 @@ jobs:
           while [ $ATTEMPT -le $MAX_ATTEMPTS ]; do
             echo "Attempt $ATTEMPT of $MAX_ATTEMPTS..."
 
-            if ./gradlew modrinth \
+            # Every platform targets the same Modrinth project and README, so sync its body once.
+            if ./gradlew modrinth :platform:spigot:modrinthSyncBody \
               --parallel \
               --build-cache \
               -Dorg.gradle.internal.http.socketTimeout=180000 \
@@ -156,11 +160,6 @@ jobs:
               ATTEMPT=$((ATTEMPT + 1))
             fi
           done
-        env:
-          MODRINTH_TOKEN: ${{ secrets.MODRINTH_TOKEN }}
-      - name: Sync Modrinth Body
-        run: |
-          ./gradlew modrinthSyncBody
         env:
           MODRINTH_TOKEN: ${{ secrets.MODRINTH_TOKEN }}
       - name: Upload artifacts
@@ -254,8 +253,11 @@ jobs:
           upload_file "artifacts/spigot.jar" "spigot" &
           PID_SPIGOT=$!
 
-          upload_file "artifacts/spigot.jar" "paper" &
+          upload_file "artifacts/paper.jar" "paper" &
           PID_PAPER=$!
+
+          upload_file "artifacts/folia.jar" "folia" &
+          PID_FOLIA=$!
 
           upload_file "artifacts/bungeecord.jar" "bungeecord" &
           PID_BUNGEE=$!
@@ -267,6 +269,7 @@ jobs:
           FAILED=0
           wait $PID_SPIGOT || FAILED=1
           wait $PID_PAPER || FAILED=1
+          wait $PID_FOLIA || FAILED=1
           wait $PID_BUNGEE || FAILED=1
           wait $PID_VELOCITY || FAILED=1
 
