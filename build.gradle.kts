@@ -10,7 +10,7 @@ plugins {
     `signing`
 }
 
-val baseVersion = "0.1.0-platform.45"
+val baseVersion = "0.1.0-platform.46"
 val commitHash = System.getenv("COMMIT_HASH")
 val isSnapshot = commitHash != null
 
@@ -30,9 +30,16 @@ fun devBuildId(): String {
         ?: System.currentTimeMillis().toString()
 }
 
+val buildVersion = if (isSnapshot) "${baseVersion}-dev.${devBuildId()}-${commitHash}" else baseVersion
+val modrinthVersion = baseVersion
+require(modrinthVersion.length <= 32) {
+    "Modrinth version '$modrinthVersion' exceeds the 32-character limit"
+}
+extra["modrinthVersion"] = modrinthVersion
+
 allprojects {
     group = "app.simplecloud.api"
-    version = if (isSnapshot) "${baseVersion}-dev.${devBuildId()}-${commitHash}" else baseVersion
+    version = buildVersion
 
     repositories {
         mavenCentral()
