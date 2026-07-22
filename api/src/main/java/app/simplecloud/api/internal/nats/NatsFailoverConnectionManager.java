@@ -60,7 +60,7 @@ public final class NatsFailoverConnectionManager {
         this.monitorExecutor = Executors.newSingleThreadScheduledExecutor(daemonFactory("simplecloud-nats-failover-monitor"));
         this.reconnectExecutor = Executors.newSingleThreadScheduledExecutor(daemonFactory("simplecloud-nats-failover-reconnect"));
 
-        scheduleReconnect("no NATS connection has been established");
+        scheduleReconnect("no NATS connection has been established", true);
         this.monitorExecutor.scheduleAtFixedRate(this::monitorConnection, 2, 2, TimeUnit.SECONDS);
     }
 
@@ -86,7 +86,7 @@ public final class NatsFailoverConnectionManager {
             Connection connection = connectionRef.get();
             if (connection == null) {
                 reconnectingSince.set(-1);
-                scheduleReconnect("no NATS connection has been established");
+                scheduleReconnect("no NATS connection has been established", false);
                 return;
             }
 
@@ -95,7 +95,7 @@ public final class NatsFailoverConnectionManager {
 
             if (status == Connection.Status.CLOSED) {
                 reconnectingSince.set(-1);
-                scheduleReconnect("connection is CLOSED");
+                scheduleReconnect("connection is CLOSED", false);
                 return;
             }
 
@@ -105,7 +105,10 @@ public final class NatsFailoverConnectionManager {
                         && !failoverReconnectAfter.isNegative()
                         && now - since >= failoverReconnectAfter.toMillis()) {
                     reconnectingSince.set(-1);
-                    scheduleReconnect("connection stayed " + status + " for at least " + failoverReconnectAfter);
+                    scheduleReconnect(
+                            "connection stayed " + status + " for at least " + failoverReconnectAfter,
+                            false
+                    );
                 }
                 return;
             }
@@ -116,22 +119,26 @@ public final class NatsFailoverConnectionManager {
         }
     }
 
-    private void scheduleReconnect(String reason) {
+    private void scheduleReconnect(String reason, boolean initialConnection) {
         if (!reconnecting.compareAndSet(false, true)) {
             return;
         }
 
         reconnectExecutor.execute(() -> {
             try {
-                reconnectLoop(reason);
+                reconnectLoop(reason, initialConnection);
             } finally {
                 reconnecting.set(false);
             }
         });
     }
 
-    private void reconnectLoop(String reason) {
-        LOGGER.warning("Forcing full NATS reconnect: " + reason);
+    private void reconnectLoop(String reason, boolean initialConnection) {
+        if (initialConnection) {
+            LOGGER.fine("Establishing initial NATS connection");
+        } else {
+            LOGGER.warning("Forcing full NATS reconnect: " + reason);
+        }
 
         long backoffMillis = 1000L;
         final long maxBackoffMillis = 30_000L;
@@ -150,14 +157,19 @@ public final class NatsFailoverConnectionManager {
                 if (oldConnection != null && oldConnection != newConnection) {
                     oldConnection.close();
                 }
-                LOGGER.info("Successfully established a new NATS connection after forced failover reconnect");
+                if (initialConnection) {
+                    LOGGER.fine("Initial NATS connection established");
+                } else {
+                    LOGGER.info("Successfully established a new NATS connection after forced failover reconnect");
+                }
                 return;
             } catch (InterruptedException e) {
                 Thread.currentThread().interrupt();
                 LOGGER.log(Level.WARNING, "Interrupted while reconnecting NATS", e);
                 return;
             } catch (Exception e) {
-                LOGGER.warning("Failed to establish new NATS connection, retrying in "
+                String connectionDescription = initialConnection ? "initial NATS connection" : "new NATS connection";
+                LOGGER.warning("Failed to establish " + connectionDescription + ", retrying in "
                         + Duration.ofMillis(backoffMillis) + ": " + e.getMessage());
                 try {
                     Thread.sleep(backoffMillis);

@@ -5,6 +5,7 @@ import io.nats.client.ConnectionListener;
 import io.nats.client.impl.ErrorListenerLoggerImpl;
 
 import java.io.IOException;
+import java.net.SocketException;
 import java.util.logging.Level;
 import java.util.logging.Logger;
 
@@ -17,6 +18,7 @@ final class SimpleCloudNatsListener extends ErrorListenerLoggerImpl implements C
 
     private static final Logger LOGGER = Logger.getLogger(SimpleCloudNatsListener.class.getName());
     private static final String READ_CHANNEL_CLOSED = "Read channel closed.";
+    private static final String CONNECTION_RESET = "Connection reset";
 
     @Override
     public void exceptionOccurred(Connection connection, Exception exception) {
@@ -41,7 +43,10 @@ final class SimpleCloudNatsListener extends ErrorListenerLoggerImpl implements C
     }
 
     static boolean isRoutineChannelClosure(Exception exception) {
-        return exception instanceof IOException
-                && READ_CHANNEL_CLOSED.equals(exception.getMessage());
+        return exception instanceof IOException && (
+                READ_CHANNEL_CLOSED.equals(exception.getMessage())
+                        || exception instanceof SocketException
+                        && CONNECTION_RESET.equals(exception.getMessage())
+        );
     }
 }
