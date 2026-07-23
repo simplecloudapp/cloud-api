@@ -32,7 +32,7 @@ public class SpigotApiProvider extends JavaPlugin {
     public void onDisable() {
         getLogger().info("SimpleCloud v3 API provider uninitialized!");
         playerSynchronizer.stop();
+        cloudApi.close();
         fastStatsContext.shutdown();
     }
 }
-

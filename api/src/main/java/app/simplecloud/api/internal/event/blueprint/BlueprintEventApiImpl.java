@@ -11,8 +11,12 @@ import io.nats.client.Dispatcher;
 import io.nats.client.Message;
 
 import java.util.function.Consumer;
+import java.util.logging.Level;
+import java.util.logging.Logger;
 
 public class BlueprintEventApiImpl implements BlueprintEventApi {
+
+    private static final Logger LOGGER = Logger.getLogger(BlueprintEventApiImpl.class.getName());
 
     private final Connection natsConnection;
     private final String networkId;
@@ -33,8 +37,7 @@ public class BlueprintEventApiImpl implements BlueprintEventApi {
                 app.simplecloud.api.event.blueprint.BlueprintCreatedEvent event = new BlueprintCreatedEventImpl(protoEvent);
                 handler.accept(event);
             } catch (Exception e) {
-                System.err.println("Error parsing BlueprintCreatedEvent: " + e.getMessage());
-                e.printStackTrace();
+                LOGGER.log(Level.SEVERE, "Error handling BlueprintCreatedEvent", e);
             }
         });
         return new SubscriptionImpl(natsSub);
@@ -49,8 +52,7 @@ public class BlueprintEventApiImpl implements BlueprintEventApi {
                 app.simplecloud.api.event.blueprint.BlueprintUpdatedEvent event = new BlueprintUpdatedEventImpl(protoEvent);
                 handler.accept(event);
             } catch (Exception e) {
-                System.err.println("Error parsing BlueprintUpdatedEvent: " + e.getMessage());
-                e.printStackTrace();
+                LOGGER.log(Level.SEVERE, "Error handling BlueprintUpdatedEvent", e);
             }
         });
         return new SubscriptionImpl(natsSub);
@@ -65,12 +67,10 @@ public class BlueprintEventApiImpl implements BlueprintEventApi {
                 app.simplecloud.api.event.blueprint.BlueprintDeletedEvent event = new BlueprintDeletedEventImpl(protoEvent);
                 handler.accept(event);
             } catch (Exception e) {
-                System.err.println("Error parsing BlueprintDeletedEvent: " + e.getMessage());
-                e.printStackTrace();
+                LOGGER.log(Level.SEVERE, "Error handling BlueprintDeletedEvent", e);
             }
         });
         return new SubscriptionImpl(natsSub);
     }
 
 }
-

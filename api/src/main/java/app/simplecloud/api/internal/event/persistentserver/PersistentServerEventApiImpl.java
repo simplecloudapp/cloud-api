@@ -9,8 +9,12 @@ import io.nats.client.Dispatcher;
 import io.nats.client.Message;
 
 import java.util.function.Consumer;
+import java.util.logging.Level;
+import java.util.logging.Logger;
 
 public class PersistentServerEventApiImpl implements PersistentServerEventApi {
+
+    private static final Logger LOGGER = Logger.getLogger(PersistentServerEventApiImpl.class.getName());
 
     private final Connection natsConnection;
     private final String networkId;
@@ -31,8 +35,7 @@ public class PersistentServerEventApiImpl implements PersistentServerEventApi {
                 app.simplecloud.api.event.persistentserver.PersistentServerCreatedEvent event = new PersistentServerCreatedEventImpl(protoEvent);
                 handler.accept(event);
             } catch (Exception e) {
-                System.err.println("Error parsing PersistentServerCreatedEvent: " + e.getMessage());
-                e.printStackTrace();
+                LOGGER.log(Level.SEVERE, "Error handling PersistentServerCreatedEvent", e);
             }
         });
         return new SubscriptionImpl(natsSub);
@@ -47,8 +50,7 @@ public class PersistentServerEventApiImpl implements PersistentServerEventApi {
                 app.simplecloud.api.event.persistentserver.PersistentServerStartedEvent event = new PersistentServerStartedEventImpl(protoEvent);
                 handler.accept(event);
             } catch (Exception e) {
-                System.err.println("Error parsing PersistentServerStartedEvent: " + e.getMessage());
-                e.printStackTrace();
+                LOGGER.log(Level.SEVERE, "Error handling PersistentServerStartedEvent", e);
             }
         });
         return new SubscriptionImpl(natsSub);
@@ -63,8 +65,7 @@ public class PersistentServerEventApiImpl implements PersistentServerEventApi {
                 app.simplecloud.api.event.persistentserver.PersistentServerStoppedEvent event = new PersistentServerStoppedEventImpl(protoEvent);
                 handler.accept(event);
             } catch (Exception e) {
-                System.err.println("Error parsing PersistentServerStoppedEvent: " + e.getMessage());
-                e.printStackTrace();
+                LOGGER.log(Level.SEVERE, "Error handling PersistentServerStoppedEvent", e);
             }
         });
         return new SubscriptionImpl(natsSub);
@@ -79,8 +80,7 @@ public class PersistentServerEventApiImpl implements PersistentServerEventApi {
                 app.simplecloud.api.event.persistentserver.PersistentServerUpdatedEvent event = new PersistentServerUpdatedEventImpl(protoEvent);
                 handler.accept(event);
             } catch (Exception e) {
-                System.err.println("Error parsing PersistentServerUpdatedEvent: " + e.getMessage());
-                e.printStackTrace();
+                LOGGER.log(Level.SEVERE, "Error handling PersistentServerUpdatedEvent", e);
             }
         });
         return new SubscriptionImpl(natsSub);
@@ -95,12 +95,10 @@ public class PersistentServerEventApiImpl implements PersistentServerEventApi {
                 app.simplecloud.api.event.persistentserver.PersistentServerDeletedEvent event = new PersistentServerDeletedEventImpl(protoEvent);
                 handler.accept(event);
             } catch (Exception e) {
-                System.err.println("Error parsing PersistentServerDeletedEvent: " + e.getMessage());
-                e.printStackTrace();
+                LOGGER.log(Level.SEVERE, "Error handling PersistentServerDeletedEvent", e);
             }
         });
         return new SubscriptionImpl(natsSub);
     }
 
 }
-

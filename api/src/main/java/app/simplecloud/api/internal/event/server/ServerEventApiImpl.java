@@ -13,8 +13,12 @@ import io.nats.client.Dispatcher;
 import io.nats.client.Message;
 
 import java.util.function.Consumer;
+import java.util.logging.Level;
+import java.util.logging.Logger;
 
 public class ServerEventApiImpl implements ServerEventApi {
+
+    private static final Logger LOGGER = Logger.getLogger(ServerEventApiImpl.class.getName());
 
     private final Connection natsConnection;
     private final String networkId;
@@ -35,8 +39,7 @@ public class ServerEventApiImpl implements ServerEventApi {
                 app.simplecloud.api.event.server.ServerStartedEvent event = new ServerStartedEventImpl(protoEvent);
                 handler.accept(event);
             } catch (Exception e) {
-                System.err.println("Error parsing ServerStartedEvent: " + e.getMessage());
-                e.printStackTrace();
+                LOGGER.log(Level.SEVERE, "Error handling ServerStartedEvent", e);
             }
         });
         return new SubscriptionImpl(natsSub);
@@ -51,8 +54,7 @@ public class ServerEventApiImpl implements ServerEventApi {
                 app.simplecloud.api.event.server.ServerStoppedEvent event = new ServerStoppedEventImpl(protoEvent);
                 handler.accept(event);
             } catch (Exception e) {
-                System.err.println("Error parsing ServerStoppedEvent: " + e.getMessage());
-                e.printStackTrace();
+                LOGGER.log(Level.SEVERE, "Error handling ServerStoppedEvent", e);
             }
         });
         return new SubscriptionImpl(natsSub);
@@ -67,8 +69,7 @@ public class ServerEventApiImpl implements ServerEventApi {
                 app.simplecloud.api.event.server.ServerStateChangedEvent event = new ServerStateChangedEventImpl(protoEvent);
                 handler.accept(event);
             } catch (Exception e) {
-                System.err.println("Error parsing ServerStateChangedEvent: " + e.getMessage());
-                e.printStackTrace();
+                LOGGER.log(Level.SEVERE, "Error handling ServerStateChangedEvent", e);
             }
         });
         return new SubscriptionImpl(natsSub);
@@ -83,8 +84,7 @@ public class ServerEventApiImpl implements ServerEventApi {
                 app.simplecloud.api.event.server.ServerDeletedEvent event = new ServerDeletedEventImpl(protoEvent);
                 handler.accept(event);
             } catch (Exception e) {
-                System.err.println("Error parsing ServerDeletedEvent: " + e.getMessage());
-                e.printStackTrace();
+                LOGGER.log(Level.SEVERE, "Error handling ServerDeletedEvent", e);
             }
         });
         return new SubscriptionImpl(natsSub);
@@ -99,12 +99,10 @@ public class ServerEventApiImpl implements ServerEventApi {
                 app.simplecloud.api.event.server.ServerUpdatedEvent event = new ServerUpdatedEventImpl(protoEvent);
                 handler.accept(event);
             } catch (Exception e) {
-                System.err.println("Error parsing ServerUpdatedEvent: " + e.getMessage());
-                e.printStackTrace();
+                LOGGER.log(Level.SEVERE, "Error handling ServerUpdatedEvent", e);
             }
         });
         return new SubscriptionImpl(natsSub);
     }
 
 }
-

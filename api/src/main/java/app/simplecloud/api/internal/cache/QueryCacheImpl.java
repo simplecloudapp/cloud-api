@@ -10,12 +10,15 @@ import java.util.Set;
 import java.util.concurrent.*;
 import java.util.concurrent.atomic.AtomicLong;
 import java.util.function.Supplier;
+import java.util.logging.Level;
+import java.util.logging.Logger;
 
 /**
  * Caffeine-backed implementation of QueryCache with stale-while-revalidate semantics.
  */
 public class QueryCacheImpl implements QueryCache {
 
+    private static final Logger LOGGER = Logger.getLogger(QueryCacheImpl.class.getName());
     private static final Duration DEFAULT_IN_FLIGHT_TIMEOUT = Duration.ofSeconds(5);
 
     private final CacheConfig config;
@@ -140,7 +143,7 @@ public class QueryCacheImpl implements QueryCache {
         revalidationExecutor.submit(() -> {
             fetchWithDeduplication(key, fetcher).exceptionally(e -> {
                 // Log but don't fail - we already returned stale data
-                System.err.println("[QueryCache] Background revalidation failed for " + key + ": " + e.getMessage());
+                LOGGER.log(Level.WARNING, "Background revalidation failed for " + key, e);
                 return null;
             });
         });

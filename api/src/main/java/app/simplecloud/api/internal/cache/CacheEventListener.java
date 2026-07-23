@@ -31,6 +31,7 @@ public class CacheEventListener {
     private final Set<QueryKey> pendingInvalidations = ConcurrentHashMap.newKeySet();
     private final Set<QueryKey> pendingPatternInvalidations = ConcurrentHashMap.newKeySet();
     private volatile ScheduledFuture<?> pendingFlush;
+    private boolean shutdown;
 
     public CacheEventListener(QueryCache cache, EventApi eventApi) {
         this(cache, eventApi, DEFAULT_DEBOUNCE_MS);
@@ -50,7 +51,10 @@ public class CacheEventListener {
     /**
      * Schedules a debounced invalidation for a specific key.
      */
-    private void scheduleInvalidation(QueryKey key) {
+    private synchronized void scheduleInvalidation(QueryKey key) {
+        if (shutdown) {
+            return;
+        }
         pendingInvalidations.add(key);
         scheduleFlush();
     }
@@ -58,7 +62,10 @@ public class CacheEventListener {
     /**
      * Schedules a debounced pattern invalidation (invalidateAll).
      */
-    private void schedulePatternInvalidation(QueryKey pattern) {
+    private synchronized void schedulePatternInvalidation(QueryKey pattern) {
+        if (shutdown) {
+            return;
+        }
         pendingPatternInvalidations.add(pattern);
         scheduleFlush();
     }
@@ -68,7 +75,7 @@ public class CacheEventListener {
      * Uses debouncing - if called multiple times within the debounce window,
      * only one flush will occur after the window expires.
      */
-    private synchronized void scheduleFlush() {
+    private void scheduleFlush() {
         if (pendingFlush != null && !pendingFlush.isDone()) {
             pendingFlush.cancel(false);
         }
@@ -78,7 +85,7 @@ public class CacheEventListener {
     /**
      * Flushes all pending invalidations.
      */
-    private void flush() {
+    private synchronized void flush() {
         // Process pattern invalidations first (they may cover individual keys)
         for (QueryKey pattern : pendingPatternInvalidations) {
             cache.invalidateAll(pattern);
@@ -163,14 +170,20 @@ public class CacheEventListener {
      * Shuts down the event listener by unsubscribing from all events.
      */
     public void shutdown() {
+        synchronized (this) {
+            if (shutdown) {
+                return;
+            }
+            shutdown = true;
+
+            if (pendingFlush != null) {
+                pendingFlush.cancel(false);
+                pendingFlush = null;
+            }
+        }
+
         subscriptions.forEach(Subscription::close);
         subscriptions.clear();
-
-        // Flush any pending invalidations immediately
-        if (pendingFlush != null) {
-            pendingFlush.cancel(false);
-        }
-        flush();
 
         scheduler.shutdown();
         try {
@@ -181,5 +194,8 @@ public class CacheEventListener {
             scheduler.shutdownNow();
             Thread.currentThread().interrupt();
         }
+
+        // Flush anything that was queued before shutdown after the scheduler is stopped.
+        flush();
     }
 }

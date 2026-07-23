@@ -43,6 +43,9 @@ public class PaperApiProvider extends JavaPlugin {
         if (adventureIntegration != null) {
             adventureIntegration.stop();
         }
+        if (cloudApi != null) {
+            cloudApi.close();
+        }
         fastStatsContext.shutdown();
         getLogger().info("SimpleCloud v3 API provider uninitialized!");
     }

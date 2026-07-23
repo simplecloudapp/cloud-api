@@ -14,8 +14,12 @@ import io.nats.client.Dispatcher;
 import io.nats.client.Message;
 
 import java.util.function.Consumer;
+import java.util.logging.Level;
+import java.util.logging.Logger;
 
 public class GroupEventApiImpl implements GroupEventApi {
+
+    private static final Logger LOGGER = Logger.getLogger(GroupEventApiImpl.class.getName());
 
     private final Connection natsConnection;
     private final String networkId;
@@ -36,8 +40,7 @@ public class GroupEventApiImpl implements GroupEventApi {
                 GroupCreatedEvent event = new GroupCreatedEventImpl(protoEvent);
                 handler.accept(event);
             } catch (Exception e) {
-                System.err.println("Error parsing ServerGroupCreatedEvent: " + e.getMessage());
-                e.printStackTrace();
+                LOGGER.log(Level.SEVERE, "Error handling ServerGroupCreatedEvent", e);
             }
         });
         return new SubscriptionImpl(natsSub);
@@ -52,8 +55,7 @@ public class GroupEventApiImpl implements GroupEventApi {
                 GroupUpdatedEvent event = new GroupUpdatedEventImpl(protoEvent);
                 handler.accept(event);
             } catch (Exception e) {
-                System.err.println("Error parsing ServerGroupUpdatedEvent: " + e.getMessage());
-                e.printStackTrace();
+                LOGGER.log(Level.SEVERE, "Error handling ServerGroupUpdatedEvent", e);
             }
         });
         return new SubscriptionImpl(natsSub);
@@ -68,12 +70,10 @@ public class GroupEventApiImpl implements GroupEventApi {
                 GroupDeletedEvent event = new GroupDeletedEventImpl(protoEvent);
                 handler.accept(event);
             } catch (Exception e) {
-                System.err.println("Error parsing ServerGroupDeletedEvent: " + e.getMessage());
-                e.printStackTrace();
+                LOGGER.log(Level.SEVERE, "Error handling ServerGroupDeletedEvent", e);
             }
         });
         return new SubscriptionImpl(natsSub);
     }
 
 }
-
