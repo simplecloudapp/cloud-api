@@ -10,7 +10,7 @@ plugins {
     `signing`
 }
 
-val baseVersion = "0.1.0-platform.50"
+val baseVersion = "0.1.0-platform.51"
 val commitHash = System.getenv("COMMIT_HASH")
 val isSnapshot = commitHash != null
 
@@ -85,6 +85,7 @@ subprojects {
             relocate("org.intellij", "app.simplecloud.api.shaded.intellij")
             relocate("org.jetbrains", "app.simplecloud.api.shaded.jetbrains")
             relocate("kotlin", "app.simplecloud.api.shaded.kotlin")
+            relocate("com.github.benmanes.caffeine", "app.simplecloud.api.shaded.caffeine")
             relocate("google", "app.simplecloud.api.shaded.google")
             relocate("native", "app.simplecloud.api.shaded.native")
             relocate("core", "app.simplecloud.api.shaded.core")
