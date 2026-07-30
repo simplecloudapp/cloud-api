@@ -1,0 +1,29 @@
+license="Apache-2.0"
+issueTrackerURL="https://github.com/simplecloudapp/cloud-api/issues"
+
+[[mods]]
+modId="simplecloud_api"
+version="${version}"
+displayName="SimpleCloud API"
+displayURL="https://simplecloud.app"
+authors="SimpleCloud"
+description='''
+Server-side SimpleCloud API provider for NeoForge.
+'''
+
+[features.simplecloud_api]
+javaVersion="[25,)"
+
+[[dependencies.simplecloud_api]]
+modId="neoforge"
+type="required"
+versionRange="[${neoForgeVersion},)"
+ordering="NONE"
+side="SERVER"
+
+[[dependencies.simplecloud_api]]
+modId="minecraft"
+type="required"
+versionRange="[${minecraftVersion}]"
+ordering="NONE"
+side="SERVER"

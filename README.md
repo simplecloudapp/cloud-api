@@ -27,7 +27,7 @@
 > All information about this project can be found in our detailed [documentation][docs-thisproject].
 
 This Project aims to provide very easy API access. This project fixes all dependency issues that were present before.
-Just include the platform jar as a plugin and use the dependency as described below.
+Install the platform JAR on the server and use the dependency as described below.
 
 > [!CAUTION]
 > Paper specific API is very experimental and unstable. Use Spigot API if you are running paper!
@@ -35,8 +35,15 @@ Just include the platform jar as a plugin and use the dependency as described be
 ## Features
 
 - [x] **Easy API Use**: Just add the plugin to your server and include the api as a provided artifact.
-- [x] **Supported Server Software**: Supports Spigot & Forks, BungeeCord and Velocity.
+- [x] **Supported Server Software**: Supports Spigot and forks, Paper, Folia, BungeeCord, Velocity, Fabric, Quilt, and NeoForge.
 - [ ] **Easy API access**: Use every api method we provide, just from one interface.
+
+## Server Installation
+
+- Put the Spigot, Paper, Folia, BungeeCord, and Velocity JAR in the server's `plugins` directory.
+- Put the Fabric/Quilt or NeoForge JAR in the server's `mods` directory.
+- The shared Fabric/Quilt build requires Fabric API.
+- Fabric, Quilt, and NeoForge support is server-side only, targets Minecraft 26.2, and does not require clients to install the mod.
 
 ## Usage
 

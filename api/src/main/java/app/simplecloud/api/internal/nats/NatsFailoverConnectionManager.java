@@ -33,6 +33,7 @@ public final class NatsFailoverConnectionManager {
     private final String networkId;
     private final String networkSecret;
     private final Duration failoverReconnectAfter;
+    private final SimpleCloudNatsListener natsListener;
 
     private final AtomicReference<Connection> connectionRef;
     private final Connection connectionProxy;
@@ -53,6 +54,7 @@ public final class NatsFailoverConnectionManager {
         this.networkId = networkId;
         this.networkSecret = networkSecret;
         this.failoverReconnectAfter = failoverReconnectAfter == null ? Duration.ofSeconds(30) : failoverReconnectAfter;
+        this.natsListener = new SimpleCloudNatsListener();
 
         this.connectionRef = new AtomicReference<>(null);
         this.connectionProxy = createConnectionProxy();
@@ -190,16 +192,22 @@ public final class NatsFailoverConnectionManager {
     }
 
     private Connection createConnection() throws IOException, InterruptedException {
-        SimpleCloudNatsListener listener = new SimpleCloudNatsListener();
-        return Nats.connect(
-                Options.builder()
-                        .server(natsUrl)
-                        .userInfo(networkId, networkSecret)
-                        .maxReconnects(-1)
-                        .errorListener(listener)
-                        .connectionListener(listener)
-                        .build()
-        );
+        return Nats.connect(createOptions(natsUrl, networkId, networkSecret, natsListener));
+    }
+
+    static Options createOptions(
+            String natsUrl,
+            String networkId,
+            String networkSecret,
+            SimpleCloudNatsListener listener
+    ) {
+        return Options.builder()
+                .server(natsUrl)
+                .userInfo(networkId, networkSecret)
+                .maxReconnects(-1)
+                .errorListener(listener)
+                .connectionListener(listener)
+                .build();
     }
 
     private Connection createConnectionProxy() {

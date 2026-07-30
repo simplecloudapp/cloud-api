@@ -54,7 +54,15 @@ public class PlayerSynchronizer {
     }
 
     public void updatePlayerCount() {
+        if (!running.get()) {
+            return;
+        }
+
         synchronized (debounceLock) {
+            if (!running.get()) {
+                return;
+            }
+
             if (debounceTask != null && !debounceTask.isDone()) {
                 debounceTask.cancel(false);
             }

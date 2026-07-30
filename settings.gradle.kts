@@ -1,4 +1,10 @@
 pluginManagement {
+    repositories {
+        gradlePluginPortal()
+        maven("https://maven.fabricmc.net/")
+        maven("https://maven.neoforged.net/releases/")
+    }
+
     plugins {
         kotlin("jvm") version "2.2.20"
     }
@@ -25,5 +31,7 @@ include(
     "platform:paper",
     "platform:folia",
     "platform:bungeecord",
-    "platform:velocity"
+    "platform:velocity",
+    "platform:fabric",
+    "platform:neoforge"
 )

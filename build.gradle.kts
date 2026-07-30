@@ -10,9 +10,13 @@ plugins {
     `signing`
 }
 
-val baseVersion = "0.1.0-platform.51"
+val baseVersion = "0.1.0-platform.52"
 val commitHash = System.getenv("COMMIT_HASH")
 val isSnapshot = commitHash != null
+
+// Kept for the Central Portal publisher, which still reads Gradle's removed
+// archivesBaseName convention when running on Gradle 9.
+extra["archivesBaseName"] = rootProject.name
 
 fun devBuildId(): String {
     val githubRunNumber = System.getenv("GITHUB_RUN_NUMBER")
@@ -132,19 +136,28 @@ tasks.register("buildTemplates") {
     group = "build"
     description = "Builds all platform JARs and copies them to run/templates structure"
 
-    val platformProjects = listOf("paper", "folia", "spigot", "spigot-legacy", "bungeecord", "velocity")
+    val platformProjects = linkedMapOf(
+        "paper" to "plugins",
+        "folia" to "plugins",
+        "spigot" to "plugins",
+        "spigot-legacy" to "plugins",
+        "bungeecord" to "plugins",
+        "velocity" to "plugins",
+        "fabric" to "mods",
+        "neoforge" to "mods"
+    )
 
-    platformProjects.forEach { platform ->
+    platformProjects.keys.forEach { platform ->
         dependsOn(":platform:$platform:shadowJar")
     }
 
     doLast {
-        platformProjects.forEach { platform ->
+        platformProjects.forEach { (platform, installDirectory) ->
             val shadowJarTask = project(":platform:$platform").tasks.named<ShadowJar>("shadowJar").get()
             val jarFile = shadowJarTask.archiveFile.get().asFile
 
             val folderName = platform.removeSuffix("-legacy")
-            val templateDir = file("run/templates/_every/every_$folderName/plugins")
+            val templateDir = file("run/templates/_every/every_$folderName/$installDirectory")
             templateDir.mkdirs()
 
             val targetName = if (platform.endsWith("-legacy")) {

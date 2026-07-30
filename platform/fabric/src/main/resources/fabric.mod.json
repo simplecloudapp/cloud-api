@@ -1,0 +1,28 @@
+{
+  "schemaVersion": 1,
+  "id": "simplecloud_api",
+  "version": "${version}",
+  "name": "SimpleCloud API",
+  "description": "Server-side SimpleCloud API provider for Fabric and Quilt.",
+  "authors": [
+    "SimpleCloud"
+  ],
+  "contact": {
+    "homepage": "https://simplecloud.app",
+    "sources": "https://github.com/simplecloudapp/cloud-api",
+    "issues": "https://github.com/simplecloudapp/cloud-api/issues"
+  },
+  "license": "Apache-2.0",
+  "environment": "server",
+  "entrypoints": {
+    "server": [
+      "app.simplecloud.api.platform.fabric.FabricApiProvider"
+    ]
+  },
+  "depends": {
+    "fabricloader": ">=0.19.3",
+    "fabric-api": ">=0.156.0",
+    "minecraft": "26.2",
+    "java": ">=25"
+  }
+}
