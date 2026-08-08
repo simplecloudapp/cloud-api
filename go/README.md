@@ -9,6 +9,8 @@ The standalone Go client for the SimpleCloud Controller. It includes:
 
 This module is a Go library. It is not a Minecraft plugin and has no dependency on a Minecraft server runtime.
 
+The handwritten implementation lives in `sdk`, while the module root re-exports its public API for import compatibility. OpenAPI-generated code lives separately in `generated`.
+
 ## Install
 
 ```sh
@@ -114,4 +116,4 @@ go mod tidy
 go test ./...
 ```
 
-The generator writes only to `go/generated`; the facade, examples, module metadata, and this README remain separate.
+The generator writes only to `go/generated`; the handwritten facade remains isolated in `go/sdk`.

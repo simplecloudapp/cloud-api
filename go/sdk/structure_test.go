@@ -10,10 +10,11 @@ import (
 const maxHandwrittenFileLines = 120
 
 func TestHandwrittenFilesStayFocused(t *testing.T) {
-	files, err := filepath.Glob("sdk_*.go")
+	files, err := filepath.Glob("*.go")
 	if err != nil {
 		t.Fatal(err)
 	}
+	files = append(files, "../simplecloud.go")
 	for _, file := range files {
 		lineCount, err := countFileLines(file)
 		if err != nil {
