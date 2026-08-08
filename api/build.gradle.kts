@@ -99,6 +99,31 @@ openApiGenerate {
     )
 }
 
+tasks.register<org.openapitools.generator.gradle.plugin.tasks.GenerateTask>("generateGoClient") {
+    group = "build"
+    description = "Generates the standalone Go client from the controller OpenAPI document."
+    dependsOn("openApiGenerate")
+
+    generatorName.set("go")
+    inputSpec.set(layout.buildDirectory.file("generated/api/openapi.yaml").map { it.asFile.absolutePath })
+    outputDir.set(rootProject.layout.projectDirectory.dir("go").asFile.absolutePath)
+    packageName.set("simplecloud")
+
+    generateApiDocumentation.set(false)
+    generateModelDocumentation.set(false)
+    generateApiTests.set(false)
+    generateModelTests.set(false)
+
+    configOptions.set(
+        mapOf(
+            "enumClassPrefix" to "true",
+            "generateInterfaces" to "true",
+            "packageVersion" to rootProject.version.toString(),
+            "withGoMod" to "false"
+        )
+    )
+}
+
 val fixOpenApiGeneratedCode by tasks.registering(FixOpenApiGeneratedCode::class) {
     dependsOn("openApiGenerate")
     modelsDir.set(layout.buildDirectory.dir("generated/src/main/java/app/simplecloud/api/web/models"))

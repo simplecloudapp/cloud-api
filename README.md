@@ -47,6 +47,22 @@ Install the platform JAR on the server and use the dependency as described below
 
 ## Usage
 
+### Go
+
+The standalone Go SDK lives in [`go/`](go/README.md). It includes the complete Controller REST API plus typed NATS events and does not require a Minecraft plugin runtime.
+
+```go
+client, err := simplecloud.NewClientFromEnv()
+if err != nil {
+    log.Fatal(err)
+}
+defer client.Close()
+
+groups, _, err := client.Groups.List(context.Background(), nil)
+```
+
+See the [Go API README](go/README.md) for installation, configuration, events, and raw endpoint access.
+
 ### 1. Depend on `simplecloud-api`
 
 ### 2. Use APIs 

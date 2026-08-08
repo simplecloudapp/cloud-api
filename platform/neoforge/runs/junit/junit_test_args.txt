@@ -1,0 +1,6 @@
+--version
+26.2.0.40-beta
+--assetIndex
+asset-index
+--assetsDir
+/Users/philipp/.gradle/caches/minecraft/assets

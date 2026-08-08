@@ -1,0 +1,23 @@
+package simplecloud
+
+import controllerv2 "buf.build/gen/go/simplecloud/controller/protocolbuffers/go"
+
+type ServerGroupCreatedEvent = controllerv2.ServerGroupCreatedEvent
+type ServerGroupUpdatedEvent = controllerv2.ServerGroupUpdatedEvent
+type ServerGroupDeletedEvent = controllerv2.ServerGroupDeletedEvent
+
+type ServerStartedEvent = controllerv2.ServerStartedEvent
+type ServerStoppedEvent = controllerv2.ServerStoppedEvent
+type ServerStateChangedEvent = controllerv2.ServerStateChangedEvent
+type ServerDeletedEvent = controllerv2.ServerDeletedEvent
+type ServerUpdatedEvent = controllerv2.ServerUpdatedEvent
+
+type PersistentServerCreatedEvent = controllerv2.PersistentServerCreatedEvent
+type PersistentServerStartedEvent = controllerv2.PersistentServerStartedEvent
+type PersistentServerStoppedEvent = controllerv2.PersistentServerStoppedEvent
+type PersistentServerUpdatedEvent = controllerv2.PersistentServerUpdatedEvent
+type PersistentServerDeletedEvent = controllerv2.PersistentServerDeletedEvent
+
+type BlueprintCreatedEvent = controllerv2.BlueprintCreatedEvent
+type BlueprintUpdatedEvent = controllerv2.BlueprintUpdatedEvent
+type BlueprintDeletedEvent = controllerv2.BlueprintDeletedEvent
