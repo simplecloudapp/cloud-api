@@ -7,11 +7,12 @@ import (
 	"time"
 
 	"github.com/nats-io/nats.go"
+	"github.com/simplecloudapp/cloud-api/go/generated"
 )
 
 // Client provides the handwritten facade and the complete generated API.
 type Client struct {
-	Raw               *APIClient
+	Raw               *generated.APIClient
 	Groups            *GroupsClient
 	Servers           *ServersClient
 	PersistentServers *PersistentServersClient
@@ -31,8 +32,8 @@ func NewClient(options Options) (*Client, error) {
 		return nil, err
 	}
 
-	config := NewConfiguration()
-	config.Servers = ServerConfigurations{{URL: controllerURL}}
+	config := generated.NewConfiguration()
+	config.Servers = generated.ServerConfigurations{{URL: controllerURL}}
 	config.HTTPClient = options.HTTPClient
 	if config.HTTPClient == nil {
 		config.HTTPClient = &http.Client{Timeout: 10 * time.Second}
@@ -41,7 +42,7 @@ func NewClient(options Options) (*Client, error) {
 		config.AddDefaultHeader("X-SC-Component", options.Component)
 	}
 
-	raw := NewAPIClient(config)
+	raw := generated.NewAPIClient(config)
 	client := &Client{Raw: raw, options: options}
 	credentials := authenticatedClient{api: raw, networkID: options.NetworkID, credential: options.NetworkSecret}
 	client.Groups = &GroupsClient{authenticatedClient: credentials}
@@ -59,7 +60,7 @@ func NewClientFromEnv() (*Client, error) { return NewClient(DefaultOptions()) }
 func (c *Client) NetworkID() string { return c.options.NetworkID }
 
 type authenticatedClient struct {
-	api        *APIClient
+	api        *generated.APIClient
 	networkID  string
 	credential string
 }

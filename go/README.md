@@ -5,7 +5,7 @@ The standalone Go client for the SimpleCloud Controller. It includes:
 - an idiomatic facade for groups, servers, persistent servers, players, and events;
 - typed NATS subscriptions using the same protobuf messages and subjects as the Java API;
 - the complete generated REST surface for every controller endpoint, available through `Client.Raw`;
-- all OpenAPI request and response models.
+- all OpenAPI request and response models in the `generated` subpackage.
 
 This module is a Go library. It is not a Minecraft plugin and has no dependency on a Minecraft server runtime.
 
@@ -96,6 +96,12 @@ result, response, err := client.Raw.StatsAPI.V0StatsGet(context.Background()).
 
 Generated request builders require the network headers explicitly. The facade (`Groups`, `Servers`, `PersistentServers`, and `Players`) supplies them automatically.
 
+Code using models outside the facade can import the generated package directly:
+
+```go
+import "github.com/simplecloudapp/cloud-api/go/generated"
+```
+
 ## Regeneration
 
 The checked-in client is generated from `api/openapi.yaml`. From the repository root:
@@ -103,9 +109,9 @@ The checked-in client is generated from `api/openapi.yaml`. From the repository 
 ```sh
 ./gradlew :api:generateGoClient
 cd go
-gofmt -w *.go
+go fmt ./...
 go mod tidy
 go test ./...
 ```
 
-All `sdk_*.go` files, examples, module metadata, and this README are protected by `.openapi-generator-ignore`.
+The generator writes only to `go/generated`; the facade, examples, module metadata, and this README remain separate.

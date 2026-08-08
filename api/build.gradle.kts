@@ -106,8 +106,8 @@ tasks.register<org.openapitools.generator.gradle.plugin.tasks.GenerateTask>("gen
 
     generatorName.set("go")
     inputSpec.set(layout.buildDirectory.file("generated/api/openapi.yaml").map { it.asFile.absolutePath })
-    outputDir.set(rootProject.layout.projectDirectory.dir("go").asFile.absolutePath)
-    packageName.set("simplecloud")
+    outputDir.set(rootProject.layout.projectDirectory.dir("go/generated").asFile.absolutePath)
+    packageName.set("generated")
 
     generateApiDocumentation.set(false)
     generateModelDocumentation.set(false)

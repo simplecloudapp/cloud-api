@@ -1,0 +1,3 @@
+# Keep the generated package inside the parent Go module.
+go.mod
+go.sum
