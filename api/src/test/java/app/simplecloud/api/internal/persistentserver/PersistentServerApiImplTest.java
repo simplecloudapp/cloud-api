@@ -6,6 +6,7 @@ import app.simplecloud.api.group.GroupServerType;
 import app.simplecloud.api.internal.cache.NoOpQueryCache;
 import app.simplecloud.api.persistentserver.CreatePersistentServerRequest;
 import app.simplecloud.api.persistentserver.PersistentServer;
+import app.simplecloud.api.persistentserver.UpdatePersistentServerRequest;
 import app.simplecloud.api.web.ApiException;
 import app.simplecloud.api.web.apis.BlueprintsApi;
 import app.simplecloud.api.web.apis.PersistentServersApi;
@@ -14,8 +15,11 @@ import app.simplecloud.api.web.models.ModelsCreateBlueprintResponse;
 import app.simplecloud.api.web.models.ModelsCreatePersistentServerRequest;
 import app.simplecloud.api.web.models.ModelsCreatePersistentServerResponse;
 import app.simplecloud.api.web.models.ModelsListPersistentServersResponse;
+import app.simplecloud.api.web.models.ModelsPatchPersistentServerRequest;
 import app.simplecloud.api.web.models.ModelsPersistentServerSummary;
 import app.simplecloud.api.web.models.ModelsSourceConfig;
+import app.simplecloud.api.web.models.ModelsUpdatePersistentServerRequest;
+import app.simplecloud.api.web.models.ModelsUpdatePersistentServerResponse;
 import org.junit.jupiter.api.Test;
 
 import java.util.ArrayList;
@@ -27,6 +31,7 @@ import java.util.concurrent.atomic.AtomicInteger;
 import static org.junit.jupiter.api.Assertions.assertEquals;
 import static org.junit.jupiter.api.Assertions.assertInstanceOf;
 import static org.junit.jupiter.api.Assertions.assertNotNull;
+import static org.junit.jupiter.api.Assertions.assertNull;
 import static org.junit.jupiter.api.Assertions.assertThrows;
 import static org.junit.jupiter.api.Assertions.assertTrue;
 
@@ -185,6 +190,27 @@ class PersistentServerApiImplTest {
         assertEquals(List.of("bp-1"), blueprintsApi.deletedBlueprintIds);
     }
 
+    @Test
+    void updatePersistentServer_partialRequest_usesPatch() {
+        AtomicInteger order = new AtomicInteger();
+        FakePersistentServersApi persistentServersApi = new FakePersistentServersApi(order);
+        PersistentServerApiImpl api = new PersistentServerApiImpl(options(), new NoOpQueryCache(), persistentServersApi, new FakeBlueprintsApi(order));
+
+        PersistentServer persistentServer = api.updatePersistentServer(
+                "persistent-1",
+                UpdatePersistentServerRequest.builder()
+                        .active(true)
+                        .build()
+        ).join();
+
+        assertEquals(1, persistentServersApi.patchCalls);
+        assertEquals(0, persistentServersApi.putCalls);
+        assertEquals(Boolean.TRUE, persistentServersApi.lastPatchRequest.getActive());
+        assertNull(persistentServersApi.lastPatchRequest.getType());
+        assertNull(persistentServersApi.lastPatchRequest.getName());
+        assertEquals("persistent-1", persistentServer.getPersistentServerId());
+    }
+
     private static CloudApiOptions options() {
         return CloudApiOptions.builder()
                 .controllerUrl("http://localhost")
@@ -233,11 +259,14 @@ class PersistentServerApiImplTest {
     private static final class FakePersistentServersApi extends PersistentServersApi {
         private final AtomicInteger order;
         private int postCalls;
+        private int patchCalls;
+        private int putCalls;
         private int postOrder;
         private int getCalls;
         private String lastPersistentServerId;
         private String lastName;
         private ModelsCreatePersistentServerRequest lastCreateRequest;
+        private ModelsPatchPersistentServerRequest lastPatchRequest;
         private ApiException postFailure;
 
         private FakePersistentServersApi(AtomicInteger order) {
@@ -273,6 +302,25 @@ class PersistentServerApiImplTest {
             response.setCreatedAt("2026-04-22T00:00:00Z");
             response.setUpdatedAt("2026-04-22T00:00:00Z");
             return response;
+        }
+
+        @Override
+        public ModelsUpdatePersistentServerResponse v0PersistentServersPatch(String xNetworkID,
+                                                                              String xNetworkSecret,
+                                                                              String persistentServerId,
+                                                                              ModelsPatchPersistentServerRequest request) {
+            patchCalls++;
+            lastPatchRequest = request;
+            return new ModelsUpdatePersistentServerResponse();
+        }
+
+        @Override
+        public ModelsUpdatePersistentServerResponse v0PersistentServersPut(String xNetworkID,
+                                                                            String xNetworkSecret,
+                                                                            String persistentServerId,
+                                                                            ModelsUpdatePersistentServerRequest request) {
+            putCalls++;
+            return new ModelsUpdatePersistentServerResponse();
         }
 
         @Override

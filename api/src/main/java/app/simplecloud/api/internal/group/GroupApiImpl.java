@@ -375,10 +375,10 @@ public class GroupApiImpl implements GroupApi {
     public CompletableFuture<Group> updateGroup(String id, UpdateGroupRequest request) {
         return CompletableFuture.supplyAsync(() -> {
             try {
-                ModelsUpdateServerGroupRequest apiRequest = new ModelsUpdateServerGroupRequest();
+                ModelsPatchServerGroupRequest apiRequest = new ModelsPatchServerGroupRequest();
                 apiRequest.setName(request.getName());
                 if (request.getType() != null) {
-                    apiRequest.setType(ModelsUpdateServerGroupRequest.TypeEnum.valueOf(request.getType().name()));
+                    apiRequest.setType(ModelsPatchServerGroupRequest.TypeEnum.valueOf(request.getType().name()));
                 }
                 apiRequest.setMinMemory(request.getMinMemory());
                 apiRequest.setMaxMemory(request.getMaxMemory());
@@ -401,7 +401,7 @@ public class GroupApiImpl implements GroupApi {
                     apiRequest.setWorkflows(convertWorkflowsConfig(request.getWorkflows()));
                 }
 
-                ModelsUpdateServerGroupResponse response = serverGroupsApi.v0ServerGroupsPut(
+                ModelsUpdateServerGroupResponse response = serverGroupsApi.v0ServerGroupsPatch(
                         this.options.getNetworkId(),
                         this.options.getNetworkSecret(),
                         id,

@@ -11,6 +11,7 @@ import app.simplecloud.api.group.ScaleDownConfig;
 import app.simplecloud.api.group.ScalingConfig;
 import app.simplecloud.api.group.ScalingMode;
 import app.simplecloud.api.group.SourceConfig;
+import app.simplecloud.api.group.UpdateGroupRequest;
 import app.simplecloud.api.internal.cache.NoOpQueryCache;
 import app.simplecloud.api.web.ApiException;
 import app.simplecloud.api.web.apis.BlueprintsApi;
@@ -20,8 +21,11 @@ import app.simplecloud.api.web.models.ModelsCreateBlueprintResponse;
 import app.simplecloud.api.web.models.ModelsCreateServerGroupRequest;
 import app.simplecloud.api.web.models.ModelsCreateServerGroupResponse;
 import app.simplecloud.api.web.models.ModelsListServerGroupsResponse;
+import app.simplecloud.api.web.models.ModelsPatchServerGroupRequest;
 import app.simplecloud.api.web.models.ModelsServerGroupSummary;
 import app.simplecloud.api.web.models.ModelsSourceConfig;
+import app.simplecloud.api.web.models.ModelsUpdateServerGroupRequest;
+import app.simplecloud.api.web.models.ModelsUpdateServerGroupResponse;
 import org.junit.jupiter.api.Test;
 
 import java.io.IOException;
@@ -36,6 +40,7 @@ import static org.junit.jupiter.api.Assertions.assertEquals;
 import static org.junit.jupiter.api.Assertions.assertFalse;
 import static org.junit.jupiter.api.Assertions.assertInstanceOf;
 import static org.junit.jupiter.api.Assertions.assertNotNull;
+import static org.junit.jupiter.api.Assertions.assertNull;
 import static org.junit.jupiter.api.Assertions.assertThrows;
 import static org.junit.jupiter.api.Assertions.assertTrue;
 
@@ -394,6 +399,27 @@ class GroupApiImplTest {
         assertEquals(0, serverGroupsApi.postCalls);
     }
 
+    @Test
+    void updateGroup_partialRequest_usesPatch() {
+        AtomicInteger order = new AtomicInteger();
+        FakeServerGroupsApi serverGroupsApi = new FakeServerGroupsApi(order);
+        GroupApiImpl api = new GroupApiImpl(options(), new NoOpQueryCache(), serverGroupsApi, new FakeBlueprintsApi(order));
+
+        Group group = api.updateGroup(
+                "group-1",
+                UpdateGroupRequest.builder()
+                        .active(true)
+                        .build()
+        ).join();
+
+        assertEquals(1, serverGroupsApi.patchCalls);
+        assertEquals(0, serverGroupsApi.putCalls);
+        assertEquals(Boolean.TRUE, serverGroupsApi.lastPatchRequest.getActive());
+        assertNull(serverGroupsApi.lastPatchRequest.getType());
+        assertNull(serverGroupsApi.lastPatchRequest.getName());
+        assertEquals("group-1", group.getServerGroupId());
+    }
+
     private static CloudApiOptions options() {
         return CloudApiOptions.builder()
                 .controllerUrl("http://localhost")
@@ -469,11 +495,14 @@ class GroupApiImplTest {
     private static final class FakeServerGroupsApi extends ServerGroupsApi {
         private final AtomicInteger order;
         private int postCalls;
+        private int patchCalls;
+        private int putCalls;
         private int postOrder;
         private int getCalls;
         private String lastServerGroupId;
         private String lastName;
         private ModelsCreateServerGroupRequest lastCreateRequest;
+        private ModelsPatchServerGroupRequest lastPatchRequest;
         private ApiException postFailure;
         private ModelsListServerGroupsResponse listResponse = new ModelsListServerGroupsResponse();
 
@@ -507,6 +536,36 @@ class GroupApiImplTest {
             response.setWorkflows(lastCreateRequest.getWorkflows());
             response.setProperties(lastCreateRequest.getProperties());
             response.setTags(lastCreateRequest.getTags());
+            response.setCreatedAt("2026-04-22T00:00:00Z");
+            response.setUpdatedAt("2026-04-22T00:00:00Z");
+            return response;
+        }
+
+        @Override
+        public ModelsUpdateServerGroupResponse v0ServerGroupsPatch(String xNetworkID,
+                                                                    String xNetworkSecret,
+                                                                    String serverGroupId,
+                                                                    ModelsPatchServerGroupRequest request) {
+            patchCalls++;
+            lastPatchRequest = request;
+            return updateResponse(serverGroupId, request.getActive());
+        }
+
+        @Override
+        public ModelsUpdateServerGroupResponse v0ServerGroupsPut(String xNetworkID,
+                                                                  String xNetworkSecret,
+                                                                  String serverGroupId,
+                                                                  ModelsUpdateServerGroupRequest request) {
+            putCalls++;
+            return updateResponse(serverGroupId, request.getActive());
+        }
+
+        private ModelsUpdateServerGroupResponse updateResponse(String serverGroupId, Boolean active) {
+            ModelsUpdateServerGroupResponse response = new ModelsUpdateServerGroupResponse();
+            response.setServerGroupId(serverGroupId);
+            response.setName("Lobby");
+            response.setType(GroupServerType.SERVER.name());
+            response.setActive(active);
             response.setCreatedAt("2026-04-22T00:00:00Z");
             response.setUpdatedAt("2026-04-22T00:00:00Z");
             return response;

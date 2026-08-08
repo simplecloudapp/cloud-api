@@ -287,7 +287,7 @@ public class PersistentServerApiImpl implements PersistentServerApi {
     public CompletableFuture<PersistentServer> updatePersistentServer(String id, UpdatePersistentServerRequest request) {
         return CompletableFuture.supplyAsync(() -> {
             try {
-                ModelsUpdatePersistentServerRequest apiRequest = new ModelsUpdatePersistentServerRequest();
+                ModelsPatchPersistentServerRequest apiRequest = new ModelsPatchPersistentServerRequest();
                 apiRequest.setName(request.getName());
                 apiRequest.setMinMemory(request.getMinMemory());
                 apiRequest.setMaxMemory(request.getMaxMemory());
@@ -299,7 +299,7 @@ public class PersistentServerApiImpl implements PersistentServerApi {
                 apiRequest.setTags(request.getTags());
 
                 if (request.getType() != null) {
-                    apiRequest.setType(ModelsUpdatePersistentServerRequest.TypeEnum.valueOf(request.getType().name()));
+                    apiRequest.setType(ModelsPatchPersistentServerRequest.TypeEnum.valueOf(request.getType().name()));
                 }
                 if (request.getSource() != null) {
                     apiRequest.setSource(convertSourceConfig(request.getSource()));
@@ -308,7 +308,7 @@ public class PersistentServerApiImpl implements PersistentServerApi {
                     apiRequest.setWorkflows(convertWorkflowsConfig(request.getWorkflows()));
                 }
 
-                persistentServersApi.v0PersistentServersPut(
+                persistentServersApi.v0PersistentServersPatch(
                         options.getNetworkId(),
                         options.getNetworkSecret(),
                         id,
