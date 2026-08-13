@@ -2,10 +2,10 @@ package app.simplecloud.api.platform.neoforge;
 
 import app.simplecloud.api.CloudApi;
 import app.simplecloud.api.internal.CloudApiImpl;
-import app.simplecloud.api.internal.integration.presence.ProxyPresenceResponder;
+import app.simplecloud.api.internal.integration.presence.PresenceResponder;
 import app.simplecloud.api.platform.shared.PlayerSynchronizer;
-import app.simplecloud.api.presence.ProxyPresencePlayer;
-import app.simplecloud.api.presence.ProxyPresencePlayerProvider;
+import app.simplecloud.api.presence.PresencePlayer;
+import app.simplecloud.api.presence.PresencePlayerProvider;
 import app.simplecloud.api.runtime.SimpleCloudRuntime;
 import net.minecraft.SharedConstants;
 import net.minecraft.server.MinecraftServer;
@@ -23,7 +23,7 @@ import java.util.List;
 import java.util.concurrent.atomic.AtomicLong;
 
 @Mod(value = NeoForgeApiProvider.MOD_ID, dist = Dist.DEDICATED_SERVER)
-public final class NeoForgeApiProvider implements ProxyPresencePlayerProvider {
+public final class NeoForgeApiProvider implements PresencePlayerProvider {
 
     public static final String MOD_ID = "simplecloud_api";
     private static final Logger LOGGER = LoggerFactory.getLogger(MOD_ID);
@@ -33,7 +33,7 @@ public final class NeoForgeApiProvider implements ProxyPresencePlayerProvider {
     private MinecraftServer server;
     private CloudApiImpl cloudApi;
     private PlayerSynchronizer playerSynchronizer;
-    private ProxyPresenceResponder presenceResponder;
+    private PresenceResponder presenceResponder;
 
     public NeoForgeApiProvider() {
         NeoForge.EVENT_BUS.addListener(this::onServerStarted);
@@ -47,7 +47,7 @@ public final class NeoForgeApiProvider implements ProxyPresencePlayerProvider {
         this.onlinePlayerCount.set(server.getPlayerList().getPlayerCount());
         this.cloudApi = (CloudApiImpl) CloudApi.create();
         this.playerSynchronizer = new PlayerSynchronizer(cloudApi, onlinePlayerCount::get);
-        this.presenceResponder = new ProxyPresenceResponder(
+        this.presenceResponder = new PresenceResponder(
                 cloudApi.getNatsConnection(),
                 cloudApi.getNetworkId(),
                 SimpleCloudRuntime.serverId(),
@@ -60,7 +60,7 @@ public final class NeoForgeApiProvider implements ProxyPresencePlayerProvider {
     }
 
     private void onServerStopping(ServerStoppingEvent event) {
-        ProxyPresenceResponder responder = this.presenceResponder;
+        PresenceResponder responder = this.presenceResponder;
         if (responder != null) {
             responder.stop();
             this.presenceResponder = null;
@@ -109,7 +109,7 @@ public final class NeoForgeApiProvider implements ProxyPresencePlayerProvider {
     }
 
     @Override
-    public List<ProxyPresencePlayer> getProxyPresencePlayers() {
+    public List<PresencePlayer> getPresencePlayers() {
         MinecraftServer currentServer = this.server;
         if (currentServer == null) {
             return List.of();
@@ -121,13 +121,13 @@ public final class NeoForgeApiProvider implements ProxyPresencePlayerProvider {
                 .toList();
     }
 
-    private ProxyPresencePlayer toPresencePlayer(
+    private PresencePlayer toPresencePlayer(
             MinecraftServer currentServer,
             ServerPlayer player,
             String serverName
     ) {
         String name = player.getName().getString();
-        return new ProxyPresencePlayer(
+        return new PresencePlayer(
                 player.getStringUUID(),
                 name,
                 player.getDisplayName().getString(),

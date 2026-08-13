@@ -2,10 +2,10 @@ package app.simplecloud.api.platform.spigot.legacy;
 
 import app.simplecloud.api.CloudApi;
 import app.simplecloud.api.internal.CloudApiImpl;
-import app.simplecloud.api.internal.integration.presence.ProxyPresenceResponder;
+import app.simplecloud.api.internal.integration.presence.PresenceResponder;
 import app.simplecloud.api.platform.shared.PlayerSynchronizer;
-import app.simplecloud.api.presence.ProxyPresencePlayer;
-import app.simplecloud.api.presence.ProxyPresencePlayerProvider;
+import app.simplecloud.api.presence.PresencePlayer;
+import app.simplecloud.api.presence.PresencePlayerProvider;
 import app.simplecloud.api.runtime.SimpleCloudRuntime;
 import dev.faststats.Metrics;
 import dev.faststats.bukkit.BukkitContext;
@@ -14,7 +14,7 @@ import org.bukkit.plugin.java.JavaPlugin;
 
 import java.util.List;
 
-public class LegacySpigotApiProvider extends JavaPlugin implements ProxyPresencePlayerProvider {
+public class LegacySpigotApiProvider extends JavaPlugin implements PresencePlayerProvider {
 
     private final BukkitContext fastStatsContext = new BukkitContext.Factory(
         this,
@@ -25,7 +25,7 @@ public class LegacySpigotApiProvider extends JavaPlugin implements ProxyPresence
         cloudApi,
         () -> (long) Bukkit.getOnlinePlayers().size()
     );
-    private final ProxyPresenceResponder presenceResponder = new ProxyPresenceResponder(
+    private final PresenceResponder presenceResponder = new PresenceResponder(
             cloudApi.getNatsConnection(),
             cloudApi.getNetworkId(),
             SimpleCloudRuntime.serverId(),
@@ -52,10 +52,10 @@ public class LegacySpigotApiProvider extends JavaPlugin implements ProxyPresence
     }
 
     @Override
-    public List<ProxyPresencePlayer> getProxyPresencePlayers() {
+    public List<PresencePlayer> getPresencePlayers() {
         String serverName = currentServerName();
         return Bukkit.getOnlinePlayers().stream()
-                .map(player -> new ProxyPresencePlayer(
+                .map(player -> new PresencePlayer(
                         player.getUniqueId().toString(),
                         player.getName(),
                         player.getDisplayName(),

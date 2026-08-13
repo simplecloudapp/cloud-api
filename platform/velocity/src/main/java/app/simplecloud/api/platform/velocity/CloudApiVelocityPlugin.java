@@ -3,10 +3,10 @@ package app.simplecloud.api.platform.velocity;
 import app.simplecloud.api.CloudApi;
 import app.simplecloud.api.internal.CloudApiImpl;
 import app.simplecloud.api.internal.integration.player.PlayerIntegration;
-import app.simplecloud.api.internal.integration.presence.ProxyPresenceResponder;
+import app.simplecloud.api.internal.integration.presence.PresenceResponder;
 import app.simplecloud.api.internal.integration.presence.ProxyPresenceTracker;
-import app.simplecloud.api.presence.ProxyPresencePlayer;
-import app.simplecloud.api.presence.ProxyPresencePlayerProvider;
+import app.simplecloud.api.presence.PresencePlayer;
+import app.simplecloud.api.presence.PresencePlayerProvider;
 import app.simplecloud.api.player.CloudPlayer;
 import app.simplecloud.api.runtime.SimpleCloudRuntime;
 import app.simplecloud.api.platform.shared.LuckPermsPlayerPropertySynchronizer;
@@ -38,7 +38,7 @@ import java.util.concurrent.CompletableFuture;
         authors = {"Fllip"},
         dependencies = {@Dependency(id = "luckperms", optional = true)}
 )
-public class CloudApiVelocityPlugin implements ProxyPresencePlayerProvider {
+public class CloudApiVelocityPlugin implements PresencePlayerProvider {
 
     private final Logger logger;
     private final ProxyServer proxyServer;
@@ -48,7 +48,7 @@ public class CloudApiVelocityPlugin implements ProxyPresencePlayerProvider {
     private final PlayerSynchronizer playerSynchronizer;
     private final PlayerIntegration playerIntegration;
     private final ProxyPresenceTracker proxyPresenceTracker;
-    private final ProxyPresenceResponder proxyPresenceResponder;
+    private final PresenceResponder presenceResponder;
     private LuckPermsPlayerPropertySynchronizer luckPermsSynchronizer;
 
     private final GsonComponentSerializer gsonComponentSerializer = GsonComponentSerializer.gson();
@@ -73,7 +73,7 @@ public class CloudApiVelocityPlugin implements ProxyPresencePlayerProvider {
         );
         this.playerIntegration = new PlayerIntegration(cloudApi);
         this.proxyPresenceTracker = new ProxyPresenceTracker(proxyName);
-        this.proxyPresenceResponder = new ProxyPresenceResponder(
+        this.presenceResponder = new PresenceResponder(
                 cloudApi.getNatsConnection(),
                 cloudApi.getNetworkId(),
                 SimpleCloudRuntime.serverId(),
@@ -99,14 +99,14 @@ public class CloudApiVelocityPlugin implements ProxyPresencePlayerProvider {
 
         playerSynchronizer.start();
         playerIntegration.start();
-        proxyPresenceResponder.start();
+        presenceResponder.start();
         fastStatsContext.ready();
     }
 
     @Subscribe
     public void onProxyShutdown(ProxyShutdownEvent event) {
         logger.info("SimpleCloud v3 API provider uninitialized!");
-        proxyPresenceResponder.stop();
+        presenceResponder.stop();
         if (luckPermsSynchronizer != null) {
             luckPermsSynchronizer.stop();
         }
@@ -149,13 +149,13 @@ public class CloudApiVelocityPlugin implements ProxyPresencePlayerProvider {
     }
 
     @Override
-    public List<ProxyPresencePlayer> getProxyPresencePlayers() {
+    public List<PresencePlayer> getPresencePlayers() {
         return proxyServer.getAllPlayers().stream()
                 .map(this::toPresencePlayer)
                 .toList();
     }
 
-    private ProxyPresencePlayer toPresencePlayer(Player player) {
+    private PresencePlayer toPresencePlayer(Player player) {
         String connectedServerName = player.getCurrentServer()
                 .map(serverConnection -> serverConnection.getServerInfo().getName())
                 .orElse("");

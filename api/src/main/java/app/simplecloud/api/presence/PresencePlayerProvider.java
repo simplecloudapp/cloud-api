@@ -5,7 +5,7 @@ import java.util.Collection;
 /**
  * Supplies the current set of players visible to this proxy or game server.
  */
-public interface ProxyPresencePlayerProvider {
+public interface PresencePlayerProvider {
 
-    Collection<ProxyPresencePlayer> getProxyPresencePlayers();
+    Collection<PresencePlayer> getPresencePlayers();
 }
