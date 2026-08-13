@@ -18,7 +18,7 @@ import java.util.logging.Level;
 import java.util.logging.Logger;
 
 /**
- * Responds to controller presence-compare requests for a single proxy.
+ * Responds to controller presence-compare requests for a single proxy or game server.
  */
 public final class ProxyPresenceResponder {
 
@@ -93,17 +93,7 @@ public final class ProxyPresenceResponder {
         try {
             PresenceCompareRequest request = PresenceCompareRequest.parseFrom(message.getData());
             List<ProxyPresencePlayer> players = currentPlayers();
-            int localHash = computeHash(players);
-            boolean match = localHash == request.getHash();
-
-            ProxyPresenceCompareResponse.Builder response = ProxyPresenceCompareResponse.newBuilder()
-                    .setMatch(match);
-
-            if (!match) {
-                response.addAllPlayers(players.stream().map(ProxyPresencePlayer::toProto).toList());
-            }
-
-            natsConnection.publish(replyTo, response.build().toByteArray());
+            natsConnection.publish(replyTo, buildResponse(request, players).toByteArray());
         } catch (Exception e) {
             LOGGER.log(Level.WARNING, "Failed to process presence compare request for " + subject, e);
         }
@@ -126,18 +116,41 @@ public final class ProxyPresenceResponder {
                 .toList();
     }
 
+    static ProxyPresenceCompareResponse buildResponse(
+            PresenceCompareRequest request,
+            Collection<ProxyPresencePlayer> players
+    ) {
+        Objects.requireNonNull(request, "request");
+        List<ProxyPresencePlayer> currentPlayers = (players == null ? List.<ProxyPresencePlayer>of() : players).stream()
+                .filter(Objects::nonNull)
+                .sorted(Comparator.comparing(ProxyPresencePlayer::hashRecord))
+                .toList();
+        boolean match = computeHash(currentPlayers) == request.getHash();
+
+        ProxyPresenceCompareResponse.Builder response = ProxyPresenceCompareResponse.newBuilder()
+                .setMatch(match);
+        if (!match) {
+            response.addAllPlayers(currentPlayers.stream().map(ProxyPresencePlayer::toProto).toList());
+        }
+        return response.build();
+    }
+
     static int computeHash(Collection<ProxyPresencePlayer> players) {
         if (players == null || players.isEmpty()) {
             return 0;
         }
 
+        List<String> records = players.stream()
+                .filter(Objects::nonNull)
+                .map(ProxyPresencePlayer::hashRecord)
+                .sorted()
+                .toList();
+        String payload = records.size() + "\u001e" + String.join("\u001e", records);
+
         int hash = FNV_32A_OFFSET_BASIS;
-        for (ProxyPresencePlayer player : players) {
-            byte[] bytes = player.hashRecord().getBytes(StandardCharsets.UTF_8);
-            for (byte currentByte : bytes) {
-                hash ^= currentByte & 0xff;
-                hash *= FNV_32A_PRIME;
-            }
+        for (byte currentByte : payload.getBytes(StandardCharsets.UTF_8)) {
+            hash ^= currentByte & 0xff;
+            hash *= FNV_32A_PRIME;
         }
         return hash;
     }

@@ -1,22 +1,35 @@
 package app.simplecloud.api.platform.spigot;
 
 import app.simplecloud.api.CloudApi;
+import app.simplecloud.api.internal.CloudApiImpl;
+import app.simplecloud.api.internal.integration.presence.ProxyPresenceResponder;
 import app.simplecloud.api.platform.shared.PlayerSynchronizer;
+import app.simplecloud.api.presence.ProxyPresencePlayer;
+import app.simplecloud.api.presence.ProxyPresencePlayerProvider;
+import app.simplecloud.api.runtime.SimpleCloudRuntime;
 import dev.faststats.Metrics;
 import dev.faststats.bukkit.BukkitContext;
 import org.bukkit.Bukkit;
 import org.bukkit.plugin.java.JavaPlugin;
 
-public class SpigotApiProvider extends JavaPlugin {
+import java.util.List;
+
+public class SpigotApiProvider extends JavaPlugin implements ProxyPresencePlayerProvider {
 
     private final BukkitContext fastStatsContext = new BukkitContext.Factory(
         this,
         "2e8308cb6431a46a68fa0f59362978f7"
     ).metrics(Metrics.Factory::create).create();
-    private final CloudApi cloudApi = CloudApi.create();
+    private final CloudApiImpl cloudApi = (CloudApiImpl) CloudApi.create();
     private final PlayerSynchronizer playerSynchronizer = new PlayerSynchronizer(
         cloudApi,
         () -> (long) Bukkit.getOnlinePlayers().size()
+    );
+    private final ProxyPresenceResponder presenceResponder = new ProxyPresenceResponder(
+            cloudApi.getNatsConnection(),
+            cloudApi.getNetworkId(),
+            SimpleCloudRuntime.serverId(),
+            this
     );
 
     @Override
@@ -25,14 +38,40 @@ public class SpigotApiProvider extends JavaPlugin {
         Bukkit.getPluginManager().registerEvents(new PlayerConnectionListener(playerSynchronizer), this);
 
         playerSynchronizer.start();
+        presenceResponder.start();
         fastStatsContext.ready();
     }
 
     @Override
     public void onDisable() {
         getLogger().info("SimpleCloud v3 API provider uninitialized!");
+        presenceResponder.stop();
         playerSynchronizer.stop();
         cloudApi.close();
         fastStatsContext.shutdown();
+    }
+
+    @Override
+    public List<ProxyPresencePlayer> getProxyPresencePlayers() {
+        String serverName = currentServerName();
+        return Bukkit.getOnlinePlayers().stream()
+                .map(player -> new ProxyPresencePlayer(
+                        player.getUniqueId().toString(),
+                        player.getName(),
+                        player.getDisplayName(),
+                        serverName,
+                        "",
+                        0L,
+                        player.getLocale(),
+                        0,
+                        Bukkit.getOnlineMode(),
+                        ""
+                ))
+                .toList();
+    }
+
+    private String currentServerName() {
+        String serverName = SimpleCloudRuntime.serverName();
+        return serverName == null || serverName.isBlank() ? SimpleCloudRuntime.serverId() : serverName;
     }
 }

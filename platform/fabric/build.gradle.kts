@@ -12,6 +12,7 @@ dependencies {
 
     implementation(rootProject.libs.fabric.loader)
     implementation(rootProject.libs.fabric.api)
+    compileOnly(rootProject.libs.jnats)
 
     implementation(project(":platform:shared"))
     implementation(project(":api"))

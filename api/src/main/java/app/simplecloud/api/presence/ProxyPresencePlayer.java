@@ -3,7 +3,7 @@ package app.simplecloud.api.presence;
 import build.buf.gen.simplecloud.controller.v2.ProxyPresencePlayerSnapshot;
 
 /**
- * Immutable player snapshot used for proxy presence reconciliation.
+ * Immutable player snapshot used for proxy and game-server presence reconciliation.
  */
 public final class ProxyPresencePlayer {
 

@@ -9,6 +9,7 @@ val shade = configurations.create("shade")
 
 dependencies {
     implementation(rootProject.libs.neoforge)
+    compileOnly(rootProject.libs.jnats)
     implementation(project(":platform:shared"))
     implementation(project(":api"))
 

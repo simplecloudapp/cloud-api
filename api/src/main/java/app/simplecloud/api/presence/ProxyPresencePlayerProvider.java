@@ -3,7 +3,7 @@ package app.simplecloud.api.presence;
 import java.util.Collection;
 
 /**
- * Supplies the current set of players connected through a proxy.
+ * Supplies the current set of players visible to this proxy or game server.
  */
 public interface ProxyPresencePlayerProvider {
 
