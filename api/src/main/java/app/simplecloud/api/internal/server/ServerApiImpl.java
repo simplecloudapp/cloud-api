@@ -419,7 +419,6 @@ public class ServerApiImpl implements ServerApi {
         patchRequest.setMaxPlayers(request.getMaxPlayers());
         patchRequest.setMinMemory(request.getMinMemory());
         patchRequest.setProperties(request.getProperties());
-        patchRequest.setPlayerCount(request.getPlayerCount());
         if (request.getState() != null) {
             patchRequest.setState(ModelsPatchServerRequest.StateEnum.valueOf(request.getState().name()));
         }
