@@ -331,6 +331,8 @@ public class PersistentServerApiImpl implements PersistentServerApi {
     public CompletableFuture<Void> deletePersistentServer(String id) {
         return CompletableFuture.runAsync(() -> {
             try {
+                String blueprintId = findAttachedBlueprintId(id);
+
                 persistentServersApi.v0PersistentServersDelete(
                         options.getNetworkId(),
                         options.getNetworkSecret(),
@@ -340,6 +342,8 @@ public class PersistentServerApiImpl implements PersistentServerApi {
                 // Invalidate this persistent server and list caches
                 cache.invalidate(QueryKey.of("persistentServer", id));
                 cache.invalidateAll(QueryKey.of("persistentServers"));
+
+                inlineBlueprintSupport.deleteBlueprint(blueprintId);
             } catch (ApiException e) {
                 throw new RuntimeException(e);
             }
@@ -431,6 +435,23 @@ public class PersistentServerApiImpl implements PersistentServerApi {
 
     private boolean sourceReferencesBlueprint(@Nullable ModelsSourceConfig source, String blueprintId) {
         return source != null && blueprintId.equals(source.getBlueprint());
+    }
+
+    @Nullable
+    private String findAttachedBlueprintId(String persistentServerId) throws ApiException {
+        ModelsListPersistentServersResponse response = executeQuery(null, persistentServerId, null);
+        List<ModelsPersistentServerSummary> servers = response.getPersistentServers();
+        if (servers == null) {
+            return null;
+        }
+
+        return servers.stream()
+                .filter(server -> persistentServerId.equals(server.getPersistentServerId()))
+                .map(ModelsPersistentServerSummary::getSource)
+                .map(inlineBlueprintSupport::getReferencedBlueprintId)
+                .filter(blueprintId -> blueprintId != null)
+                .findFirst()
+                .orElse(null);
     }
 
     private ModelsWorkflowsConfig convertWorkflowsConfig(WorkflowsConfig config) {

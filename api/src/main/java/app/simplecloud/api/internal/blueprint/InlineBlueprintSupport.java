@@ -10,13 +10,14 @@ import app.simplecloud.api.web.apis.BlueprintsApi;
 import app.simplecloud.api.web.models.ModelsCreateBlueprintRequest;
 import app.simplecloud.api.web.models.ModelsCreateBlueprintResponse;
 import app.simplecloud.api.web.models.ModelsRuntimeConfig;
+import app.simplecloud.api.web.models.ModelsSourceConfig;
 import org.jetbrains.annotations.Nullable;
 
 import java.time.Duration;
 import java.util.function.Supplier;
 
 /**
- * Shared support for flows that create a blueprint before creating the actual resource.
+ * Shared support for resources that create or delete a referenced blueprint as part of their lifecycle.
  */
 public final class InlineBlueprintSupport {
     private static final Duration DELETE_RETRY_DELAY = Duration.ofMillis(200);
@@ -89,6 +90,40 @@ public final class InlineBlueprintSupport {
     }
 
     @Nullable
+    public String getReferencedBlueprintId(@Nullable ModelsSourceConfig source) {
+        return source == null ? null : normalize(source.getBlueprint());
+    }
+
+    public void deleteBlueprint(@Nullable String blueprintId) throws ApiException {
+        String normalizedBlueprintId = normalize(blueprintId);
+        if (normalizedBlueprintId == null) {
+            return;
+        }
+
+        ApiException lastDeleteFailure = null;
+        for (int attempt = 1; attempt <= DELETE_MAX_ATTEMPTS; attempt++) {
+            try {
+                blueprintsApi.v0BlueprintsDelete(
+                        options.getNetworkId(),
+                        options.getNetworkSecret(),
+                        normalizedBlueprintId
+                );
+                return;
+            } catch (ApiException deleteFailure) {
+                if (deleteFailure.getCode() == 404) {
+                    return;
+                }
+                lastDeleteFailure = deleteFailure;
+                if (attempt < DELETE_MAX_ATTEMPTS) {
+                    sleepQuietly(DELETE_RETRY_DELAY);
+                }
+            }
+        }
+
+        throw lastDeleteFailure;
+    }
+
+    @Nullable
     public ApiException rollbackBlueprintAfterCreateFailure(@Nullable String blueprintId,
                                                             ApiException createFailure,
                                                             Supplier<Boolean> resourceExistsProbe) {
@@ -107,30 +142,13 @@ public final class InlineBlueprintSupport {
             }
         }
 
-        ApiException lastDeleteFailure = null;
-        for (int attempt = 1; attempt <= DELETE_MAX_ATTEMPTS; attempt++) {
-            try {
-                blueprintsApi.v0BlueprintsDelete(
-                        options.getNetworkId(),
-                        options.getNetworkSecret(),
-                        blueprintId
-                );
-                return null;
-            } catch (ApiException deleteFailure) {
-                if (deleteFailure.getCode() == 404) {
-                    return null;
-                }
-                lastDeleteFailure = deleteFailure;
-                if (attempt < DELETE_MAX_ATTEMPTS) {
-                    sleepQuietly(DELETE_RETRY_DELAY);
-                }
-            }
+        try {
+            deleteBlueprint(blueprintId);
+            return null;
+        } catch (ApiException deleteFailure) {
+            createFailure.addSuppressed(deleteFailure);
+            return deleteFailure;
         }
-
-        if (lastDeleteFailure != null) {
-            createFailure.addSuppressed(lastDeleteFailure);
-        }
-        return lastDeleteFailure;
     }
 
     private boolean failureMayHaveCreatedResource(ApiException createFailure) {

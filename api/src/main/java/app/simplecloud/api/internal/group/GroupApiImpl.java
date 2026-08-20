@@ -525,10 +525,29 @@ public class GroupApiImpl implements GroupApi {
         return source != null && blueprintId.equals(source.getBlueprint());
     }
 
+    @Nullable
+    private String findAttachedBlueprintId(String groupId) throws ApiException {
+        ModelsListServerGroupsResponse response = executeQuery(null, groupId, null);
+        List<ModelsServerGroupSummary> groups = response.getServerGroups();
+        if (groups == null) {
+            return null;
+        }
+
+        return groups.stream()
+                .filter(group -> groupId.equals(group.getServerGroupId()))
+                .map(ModelsServerGroupSummary::getSource)
+                .map(inlineBlueprintSupport::getReferencedBlueprintId)
+                .filter(blueprintId -> blueprintId != null)
+                .findFirst()
+                .orElse(null);
+    }
+
     @Override
     public CompletableFuture<Void> deleteGroup(String id) {
         return CompletableFuture.runAsync(() -> {
             try {
+                String blueprintId = findAttachedBlueprintId(id);
+
                 serverGroupsApi.v0ServerGroupsDelete(
                         this.options.getNetworkId(),
                         this.options.getNetworkSecret(),
@@ -538,6 +557,8 @@ public class GroupApiImpl implements GroupApi {
                 // Invalidate this group and list caches
                 cache.invalidate(QueryKey.of("group", id));
                 cache.invalidateAll(QueryKey.of("groups"));
+
+                inlineBlueprintSupport.deleteBlueprint(blueprintId);
             } catch (ApiException e) {
                 throw new RuntimeException(e);
             }

@@ -400,6 +400,35 @@ class GroupApiImplTest {
     }
 
     @Test
+    void deleteGroup_deletesReferencedBlueprintAfterGroup() {
+        AtomicInteger order = new AtomicInteger();
+        FakeBlueprintsApi blueprintsApi = new FakeBlueprintsApi(order);
+        FakeServerGroupsApi serverGroupsApi = new FakeServerGroupsApi(order);
+        serverGroupsApi.listResponse = listResponseWithGroup("Lobby", "bp-1");
+        GroupApiImpl api = new GroupApiImpl(options(), new NoOpQueryCache(), serverGroupsApi, blueprintsApi);
+
+        api.deleteGroup("group-1").join();
+
+        assertEquals(1, serverGroupsApi.deleteCalls);
+        assertEquals(List.of("bp-1"), blueprintsApi.deletedBlueprintIds);
+        assertTrue(serverGroupsApi.deleteOrder < blueprintsApi.deleteOrder);
+    }
+
+    @Test
+    void deleteGroup_withoutReferencedBlueprint_onlyDeletesGroup() {
+        AtomicInteger order = new AtomicInteger();
+        FakeBlueprintsApi blueprintsApi = new FakeBlueprintsApi(order);
+        FakeServerGroupsApi serverGroupsApi = new FakeServerGroupsApi(order);
+        serverGroupsApi.listResponse = listResponseWithGroup("Lobby", null);
+        GroupApiImpl api = new GroupApiImpl(options(), new NoOpQueryCache(), serverGroupsApi, blueprintsApi);
+
+        api.deleteGroup("group-1").join();
+
+        assertEquals(1, serverGroupsApi.deleteCalls);
+        assertEquals(List.of(), blueprintsApi.deletedBlueprintIds);
+    }
+
+    @Test
     void updateGroup_partialRequest_usesPatch() {
         AtomicInteger order = new AtomicInteger();
         FakeServerGroupsApi serverGroupsApi = new FakeServerGroupsApi(order);
@@ -453,6 +482,7 @@ class GroupApiImplTest {
         private int postOrder;
         private ModelsCreateBlueprintRequest lastCreateRequest;
         private int deleteCalls;
+        private int deleteOrder;
         private ApiException deleteFailure;
         private final List<String> deletedBlueprintIds = new ArrayList<>();
 
@@ -484,6 +514,7 @@ class GroupApiImplTest {
                                                                                                 String xNetworkSecret,
                                                                                                 String blueprintId) throws ApiException {
             deleteCalls++;
+            deleteOrder = order.incrementAndGet();
             deletedBlueprintIds.add(blueprintId);
             if (deleteFailure != null) {
                 throw deleteFailure;
@@ -499,6 +530,8 @@ class GroupApiImplTest {
         private int putCalls;
         private int postOrder;
         private int getCalls;
+        private int deleteCalls;
+        private int deleteOrder;
         private String lastServerGroupId;
         private String lastName;
         private ModelsCreateServerGroupRequest lastCreateRequest;
@@ -508,6 +541,15 @@ class GroupApiImplTest {
 
         private FakeServerGroupsApi(AtomicInteger order) {
             this.order = order;
+        }
+
+        @Override
+        public app.simplecloud.api.web.models.ModelsDeleteServerGroupResponse v0ServerGroupsDelete(String xNetworkID,
+                                                                                                    String xNetworkSecret,
+                                                                                                    String serverGroupId) {
+            deleteCalls++;
+            deleteOrder = order.incrementAndGet();
+            return new app.simplecloud.api.web.models.ModelsDeleteServerGroupResponse();
         }
 
         @Override

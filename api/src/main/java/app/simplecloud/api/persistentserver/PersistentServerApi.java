@@ -66,10 +66,10 @@ public interface PersistentServerApi {
     CompletableFuture<PersistentServer> updatePersistentServer(String id, UpdatePersistentServerRequest request);
 
     /**
-     * Deletes a persistent server.
+     * Deletes a persistent server and its referenced blueprint, if present.
      *
      * @param id the unique ID of the persistent server to delete
-     * @return a CompletableFuture that completes when the persistent server is deleted
+     * @return a CompletableFuture that completes when the persistent server and its referenced blueprint are deleted
      */
     CompletableFuture<Void> deletePersistentServer(String id);
 

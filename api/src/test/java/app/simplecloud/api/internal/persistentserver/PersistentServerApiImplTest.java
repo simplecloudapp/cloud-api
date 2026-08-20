@@ -211,6 +211,34 @@ class PersistentServerApiImplTest {
         assertEquals("persistent-1", persistentServer.getPersistentServerId());
     }
 
+    @Test
+    void deletePersistentServer_deletesReferencedBlueprintAfterServer() {
+        AtomicInteger order = new AtomicInteger();
+        FakeBlueprintsApi blueprintsApi = new FakeBlueprintsApi(order);
+        FakePersistentServersApi persistentServersApi = new FakePersistentServersApi(order);
+        persistentServersApi.listResponse = listResponseWithPersistentServer("bp-1");
+        PersistentServerApiImpl api = new PersistentServerApiImpl(options(), new NoOpQueryCache(), persistentServersApi, blueprintsApi);
+
+        api.deletePersistentServer("persistent-1").join();
+
+        assertEquals(1, persistentServersApi.deleteCalls);
+        assertEquals(List.of("bp-1"), blueprintsApi.deletedBlueprintIds);
+        assertTrue(persistentServersApi.deleteOrder < blueprintsApi.deleteOrder);
+    }
+
+    @Test
+    void deletePersistentServer_withoutReferencedBlueprint_onlyDeletesServer() {
+        AtomicInteger order = new AtomicInteger();
+        FakeBlueprintsApi blueprintsApi = new FakeBlueprintsApi(order);
+        FakePersistentServersApi persistentServersApi = new FakePersistentServersApi(order);
+        PersistentServerApiImpl api = new PersistentServerApiImpl(options(), new NoOpQueryCache(), persistentServersApi, blueprintsApi);
+
+        api.deletePersistentServer("persistent-1").join();
+
+        assertEquals(1, persistentServersApi.deleteCalls);
+        assertEquals(List.of(), blueprintsApi.deletedBlueprintIds);
+    }
+
     private static CloudApiOptions options() {
         return CloudApiOptions.builder()
                 .controllerUrl("http://localhost")
@@ -220,10 +248,26 @@ class PersistentServerApiImplTest {
                 .build();
     }
 
+    private static ModelsListPersistentServersResponse listResponseWithPersistentServer(String blueprintId) {
+        ModelsSourceConfig source = new ModelsSourceConfig();
+        source.setType(ModelsSourceConfig.TypeEnum.BLUEPRINT);
+        source.setBlueprint(blueprintId);
+
+        ModelsPersistentServerSummary summary = new ModelsPersistentServerSummary();
+        summary.setPersistentServerId("persistent-1");
+        summary.setName("Lobby-1");
+        summary.setSource(source);
+
+        ModelsListPersistentServersResponse response = new ModelsListPersistentServersResponse();
+        response.setPersistentServers(List.of(summary));
+        return response;
+    }
+
     private static final class FakeBlueprintsApi extends BlueprintsApi {
         private final AtomicInteger order;
         private int postCalls;
         private int postOrder;
+        private int deleteOrder;
         private ModelsCreateBlueprintRequest lastCreateRequest;
         private final List<String> deletedBlueprintIds = new ArrayList<>();
 
@@ -251,6 +295,7 @@ class PersistentServerApiImplTest {
         public app.simplecloud.api.web.models.ModelsDeleteBlueprintResponse v0BlueprintsDelete(String xNetworkID,
                                                                                                 String xNetworkSecret,
                                                                                                 String blueprintId) {
+            deleteOrder = order.incrementAndGet();
             deletedBlueprintIds.add(blueprintId);
             return new app.simplecloud.api.web.models.ModelsDeleteBlueprintResponse();
         }
@@ -263,14 +308,26 @@ class PersistentServerApiImplTest {
         private int putCalls;
         private int postOrder;
         private int getCalls;
+        private int deleteCalls;
+        private int deleteOrder;
         private String lastPersistentServerId;
         private String lastName;
         private ModelsCreatePersistentServerRequest lastCreateRequest;
         private ModelsPatchPersistentServerRequest lastPatchRequest;
         private ApiException postFailure;
+        private ModelsListPersistentServersResponse listResponse = listResponseWithPersistentServer(null);
 
         private FakePersistentServersApi(AtomicInteger order) {
             this.order = order;
+        }
+
+        @Override
+        public app.simplecloud.api.web.models.ModelsDeletePersistentServerResponse v0PersistentServersDelete(String xNetworkID,
+                                                                                                               String xNetworkSecret,
+                                                                                                               String persistentServerId) {
+            deleteCalls++;
+            deleteOrder = order.incrementAndGet();
+            return new app.simplecloud.api.web.models.ModelsDeletePersistentServerResponse();
         }
 
         @Override
@@ -339,14 +396,7 @@ class PersistentServerApiImplTest {
             getCalls++;
             lastPersistentServerId = persistentServerId;
             lastName = name;
-            ModelsPersistentServerSummary summary = new ModelsPersistentServerSummary();
-            summary.setPersistentServerId("persistent-1");
-            summary.setName("Lobby-1");
-            summary.setSource(new ModelsSourceConfig());
-
-            ModelsListPersistentServersResponse response = new ModelsListPersistentServersResponse();
-            response.setPersistentServers(List.of(summary));
-            return response;
+            return listResponse;
         }
     }
 }

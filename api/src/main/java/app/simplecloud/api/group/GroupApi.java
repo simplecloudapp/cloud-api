@@ -111,12 +111,12 @@ public interface GroupApi {
     CompletableFuture<Group> updateGroup(String id, UpdateGroupRequest request);
 
     /**
-     * Deletes a server group.
+     * Deletes a server group and its referenced blueprint, if present.
      *
      * <p>Note: This will not stop running servers, but prevents new servers from being created.
      *
      * @param id the unique ID of the server group to delete
-     * @return a CompletableFuture that completes when the group is deleted
+     * @return a CompletableFuture that completes when the group and its referenced blueprint are deleted
      */
     CompletableFuture<Void> deleteGroup(String id);
 
