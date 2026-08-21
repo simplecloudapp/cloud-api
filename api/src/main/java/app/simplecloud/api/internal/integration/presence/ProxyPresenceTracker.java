@@ -1,6 +1,6 @@
 package app.simplecloud.api.internal.integration.presence;
 
-import app.simplecloud.api.presence.ProxyPresencePlayer;
+import app.simplecloud.api.presence.PresencePlayer;
 
 import java.util.Map;
 import java.util.concurrent.ConcurrentHashMap;
@@ -32,7 +32,7 @@ public final class ProxyPresenceTracker {
         players.remove(normalize(playerId));
     }
 
-    public ProxyPresencePlayer createSnapshot(
+    public PresencePlayer createSnapshot(
             String playerId,
             String name,
             String displayName,
@@ -44,7 +44,7 @@ public final class ProxyPresenceTracker {
         String normalizedPlayerId = normalize(playerId);
         TrackedPlayerMetadata metadata = players.get(normalizedPlayerId);
 
-        return new ProxyPresencePlayer(
+        return new PresencePlayer(
                 normalizedPlayerId,
                 name,
                 displayName,

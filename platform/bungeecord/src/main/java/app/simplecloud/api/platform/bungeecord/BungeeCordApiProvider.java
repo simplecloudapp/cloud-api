@@ -3,10 +3,10 @@ package app.simplecloud.api.platform.bungeecord;
 import app.simplecloud.api.CloudApi;
 import app.simplecloud.api.internal.CloudApiImpl;
 import app.simplecloud.api.internal.integration.player.PlayerIntegration;
-import app.simplecloud.api.internal.integration.presence.ProxyPresenceResponder;
+import app.simplecloud.api.internal.integration.presence.PresenceResponder;
 import app.simplecloud.api.internal.integration.presence.ProxyPresenceTracker;
-import app.simplecloud.api.presence.ProxyPresencePlayer;
-import app.simplecloud.api.presence.ProxyPresencePlayerProvider;
+import app.simplecloud.api.presence.PresencePlayer;
+import app.simplecloud.api.presence.PresencePlayerProvider;
 import app.simplecloud.api.player.CloudPlayer;
 import app.simplecloud.api.runtime.SimpleCloudRuntime;
 import app.simplecloud.api.platform.shared.LuckPermsPlayerPropertySynchronizer;
@@ -26,7 +26,7 @@ import java.util.Locale;
 import java.util.UUID;
 import java.util.concurrent.CompletableFuture;
 
-public class BungeeCordApiProvider extends Plugin implements ProxyPresencePlayerProvider {
+public class BungeeCordApiProvider extends Plugin implements PresencePlayerProvider {
 
     private final BungeeContext fastStatsContext = new BungeeContext.Factory(
             this,
@@ -37,7 +37,7 @@ public class BungeeCordApiProvider extends Plugin implements ProxyPresencePlayer
     private PlayerSynchronizer playerSynchronizer;
     private PlayerIntegration playerIntegration;
     private ProxyPresenceTracker proxyPresenceTracker;
-    private ProxyPresenceResponder proxyPresenceResponder;
+    private PresenceResponder presenceResponder;
     private LuckPermsPlayerPropertySynchronizer luckPermsSynchronizer;
 
     private BungeeAudiences bungeeAudiences;
@@ -55,7 +55,7 @@ public class BungeeCordApiProvider extends Plugin implements ProxyPresencePlayer
         );
         this.playerIntegration = new PlayerIntegration(cloudApi);
         this.proxyPresenceTracker = new ProxyPresenceTracker(proxyName);
-        this.proxyPresenceResponder = new ProxyPresenceResponder(
+        this.presenceResponder = new PresenceResponder(
                 cloudApi.getNatsConnection(),
                 cloudApi.getNetworkId(),
                 SimpleCloudRuntime.serverId(),
@@ -81,14 +81,14 @@ public class BungeeCordApiProvider extends Plugin implements ProxyPresencePlayer
 
         playerSynchronizer.start();
         playerIntegration.start();
-        proxyPresenceResponder.start();
+        presenceResponder.start();
         fastStatsContext.ready();
     }
 
     @Override
     public void onDisable() {
         getLogger().info("SimpleCloud v3 API provider uninitialized!");
-        proxyPresenceResponder.stop();
+        presenceResponder.stop();
         if (luckPermsSynchronizer != null) {
             luckPermsSynchronizer.stop();
         }
@@ -135,13 +135,13 @@ public class BungeeCordApiProvider extends Plugin implements ProxyPresencePlayer
     }
 
     @Override
-    public List<ProxyPresencePlayer> getProxyPresencePlayers() {
+    public List<PresencePlayer> getPresencePlayers() {
         return getProxy().getPlayers().stream()
                 .map(this::toPresencePlayer)
                 .toList();
     }
 
-    private ProxyPresencePlayer toPresencePlayer(ProxiedPlayer player) {
+    private PresencePlayer toPresencePlayer(ProxiedPlayer player) {
         String connectedServerName = player.getServer() != null ? player.getServer().getInfo().getName() : "";
         Locale locale = player.getLocale();
         var pendingConnection = player.getPendingConnection();

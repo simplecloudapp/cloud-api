@@ -4,6 +4,7 @@ plugins {
 
 dependencies {
     compileOnly(rootProject.libs.paper.api)
+    compileOnly(rootProject.libs.jnats)
     implementation(project(":platform:shared"))
     implementation(project(":api")) {
         exclude(group = "net.kyori")

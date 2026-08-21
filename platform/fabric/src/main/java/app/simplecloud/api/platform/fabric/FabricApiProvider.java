@@ -1,17 +1,25 @@
 package app.simplecloud.api.platform.fabric;
 
 import app.simplecloud.api.CloudApi;
+import app.simplecloud.api.internal.CloudApiImpl;
+import app.simplecloud.api.internal.integration.presence.PresenceResponder;
 import app.simplecloud.api.platform.shared.PlayerSynchronizer;
+import app.simplecloud.api.presence.PresencePlayer;
+import app.simplecloud.api.presence.PresencePlayerProvider;
+import app.simplecloud.api.runtime.SimpleCloudRuntime;
 import net.fabricmc.api.DedicatedServerModInitializer;
 import net.fabricmc.fabric.api.event.lifecycle.v1.ServerLifecycleEvents;
 import net.fabricmc.fabric.api.networking.v1.ServerPlayConnectionEvents;
+import net.minecraft.SharedConstants;
 import net.minecraft.server.MinecraftServer;
+import net.minecraft.server.level.ServerPlayer;
 import org.slf4j.Logger;
 import org.slf4j.LoggerFactory;
 
+import java.util.List;
 import java.util.concurrent.atomic.AtomicLong;
 
-public final class FabricApiProvider implements DedicatedServerModInitializer {
+public final class FabricApiProvider implements DedicatedServerModInitializer, PresencePlayerProvider {
 
     public static final String MOD_ID = "simplecloud_api";
     private static final Logger LOGGER = LoggerFactory.getLogger(MOD_ID);
@@ -19,8 +27,9 @@ public final class FabricApiProvider implements DedicatedServerModInitializer {
     private final AtomicLong onlinePlayerCount = new AtomicLong();
 
     private MinecraftServer server;
-    private CloudApi cloudApi;
+    private CloudApiImpl cloudApi;
     private PlayerSynchronizer playerSynchronizer;
+    private PresenceResponder presenceResponder;
 
     @Override
     public void onInitializeServer() {
@@ -33,14 +42,27 @@ public final class FabricApiProvider implements DedicatedServerModInitializer {
     private void onServerStarted(MinecraftServer server) {
         this.server = server;
         this.onlinePlayerCount.set(server.getPlayerList().getPlayerCount());
-        this.cloudApi = CloudApi.create();
+        this.cloudApi = (CloudApiImpl) CloudApi.create();
         this.playerSynchronizer = new PlayerSynchronizer(cloudApi, onlinePlayerCount::get);
+        this.presenceResponder = new PresenceResponder(
+                cloudApi.getNatsConnection(),
+                cloudApi.getNetworkId(),
+                SimpleCloudRuntime.serverId(),
+                this
+        );
         this.playerSynchronizer.start();
+        this.presenceResponder.start();
         this.playerSynchronizer.updatePlayerCount();
         LOGGER.info("SimpleCloud v3 API provider initialized");
     }
 
     private void onServerStopping(MinecraftServer server) {
+        PresenceResponder responder = this.presenceResponder;
+        if (responder != null) {
+            responder.stop();
+            this.presenceResponder = null;
+        }
+
         PlayerSynchronizer synchronizer = this.playerSynchronizer;
         if (synchronizer != null) {
             synchronizer.stop();
@@ -69,5 +91,38 @@ public final class FabricApiProvider implements DedicatedServerModInitializer {
                 synchronizer.updatePlayerCount();
             }
         });
+    }
+
+    @Override
+    public List<PresencePlayer> getPresencePlayers() {
+        MinecraftServer currentServer = this.server;
+        if (currentServer == null) {
+            return List.of();
+        }
+
+        String serverName = SimpleCloudRuntime.serverName();
+        return currentServer.getPlayerList().getPlayers().stream()
+                .map(player -> toPresencePlayer(currentServer, player, serverName))
+                .toList();
+    }
+
+    private PresencePlayer toPresencePlayer(
+            MinecraftServer currentServer,
+            ServerPlayer player,
+            String serverName
+    ) {
+        String name = player.getName().getString();
+        return new PresencePlayer(
+                player.getStringUUID(),
+                name,
+                player.getDisplayName().getString(),
+                serverName,
+                "",
+                0L,
+                player.clientInformation().language(),
+                SharedConstants.getProtocolVersion(),
+                currentServer.usesAuthentication(),
+                ""
+        );
     }
 }

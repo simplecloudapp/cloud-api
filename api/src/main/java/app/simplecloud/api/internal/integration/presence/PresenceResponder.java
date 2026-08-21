@@ -1,7 +1,7 @@
 package app.simplecloud.api.internal.integration.presence;
 
-import app.simplecloud.api.presence.ProxyPresencePlayer;
-import app.simplecloud.api.presence.ProxyPresencePlayerProvider;
+import app.simplecloud.api.presence.PresencePlayer;
+import app.simplecloud.api.presence.PresencePlayerProvider;
 import build.buf.gen.simplecloud.controller.v2.PresenceCompareRequest;
 import build.buf.gen.simplecloud.controller.v2.ProxyPresenceCompareResponse;
 import io.nats.client.Connection;
@@ -18,11 +18,11 @@ import java.util.logging.Level;
 import java.util.logging.Logger;
 
 /**
- * Responds to controller presence-compare requests for a single proxy.
+ * Responds to controller presence-compare requests for a single proxy or game server.
  */
-public final class ProxyPresenceResponder {
+public final class PresenceResponder {
 
-    private static final Logger LOGGER = Logger.getLogger(ProxyPresenceResponder.class.getName());
+    private static final Logger LOGGER = Logger.getLogger(PresenceResponder.class.getName());
     private static final int FNV_32A_OFFSET_BASIS = 0x811c9dc5;
     private static final int FNV_32A_PRIME = 0x01000193;
 
@@ -30,15 +30,15 @@ public final class ProxyPresenceResponder {
     private final String serverId;
     private final String subject;
     private final AtomicBoolean running = new AtomicBoolean(false);
-    private volatile ProxyPresencePlayerProvider playerProvider;
+    private volatile PresencePlayerProvider playerProvider;
 
     private Dispatcher dispatcher;
 
-    public ProxyPresenceResponder(
+    public PresenceResponder(
             Connection natsConnection,
             String networkId,
             String serverId,
-            ProxyPresencePlayerProvider playerProvider
+            PresencePlayerProvider playerProvider
     ) {
         this.natsConnection = Objects.requireNonNull(natsConnection, "natsConnection");
         this.serverId = serverId == null ? "" : serverId;
@@ -46,7 +46,7 @@ public final class ProxyPresenceResponder {
         this.playerProvider = playerProvider;
     }
 
-    public ProxyPresenceResponder(
+    public PresenceResponder(
             Connection natsConnection,
             String networkId,
             String serverId
@@ -67,7 +67,7 @@ public final class ProxyPresenceResponder {
         dispatcher.subscribe(subject, this::handleCompareRequest);
     }
 
-    public void registerPlayerProvider(ProxyPresencePlayerProvider playerProvider) {
+    public void registerPlayerProvider(PresencePlayerProvider playerProvider) {
         this.playerProvider = Objects.requireNonNull(playerProvider, "playerProvider");
     }
 
@@ -92,52 +92,65 @@ public final class ProxyPresenceResponder {
 
         try {
             PresenceCompareRequest request = PresenceCompareRequest.parseFrom(message.getData());
-            List<ProxyPresencePlayer> players = currentPlayers();
-            int localHash = computeHash(players);
-            boolean match = localHash == request.getHash();
-
-            ProxyPresenceCompareResponse.Builder response = ProxyPresenceCompareResponse.newBuilder()
-                    .setMatch(match);
-
-            if (!match) {
-                response.addAllPlayers(players.stream().map(ProxyPresencePlayer::toProto).toList());
-            }
-
-            natsConnection.publish(replyTo, response.build().toByteArray());
+            List<PresencePlayer> players = currentPlayers();
+            natsConnection.publish(replyTo, buildResponse(request, players).toByteArray());
         } catch (Exception e) {
             LOGGER.log(Level.WARNING, "Failed to process presence compare request for " + subject, e);
         }
     }
 
-    private List<ProxyPresencePlayer> currentPlayers() {
-        ProxyPresencePlayerProvider currentProvider = playerProvider;
+    private List<PresencePlayer> currentPlayers() {
+        PresencePlayerProvider currentProvider = playerProvider;
         if (currentProvider == null) {
             return List.of();
         }
 
-        Collection<ProxyPresencePlayer> suppliedPlayers = currentProvider.getProxyPresencePlayers();
+        Collection<PresencePlayer> suppliedPlayers = currentProvider.getPresencePlayers();
         if (suppliedPlayers == null || suppliedPlayers.isEmpty()) {
             return List.of();
         }
 
         return suppliedPlayers.stream()
                 .filter(Objects::nonNull)
-                .sorted(Comparator.comparing(ProxyPresencePlayer::hashRecord))
+                .sorted(Comparator.comparing(PresencePlayer::hashRecord))
                 .toList();
     }
 
-    static int computeHash(Collection<ProxyPresencePlayer> players) {
+    static ProxyPresenceCompareResponse buildResponse(
+            PresenceCompareRequest request,
+            Collection<PresencePlayer> players
+    ) {
+        Objects.requireNonNull(request, "request");
+        List<PresencePlayer> currentPlayers = (players == null ? List.<PresencePlayer>of() : players).stream()
+                .filter(Objects::nonNull)
+                .sorted(Comparator.comparing(PresencePlayer::hashRecord))
+                .toList();
+        boolean match = computeHash(currentPlayers) == request.getHash();
+
+        ProxyPresenceCompareResponse.Builder response = ProxyPresenceCompareResponse.newBuilder()
+                .setMatch(match);
+        if (!match) {
+            response.addAllPlayers(currentPlayers.stream().map(PresencePlayer::toProto).toList());
+        }
+        return response.build();
+    }
+
+    static int computeHash(Collection<PresencePlayer> players) {
         if (players == null || players.isEmpty()) {
             return 0;
         }
 
+        List<String> records = players.stream()
+                .filter(Objects::nonNull)
+                .map(PresencePlayer::hashRecord)
+                .sorted()
+                .toList();
+        String payload = records.size() + "\u001e" + String.join("\u001e", records);
+
         int hash = FNV_32A_OFFSET_BASIS;
-        for (ProxyPresencePlayer player : players) {
-            byte[] bytes = player.hashRecord().getBytes(StandardCharsets.UTF_8);
-            for (byte currentByte : bytes) {
-                hash ^= currentByte & 0xff;
-                hash *= FNV_32A_PRIME;
-            }
+        for (byte currentByte : payload.getBytes(StandardCharsets.UTF_8)) {
+            hash ^= currentByte & 0xff;
+            hash *= FNV_32A_PRIME;
         }
         return hash;
     }

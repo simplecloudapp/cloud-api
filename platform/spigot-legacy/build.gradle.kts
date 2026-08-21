@@ -5,6 +5,7 @@ plugins {
 dependencies {
     api(project(":platform:shared"))
     compileOnly(rootProject.libs.paper.api)
+    compileOnly(rootProject.libs.jnats)
     implementation(project(":api"))
     implementation(rootProject.libs.faststats.bukkit)
 }
