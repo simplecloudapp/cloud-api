@@ -354,12 +354,8 @@ public class ServerApiImpl implements ServerApi {
     }
 
     private static ServersApi createServersApi(CloudApiOptions options) {
-        ServersApi serversApi = new ServersApi();
+        ServersApi serversApi = new ServersApi(ApiClients.create(options));
         serversApi.setCustomBaseUrl(options.getControllerUrl());
-        ApiClients.applyTimeouts(serversApi.getApiClient(), options);
-        if (options.getComponent() != null && !options.getComponent().isBlank()) {
-            serversApi.getApiClient().addDefaultHeader("X-SC-Component", options.getComponent());
-        }
         return serversApi;
     }
 

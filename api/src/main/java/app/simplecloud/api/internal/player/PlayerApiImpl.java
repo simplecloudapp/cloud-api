@@ -35,7 +35,7 @@ public class PlayerApiImpl implements PlayerApi {
     private final PlayersApi playersApi;
 
     public PlayerApiImpl(CloudApiOptions options, Connection natsConnection) {
-        this(options, natsConnection, new PlayersApi());
+        this(options, natsConnection, new PlayersApi(ApiClients.create(options)));
     }
 
     PlayerApiImpl(CloudApiOptions options, Connection natsConnection, PlayersApi playersApi) {
@@ -43,10 +43,6 @@ public class PlayerApiImpl implements PlayerApi {
         this.natsConnection = natsConnection;
         this.playersApi = playersApi;
         this.playersApi.setCustomBaseUrl(options.getControllerUrl());
-        ApiClients.applyTimeouts(this.playersApi.getApiClient(), options);
-        if (options.getComponent() != null && !options.getComponent().isBlank()) {
-            this.playersApi.getApiClient().addDefaultHeader("X-SC-Component", options.getComponent());
-        }
     }
 
     @Override

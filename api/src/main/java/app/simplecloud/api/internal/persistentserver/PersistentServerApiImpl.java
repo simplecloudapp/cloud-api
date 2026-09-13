@@ -469,22 +469,14 @@ public class PersistentServerApiImpl implements PersistentServerApi {
     }
 
     private static PersistentServersApi createPersistentServersApi(CloudApiOptions options) {
-        PersistentServersApi api = new PersistentServersApi();
+        PersistentServersApi api = new PersistentServersApi(ApiClients.create(options));
         api.setCustomBaseUrl(options.getControllerUrl());
-        ApiClients.applyTimeouts(api.getApiClient(), options);
-        if (options.getComponent() != null && !options.getComponent().isBlank()) {
-            api.getApiClient().addDefaultHeader("X-SC-Component", options.getComponent());
-        }
         return api;
     }
 
     private static BlueprintsApi createBlueprintsApi(CloudApiOptions options) {
-        BlueprintsApi api = new BlueprintsApi();
+        BlueprintsApi api = new BlueprintsApi(ApiClients.create(options));
         api.setCustomBaseUrl(options.getControllerUrl());
-        ApiClients.applyTimeouts(api.getApiClient(), options);
-        if (options.getComponent() != null && !options.getComponent().isBlank()) {
-            api.getApiClient().addDefaultHeader("X-SC-Component", options.getComponent());
-        }
         return api;
     }
 }

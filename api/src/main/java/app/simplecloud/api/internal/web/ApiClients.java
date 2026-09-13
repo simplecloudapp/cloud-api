@@ -14,6 +14,20 @@ public final class ApiClients {
     }
 
     /**
+     * Creates an isolated client. Generated API no-arg constructors use a global
+     * default client, so configuring that client would change headers and timeouts
+     * for other CloudApi instances in the same class loader.
+     */
+    public static ApiClient create(CloudApiOptions options) {
+        ApiClient client = new ApiClient();
+        applyTimeouts(client, options);
+        if (options.getComponent() != null && !options.getComponent().isBlank()) {
+            client.addDefaultHeader("X-SC-Component", options.getComponent());
+        }
+        return client;
+    }
+
+    /**
      * Applies HTTP connect/read/write timeouts from {@link CloudApiOptions} to the given
      * {@link ApiClient}. Bounded timeouts are required so that REST calls cannot hang
      * indefinitely — an indefinitely-hanging request traps the query cache's in-flight

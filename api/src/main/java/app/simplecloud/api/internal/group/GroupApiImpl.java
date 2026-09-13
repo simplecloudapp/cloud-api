@@ -656,22 +656,14 @@ public class GroupApiImpl implements GroupApi {
     }
 
     private static ServerGroupsApi createServerGroupsApi(CloudApiOptions options) {
-        ServerGroupsApi api = new ServerGroupsApi();
+        ServerGroupsApi api = new ServerGroupsApi(ApiClients.create(options));
         api.setCustomBaseUrl(options.getControllerUrl());
-        ApiClients.applyTimeouts(api.getApiClient(), options);
-        if (options.getComponent() != null && !options.getComponent().isBlank()) {
-            api.getApiClient().addDefaultHeader("X-SC-Component", options.getComponent());
-        }
         return api;
     }
 
     private static BlueprintsApi createBlueprintsApi(CloudApiOptions options) {
-        BlueprintsApi api = new BlueprintsApi();
+        BlueprintsApi api = new BlueprintsApi(ApiClients.create(options));
         api.setCustomBaseUrl(options.getControllerUrl());
-        ApiClients.applyTimeouts(api.getApiClient(), options);
-        if (options.getComponent() != null && !options.getComponent().isBlank()) {
-            api.getApiClient().addDefaultHeader("X-SC-Component", options.getComponent());
-        }
         return api;
     }
 }
