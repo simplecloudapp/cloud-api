@@ -9,6 +9,7 @@ import app.simplecloud.api.server.ServerApi;
 import app.simplecloud.api.server.ServerQuery;
 import app.simplecloud.api.server.UpdateServerRequest;
 import app.simplecloud.api.web.ApiException;
+import app.simplecloud.api.web.ApiClient;
 import app.simplecloud.api.web.apis.ServersApi;
 import app.simplecloud.api.web.models.ModelsDeletePropertiesRequest;
 import app.simplecloud.api.web.models.ModelsDeletePropertiesResponse;
@@ -39,7 +40,11 @@ public class ServerApiImpl implements ServerApi {
     private final QueryCache cache;
 
     public ServerApiImpl(CloudApiOptions options, QueryCache cache) {
-        this(options, cache, createServersApi(options));
+        this(options, cache, ApiClients.create(options));
+    }
+
+    public ServerApiImpl(CloudApiOptions options, QueryCache cache, ApiClient httpClient) {
+        this(options, cache, createServersApi(options, httpClient));
     }
 
     ServerApiImpl(CloudApiOptions options, QueryCache cache, ServersApi serversApi) {
@@ -353,13 +358,9 @@ public class ServerApiImpl implements ServerApi {
         );
     }
 
-    private static ServersApi createServersApi(CloudApiOptions options) {
-        ServersApi serversApi = new ServersApi();
+    private static ServersApi createServersApi(CloudApiOptions options, ApiClient httpClient) {
+        ServersApi serversApi = new ServersApi(httpClient);
         serversApi.setCustomBaseUrl(options.getControllerUrl());
-        ApiClients.applyTimeouts(serversApi.getApiClient(), options);
-        if (options.getComponent() != null && !options.getComponent().isBlank()) {
-            serversApi.getApiClient().addDefaultHeader("X-SC-Component", options.getComponent());
-        }
         return serversApi;
     }
 

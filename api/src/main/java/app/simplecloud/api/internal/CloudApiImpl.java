@@ -15,6 +15,8 @@ import app.simplecloud.api.internal.nats.NatsFailoverConnectionManager;
 import app.simplecloud.api.internal.persistentserver.PersistentServerApiImpl;
 import app.simplecloud.api.internal.server.ServerApiImpl;
 import app.simplecloud.api.internal.player.PlayerApiImpl;
+import app.simplecloud.api.internal.web.ApiClients;
+import app.simplecloud.api.web.ApiClient;
 import app.simplecloud.api.persistentserver.PersistentServerApi;
 import app.simplecloud.api.player.PlayerApi;
 import app.simplecloud.api.server.ServerApi;
@@ -62,11 +64,12 @@ public class CloudApiImpl implements CloudApi {
         }
 
         // Initialize APIs with cache
+        ApiClient httpClient = ApiClients.create(options);
         this.eventApi = new EventApiImpl(natsClient, options.getNetworkId());
-        this.serverApi = new ServerApiImpl(options, queryCache);
-        this.groupApi = new GroupApiImpl(options, queryCache);
-        this.persistentServerApi = new PersistentServerApiImpl(options, queryCache);
-        this.playerApi = new PlayerApiImpl(options, natsClient);
+        this.serverApi = new ServerApiImpl(options, queryCache, httpClient);
+        this.groupApi = new GroupApiImpl(options, queryCache, httpClient);
+        this.persistentServerApi = new PersistentServerApiImpl(options, queryCache, httpClient);
+        this.playerApi = new PlayerApiImpl(options, natsClient, httpClient);
 
         // Setup event-based cache invalidation with debouncing
         if (cacheConfig.isEnabled() && cacheConfig.isAutoInvalidateOnEvents()) {
