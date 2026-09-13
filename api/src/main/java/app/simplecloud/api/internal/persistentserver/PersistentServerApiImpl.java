@@ -12,6 +12,7 @@ import app.simplecloud.api.internal.create.CreateRequestDefaults;
 import app.simplecloud.api.internal.web.ApiClients;
 import app.simplecloud.api.persistentserver.*;
 import app.simplecloud.api.web.ApiException;
+import app.simplecloud.api.web.ApiClient;
 import app.simplecloud.api.web.apis.BlueprintsApi;
 import app.simplecloud.api.web.apis.PersistentServersApi;
 import app.simplecloud.api.web.models.*;
@@ -34,7 +35,11 @@ public class PersistentServerApiImpl implements PersistentServerApi {
     private final QueryCache cache;
 
     public PersistentServerApiImpl(CloudApiOptions options, QueryCache cache) {
-        this(options, cache, createPersistentServersApi(options), createBlueprintsApi(options));
+        this(options, cache, ApiClients.create(options));
+    }
+
+    public PersistentServerApiImpl(CloudApiOptions options, QueryCache cache, ApiClient httpClient) {
+        this(options, cache, createPersistentServersApi(options, httpClient), createBlueprintsApi(options, httpClient));
     }
 
     PersistentServerApiImpl(CloudApiOptions options,
@@ -468,14 +473,14 @@ public class PersistentServerApiImpl implements PersistentServerApi {
         return result;
     }
 
-    private static PersistentServersApi createPersistentServersApi(CloudApiOptions options) {
-        PersistentServersApi api = new PersistentServersApi(ApiClients.create(options));
+    private static PersistentServersApi createPersistentServersApi(CloudApiOptions options, ApiClient httpClient) {
+        PersistentServersApi api = new PersistentServersApi(httpClient);
         api.setCustomBaseUrl(options.getControllerUrl());
         return api;
     }
 
-    private static BlueprintsApi createBlueprintsApi(CloudApiOptions options) {
-        BlueprintsApi api = new BlueprintsApi(ApiClients.create(options));
+    private static BlueprintsApi createBlueprintsApi(CloudApiOptions options, ApiClient httpClient) {
+        BlueprintsApi api = new BlueprintsApi(httpClient);
         api.setCustomBaseUrl(options.getControllerUrl());
         return api;
     }

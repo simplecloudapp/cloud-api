@@ -1,5 +1,6 @@
 package app.simplecloud.api.internal.web;
 
+import app.simplecloud.api.CloudApi;
 import app.simplecloud.api.CloudApiOptions;
 import app.simplecloud.api.internal.cache.NoOpQueryCache;
 import app.simplecloud.api.internal.group.GroupApiImpl;
@@ -23,6 +24,8 @@ import java.util.concurrent.CopyOnWriteArrayList;
 import java.util.function.Consumer;
 
 import static org.junit.jupiter.api.Assertions.assertEquals;
+import static org.junit.jupiter.api.Assertions.assertNotSame;
+import static org.junit.jupiter.api.Assertions.assertSame;
 
 class ComponentHeaderIsolationTest {
     private final List<String> components = new CopyOnWriteArrayList<>();
@@ -56,17 +59,39 @@ class ComponentHeaderIsolationTest {
 
     @Test
     void requestsKeepTheirOwnComponentRegardlessOfConstructionOrder() {
-        PlayerApiImpl untaggedBefore = new PlayerApiImpl(options(null), null);
-        PlayerApiImpl essentials = new PlayerApiImpl(options("proxy-essentials"), null);
-        PlayerApiImpl anotherPlugin = new PlayerApiImpl(options("another-plugin"), null);
-        PlayerApiImpl untaggedAfter = new PlayerApiImpl(options(null), null);
-        PlayerApiImpl blank = new PlayerApiImpl(options("  "), null);
-
-        for (PlayerApiImpl api : List.of(untaggedBefore, essentials, anotherPlugin, untaggedAfter, blank, essentials)) {
-            assertEquals(0, api.getOnlinePlayerCount().join());
+        try (CloudApi untaggedBefore = CloudApi.create(options(null));
+             CloudApi essentials = CloudApi.create(options("proxy-essentials"));
+             CloudApi anotherPlugin = CloudApi.create(options("another-plugin"));
+             CloudApi untaggedAfter = CloudApi.create(options(null));
+             CloudApi blank = CloudApi.create(options("  "))) {
+            for (CloudApi api : List.of(untaggedBefore, essentials, anotherPlugin, untaggedAfter, blank, essentials)) {
+                assertEquals(0, api.player().getOnlinePlayerCount().join());
+            }
         }
 
         assertEquals(Arrays.asList(null, "proxy-essentials", "another-plugin", null, null, "proxy-essentials"), components);
+    }
+
+    @Test
+    void createSharesOneHttpClientAcrossAllApisButNotBetweenInstances() throws Exception {
+        try (CloudApi first = CloudApi.create(options("proxy-essentials"));
+             CloudApi second = CloudApi.create(options("another-plugin"))) {
+            ApiClient firstClient = httpClient(first.player(), "playersApi");
+            ApiClient secondClient = httpClient(second.player(), "playersApi");
+            assertNotSame(firstClient, secondClient);
+            assertNotSame(firstClient.getHttpClient(), secondClient.getHttpClient());
+            assertNotSame(Configuration.getDefaultApiClient(), firstClient);
+            assertNotSame(Configuration.getDefaultApiClient(), secondClient);
+
+            for (CloudApi api : List.of(first, second)) {
+                ApiClient client = httpClient(api.player(), "playersApi");
+                assertSame(client, httpClient(api.server(), "serversApi"));
+                assertSame(client, httpClient(api.group(), "serverGroupsApi"));
+                assertSame(client, httpClient(api.persistentServer(), "persistentServersApi"));
+                assertSame(client, httpClient(api.group(), "inlineBlueprintSupport", "blueprintsApi"));
+                assertSame(client, httpClient(api.persistentServer(), "inlineBlueprintSupport", "blueprintsApi"));
+            }
+        }
     }
 
     @Test
@@ -93,9 +118,21 @@ class ComponentHeaderIsolationTest {
     private CloudApiOptions options(String component) {
         return CloudApiOptions.builder()
                 .controllerUrl("http://127.0.0.1:" + server.getAddress().getPort())
+                .natsUrl("nats://127.0.0.1:1")
+                .disableCache()
                 .networkId("network")
                 .networkSecret("secret")
                 .component(component)
                 .build();
+    }
+
+    private static ApiClient httpClient(Object owner, String... fieldPath) throws Exception {
+        Object value = owner;
+        for (String fieldName : fieldPath) {
+            var field = value.getClass().getDeclaredField(fieldName);
+            field.setAccessible(true);
+            value = field.get(value);
+        }
+        return (ApiClient) value.getClass().getMethod("getApiClient").invoke(value);
     }
 }

@@ -5,6 +5,7 @@ import app.simplecloud.api.internal.web.ApiClients;
 import app.simplecloud.api.player.CloudPlayer;
 import app.simplecloud.api.player.PlayerApi;
 import app.simplecloud.api.web.ApiException;
+import app.simplecloud.api.web.ApiClient;
 import app.simplecloud.api.web.apis.PlayersApi;
 import app.simplecloud.api.web.models.ModelsDeletePlayerPropertiesRequest;
 import app.simplecloud.api.web.models.ModelsOnlinePlayerCountResponse;
@@ -35,7 +36,11 @@ public class PlayerApiImpl implements PlayerApi {
     private final PlayersApi playersApi;
 
     public PlayerApiImpl(CloudApiOptions options, Connection natsConnection) {
-        this(options, natsConnection, new PlayersApi(ApiClients.create(options)));
+        this(options, natsConnection, ApiClients.create(options));
+    }
+
+    public PlayerApiImpl(CloudApiOptions options, Connection natsConnection, ApiClient httpClient) {
+        this(options, natsConnection, new PlayersApi(httpClient));
     }
 
     PlayerApiImpl(CloudApiOptions options, Connection natsConnection, PlayersApi playersApi) {

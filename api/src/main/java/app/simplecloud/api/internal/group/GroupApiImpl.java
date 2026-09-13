@@ -9,6 +9,7 @@ import app.simplecloud.api.internal.blueprint.InlineBlueprintSupport;
 import app.simplecloud.api.internal.create.CreateRequestDefaults;
 import app.simplecloud.api.internal.web.ApiClients;
 import app.simplecloud.api.web.ApiException;
+import app.simplecloud.api.web.ApiClient;
 import app.simplecloud.api.web.apis.BlueprintsApi;
 import app.simplecloud.api.web.apis.ServerGroupsApi;
 import app.simplecloud.api.web.models.*;
@@ -31,7 +32,11 @@ public class GroupApiImpl implements GroupApi {
     private final QueryCache cache;
 
     public GroupApiImpl(CloudApiOptions options, QueryCache cache) {
-        this(options, cache, createServerGroupsApi(options), createBlueprintsApi(options));
+        this(options, cache, ApiClients.create(options));
+    }
+
+    public GroupApiImpl(CloudApiOptions options, QueryCache cache, ApiClient httpClient) {
+        this(options, cache, createServerGroupsApi(options, httpClient), createBlueprintsApi(options, httpClient));
     }
 
     GroupApiImpl(CloudApiOptions options,
@@ -655,14 +660,14 @@ public class GroupApiImpl implements GroupApi {
         return value;
     }
 
-    private static ServerGroupsApi createServerGroupsApi(CloudApiOptions options) {
-        ServerGroupsApi api = new ServerGroupsApi(ApiClients.create(options));
+    private static ServerGroupsApi createServerGroupsApi(CloudApiOptions options, ApiClient httpClient) {
+        ServerGroupsApi api = new ServerGroupsApi(httpClient);
         api.setCustomBaseUrl(options.getControllerUrl());
         return api;
     }
 
-    private static BlueprintsApi createBlueprintsApi(CloudApiOptions options) {
-        BlueprintsApi api = new BlueprintsApi(ApiClients.create(options));
+    private static BlueprintsApi createBlueprintsApi(CloudApiOptions options, ApiClient httpClient) {
+        BlueprintsApi api = new BlueprintsApi(httpClient);
         api.setCustomBaseUrl(options.getControllerUrl());
         return api;
     }
