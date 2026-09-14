@@ -24,7 +24,9 @@ type Options struct {
 	NetworkSecret string
 	Component     string
 	HTTPClient    *http.Client
-	NATSOptions   []nats.Option
+	// NATSOptions customizes the connection. The SDK always sets the inbox
+	// prefix to NetworkID + "._INBOX" after applying these options.
+	NATSOptions []nats.Option
 }
 
 // DefaultOptions returns configuration populated from the environment.
