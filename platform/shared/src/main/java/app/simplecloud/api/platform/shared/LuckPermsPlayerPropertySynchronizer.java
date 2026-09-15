@@ -28,6 +28,7 @@ public final class LuckPermsPlayerPropertySynchronizer {
     private final Object eventSubscriber;
     private final Predicate<UUID> isOnline;
     private final BiConsumer<String, Throwable> errorLogger;
+    private final Set<UUID> registeredPlayers = ConcurrentHashMap.newKeySet();
     private final Map<UUID, String> desiredPrimaryGroups = new ConcurrentHashMap<>();
     private final Map<UUID, String> synchronizedPrimaryGroups = new ConcurrentHashMap<>();
     private final Set<UUID> synchronizationsInProgress = ConcurrentHashMap.newKeySet();
@@ -68,16 +69,21 @@ public final class LuckPermsPlayerPropertySynchronizer {
             subscription.close();
             subscription = null;
         }
+        registeredPlayers.clear();
         desiredPrimaryGroups.clear();
         synchronizedPrimaryGroups.clear();
         synchronizationsInProgress.clear();
         refreshRequested.clear();
     }
 
+    /**
+     * Starts synchronization after the controller acknowledges this player's login.
+     */
     public void synchronize(UUID uniqueId) {
-        if (!running) {
+        if (!running || !isOnline.test(uniqueId)) {
             return;
         }
+        registeredPlayers.add(uniqueId);
         User user = luckPerms.getUserManager().getUser(uniqueId);
         if (user != null) {
             synchronize(user);
@@ -85,6 +91,7 @@ public final class LuckPermsPlayerPropertySynchronizer {
     }
 
     public void forget(UUID uniqueId) {
+        registeredPlayers.remove(uniqueId);
         desiredPrimaryGroups.remove(uniqueId);
         synchronizedPrimaryGroups.remove(uniqueId);
         refreshRequested.remove(uniqueId);
@@ -92,7 +99,7 @@ public final class LuckPermsPlayerPropertySynchronizer {
 
     private void synchronize(User user) {
         UUID uniqueId = user.getUniqueId();
-        if (!running || !isOnline.test(uniqueId)) {
+        if (!running || !registeredPlayers.contains(uniqueId) || !isOnline.test(uniqueId)) {
             return;
         }
 
@@ -122,7 +129,7 @@ public final class LuckPermsPlayerPropertySynchronizer {
                     synchronizationsInProgress.remove(uniqueId);
                     boolean shouldRefresh = refreshRequested.remove(uniqueId);
 
-                    if (!running || !isOnline.test(uniqueId)) {
+                    if (!running || !registeredPlayers.contains(uniqueId) || !isOnline.test(uniqueId)) {
                         forget(uniqueId);
                     } else if (shouldRefresh || (Boolean.TRUE.equals(synchronizedValue) &&
                             !Objects.equals(

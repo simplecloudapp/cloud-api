@@ -5,6 +5,7 @@ shadow = "8.3.11"
 openapi-generator = "7.14.0"
 caffeine = "3.1.8"
 junit = "5.11.3"
+mockito = "5.14.2"
 faststats = "0.28.0"
 
 controller-proto = "32.0.0.1.20260307111646.50c9870526a2"
@@ -53,6 +54,7 @@ jakarta-annotation = { module = "jakarta.annotation:jakarta.annotation-api", ver
 javax-annotation = { module = "javax.annotation:javax.annotation-api", version.ref = "javax-annotation" }
 caffeine = { module = "com.github.ben-manes.caffeine:caffeine", version.ref = "caffeine" }
 junit-jupiter = { module = "org.junit.jupiter:junit-jupiter", version.ref = "junit" }
+mockito-core = { module = "org.mockito:mockito-core", version.ref = "mockito" }
 
 paper-api = { module = "io.papermc.paper:paper-api", version.ref = "paper" }
 folia-api = { module = "dev.folia:folia-api", version.ref = "folia" }
