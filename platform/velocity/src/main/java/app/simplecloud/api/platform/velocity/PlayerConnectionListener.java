@@ -3,6 +3,7 @@ package app.simplecloud.api.platform.velocity;
 import app.simplecloud.api.internal.integration.player.PlayerIntegration;
 import app.simplecloud.api.internal.integration.presence.ProxyPresenceTracker;
 import app.simplecloud.api.platform.shared.PlayerSynchronizer;
+import com.velocitypowered.api.event.EventTask;
 import com.velocitypowered.api.event.Subscribe;
 import com.velocitypowered.api.event.connection.DisconnectEvent;
 import com.velocitypowered.api.event.connection.PostLoginEvent;
@@ -42,8 +43,8 @@ public class PlayerConnectionListener {
         this.forgetPlayerProperties = forgetPlayerProperties;
     }
 
-    @Subscribe
-    public void onPlayerJoin(PostLoginEvent event) {
+    @Subscribe(priority = 100)
+    public EventTask onPlayerJoin(PostLoginEvent event) {
         Player player = event.getPlayer();
         String playerId = player.getUniqueId().toString();
         proxyPresenceTracker.trackLogin(playerId);
@@ -56,7 +57,7 @@ public class PlayerConnectionListener {
             texture = texturesProperty.get().getValue();
         }
 
-        playerIntegration.login(
+        CompletableFuture<Void> registration = playerIntegration.login(
                 playerId,
                 player.getUsername(),
                 player.getUsername(),
@@ -80,6 +81,8 @@ public class PlayerConnectionListener {
         });
 
         CompletableFuture.runAsync(() -> playerSynchronizer.updatePlayerCount());
+        // Keep later login listeners and the initial backend connection behind registration.
+        return EventTask.resumeWhenComplete(registration);
     }
 
     @Subscribe

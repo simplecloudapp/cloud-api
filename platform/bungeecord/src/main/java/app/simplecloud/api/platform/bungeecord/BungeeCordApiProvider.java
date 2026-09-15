@@ -71,6 +71,7 @@ public class BungeeCordApiProvider extends Plugin implements ProxyPresencePlayer
 
         getLogger().info("SimpleCloud v3 API provider initialized!");
         getProxy().getPluginManager().registerListener(this, new PlayerConnectionListener(
+                this,
                 playerSynchronizer,
                 playerIntegration,
                 proxyPresenceTracker,

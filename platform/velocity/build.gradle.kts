@@ -13,6 +13,12 @@ dependencies {
     }
     implementation(rootProject.libs.jnats)
     implementation(rootProject.libs.faststats.velocity)
+
+    testImplementation(project(":api"))
+    testImplementation(rootProject.libs.junit.jupiter)
+    testImplementation(rootProject.libs.mockito.core)
+    testRuntimeOnly("org.junit.platform:junit-platform-launcher")
+    testImplementation(rootProject.libs.velocity)
 }
 
 modrinth {
@@ -49,4 +55,8 @@ modrinth {
     loaders.add("velocity")
     changelog.set("https://docs.simplecloud.app/changelog")
     syncBodyFrom.set(rootProject.file("README.md").readText())
+}
+
+tasks.named<Test>("test") {
+    useJUnitPlatform()
 }

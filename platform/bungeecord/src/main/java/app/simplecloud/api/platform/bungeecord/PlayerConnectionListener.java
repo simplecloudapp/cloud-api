@@ -9,6 +9,7 @@ import net.md_5.bungee.api.event.PlayerDisconnectEvent;
 import net.md_5.bungee.api.event.PostLoginEvent;
 import net.md_5.bungee.api.event.ServerSwitchEvent;
 import net.md_5.bungee.api.plugin.Listener;
+import net.md_5.bungee.api.plugin.Plugin;
 import net.md_5.bungee.event.EventHandler;
 import net.md_5.bungee.event.EventPriority;
 
@@ -22,6 +23,7 @@ public class PlayerConnectionListener implements Listener {
 
     private static final Logger logger = Logger.getLogger(PlayerConnectionListener.class.getName());
 
+    private final Plugin plugin;
     private final PlayerSynchronizer playerSynchronizer;
     private final PlayerIntegration playerIntegration;
     private final ProxyPresenceTracker proxyPresenceTracker;
@@ -30,6 +32,7 @@ public class PlayerConnectionListener implements Listener {
     private final Consumer<UUID> forgetPlayerProperties;
 
     public PlayerConnectionListener(
+            Plugin plugin,
             PlayerSynchronizer playerSynchronizer,
             PlayerIntegration playerIntegration,
             ProxyPresenceTracker proxyPresenceTracker,
@@ -37,6 +40,7 @@ public class PlayerConnectionListener implements Listener {
             Consumer<UUID> synchronizePlayerProperties,
             Consumer<UUID> forgetPlayerProperties
     ) {
+        this.plugin = plugin;
         this.playerSynchronizer = playerSynchronizer;
         this.playerIntegration = playerIntegration;
         this.proxyPresenceTracker = proxyPresenceTracker;
@@ -52,7 +56,7 @@ public class PlayerConnectionListener implements Listener {
         String playerId = player.getUniqueId().toString();
         proxyPresenceTracker.trackLogin(playerId);
 
-        playerIntegration.login(
+        var registration = playerIntegration.login(
                 playerId,
                 player.getName(),
                 player.getDisplayName(),
@@ -62,7 +66,10 @@ public class PlayerConnectionListener implements Listener {
                 connection.getVersion(),
                 connection.isOnlineMode(),
                 null
-        ).thenAccept(result -> {
+        );
+        // Keep the initial backend connection behind controller registration.
+        event.registerIntent(plugin);
+        registration.thenAccept(result -> {
             if (result.isSuccess()) {
                 proxyPresenceTracker.updateSessionId(playerId, result.getSessionId());
                 synchronizePlayerProperties.accept(player.getUniqueId());
@@ -73,7 +80,7 @@ public class PlayerConnectionListener implements Listener {
         }).exceptionally(e -> {
             logger.log(Level.SEVERE, "Failed to send login event for " + player.getName(), e);
             return null;
-        });
+        }).whenComplete((ignored, error) -> event.completeIntent(plugin));
 
         CompletableFuture.runAsync(() -> playerSynchronizer.updatePlayerCount());
     }
