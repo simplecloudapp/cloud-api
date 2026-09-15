@@ -117,6 +117,9 @@ jobs:
         run: |
           ./gradlew :api:prepareGeneratedSources \
             :api:check \
+            :platform:shared:check \
+            :platform:bungeecord:check \
+            :platform:velocity:check \
             :platform:spigot:shadowJar \
             :platform:spigot-legacy:shadowJar \
             :platform:paper:shadowJar \

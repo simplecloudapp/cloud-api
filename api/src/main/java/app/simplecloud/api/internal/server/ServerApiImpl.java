@@ -339,9 +339,8 @@ public class ServerApiImpl implements ServerApi {
         String sortBy = query != null ? query.getSortBy() : null;
         String sortOrder = query != null ? query.getSortOrder() : null;
 
-        return serversApi.v0ServersGet(
+        return serversApi.listServers(
                 this.options.getNetworkId(),
-                this.options.getNetworkSecret(),
                 serverId,
                 serverGroupId,
                 state,
@@ -368,9 +367,8 @@ public class ServerApiImpl implements ServerApi {
     public CompletableFuture<Void> stopServer(String id) {
         return CompletableFuture.runAsync(() -> {
             try {
-                serversApi.v0ServersDelete(
+                serversApi.stopServer(
                         this.options.getNetworkId(),
-                        this.options.getNetworkSecret(),
                         id
                 );
 
@@ -389,9 +387,8 @@ public class ServerApiImpl implements ServerApi {
             try {
                 ModelsPatchServerRequest patchRequest = getModelsPatchServerRequest(request);
 
-                ModelsPatchServerResponse response = serversApi.v0ServersPatch(
+                ModelsPatchServerResponse response = serversApi.patchServer(
                         this.options.getNetworkId(),
-                        this.options.getNetworkSecret(),
                         id,
                         patchRequest
                 );
@@ -444,9 +441,8 @@ public class ServerApiImpl implements ServerApi {
                 ModelsPatchPropertiesRequest request = new ModelsPatchPropertiesRequest();
                 request.setProperties(properties);
 
-                ModelsPatchPropertiesResponse response = serversApi.v0ServersPropertiesPatch(
+                ModelsPatchPropertiesResponse response = serversApi.patchServerProperties(
                         this.options.getNetworkId(),
-                        this.options.getNetworkSecret(),
                         id,
                         request
                 );
@@ -470,9 +466,8 @@ public class ServerApiImpl implements ServerApi {
                 ModelsDeletePropertiesRequest request = new ModelsDeletePropertiesRequest();
                 request.setKeys(keys);
 
-                ModelsDeletePropertiesResponse response = serversApi.v0ServersPropertiesDelete(
+                ModelsDeletePropertiesResponse response = serversApi.deleteServerProperties(
                         this.options.getNetworkId(),
-                        this.options.getNetworkSecret(),
                         id,
                         request
                 );

@@ -29,6 +29,8 @@ import static org.junit.jupiter.api.Assertions.assertSame;
 
 class ComponentHeaderIsolationTest {
     private final List<String> components = new CopyOnWriteArrayList<>();
+    private final List<String> credentials = new CopyOnWriteArrayList<>();
+    private final List<String> networkIds = new CopyOnWriteArrayList<>();
     private HttpServer server;
     private ApiClient previousDefaultClient;
 
@@ -39,6 +41,8 @@ class ComponentHeaderIsolationTest {
         server = HttpServer.create(new InetSocketAddress("127.0.0.1", 0), 0);
         server.createContext("/v0/players/online/count", exchange -> {
             components.add(exchange.getRequestHeaders().getFirst("X-SC-Component"));
+            credentials.add(exchange.getRequestHeaders().getFirst("X-Network-Credential"));
+            networkIds.add(exchange.getRequestHeaders().getFirst("X-Network-ID"));
             byte[] body = "{\"count\":0}".getBytes(StandardCharsets.UTF_8);
             exchange.getResponseHeaders().set("Content-Type", "application/json");
             exchange.sendResponseHeaders(200, body.length);
@@ -70,6 +74,22 @@ class ComponentHeaderIsolationTest {
         }
 
         assertEquals(Arrays.asList(null, "proxy-essentials", "another-plugin", null, null, "proxy-essentials"), components);
+    }
+
+    @Test
+    void generatedRequestsKeepEachInstancesNetworkCredential() throws Exception {
+        PlayerApiImpl first = new PlayerApiImpl(options(null, "network-1", "secret-1"), null);
+        PlayerApiImpl second = new PlayerApiImpl(options(null, "network-2", "secret-2"), null);
+        var defaultPlayers = new PlayersApi();
+        defaultPlayers.setCustomBaseUrl(options(null).getControllerUrl());
+
+        first.getOnlinePlayerCount().join();
+        second.getOnlinePlayerCount().join();
+        first.getOnlinePlayerCount().join();
+        defaultPlayers.getOnlinePlayerCount("unconfigured");
+
+        assertEquals(Arrays.asList("secret-1", "secret-2", "secret-1", null), credentials);
+        assertEquals(List.of("network-1", "network-2", "network-1", "unconfigured"), networkIds);
     }
 
     @Test
@@ -109,19 +129,23 @@ class ComponentHeaderIsolationTest {
         for (Consumer<CloudApiOptions> constructor : constructors) {
             constructor.accept(options("proxy-essentials"));
             untagged.getOnlinePlayerCount().join();
-            defaultPlayers.v0PlayersOnlineCountGet("network", "secret");
+            defaultPlayers.getOnlinePlayerCount("network");
         }
 
         assertEquals(Collections.nCopies(constructors.size() * 2, null), components);
     }
 
     private CloudApiOptions options(String component) {
+        return options(component, "network", "secret");
+    }
+
+    private CloudApiOptions options(String component, String networkId, String credential) {
         return CloudApiOptions.builder()
                 .controllerUrl("http://127.0.0.1:" + server.getAddress().getPort())
                 .natsUrl("nats://127.0.0.1:1")
                 .disableCache()
-                .networkId("network")
-                .networkSecret("secret")
+                .networkId(networkId)
+                .networkSecret(credential)
                 .component(component)
                 .build();
     }

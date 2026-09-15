@@ -276,8 +276,7 @@ class PersistentServerApiImplTest {
         }
 
         @Override
-        public ModelsCreateBlueprintResponse v0BlueprintsPost(String xNetworkID,
-                                                              String xNetworkSecret,
+        public ModelsCreateBlueprintResponse createBlueprint(String xNetworkID,
                                                               ModelsCreateBlueprintRequest request) {
             postCalls++;
             postOrder = order.incrementAndGet();
@@ -292,8 +291,7 @@ class PersistentServerApiImplTest {
         }
 
         @Override
-        public app.simplecloud.api.web.models.ModelsDeleteBlueprintResponse v0BlueprintsDelete(String xNetworkID,
-                                                                                                String xNetworkSecret,
+        public app.simplecloud.api.web.models.ModelsDeleteBlueprintResponse deleteBlueprint(String xNetworkID,
                                                                                                 String blueprintId) {
             deleteOrder = order.incrementAndGet();
             deletedBlueprintIds.add(blueprintId);
@@ -322,8 +320,7 @@ class PersistentServerApiImplTest {
         }
 
         @Override
-        public app.simplecloud.api.web.models.ModelsDeletePersistentServerResponse v0PersistentServersDelete(String xNetworkID,
-                                                                                                               String xNetworkSecret,
+        public app.simplecloud.api.web.models.ModelsDeletePersistentServerResponse deletePersistentServer(String xNetworkID,
                                                                                                                String persistentServerId) {
             deleteCalls++;
             deleteOrder = order.incrementAndGet();
@@ -331,8 +328,7 @@ class PersistentServerApiImplTest {
         }
 
         @Override
-        public ModelsCreatePersistentServerResponse v0PersistentServersPost(String xNetworkID,
-                                                                            String xNetworkSecret,
+        public ModelsCreatePersistentServerResponse createPersistentServer(String xNetworkID,
                                                                             ModelsCreatePersistentServerRequest request) throws ApiException {
             postCalls++;
             postOrder = order.incrementAndGet();
@@ -362,8 +358,7 @@ class PersistentServerApiImplTest {
         }
 
         @Override
-        public ModelsUpdatePersistentServerResponse v0PersistentServersPatch(String xNetworkID,
-                                                                              String xNetworkSecret,
+        public ModelsUpdatePersistentServerResponse patchPersistentServer(String xNetworkID,
                                                                               String persistentServerId,
                                                                               ModelsPatchPersistentServerRequest request) {
             patchCalls++;
@@ -372,8 +367,7 @@ class PersistentServerApiImplTest {
         }
 
         @Override
-        public ModelsUpdatePersistentServerResponse v0PersistentServersPut(String xNetworkID,
-                                                                            String xNetworkSecret,
+        public ModelsUpdatePersistentServerResponse updatePersistentServer(String xNetworkID,
                                                                             String persistentServerId,
                                                                             ModelsUpdatePersistentServerRequest request) {
             putCalls++;
@@ -381,8 +375,7 @@ class PersistentServerApiImplTest {
         }
 
         @Override
-        public ModelsListPersistentServersResponse v0PersistentServersGet(String xNetworkID,
-                                                                          String xNetworkSecret,
+        public ModelsListPersistentServersResponse listPersistentServers(String xNetworkID,
                                                                           String persistentServerId,
                                                                           String name,
                                                                           String type,

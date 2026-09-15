@@ -103,7 +103,7 @@ class PlayerApiImplTest {
         private ModelsPatchPlayerRequest lastPatchRequest;
 
         @Override
-        public ModelsPlayerOnlineTimeResponse v0PlayersOnlineTimeGet(String xNetworkID, String xNetworkSecret, String playerId) {
+        public ModelsPlayerOnlineTimeResponse getPlayerOnlineTime(String xNetworkID, String playerId) {
             onlineTimeGetCalls++;
             lastOnlineTimePlayerId = playerId;
 
@@ -114,9 +114,8 @@ class PlayerApiImplTest {
         }
 
         @Override
-        public ModelsPlayerResponse v0PlayersPatch(
+        public ModelsPlayerResponse patchPlayer(
                 String xNetworkID,
-                String xNetworkSecret,
                 String playerId,
                 ModelsPatchPlayerRequest modelsPatchPlayerRequest
         ) {

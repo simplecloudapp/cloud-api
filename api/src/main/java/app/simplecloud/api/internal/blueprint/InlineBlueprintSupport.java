@@ -65,9 +65,8 @@ public final class InlineBlueprintSupport {
         }
 
         ModelsCreateBlueprintRequest apiRequest = convertCreateBlueprintRequest(blueprintName, request);
-        ModelsCreateBlueprintResponse response = blueprintsApi.v0BlueprintsPost(
+        ModelsCreateBlueprintResponse response = blueprintsApi.createBlueprint(
                 options.getNetworkId(),
-                options.getNetworkSecret(),
                 apiRequest
         );
 
@@ -103,9 +102,8 @@ public final class InlineBlueprintSupport {
         ApiException lastDeleteFailure = null;
         for (int attempt = 1; attempt <= DELETE_MAX_ATTEMPTS; attempt++) {
             try {
-                blueprintsApi.v0BlueprintsDelete(
+                blueprintsApi.deleteBlueprint(
                         options.getNetworkId(),
-                        options.getNetworkSecret(),
                         normalizedBlueprintId
                 );
                 return;

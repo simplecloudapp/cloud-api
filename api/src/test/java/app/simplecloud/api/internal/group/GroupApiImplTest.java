@@ -491,8 +491,7 @@ class GroupApiImplTest {
         }
 
         @Override
-        public ModelsCreateBlueprintResponse v0BlueprintsPost(String xNetworkID,
-                                                              String xNetworkSecret,
+        public ModelsCreateBlueprintResponse createBlueprint(String xNetworkID,
                                                               ModelsCreateBlueprintRequest request) {
             postCalls++;
             postOrder = order.incrementAndGet();
@@ -510,8 +509,7 @@ class GroupApiImplTest {
         }
 
         @Override
-        public app.simplecloud.api.web.models.ModelsDeleteBlueprintResponse v0BlueprintsDelete(String xNetworkID,
-                                                                                                String xNetworkSecret,
+        public app.simplecloud.api.web.models.ModelsDeleteBlueprintResponse deleteBlueprint(String xNetworkID,
                                                                                                 String blueprintId) throws ApiException {
             deleteCalls++;
             deleteOrder = order.incrementAndGet();
@@ -544,8 +542,7 @@ class GroupApiImplTest {
         }
 
         @Override
-        public app.simplecloud.api.web.models.ModelsDeleteServerGroupResponse v0ServerGroupsDelete(String xNetworkID,
-                                                                                                    String xNetworkSecret,
+        public app.simplecloud.api.web.models.ModelsDeleteServerGroupResponse deleteServerGroup(String xNetworkID,
                                                                                                     String serverGroupId) {
             deleteCalls++;
             deleteOrder = order.incrementAndGet();
@@ -553,8 +550,7 @@ class GroupApiImplTest {
         }
 
         @Override
-        public ModelsCreateServerGroupResponse v0ServerGroupsPost(String xNetworkID,
-                                                                  String xNetworkSecret,
+        public ModelsCreateServerGroupResponse createServerGroup(String xNetworkID,
                                                                   ModelsCreateServerGroupRequest request) throws ApiException {
             postCalls++;
             postOrder = order.incrementAndGet();
@@ -584,8 +580,7 @@ class GroupApiImplTest {
         }
 
         @Override
-        public ModelsUpdateServerGroupResponse v0ServerGroupsPatch(String xNetworkID,
-                                                                    String xNetworkSecret,
+        public ModelsUpdateServerGroupResponse patchServerGroup(String xNetworkID,
                                                                     String serverGroupId,
                                                                     ModelsPatchServerGroupRequest request) {
             patchCalls++;
@@ -594,8 +589,7 @@ class GroupApiImplTest {
         }
 
         @Override
-        public ModelsUpdateServerGroupResponse v0ServerGroupsPut(String xNetworkID,
-                                                                  String xNetworkSecret,
+        public ModelsUpdateServerGroupResponse updateServerGroup(String xNetworkID,
                                                                   String serverGroupId,
                                                                   ModelsUpdateServerGroupRequest request) {
             putCalls++;
@@ -614,8 +608,7 @@ class GroupApiImplTest {
         }
 
         @Override
-        public ModelsListServerGroupsResponse v0ServerGroupsGet(String xNetworkID,
-                                                                String xNetworkSecret,
+        public ModelsListServerGroupsResponse listServerGroups(String xNetworkID,
                                                                 String serverGroupId,
                                                                 String name,
                                                                 String type,

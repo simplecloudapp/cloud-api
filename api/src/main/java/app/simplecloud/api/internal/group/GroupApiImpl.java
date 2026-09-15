@@ -66,9 +66,8 @@ public class GroupApiImpl implements GroupApi {
     public CompletableFuture<GroupStartQueue> getServerStartQueue() {
         return CompletableFuture.supplyAsync(() -> {
             try {
-                ModelsListServerGroupStartQueueResponse response = serverGroupsApi.v0ServerGroupsStartQueueGet(
-                        options.getNetworkId(),
-                        options.getNetworkSecret()
+                ModelsListServerGroupStartQueueResponse response = serverGroupsApi.listServerGroupStartQueue(
+                        options.getNetworkId()
                 );
 
                 List<GroupStartQueueEntry> items = response.getItems() == null
@@ -102,9 +101,8 @@ public class GroupApiImpl implements GroupApi {
                 ModelsQueueServerGroupStartRequest request = new ModelsQueueServerGroupStartRequest();
                 request.setServerGroupId(normalizedServerGroupId);
 
-                serverGroupsApi.v0ServerGroupsStartQueuePost(
+                serverGroupsApi.queueServerGroupStart(
                         options.getNetworkId(),
-                        options.getNetworkSecret(),
                         request
                 );
             } catch (ApiException e) {
@@ -122,9 +120,8 @@ public class GroupApiImpl implements GroupApi {
             }
 
             try {
-                serverGroupsApi.v0ServerGroupsStartQueueDelete(
+                serverGroupsApi.clearServerGroupStartQueue(
                         options.getNetworkId(),
-                        options.getNetworkSecret(),
                         normalizedServerGroupId
                 );
             } catch (ApiException e) {
@@ -208,9 +205,8 @@ public class GroupApiImpl implements GroupApi {
     private ModelsListServerGroupsResponse executeQuery(@Nullable GroupQuery query,
                                                          @Nullable String serverGroupId,
                                                          @Nullable String name) throws ApiException {
-        return serverGroupsApi.v0ServerGroupsGet(
+        return serverGroupsApi.listServerGroups(
                 this.options.getNetworkId(),
-                this.options.getNetworkSecret(),
                 serverGroupId,
                 name,
                 query != null && query.getType() != null ? query.getType().name() : null,
@@ -325,9 +321,8 @@ public class GroupApiImpl implements GroupApi {
 
                 ModelsCreateServerGroupResponse response;
                 try {
-                    response = serverGroupsApi.v0ServerGroupsPost(
+                    response = serverGroupsApi.createServerGroup(
                             this.options.getNetworkId(),
-                            this.options.getNetworkSecret(),
                             apiRequest
                     );
                 } catch (ApiException e) {
@@ -406,9 +401,8 @@ public class GroupApiImpl implements GroupApi {
                     apiRequest.setWorkflows(convertWorkflowsConfig(request.getWorkflows()));
                 }
 
-                ModelsUpdateServerGroupResponse response = serverGroupsApi.v0ServerGroupsPatch(
+                ModelsUpdateServerGroupResponse response = serverGroupsApi.patchServerGroup(
                         this.options.getNetworkId(),
-                        this.options.getNetworkSecret(),
                         id,
                         apiRequest
                 );
@@ -553,9 +547,8 @@ public class GroupApiImpl implements GroupApi {
             try {
                 String blueprintId = findAttachedBlueprintId(id);
 
-                serverGroupsApi.v0ServerGroupsDelete(
+                serverGroupsApi.deleteServerGroup(
                         this.options.getNetworkId(),
-                        this.options.getNetworkSecret(),
                         id
                 );
 
@@ -577,9 +570,8 @@ public class GroupApiImpl implements GroupApi {
                 ModelsPatchPropertiesRequest request = new ModelsPatchPropertiesRequest();
                 request.setProperties(properties);
 
-                ModelsPatchPropertiesResponse response = serverGroupsApi.v0ServerGroupsPropertiesPatch(
+                ModelsPatchPropertiesResponse response = serverGroupsApi.patchServerGroupProperties(
                         this.options.getNetworkId(),
-                        this.options.getNetworkSecret(),
                         id,
                         request
                 );
@@ -603,9 +595,8 @@ public class GroupApiImpl implements GroupApi {
                 ModelsDeletePropertiesRequest request = new ModelsDeletePropertiesRequest();
                 request.setKeys(keys);
 
-                ModelsDeletePropertiesResponse response = serverGroupsApi.v0ServerGroupsPropertiesDelete(
+                ModelsDeletePropertiesResponse response = serverGroupsApi.deleteServerGroupProperties(
                         this.options.getNetworkId(),
-                        this.options.getNetworkSecret(),
                         id,
                         request
                 );

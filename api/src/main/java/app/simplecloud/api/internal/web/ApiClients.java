@@ -2,6 +2,7 @@ package app.simplecloud.api.internal.web;
 
 import app.simplecloud.api.CloudApiOptions;
 import app.simplecloud.api.web.ApiClient;
+import app.simplecloud.api.web.auth.ApiKeyAuth;
 
 import java.time.Duration;
 
@@ -21,6 +22,8 @@ public final class ApiClients {
     public static ApiClient create(CloudApiOptions options) {
         ApiClient client = new ApiClient();
         applyTimeouts(client, options);
+        ApiKeyAuth credential = (ApiKeyAuth) client.getAuthentication("NetworkCredential");
+        credential.setApiKey(options.getNetworkSecret());
         if (options.getComponent() != null && !options.getComponent().isBlank()) {
             client.addDefaultHeader("X-SC-Component", options.getComponent());
         }

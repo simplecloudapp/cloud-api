@@ -199,9 +199,8 @@ public class PersistentServerApiImpl implements PersistentServerApi {
         String tags = query == null || query.getTags() == null || query.getTags().isEmpty()
                 ? null
                 : String.join(",", query.getTags());
-        return persistentServersApi.v0PersistentServersGet(
+        return persistentServersApi.listPersistentServers(
                 options.getNetworkId(),
-                options.getNetworkSecret(),
                 persistentServerId,
                 name,
                 null,
@@ -255,9 +254,8 @@ public class PersistentServerApiImpl implements PersistentServerApi {
 
                 ModelsCreatePersistentServerResponse response;
                 try {
-                    response = persistentServersApi.v0PersistentServersPost(
+                    response = persistentServersApi.createPersistentServer(
                             options.getNetworkId(),
-                            options.getNetworkSecret(),
                             apiRequest
                     );
                 } catch (ApiException e) {
@@ -313,9 +311,8 @@ public class PersistentServerApiImpl implements PersistentServerApi {
                     apiRequest.setWorkflows(convertWorkflowsConfig(request.getWorkflows()));
                 }
 
-                persistentServersApi.v0PersistentServersPatch(
+                persistentServersApi.patchPersistentServer(
                         options.getNetworkId(),
-                        options.getNetworkSecret(),
                         id,
                         apiRequest
                 );
@@ -338,9 +335,8 @@ public class PersistentServerApiImpl implements PersistentServerApi {
             try {
                 String blueprintId = findAttachedBlueprintId(id);
 
-                persistentServersApi.v0PersistentServersDelete(
+                persistentServersApi.deletePersistentServer(
                         options.getNetworkId(),
-                        options.getNetworkSecret(),
                         id
                 );
 
@@ -362,9 +358,8 @@ public class PersistentServerApiImpl implements PersistentServerApi {
                 ModelsPatchPropertiesRequest request = new ModelsPatchPropertiesRequest();
                 request.setProperties(properties);
 
-                ModelsPatchPropertiesResponse response = persistentServersApi.v0PersistentServersPropertiesPatch(
+                ModelsPatchPropertiesResponse response = persistentServersApi.patchPersistentServerProperties(
                         options.getNetworkId(),
-                        options.getNetworkSecret(),
                         id,
                         request
                 );
@@ -388,9 +383,8 @@ public class PersistentServerApiImpl implements PersistentServerApi {
                 ModelsDeletePropertiesRequest request = new ModelsDeletePropertiesRequest();
                 request.setKeys(keys);
 
-                ModelsDeletePropertiesResponse response = persistentServersApi.v0PersistentServersPropertiesDelete(
+                ModelsDeletePropertiesResponse response = persistentServersApi.deletePersistentServerProperties(
                         options.getNetworkId(),
-                        options.getNetworkSecret(),
                         id,
                         request
                 );

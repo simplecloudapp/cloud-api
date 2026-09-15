@@ -54,9 +54,8 @@ public class PlayerApiImpl implements PlayerApi {
     public CompletableFuture<CloudPlayer> get(UUID uniqueId) {
         return CompletableFuture.supplyAsync(() -> {
             try {
-                ModelsPlayerResponse response = playersApi.v0PlayersIdGet(
+                ModelsPlayerResponse response = playersApi.getPlayer(
                         options.getNetworkId(),
-                        options.getNetworkSecret(),
                         uniqueId.toString()
                 );
 
@@ -78,9 +77,8 @@ public class PlayerApiImpl implements PlayerApi {
     public CompletableFuture<CloudPlayer> get(String name) {
         return CompletableFuture.supplyAsync(() -> {
             try {
-                ModelsPlayerResponse response = playersApi.v0PlayersNameGet(
+                ModelsPlayerResponse response = playersApi.getPlayerByName(
                         options.getNetworkId(),
-                        options.getNetworkSecret(),
                         name
                 );
 
@@ -102,9 +100,8 @@ public class PlayerApiImpl implements PlayerApi {
     public CompletableFuture<List<CloudPlayer>> getOnlinePlayers() {
         return CompletableFuture.supplyAsync(() -> {
             try {
-                ModelsOnlinePlayersResponse response = playersApi.v0PlayersOnlineGet(
+                ModelsOnlinePlayersResponse response = playersApi.listOnlinePlayers(
                         options.getNetworkId(),
-                        options.getNetworkSecret(),
                         null
                 );
 
@@ -127,9 +124,8 @@ public class PlayerApiImpl implements PlayerApi {
     public CompletableFuture<Integer> getOnlinePlayerCount() {
         return CompletableFuture.supplyAsync(() -> {
             try {
-                ModelsOnlinePlayerCountResponse response = playersApi.v0PlayersOnlineCountGet(
-                        options.getNetworkId(),
-                        options.getNetworkSecret()
+                ModelsOnlinePlayerCountResponse response = playersApi.getOnlinePlayerCount(
+                        options.getNetworkId()
                 );
                 return response.getCount() != null ? response.getCount() : 0;
             } catch (ApiException e) {
@@ -142,9 +138,8 @@ public class PlayerApiImpl implements PlayerApi {
     public CompletableFuture<Long> getOnlineTimeSeconds(UUID uniqueId) {
         return CompletableFuture.supplyAsync(() -> {
             try {
-                ModelsPlayerOnlineTimeResponse response = playersApi.v0PlayersOnlineTimeGet(
+                ModelsPlayerOnlineTimeResponse response = playersApi.getPlayerOnlineTime(
                         options.getNetworkId(),
-                        options.getNetworkSecret(),
                         uniqueId.toString()
                 );
 
@@ -167,9 +162,8 @@ public class PlayerApiImpl implements PlayerApi {
                 ModelsPatchPlayerRequest request = new ModelsPatchPlayerRequest();
                 request.setOnlineTimeSeconds(controllerSeconds);
 
-                ModelsPlayerResponse response = playersApi.v0PlayersPatch(
+                ModelsPlayerResponse response = playersApi.patchPlayer(
                         options.getNetworkId(),
-                        options.getNetworkSecret(),
                         uniqueId.toString(),
                         request
                 );
@@ -187,9 +181,8 @@ public class PlayerApiImpl implements PlayerApi {
                 ModelsUpdatePlayerPropertiesRequest request = new ModelsUpdatePlayerPropertiesRequest();
                 request.setProperties(properties);
 
-                ModelsUpdatePlayerPropertiesResponse response = playersApi.v0PlayersPropertiesPatch(
+                ModelsUpdatePlayerPropertiesResponse response = playersApi.patchPlayerProperties(
                         options.getNetworkId(),
-                        options.getNetworkSecret(),
                         uniqueId.toString(),
                         request
                 );
@@ -207,9 +200,8 @@ public class PlayerApiImpl implements PlayerApi {
                 ModelsDeletePlayerPropertiesRequest request = new ModelsDeletePlayerPropertiesRequest();
                 request.setKeys(keys);
 
-                playersApi.v0PlayersPropertiesDelete(
+                playersApi.deletePlayerProperties(
                         options.getNetworkId(),
-                        options.getNetworkSecret(),
                         uniqueId.toString(),
                         request
                 );
@@ -257,9 +249,8 @@ public class PlayerApiImpl implements PlayerApi {
     }
 
     private Map<String, String> getPlayerProperties(UUID uniqueId) throws ApiException {
-        ModelsPlayerPropertiesResponse response = playersApi.v0PlayersPropertiesGet(
+        ModelsPlayerPropertiesResponse response = playersApi.getPlayerProperties(
                 options.getNetworkId(),
-                options.getNetworkSecret(),
                 uniqueId.toString()
         );
         return toPropertiesMap(response.getProperties());
