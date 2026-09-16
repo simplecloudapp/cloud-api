@@ -20,8 +20,6 @@ import com.velocitypowered.api.plugin.Plugin;
 import com.velocitypowered.api.proxy.ConnectionRequestBuilder;
 import com.velocitypowered.api.proxy.Player;
 import com.velocitypowered.api.proxy.ProxyServer;
-import dev.faststats.Metrics;
-import dev.faststats.velocity.VelocityContext;
 import net.kyori.adventure.text.serializer.gson.GsonComponentSerializer;
 import net.luckperms.api.LuckPermsProvider;
 import org.slf4j.Logger;
@@ -42,7 +40,6 @@ public class CloudApiVelocityPlugin implements ProxyPresencePlayerProvider {
 
     private final Logger logger;
     private final ProxyServer proxyServer;
-    private final VelocityContext fastStatsContext;
     private final CloudApiImpl cloudApi;
     private final String proxyName;
     private final PlayerSynchronizer playerSynchronizer;
@@ -56,15 +53,10 @@ public class CloudApiVelocityPlugin implements ProxyPresencePlayerProvider {
     @Inject
     public CloudApiVelocityPlugin(
             Logger logger,
-            ProxyServer proxyServer,
-            VelocityContext.Builder fastStatsContextBuilder
+            ProxyServer proxyServer
     ) {
         this.logger = logger;
         this.proxyServer = proxyServer;
-        this.fastStatsContext = fastStatsContextBuilder
-                .token("2e8308cb6431a46a68fa0f59362978f7")
-                .metrics(Metrics.Factory::create)
-                .create();
         this.cloudApi = (CloudApiImpl) CloudApi.create();
         this.proxyName = SimpleCloudRuntime.serverName();
         this.playerSynchronizer = new PlayerSynchronizer(
@@ -100,7 +92,6 @@ public class CloudApiVelocityPlugin implements ProxyPresencePlayerProvider {
         playerSynchronizer.start();
         playerIntegration.start();
         proxyPresenceResponder.start();
-        fastStatsContext.ready();
     }
 
     @Subscribe
@@ -113,7 +104,6 @@ public class CloudApiVelocityPlugin implements ProxyPresencePlayerProvider {
         playerSynchronizer.stop();
         playerIntegration.stop();
         cloudApi.close();
-        fastStatsContext.shutdown();
     }
 
     private void initializeLuckPermsIntegration() {

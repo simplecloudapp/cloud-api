@@ -8,7 +8,6 @@ dependencies {
     implementation(project(":api")) {
         exclude(group = "net.kyori")
     }
-    implementation(rootProject.libs.faststats.bukkit)
 }
 
 sourceSets.main {

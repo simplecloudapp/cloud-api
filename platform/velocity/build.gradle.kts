@@ -12,7 +12,6 @@ dependencies {
         exclude(group = "net.kyori")
     }
     implementation(rootProject.libs.jnats)
-    implementation(rootProject.libs.faststats.velocity)
 
     testImplementation(project(":api"))
     testImplementation(rootProject.libs.junit.jupiter)
