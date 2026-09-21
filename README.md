@@ -114,6 +114,10 @@ compileOnly 'app.simplecloud.controller:controller-api:VERSION'
 Contributions to SimpleCloud are welcome and highly appreciated. However, before you jump right into it, we would like
 you to read our [Contribution Guide][docs-contribute].
 
+## NATS integration tests
+
+With an isolated NATS broker running, use `NATS_TEST_URL=nats://127.0.0.1:4222 ./gradlew :api:test --rerun-tasks` to test request inboxes before and after reconnecting. The broker test is skipped when the variable is unset. The [Go SDK README](go/README.md) describes the equivalent Go tests.
+
 ## License
 
 This repository is licensed under [Apache 2.0][license].

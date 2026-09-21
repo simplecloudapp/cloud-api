@@ -204,6 +204,7 @@ public final class NatsFailoverConnectionManager {
         return Options.builder()
                 .server(natsUrl)
                 .userInfo(networkId, networkSecret)
+                .inboxPrefix(networkId + "._INBOX")
                 .maxReconnects(-1)
                 .errorListener(listener)
                 .connectionListener(listener)
