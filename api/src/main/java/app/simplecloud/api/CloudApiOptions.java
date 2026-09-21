@@ -182,7 +182,15 @@ public class CloudApiOptions {
          * @return this builder
          */
         public Builder serverVersionManifestUrl(String serverVersionManifestUrl) {
-            this.serverVersionManifestUrl = serverVersionManifestUrl;
+            if (serverVersionManifestUrl == null || serverVersionManifestUrl.isBlank()) {
+                throw new IllegalArgumentException("serverVersionManifestUrl must not be blank");
+            }
+            String trimmed = serverVersionManifestUrl.trim();
+            // Early SSRF guard: https-only.
+            if (!trimmed.regionMatches(true, 0, "https://", 0, 8)) {
+                throw new IllegalArgumentException("serverVersionManifestUrl must use https:// - got: " + trimmed);
+            }
+            this.serverVersionManifestUrl = trimmed;
             return this;
         }
 
