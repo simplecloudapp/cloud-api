@@ -192,6 +192,7 @@ public final class InlineBlueprintSupport {
     private @Nullable String resolveServerUrl(CreateBlueprintRequest request) {
         String explicitServerUrl = normalize(request.getServerUrl());
         if (explicitServerUrl != null) {
+            ManifestServerUrlResolver.validateDownloadLink(explicitServerUrl);
             return explicitServerUrl;
         }
 
