@@ -9,6 +9,8 @@ import io.nats.client.Message;
 
 import java.time.Duration;
 import java.util.concurrent.CompletableFuture;
+import java.util.concurrent.CompletionException;
+import java.util.concurrent.TimeoutException;
 import java.util.concurrent.atomic.AtomicBoolean;
 import java.util.function.BiFunction;
 
@@ -29,8 +31,12 @@ public class PlayerIntegration {
     private BiFunction<String, String, CompletableFuture<CloudPlayer.ConnectResult>> connectHandler;
 
     public PlayerIntegration(CloudApiImpl cloudApi) {
-        this.natsConnection = cloudApi.getNatsConnection();
-        this.networkId = cloudApi.getNetworkId();
+        this(cloudApi.getNatsConnection(), cloudApi.getNetworkId());
+    }
+
+    PlayerIntegration(Connection natsConnection, String networkId) {
+        this.natsConnection = natsConnection;
+        this.networkId = networkId;
     }
 
     /**
@@ -82,6 +88,7 @@ public class PlayerIntegration {
 
     /**
      * Notifies the controller that a player disconnected.
+     * Completes exceptionally if the controller rejects the request or no valid reply is received.
      */
     public CompletableFuture<Void> disconnect(String playerId) {
         return CompletableFuture.runAsync(() -> {
@@ -91,14 +98,25 @@ public class PlayerIntegration {
                         .build();
 
                 String subject = networkId + ".player.disconnect";
-                natsConnection.request(subject, request.toByteArray(), REQUEST_TIMEOUT);
-            } catch (Exception ignored) {
+                Message response = natsConnection.request(subject, request.toByteArray(), REQUEST_TIMEOUT);
+                if (response == null) {
+                    throw new TimeoutException("No controller reply within " + REQUEST_TIMEOUT.toSeconds() + " seconds");
+                }
+                if (!PlayerDisconnectResponse.parseFrom(response.getData()).getSuccess()) {
+                    throw new IllegalStateException("Controller rejected the disconnect request");
+                }
+            } catch (Exception e) {
+                if (e instanceof InterruptedException) {
+                    Thread.currentThread().interrupt();
+                }
+                throw new CompletionException("Failed to disconnect player " + playerId + ": " + e.getMessage(), e);
             }
         });
     }
 
     /**
      * Notifies the controller that a player switched servers.
+     * Completes exceptionally if the controller rejects the request or no valid reply is received.
      */
     public CompletableFuture<Void> serverSwitch(String playerId, String newServerName) {
         return CompletableFuture.runAsync(() -> {
@@ -109,8 +127,19 @@ public class PlayerIntegration {
                         .build();
 
                 String subject = networkId + ".player.switch";
-                natsConnection.request(subject, request.toByteArray(), REQUEST_TIMEOUT);
-            } catch (Exception ignored) {
+                Message response = natsConnection.request(subject, request.toByteArray(), REQUEST_TIMEOUT);
+                if (response == null) {
+                    throw new TimeoutException("No controller reply within " + REQUEST_TIMEOUT.toSeconds() + " seconds");
+                }
+                if (!PlayerServerSwitchResponse.parseFrom(response.getData()).getSuccess()) {
+                    throw new IllegalStateException("Controller rejected the server-switch request");
+                }
+            } catch (Exception e) {
+                if (e instanceof InterruptedException) {
+                    Thread.currentThread().interrupt();
+                }
+                throw new CompletionException("Failed to switch player " + playerId + " to server "
+                        + newServerName + ": " + e.getMessage(), e);
             }
         });
     }
