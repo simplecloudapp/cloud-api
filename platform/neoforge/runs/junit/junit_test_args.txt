@@ -3,4 +3,4 @@
 --assetIndex
 asset-index
 --assetsDir
-/Users/philipp/.gradle/caches/minecraft/assets
+C:\Users\melan\.gradle\caches\minecraft\assets

@@ -65,11 +65,11 @@ public class CloudApiImpl implements CloudApi {
 
         // Initialize APIs with cache
         ApiClient httpClient = ApiClients.create(options);
-        this.eventApi = new EventApiImpl(natsClient, options.getNetworkId());
+        this.playerApi = new PlayerApiImpl(options, natsClient, httpClient);
+        this.eventApi = new EventApiImpl(natsClient, options.getNetworkId(), playerApi);
         this.serverApi = new ServerApiImpl(options, queryCache, httpClient);
         this.groupApi = new GroupApiImpl(options, queryCache, httpClient);
         this.persistentServerApi = new PersistentServerApiImpl(options, queryCache, httpClient);
-        this.playerApi = new PlayerApiImpl(options, natsClient, httpClient);
 
         // Setup event-based cache invalidation with debouncing
         if (cacheConfig.isEnabled() && cacheConfig.isAutoInvalidateOnEvents()) {
