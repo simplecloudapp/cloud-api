@@ -6,10 +6,6 @@ import java.util.function.Consumer;
 
 /**
  * API for subscribing to player events.
- *
- * <p>Login, disconnect and server switch events are published by the controller today.
- * Kick, profile change and client settings events are defined by the player protocol and
- * are delivered as soon as the controller publishes them.
  */
 public interface PlayerEventApi {
 

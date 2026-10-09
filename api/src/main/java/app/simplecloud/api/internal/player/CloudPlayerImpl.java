@@ -8,9 +8,9 @@ import io.nats.client.Connection;
 import net.kyori.adventure.audience.Audience;
 import net.kyori.adventure.audience.ForwardingAudience;
 import net.kyori.adventure.text.Component;
+import org.jspecify.annotations.NonNull;
 
 import java.util.Collections;
-import java.util.HashMap;
 import java.util.Map;
 import java.util.UUID;
 import java.util.concurrent.CompletableFuture;
@@ -63,12 +63,12 @@ public class CloudPlayerImpl implements CloudPlayer, ForwardingAudience.Single {
         if (properties == null || properties.isEmpty()) {
             this.properties = Collections.emptyMap();
         } else {
-            this.properties = Collections.unmodifiableMap(new HashMap<>(properties));
+            this.properties = Map.copyOf(properties);
         }
     }
 
     @Override
-    public Audience audience() {
+    public @NonNull Audience audience() {
         return audience;
     }
 

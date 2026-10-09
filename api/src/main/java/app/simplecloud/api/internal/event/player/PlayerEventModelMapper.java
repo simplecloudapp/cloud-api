@@ -17,11 +17,6 @@ final class PlayerEventModelMapper {
     private PlayerEventModelMapper() {
     }
 
-    /**
-     * Builds a player from the (possibly partial) config carried by a player event.
-     *
-     * @param online the online state to assume when the config carries no connection info
-     */
     static CloudPlayer mapPlayer(
             PlayerApi playerApi,
             Connection natsConnection,
@@ -69,9 +64,6 @@ final class PlayerEventModelMapper {
         return settings;
     }
 
-    /**
-     * Player event timestamps are epoch milliseconds, unlike server events which use seconds.
-     */
     static String toIsoTimestamp(long epochMillis) {
         return epochMillis > 0 ? Instant.ofEpochMilli(epochMillis).toString() : null;
     }

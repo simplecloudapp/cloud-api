@@ -57,8 +57,6 @@ public interface PlayerLoginEvent {
     /**
      * Returns the player as reported by the controller with this event.
      *
-     * <p>Contains the full player state at login.
-     *
      * @return the player, or null if the controller sent no player data
      */
     @Nullable

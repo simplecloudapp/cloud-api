@@ -160,7 +160,7 @@ public class PlayerConnectionListener implements Listener {
         }
         result.setViewDistance(player.getViewDistance());
         result.setChatColors(player.hasChatColors());
-        // BungeeCord does not expose the client listing flag; the vanilla default is allowed.
+        // Bungee does not expose the client listing flag.
         result.setClientListingAllowed(true);
         result.setSkinParts(toSkinParts(player.getSkinParts()));
         return result;

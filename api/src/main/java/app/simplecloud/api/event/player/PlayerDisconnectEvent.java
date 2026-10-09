@@ -50,8 +50,6 @@ public interface PlayerDisconnectEvent {
     /**
      * Returns the player as reported by the controller with this event.
      *
-     * <p>Only partially populated (name, display name, online time); the player is offline.
-     *
      * @return the player, or null if the controller sent no player data
      */
     @Nullable
