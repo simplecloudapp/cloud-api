@@ -32,6 +32,8 @@ dependencies {
     implementation(rootProject.libs.caffeine)
 
     testImplementation(rootProject.libs.junit.jupiter)
+    testImplementation(rootProject.libs.okhttp.mockwebserver)
+    testImplementation(rootProject.libs.okhttp.tls)
     testRuntimeOnly("org.junit.platform:junit-platform-launcher")
 }
 

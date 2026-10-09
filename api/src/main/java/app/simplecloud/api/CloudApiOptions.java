@@ -178,19 +178,15 @@ public class CloudApiOptions {
          * Sets the manifest URL used to resolve software versions into concrete download URLs
          * for inline blueprint creation.
          *
+         * <p>The manifest is only fetched over HTTPS from publicly routable addresses; redirects
+         * are re-checked and the response size is capped. If a JVM-wide proxy is configured, the proxy
+         * resolves the manifest host, so the address check applies to the proxy host instead.
+         *
          * @param serverVersionManifestUrl manifest endpoint returning {@code server_versions.json}
          * @return this builder
          */
         public Builder serverVersionManifestUrl(String serverVersionManifestUrl) {
-            if (serverVersionManifestUrl == null || serverVersionManifestUrl.isBlank()) {
-                throw new IllegalArgumentException("serverVersionManifestUrl must not be blank");
-            }
-            String trimmed = serverVersionManifestUrl.trim();
-            // Early SSRF guard: https-only.
-            if (!trimmed.regionMatches(true, 0, "https://", 0, 8)) {
-                throw new IllegalArgumentException("serverVersionManifestUrl must use https:// - got: " + trimmed);
-            }
-            this.serverVersionManifestUrl = trimmed;
+            this.serverVersionManifestUrl = serverVersionManifestUrl;
             return this;
         }
 
