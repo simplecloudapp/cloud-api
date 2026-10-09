@@ -1,5 +1,6 @@
 package app.simplecloud.api.internal.blueprint;
 
+import app.simplecloud.api.CloudApiOptions;
 import app.simplecloud.api.blueprint.CreateBlueprintRequest;
 import com.google.gson.Gson;
 import okhttp3.Dns;
@@ -15,12 +16,16 @@ import org.junit.jupiter.api.Test;
 import java.io.IOException;
 import java.net.InetAddress;
 import java.net.UnknownHostException;
+import java.time.Duration;
 import java.util.List;
+import java.util.concurrent.TimeUnit;
 
 import static org.junit.jupiter.api.Assertions.assertEquals;
+import static org.junit.jupiter.api.Assertions.assertFalse;
 import static org.junit.jupiter.api.Assertions.assertInstanceOf;
 import static org.junit.jupiter.api.Assertions.assertNull;
 import static org.junit.jupiter.api.Assertions.assertThrows;
+import static org.junit.jupiter.api.Assertions.assertTrue;
 
 class ManifestServerUrlResolverTest {
     private static final String HOST = "manifest.test";
@@ -81,7 +86,12 @@ class ManifestServerUrlResolverTest {
     void resolve_rejectsHttpManifestUrl() {
         String httpUrl = server.url("/server_versions.json").newBuilder().scheme("http").host(HOST).build().toString();
 
-        assertThrows(IllegalStateException.class, () -> resolver(httpUrl).resolve(paper("1.21.11")));
+        IllegalStateException failure = assertThrows(
+                IllegalStateException.class,
+                () -> resolver(httpUrl).resolve(paper("1.21.11"))
+        );
+
+        assertTrue(failure.getMessage().contains("non-HTTPS"), failure.getMessage());
         assertEquals(0, server.getRequestCount());
     }
 
@@ -110,6 +120,18 @@ class ManifestServerUrlResolverTest {
     }
 
     @Test
+    void resolve_productionClientRejectsHostResolvingToLoopback() {
+        ManifestServerUrlResolver resolver = new ManifestServerUrlResolver(CloudApiOptions.builder()
+                .serverVersionManifestUrl("https://localhost:" + server.getPort() + "/server_versions.json")
+                .build());
+
+        IllegalStateException failure = assertThrows(IllegalStateException.class, () -> resolver.resolve(paper("1.21.11")));
+
+        assertInstanceOf(UnknownHostException.class, failure.getCause());
+        assertEquals(0, server.getRequestCount());
+    }
+
+    @Test
     void resolve_followsRedirects() {
         server.enqueue(redirectTo("/moved.json"));
         server.enqueue(new MockResponse().setBody(MANIFEST));
@@ -122,7 +144,12 @@ class ManifestServerUrlResolverTest {
     void resolve_rejectsRedirectToHttp() {
         server.enqueue(redirectTo("http://" + HOST + ":" + server.getPort() + "/server_versions.json"));
 
-        assertThrows(IllegalStateException.class, () -> resolver(manifestUrl()).resolve(paper("1.21.11")));
+        IllegalStateException failure = assertThrows(
+                IllegalStateException.class,
+                () -> resolver(manifestUrl()).resolve(paper("1.21.11"))
+        );
+
+        assertTrue(failure.getMessage().contains("non-HTTPS"), failure.getMessage());
         assertEquals(1, server.getRequestCount());
     }
 
@@ -136,6 +163,18 @@ class ManifestServerUrlResolverTest {
         );
 
         assertInstanceOf(UnknownHostException.class, failure.getCause());
+    }
+
+    @Test
+    void resolve_rejectsRedirectWithoutLocation() {
+        server.enqueue(new MockResponse().setResponseCode(302));
+
+        IllegalStateException failure = assertThrows(
+                IllegalStateException.class,
+                () -> resolver(manifestUrl()).resolve(paper("1.21.11"))
+        );
+
+        assertTrue(failure.getMessage().contains("without Location"), failure.getMessage());
     }
 
     @Test
@@ -173,6 +212,34 @@ class ManifestServerUrlResolverTest {
     }
 
     @Test
+    void resolve_enforcesOverallDeadline() {
+        // Each read arrives well within the read timeout, but the whole body takes longer than the deadline.
+        server.enqueue(new MockResponse().setBody(MANIFEST).throttleBody(16, 100, TimeUnit.MILLISECONDS));
+
+        assertThrows(
+                IllegalStateException.class,
+                () -> resolver(manifestUrl(), LOOPBACK_DNS, Duration.ofMillis(300)).resolve(paper("1.21.11"))
+        );
+    }
+
+    @Test
+    void resolve_keepsCredentialsOutOfErrors() {
+        server.enqueue(new MockResponse().setResponseCode(500));
+        String url = server.url("/server_versions.json").newBuilder()
+                .host(HOST)
+                .username("user")
+                .password("hunter2")
+                .addQueryParameter("token", "s3cret")
+                .build()
+                .toString();
+
+        IllegalStateException failure = assertThrows(IllegalStateException.class, () -> resolver(url).resolve(paper("1.21.11")));
+
+        assertFalse(failure.getMessage().contains("hunter2"), failure.getMessage());
+        assertFalse(failure.getMessage().contains("s3cret"), failure.getMessage());
+    }
+
+    @Test
     void resolve_wrapsMalformedManifest() {
         server.enqueue(new MockResponse().setBody("{ not json"));
 
@@ -184,6 +251,10 @@ class ManifestServerUrlResolverTest {
     }
 
     private ManifestServerUrlResolver resolver(String manifestUrl, Dns dns) {
+        return resolver(manifestUrl, dns, Duration.ofSeconds(10));
+    }
+
+    private ManifestServerUrlResolver resolver(String manifestUrl, Dns dns, Duration fetchTimeout) {
         HandshakeCertificates trust = new HandshakeCertificates.Builder()
                 .addTrustedCertificate(CERTIFICATE.certificate())
                 .build();
@@ -191,7 +262,7 @@ class ManifestServerUrlResolverTest {
                 .sslSocketFactory(trust.sslSocketFactory(), trust.trustManager())
                 .dns(dns)
                 .build();
-        return new ManifestServerUrlResolver(manifestUrl, client, new Gson());
+        return new ManifestServerUrlResolver(manifestUrl, client, fetchTimeout, new Gson());
     }
 
     private String manifestUrl() {
