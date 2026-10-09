@@ -2,6 +2,7 @@ package app.simplecloud.api.internal.integration.player;
 
 import app.simplecloud.api.internal.CloudApiImpl;
 import app.simplecloud.api.player.CloudPlayer;
+import app.simplecloud.api.player.PlayerClientSettings;
 import build.buf.gen.simplecloud.player.v2.*;
 import io.nats.client.Connection;
 import io.nats.client.Dispatcher;
@@ -109,6 +110,36 @@ public class PlayerIntegration {
                         .build();
 
                 String subject = networkId + ".player.switch";
+                natsConnection.request(subject, request.toByteArray(), REQUEST_TIMEOUT);
+            } catch (Exception ignored) {
+            }
+        });
+    }
+
+    /**
+     * Notifies the controller that a player's client settings changed.
+     */
+    public CompletableFuture<Void> updateClientSettings(String sessionId, PlayerClientSettings settings) {
+        return CompletableFuture.runAsync(() -> {
+            try {
+                build.buf.gen.simplecloud.player.v2.PlayerClientSettings.Builder settingsBuilder =
+                        build.buf.gen.simplecloud.player.v2.PlayerClientSettings.newBuilder()
+                                .setSessionId(sessionId)
+                                .setChatMode(toProtoChatMode(settings.getChatMode()))
+                                .setMainHand(toProtoMainHand(settings.getMainHand()))
+                                .setViewDistance(settings.getViewDistance())
+                                .setChatColors(settings.hasChatColors())
+                                .setClientListingAllowed(settings.isClientListingAllowed())
+                                .addAllSkinParts(settings.getSkinParts());
+
+                if (settings.getLocale() != null) settingsBuilder.setLocale(settings.getLocale());
+
+                UpdateClientSettingsRequest request = UpdateClientSettingsRequest.newBuilder()
+                        .setSessionId(sessionId)
+                        .setSettings(settingsBuilder)
+                        .build();
+
+                String subject = networkId + ".player.settings";
                 natsConnection.request(subject, request.toByteArray(), REQUEST_TIMEOUT);
             } catch (Exception ignored) {
             }
@@ -234,6 +265,30 @@ public class PlayerIntegration {
                 natsConnection.publish(msg.getReplyTo(), builder.build().toByteArray());
             } catch (Exception ignored) {
             }
+        }
+    }
+
+    private static ChatMode toProtoChatMode(PlayerClientSettings.ChatMode chatMode) {
+        switch (chatMode) {
+            case ENABLED:
+                return ChatMode.CHAT_MODE_ENABLED;
+            case COMMANDS_ONLY:
+                return ChatMode.CHAT_MODE_COMMANDS_ONLY;
+            case HIDDEN:
+                return ChatMode.CHAT_MODE_HIDDEN;
+            default:
+                return ChatMode.CHAT_MODE_UNSPECIFIED;
+        }
+    }
+
+    private static MainHand toProtoMainHand(PlayerClientSettings.MainHand mainHand) {
+        switch (mainHand) {
+            case LEFT:
+                return MainHand.MAIN_HAND_LEFT;
+            case RIGHT:
+                return MainHand.MAIN_HAND_RIGHT;
+            default:
+                return MainHand.MAIN_HAND_UNSPECIFIED;
         }
     }
 }

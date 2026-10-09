@@ -134,6 +134,33 @@ public interface CloudPlayer extends Audience {
     CompletableFuture<ConnectResult> connect(String serverName);
 
     /**
+     * Connects the player to a server of the given server group.
+     *
+     * @param groupName the name of the target server group
+     * @param selectionMode how the target server is chosen
+     * @return a future containing the connection result
+     */
+    CompletableFuture<ConnectResult> connectToGroup(String groupName, ServerSelectionMode selectionMode);
+
+    /**
+     * Connects the player to a random server of the given server group.
+     *
+     * @param groupName the name of the target server group
+     * @return a future containing the connection result
+     */
+    default CompletableFuture<ConnectResult> connectToGroup(String groupName) {
+        return connectToGroup(groupName, ServerSelectionMode.RANDOM);
+    }
+
+    /**
+     * Connects the player to a persistent server.
+     *
+     * @param persistentServerId the ID of the target persistent server
+     * @return a future containing the connection result
+     */
+    CompletableFuture<ConnectResult> connectToPersistentServer(String persistentServerId);
+
+    /**
      * Result of a player connection attempt.
      */
     enum ConnectResult {

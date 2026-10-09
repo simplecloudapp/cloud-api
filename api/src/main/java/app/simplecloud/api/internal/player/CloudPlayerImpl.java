@@ -2,34 +2,22 @@ package app.simplecloud.api.internal.player;
 
 import app.simplecloud.api.internal.integration.adventure.RemoteAudience;
 import app.simplecloud.api.player.CloudPlayer;
-import build.buf.gen.simplecloud.adventure.v1.AdventureComponent;
-import build.buf.gen.simplecloud.player.v2.ConnectPlayerRequest;
-import build.buf.gen.simplecloud.player.v2.ConnectPlayerResponse;
-import build.buf.gen.simplecloud.player.v2.KickPlayerRequest;
-import build.buf.gen.simplecloud.player.v2.KickPlayerResponse;
+import app.simplecloud.api.player.PlayerApi;
+import app.simplecloud.api.player.ServerSelectionMode;
 import io.nats.client.Connection;
-import io.nats.client.Message;
 import net.kyori.adventure.audience.Audience;
 import net.kyori.adventure.audience.ForwardingAudience;
 import net.kyori.adventure.text.Component;
-import net.kyori.adventure.text.serializer.gson.GsonComponentSerializer;
+import org.jspecify.annotations.NonNull;
 
-import java.time.Duration;
 import java.util.Collections;
-import java.util.HashMap;
 import java.util.Map;
 import java.util.UUID;
 import java.util.concurrent.CompletableFuture;
 
-/**
- * Implementation of CloudPlayer that sends adventure actions via NATS.
- */
 public class CloudPlayerImpl implements CloudPlayer, ForwardingAudience.Single {
 
-    private static final Duration REQUEST_TIMEOUT = Duration.ofSeconds(30);
-
-    private final Connection natsConnection;
-    private final String networkId;
+    private final PlayerApi playerApi;
     private final Audience audience;
 
     private final UUID uniqueId;
@@ -45,6 +33,7 @@ public class CloudPlayerImpl implements CloudPlayer, ForwardingAudience.Single {
     private final Map<String, String> properties;
 
     public CloudPlayerImpl(
+            PlayerApi playerApi,
             Connection natsConnection,
             String networkId,
             UUID uniqueId,
@@ -59,8 +48,7 @@ public class CloudPlayerImpl implements CloudPlayer, ForwardingAudience.Single {
             String lastSeen,
             Map<String, String> properties
     ) {
-        this.natsConnection = natsConnection;
-        this.networkId = networkId;
+        this.playerApi = playerApi;
         this.audience = RemoteAudience.builder(natsConnection, networkId).forPlayer(uniqueId);
         this.uniqueId = uniqueId;
         this.name = name;
@@ -75,16 +63,14 @@ public class CloudPlayerImpl implements CloudPlayer, ForwardingAudience.Single {
         if (properties == null || properties.isEmpty()) {
             this.properties = Collections.emptyMap();
         } else {
-            this.properties = Collections.unmodifiableMap(new HashMap<>(properties));
+            this.properties = Map.copyOf(properties);
         }
     }
 
     @Override
-    public Audience audience() {
+    public @NonNull Audience audience() {
         return audience;
     }
-
-    // ===== CloudPlayer methods =====
 
     @Override
     public UUID getUniqueId() {
@@ -143,58 +129,21 @@ public class CloudPlayerImpl implements CloudPlayer, ForwardingAudience.Single {
 
     @Override
     public CompletableFuture<Void> kick(Component reason) {
-        return CompletableFuture.runAsync(() -> {
-            try {
-                KickPlayerRequest.Builder builder = KickPlayerRequest.newBuilder()
-                        .setPlayerId(uniqueId.toString());
-
-                if (reason != null) {
-                    builder.setReason(AdventureComponent.newBuilder()
-                            .setJson(GsonComponentSerializer.gson().serialize(reason))
-                            .build());
-                }
-
-                String subject = networkId + ".player." + uniqueId + ".kick";
-                Message response = natsConnection.request(subject, builder.build().toByteArray(), REQUEST_TIMEOUT);
-
-                if (response != null) {
-                    KickPlayerResponse.parseFrom(response.getData());
-                }
-            } catch (Exception ignored) {
-            }
-        });
+        return playerApi.kick(uniqueId, reason).thenApply(ignored -> null);
     }
 
     @Override
     public CompletableFuture<ConnectResult> connect(String serverName) {
-        return CompletableFuture.supplyAsync(() -> {
-            try {
-                ConnectPlayerRequest request = ConnectPlayerRequest.newBuilder()
-                        .setPlayerId(uniqueId.toString())
-                        .setServerName(serverName)
-                        .build();
+        return playerApi.connect(uniqueId, serverName);
+    }
 
-                String subject = networkId + ".player." + uniqueId + ".connect";
-                Message response = natsConnection.request(subject, request.toByteArray(), REQUEST_TIMEOUT);
+    @Override
+    public CompletableFuture<ConnectResult> connectToGroup(String groupName, ServerSelectionMode selectionMode) {
+        return playerApi.connectToGroup(uniqueId, groupName, selectionMode);
+    }
 
-                if (response == null) {
-                    return ConnectResult.CONNECTION_FAILED;
-                }
-
-                ConnectPlayerResponse protoResponse = ConnectPlayerResponse.parseFrom(response.getData());
-                switch (protoResponse.getResult()) {
-                    case CONNECT_RESULT_SUCCESS:
-                        return ConnectResult.SUCCESS;
-                    case CONNECT_RESULT_SERVER_NOT_FOUND:
-                        return ConnectResult.SERVER_NOT_FOUND;
-                    case CONNECT_RESULT_ALREADY_CONNECTED:
-                        return ConnectResult.ALREADY_CONNECTED;
-                    default:
-                        return ConnectResult.CONNECTION_FAILED;
-                }
-            } catch (Exception e) {
-                return ConnectResult.CONNECTION_FAILED;
-            }
-        });
+    @Override
+    public CompletableFuture<ConnectResult> connectToPersistentServer(String persistentServerId) {
+        return playerApi.connectToPersistentServer(uniqueId, persistentServerId);
     }
 }
