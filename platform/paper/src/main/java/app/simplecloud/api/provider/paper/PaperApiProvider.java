@@ -2,6 +2,7 @@ package app.simplecloud.api.provider.paper;
 
 import app.simplecloud.api.CloudApi;
 import app.simplecloud.api.internal.integration.adventure.AdventureIntegration;
+import app.simplecloud.api.platform.shared.PlayerSynchronizer;
 import app.simplecloud.api.runtime.SimpleCloudRuntime;
 import net.kyori.adventure.audience.Audience;
 import org.bukkit.Bukkit;
@@ -11,6 +12,7 @@ public class PaperApiProvider extends JavaPlugin {
 
     private CloudApi cloudApi;
     private AdventureIntegration adventureIntegration;
+    private PlayerSynchronizer playerSynchronizer;
 
     @Override
     public void onEnable() {
@@ -28,11 +30,16 @@ public class PaperApiProvider extends JavaPlugin {
                 .build();
         adventureIntegration.start();
 
+        this.initializePlayerSynchronizer();
+
         getLogger().info("SimpleCloud v3 API provider initialized!");
     }
 
     @Override
     public void onDisable() {
+        if (playerSynchronizer != null) {
+            playerSynchronizer.stop();
+        }
         if (adventureIntegration != null) {
             adventureIntegration.stop();
         }
@@ -40,5 +47,11 @@ public class PaperApiProvider extends JavaPlugin {
             cloudApi.close();
         }
         getLogger().info("SimpleCloud v3 API provider uninitialized!");
+    }
+
+    private void initializePlayerSynchronizer() {
+        this.playerSynchronizer = new PlayerSynchronizer(cloudApi, () -> (long) Bukkit.getOnlinePlayers().size());
+        Bukkit.getPluginManager().registerEvents(new PlayerConnectionListener(playerSynchronizer), this);
+        playerSynchronizer.start();
     }
 }
