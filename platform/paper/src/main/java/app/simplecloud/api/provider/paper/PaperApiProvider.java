@@ -2,15 +2,19 @@ package app.simplecloud.api.provider.paper;
 
 import app.simplecloud.api.CloudApi;
 import app.simplecloud.api.internal.integration.adventure.AdventureIntegration;
+import app.simplecloud.api.platform.shared.OnlinePlayerTracker;
+import app.simplecloud.api.platform.shared.PlayerSynchronizer;
 import app.simplecloud.api.runtime.SimpleCloudRuntime;
 import net.kyori.adventure.audience.Audience;
 import org.bukkit.Bukkit;
+import org.bukkit.entity.Player;
 import org.bukkit.plugin.java.JavaPlugin;
 
 public class PaperApiProvider extends JavaPlugin {
 
     private CloudApi cloudApi;
     private AdventureIntegration adventureIntegration;
+    private PlayerSynchronizer playerSynchronizer;
 
     @Override
     public void onEnable() {
@@ -28,11 +32,16 @@ public class PaperApiProvider extends JavaPlugin {
                 .build();
         adventureIntegration.start();
 
+        this.initializePlayerSynchronizer();
+
         getLogger().info("SimpleCloud v3 API provider initialized!");
     }
 
     @Override
     public void onDisable() {
+        if (playerSynchronizer != null) {
+            playerSynchronizer.stop();
+        }
         if (adventureIntegration != null) {
             adventureIntegration.stop();
         }
@@ -40,5 +49,14 @@ public class PaperApiProvider extends JavaPlugin {
             cloudApi.close();
         }
         getLogger().info("SimpleCloud v3 API provider uninitialized!");
+    }
+
+    private void initializePlayerSynchronizer() {
+        OnlinePlayerTracker onlinePlayerTracker = new OnlinePlayerTracker();
+        onlinePlayerTracker.reset(Bukkit.getOnlinePlayers().stream().map(Player::getUniqueId).toList());
+        this.playerSynchronizer = new PlayerSynchronizer(cloudApi, onlinePlayerTracker::count);
+        Bukkit.getPluginManager().registerEvents(new PlayerConnectionListener(onlinePlayerTracker, playerSynchronizer), this);
+        playerSynchronizer.start();
+        playerSynchronizer.updatePlayerCount();
     }
 }
