@@ -23,10 +23,7 @@ import org.jetbrains.annotations.NotNull;
 import org.jetbrains.annotations.Nullable;
 
 import java.time.Duration;
-import java.util.HashMap;
-import java.util.List;
-import java.util.Locale;
-import java.util.Map;
+import java.util.*;
 import java.util.concurrent.CompletableFuture;
 import java.util.concurrent.Executor;
 import java.util.concurrent.ForkJoinPool;
@@ -54,11 +51,7 @@ public class ServerApiImpl implements ServerApi {
         this(options, cache, createServersApi(options, httpClient), executor);
     }
 
-    ServerApiImpl(CloudApiOptions options, QueryCache cache, ServersApi serversApi) {
-        this(options, cache, serversApi, ForkJoinPool.commonPool());
-    }
-
-    ServerApiImpl(CloudApiOptions options, QueryCache cache, ServersApi serversApi, Executor executor) {
+    private ServerApiImpl(CloudApiOptions options, QueryCache cache, ServersApi serversApi, Executor executor) {
         this.options = options;
         this.cache = cache;
         this.serversApi = serversApi;
@@ -72,7 +65,7 @@ public class ServerApiImpl implements ServerApi {
         return cache.fetchWithTransientMissRecovery(
                 key,
                 () -> fetchServerByIdFromController(id),
-                server -> server == null,
+                Objects::isNull,
                 TRANSIENT_MISS_RETRY_DELAY,
                 TRANSIENT_MISS_MAX_RETRIES
         ).thenApply(server -> {
@@ -90,7 +83,7 @@ public class ServerApiImpl implements ServerApi {
         return cache.fetchWithTransientMissRecovery(
                 key,
                 () -> fetchServerByNumericalIdFromController(groupName, numericalId),
-                server -> server == null,
+                Objects::isNull,
                 TRANSIENT_MISS_RETRY_DELAY,
                 TRANSIENT_MISS_MAX_RETRIES
         ).thenApply(server -> {

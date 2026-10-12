@@ -22,6 +22,7 @@ import java.time.Duration;
 import java.util.HashMap;
 import java.util.List;
 import java.util.Map;
+import java.util.Objects;
 import java.util.concurrent.CompletableFuture;
 import java.util.concurrent.Executor;
 import java.util.concurrent.ForkJoinPool;
@@ -96,7 +97,7 @@ public class PersistentServerApiImpl implements PersistentServerApi {
         return cache.fetchWithTransientMissRecovery(
                 key,
                 () -> fetchPersistentServerByIdFromController(id),
-                persistentServer -> persistentServer == null,
+                Objects::isNull,
                 TRANSIENT_MISS_RETRY_DELAY,
                 TRANSIENT_MISS_MAX_RETRIES
         ).thenApply(persistentServer -> {
@@ -114,7 +115,7 @@ public class PersistentServerApiImpl implements PersistentServerApi {
         return cache.fetchWithTransientMissRecovery(
                 key,
                 () -> fetchPersistentServerByNameFromController(name),
-                persistentServer -> persistentServer == null,
+                Objects::isNull,
                 TRANSIENT_MISS_RETRY_DELAY,
                 TRANSIENT_MISS_MAX_RETRIES
         ).thenApply(persistentServer -> {
@@ -477,7 +478,7 @@ public class PersistentServerApiImpl implements PersistentServerApi {
                 .filter(server -> persistentServerId.equals(server.getPersistentServerId()))
                 .map(ModelsPersistentServerSummary::getSource)
                 .map(inlineBlueprintSupport::getReferencedBlueprintId)
-                .filter(blueprintId -> blueprintId != null)
+                .filter(Objects::nonNull)
                 .findFirst()
                 .orElse(null);
     }

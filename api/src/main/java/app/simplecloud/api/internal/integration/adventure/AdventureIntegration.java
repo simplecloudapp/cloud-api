@@ -363,61 +363,39 @@ public class AdventureIntegration {
     }
 
     private Sound.Source convertSoundSource(SoundSource source) {
-        switch (source) {
-            case SOUND_SOURCE_MUSIC:
-                return Sound.Source.MUSIC;
-            case SOUND_SOURCE_RECORD:
-                return Sound.Source.RECORD;
-            case SOUND_SOURCE_WEATHER:
-                return Sound.Source.WEATHER;
-            case SOUND_SOURCE_BLOCK:
-                return Sound.Source.BLOCK;
-            case SOUND_SOURCE_HOSTILE:
-                return Sound.Source.HOSTILE;
-            case SOUND_SOURCE_NEUTRAL:
-                return Sound.Source.NEUTRAL;
-            case SOUND_SOURCE_PLAYER:
-                return Sound.Source.PLAYER;
-            case SOUND_SOURCE_AMBIENT:
-                return Sound.Source.AMBIENT;
-            case SOUND_SOURCE_VOICE:
-                return Sound.Source.VOICE;
-            default:
-                return Sound.Source.MASTER;
-        }
+        return switch (source) {
+            case SOUND_SOURCE_MUSIC -> Sound.Source.MUSIC;
+            case SOUND_SOURCE_RECORD -> Sound.Source.RECORD;
+            case SOUND_SOURCE_WEATHER -> Sound.Source.WEATHER;
+            case SOUND_SOURCE_BLOCK -> Sound.Source.BLOCK;
+            case SOUND_SOURCE_HOSTILE -> Sound.Source.HOSTILE;
+            case SOUND_SOURCE_NEUTRAL -> Sound.Source.NEUTRAL;
+            case SOUND_SOURCE_PLAYER -> Sound.Source.PLAYER;
+            case SOUND_SOURCE_AMBIENT -> Sound.Source.AMBIENT;
+            case SOUND_SOURCE_VOICE -> Sound.Source.VOICE;
+            default -> Sound.Source.MASTER;
+        };
     }
 
     private BossBar.Color convertBossBarColor(BossBarColor color) {
-        switch (color) {
-            case BOSS_BAR_COLOR_BLUE:
-                return BossBar.Color.BLUE;
-            case BOSS_BAR_COLOR_RED:
-                return BossBar.Color.RED;
-            case BOSS_BAR_COLOR_GREEN:
-                return BossBar.Color.GREEN;
-            case BOSS_BAR_COLOR_YELLOW:
-                return BossBar.Color.YELLOW;
-            case BOSS_BAR_COLOR_PURPLE:
-                return BossBar.Color.PURPLE;
-            case BOSS_BAR_COLOR_WHITE:
-                return BossBar.Color.WHITE;
-            default:
-                return BossBar.Color.PINK;
-        }
+        return switch (color) {
+            case BOSS_BAR_COLOR_BLUE -> BossBar.Color.BLUE;
+            case BOSS_BAR_COLOR_RED -> BossBar.Color.RED;
+            case BOSS_BAR_COLOR_GREEN -> BossBar.Color.GREEN;
+            case BOSS_BAR_COLOR_YELLOW -> BossBar.Color.YELLOW;
+            case BOSS_BAR_COLOR_PURPLE -> BossBar.Color.PURPLE;
+            case BOSS_BAR_COLOR_WHITE -> BossBar.Color.WHITE;
+            default -> BossBar.Color.PINK;
+        };
     }
 
     private BossBar.Overlay convertBossBarOverlay(BossBarOverlay overlay) {
-        switch (overlay) {
-            case BOSS_BAR_OVERLAY_NOTCHED_6:
-                return BossBar.Overlay.NOTCHED_6;
-            case BOSS_BAR_OVERLAY_NOTCHED_10:
-                return BossBar.Overlay.NOTCHED_10;
-            case BOSS_BAR_OVERLAY_NOTCHED_12:
-                return BossBar.Overlay.NOTCHED_12;
-            case BOSS_BAR_OVERLAY_NOTCHED_20:
-                return BossBar.Overlay.NOTCHED_20;
-            default:
-                return BossBar.Overlay.PROGRESS;
-        }
+        return switch (overlay) {
+            case BOSS_BAR_OVERLAY_NOTCHED_6 -> BossBar.Overlay.NOTCHED_6;
+            case BOSS_BAR_OVERLAY_NOTCHED_10 -> BossBar.Overlay.NOTCHED_10;
+            case BOSS_BAR_OVERLAY_NOTCHED_12 -> BossBar.Overlay.NOTCHED_12;
+            case BOSS_BAR_OVERLAY_NOTCHED_20 -> BossBar.Overlay.NOTCHED_20;
+            default -> BossBar.Overlay.PROGRESS;
+        };
     }
 }

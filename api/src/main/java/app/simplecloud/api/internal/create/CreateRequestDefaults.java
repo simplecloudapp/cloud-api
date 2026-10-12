@@ -17,6 +17,7 @@ import org.jetbrains.annotations.Nullable;
 import java.util.LinkedHashMap;
 import java.util.List;
 import java.util.Map;
+import java.util.Objects;
 
 /**
  * Applies dashboard-aligned defaults to create requests before converting them to controller payloads.
@@ -122,7 +123,7 @@ public final class CreateRequestDefaults {
                 .softwareVersion(createBlueprint.getSoftwareVersion())
                 .workflowSteps(createBlueprint.getWorkflowSteps() != null
                         ? List.copyOf(createBlueprint.getWorkflowSteps())
-                        : List.copyOf(workflows.getWhen().getStart()))
+                        : List.copyOf(Objects.requireNonNull(Objects.requireNonNull(workflows.getWhen()).getStart())))
                 .build();
     }
 

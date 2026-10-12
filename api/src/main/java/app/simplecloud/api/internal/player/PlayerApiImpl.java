@@ -484,6 +484,7 @@ public class PlayerApiImpl implements PlayerApi {
     }
     
     private CloudPlayer convertPlayer(ModelsOnlinePlayerResponse player) {
+        assert player.getId() != null;
         return new CloudPlayerImpl(
                 this,
                 natsConnection,

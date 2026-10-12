@@ -16,12 +16,10 @@ public class PersistentServerEventApiImpl implements PersistentServerEventApi {
 
     private static final Logger LOGGER = Logger.getLogger(PersistentServerEventApiImpl.class.getName());
 
-    private final Connection natsConnection;
     private final String networkId;
     private final Dispatcher dispatcher;
 
     public PersistentServerEventApiImpl(Connection natsConnection, String networkId) {
-        this.natsConnection = natsConnection;
         this.networkId = networkId;
         this.dispatcher = natsConnection.createDispatcher(null);
     }

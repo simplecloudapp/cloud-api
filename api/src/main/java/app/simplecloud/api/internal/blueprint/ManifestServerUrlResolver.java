@@ -126,19 +126,16 @@ final class ManifestServerUrlResolver implements InlineBlueprintSupport.ServerUr
         return normalized.isEmpty() ? null : normalized;
     }
 
-    private static final class CachedManifest {
-        private final List<ManifestEntry> entries;
-        private final Instant expiresAt;
+    private record CachedManifest(List<ManifestEntry> entries, Instant expiresAt) {
+            private CachedManifest(List<ManifestEntry> entries, Instant expiresAt) {
+                this.entries = List.copyOf(entries);
+                this.expiresAt = expiresAt;
+            }
 
-        private CachedManifest(List<ManifestEntry> entries, Instant expiresAt) {
-            this.entries = List.copyOf(entries);
-            this.expiresAt = expiresAt;
+            private boolean isExpired() {
+                return Instant.now().isAfter(expiresAt);
+            }
         }
-
-        private boolean isExpired() {
-            return Instant.now().isAfter(expiresAt);
-        }
-    }
 
     private static final class ManifestEntry {
         private String name;

@@ -20,8 +20,6 @@ import java.util.concurrent.*;
  */
 public class CacheEventListener {
 
-    private static final long DEFAULT_DEBOUNCE_MS = 50;
-
     private final QueryCache cache;
     private final List<Subscription> subscriptions = new ArrayList<>();
     private final ScheduledExecutorService scheduler;
@@ -32,10 +30,6 @@ public class CacheEventListener {
     private final Set<QueryKey> pendingPatternInvalidations = ConcurrentHashMap.newKeySet();
     private volatile ScheduledFuture<?> pendingFlush;
     private boolean shutdown;
-
-    public CacheEventListener(QueryCache cache, EventApi eventApi) {
-        this(cache, eventApi, DEFAULT_DEBOUNCE_MS);
-    }
 
     public CacheEventListener(QueryCache cache, EventApi eventApi, long debounceMs) {
         this.cache = cache;
