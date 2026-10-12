@@ -2,8 +2,10 @@ package app.simplecloud.api.platform.folia;
 
 import app.simplecloud.api.CloudApi;
 import app.simplecloud.api.internal.CloudApiImpl;
+import app.simplecloud.api.platform.shared.OnlinePlayerTracker;
 import app.simplecloud.api.platform.shared.PlayerSynchronizer;
 import org.bukkit.Bukkit;
+import org.bukkit.entity.Player;
 import org.bukkit.plugin.java.JavaPlugin;
 
 public class FoliaApiProvider extends JavaPlugin {
@@ -39,8 +41,12 @@ public class FoliaApiProvider extends JavaPlugin {
     }
 
     private void initializePlayerSynchronizer() {
-        this.playerSynchronizer = new PlayerSynchronizer(cloudApi, () -> (long) Bukkit.getOnlinePlayers().size());
-        Bukkit.getPluginManager().registerEvents(new PlayerConnectionListener(playerSynchronizer), this);
+        // The synchronizer reads the count off-thread, so it must not touch Bukkit.getOnlinePlayers() on Folia.
+        OnlinePlayerTracker onlinePlayerTracker = new OnlinePlayerTracker();
+        onlinePlayerTracker.reset(Bukkit.getOnlinePlayers().stream().map(Player::getUniqueId).toList());
+        this.playerSynchronizer = new PlayerSynchronizer(cloudApi, onlinePlayerTracker::count);
+        Bukkit.getPluginManager().registerEvents(new PlayerConnectionListener(onlinePlayerTracker, playerSynchronizer), this);
         playerSynchronizer.start();
+        playerSynchronizer.updatePlayerCount();
     }
 }
