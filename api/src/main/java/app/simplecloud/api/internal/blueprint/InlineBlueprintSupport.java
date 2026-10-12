@@ -1,5 +1,6 @@
 package app.simplecloud.api.internal.blueprint;
 
+import app.simplecloud.api.CloudApiException;
 import app.simplecloud.api.CloudApiOptions;
 import app.simplecloud.api.blueprint.CreateBlueprintRequest;
 import app.simplecloud.api.blueprint.RuntimeConfig;
@@ -72,7 +73,7 @@ public final class InlineBlueprintSupport {
 
         String blueprintId = response.getBlueprintId();
         if (blueprintId == null || blueprintId.isBlank()) {
-            throw new IllegalStateException("Controller returned blueprint without a blueprint ID");
+            throw new CloudApiException(CloudApiException.Reason.UNKNOWN, "Controller returned blueprint without a blueprint ID");
         }
         return blueprintId;
     }

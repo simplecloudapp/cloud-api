@@ -10,6 +10,7 @@ import app.simplecloud.api.group.WorkflowsConfig;
 import app.simplecloud.api.internal.blueprint.InlineBlueprintSupport;
 import app.simplecloud.api.internal.create.CreateRequestDefaults;
 import app.simplecloud.api.internal.web.ApiClients;
+import app.simplecloud.api.internal.web.ApiErrors;
 import app.simplecloud.api.persistentserver.*;
 import app.simplecloud.api.web.ApiException;
 import app.simplecloud.api.web.ApiClient;
@@ -23,6 +24,7 @@ import java.util.HashMap;
 import java.util.List;
 import java.util.Map;
 import java.util.Objects;
+import java.util.Optional;
 import java.util.concurrent.CompletableFuture;
 import java.util.concurrent.Executor;
 import java.util.concurrent.ForkJoinPool;
@@ -92,6 +94,13 @@ public class PersistentServerApiImpl implements PersistentServerApi {
 
     @Override
     public CompletableFuture<PersistentServer> getPersistentServerById(String id) {
+        return findPersistentServerById(id).thenApply(persistentServer -> persistentServer.orElseThrow(
+                () -> ApiErrors.notFound("Persistent server with ID '" + id + "' not found")
+        ));
+    }
+
+    @Override
+    public CompletableFuture<Optional<PersistentServer>> findPersistentServerById(String id) {
         QueryKey key = QueryKey.of("persistentServer", id);
 
         return cache.fetchWithTransientMissRecovery(
@@ -100,16 +109,18 @@ public class PersistentServerApiImpl implements PersistentServerApi {
                 Objects::isNull,
                 TRANSIENT_MISS_RETRY_DELAY,
                 TRANSIENT_MISS_MAX_RETRIES
-        ).thenApply(persistentServer -> {
-            if (persistentServer == null) {
-                throw new RuntimeException("Persistent server not found: " + id);
-            }
-            return persistentServer;
-        });
+        ).thenApply(Optional::ofNullable);
     }
 
     @Override
     public CompletableFuture<PersistentServer> getPersistentServerByName(String name) {
+        return findPersistentServerByName(name).thenApply(persistentServer -> persistentServer.orElseThrow(
+                () -> ApiErrors.notFound("Persistent server '" + name + "' not found")
+        ));
+    }
+
+    @Override
+    public CompletableFuture<Optional<PersistentServer>> findPersistentServerByName(String name) {
         QueryKey key = QueryKey.of("persistentServer", "name", name);
 
         return cache.fetchWithTransientMissRecovery(
@@ -118,12 +129,7 @@ public class PersistentServerApiImpl implements PersistentServerApi {
                 Objects::isNull,
                 TRANSIENT_MISS_RETRY_DELAY,
                 TRANSIENT_MISS_MAX_RETRIES
-        ).thenApply(persistentServer -> {
-            if (persistentServer == null) {
-                throw new RuntimeException("Persistent server not found: " + name);
-            }
-            return persistentServer;
-        });
+        ).thenApply(Optional::ofNullable);
     }
 
     @Override
@@ -142,7 +148,7 @@ public class PersistentServerApiImpl implements PersistentServerApi {
                         .<PersistentServer>map(PersistentServerImpl::new)
                         .toList();
             } catch (ApiException e) {
-                throw new RuntimeException(e);
+                throw ApiErrors.from(e);
             }
         }, executor));
     }
@@ -174,7 +180,7 @@ public class PersistentServerApiImpl implements PersistentServerApi {
             return servers.stream()
                     .anyMatch(summary -> name.equals(summary.getName()) && sourceReferencesBlueprint(summary.getSource(), blueprintId));
         } catch (ApiException e) {
-            throw new RuntimeException(e);
+            throw ApiErrors.from(e);
         }
     }
 
@@ -193,7 +199,7 @@ public class PersistentServerApiImpl implements PersistentServerApi {
                         .<PersistentServer>map(PersistentServerImpl::new)
                         .orElse(null);
             } catch (ApiException e) {
-                throw new RuntimeException(e);
+                throw ApiErrors.from(e);
             }
         }, executor);
     }
@@ -213,7 +219,7 @@ public class PersistentServerApiImpl implements PersistentServerApi {
                         .<PersistentServer>map(PersistentServerImpl::new)
                         .orElse(null);
             } catch (ApiException e) {
-                throw new RuntimeException(e);
+                throw ApiErrors.from(e);
             }
         }, executor);
     }
@@ -292,7 +298,7 @@ public class PersistentServerApiImpl implements PersistentServerApi {
                             () -> persistentServerExistsWithBlueprint(request.getName(), blueprintId)
                     );
                     if (rollbackFailure != null) {
-                        RuntimeException failure = new RuntimeException(
+                        RuntimeException failure = ApiErrors.from(
                                 "Failed to create persistent server and rollback inline blueprint " + blueprintId,
                                 e
                         );
@@ -308,7 +314,7 @@ public class PersistentServerApiImpl implements PersistentServerApi {
 
                 return new PersistentServerImpl(toSummary(response));
             } catch (ApiException e) {
-                throw new RuntimeException(e);
+                throw ApiErrors.from(e);
             }
         }, executor);
     }
@@ -352,7 +358,7 @@ public class PersistentServerApiImpl implements PersistentServerApi {
                 // Re-fetch to get the updated object
                 return getPersistentServerById(id).join();
             } catch (ApiException e) {
-                throw new RuntimeException(e);
+                throw ApiErrors.from(e);
             }
         }, executor);
     }
@@ -375,7 +381,7 @@ public class PersistentServerApiImpl implements PersistentServerApi {
 
                 inlineBlueprintSupport.deleteBlueprint(blueprintId);
             } catch (ApiException e) {
-                throw new RuntimeException(e);
+                throw ApiErrors.from(e);
             }
         }, executor);
     }
@@ -401,7 +407,7 @@ public class PersistentServerApiImpl implements PersistentServerApi {
                 Map<String, Object> result = response.getProperties();
                 return result != null ? result : new HashMap<>();
             } catch (ApiException e) {
-                throw new RuntimeException(e);
+                throw ApiErrors.from(e);
             }
         }, executor);
     }
@@ -427,7 +433,7 @@ public class PersistentServerApiImpl implements PersistentServerApi {
                 Map<String, Object> result = response.getProperties();
                 return result != null ? result : new HashMap<>();
             } catch (ApiException e) {
-                throw new RuntimeException(e);
+                throw ApiErrors.from(e);
             }
         }, executor);
     }

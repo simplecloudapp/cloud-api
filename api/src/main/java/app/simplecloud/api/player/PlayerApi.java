@@ -5,6 +5,7 @@ import org.jetbrains.annotations.Nullable;
 
 import java.util.List;
 import java.util.Map;
+import java.util.Optional;
 import java.util.UUID;
 import java.util.concurrent.CompletableFuture;
 import java.util.function.LongUnaryOperator;
@@ -17,11 +18,9 @@ import java.util.function.LongUnaryOperator;
  * PlayerApi players = api.player();
  *
  * // Get a specific player by UUID
- * players.get(uuid).thenAccept(player -> {
- *     if (player != null) {
- *         player.sendMessage(Component.text("Hello!"));
- *     }
- * });
+ * players.find(uuid).thenAccept(player -> player.ifPresent(
+ *         p -> p.sendMessage(Component.text("Hello!"))
+ * ));
  *
  * // Get all online players
  * players.getOnlinePlayers().thenAccept(allPlayers -> {
@@ -58,6 +57,22 @@ public interface PlayerApi {
      * @return a future containing the player, or null if not found
      */
     CompletableFuture<CloudPlayer> get(String name);
+
+    /**
+     * Finds a player by their unique ID.
+     *
+     * @param uniqueId the player's UUID
+     * @return a future containing the player, or an empty Optional if not found
+     */
+    CompletableFuture<Optional<CloudPlayer>> find(UUID uniqueId);
+
+    /**
+     * Finds a player by their username.
+     *
+     * @param name the player's username (case-insensitive)
+     * @return a future containing the player, or an empty Optional if not found
+     */
+    CompletableFuture<Optional<CloudPlayer>> find(String name);
 
     /**
      * Gets all players currently online on the network.
@@ -132,7 +147,7 @@ public interface PlayerApi {
      */
     default CompletableFuture<CloudPlayer> updateOnlineTimeSeconds(UUID uniqueId, LongUnaryOperator updater) {
         if (updater == null) {
-            throw new IllegalArgumentException("updater must not be null");
+            return CompletableFuture.failedFuture(new IllegalArgumentException("updater must not be null"));
         }
         return getOnlineTimeSeconds(uniqueId).thenCompose(current -> setOnlineTimeSeconds(uniqueId, updater.applyAsLong(current)));
     }
@@ -146,7 +161,7 @@ public interface PlayerApi {
      */
     default CompletableFuture<CloudPlayer> addOnlineTimeSeconds(UUID uniqueId, long seconds) {
         if (seconds < 0) {
-            throw new IllegalArgumentException("seconds must be >= 0");
+            return CompletableFuture.failedFuture(new IllegalArgumentException("seconds must be >= 0"));
         }
         return updateOnlineTimeSeconds(uniqueId, current -> Math.addExact(current, seconds));
     }
@@ -162,7 +177,7 @@ public interface PlayerApi {
      */
     default CompletableFuture<CloudPlayer> removeOnlineTimeSeconds(UUID uniqueId, long seconds) {
         if (seconds < 0) {
-            throw new IllegalArgumentException("seconds must be >= 0");
+            return CompletableFuture.failedFuture(new IllegalArgumentException("seconds must be >= 0"));
         }
         return updateOnlineTimeSeconds(uniqueId, current -> current <= seconds ? 0L : current - seconds);
     }

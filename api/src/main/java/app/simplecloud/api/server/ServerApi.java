@@ -1,9 +1,11 @@
 package app.simplecloud.api.server;
 
+import app.simplecloud.api.CloudApiException;
 import org.jetbrains.annotations.Nullable;
 
 import java.util.List;
 import java.util.Map;
+import java.util.Optional;
 import java.util.concurrent.CompletableFuture;
 
 /**
@@ -17,18 +19,37 @@ public interface ServerApi {
      * Retrieves a server by its unique identifier.
      *
      * @param id the unique server ID
-     * @return a CompletableFuture that completes with the server, or fails if not found
+     * @return a CompletableFuture that completes with the server, or fails with a
+     * {@link CloudApiException} ({@link CloudApiException.Reason#NOT_FOUND}) if it does not exist
      */
     CompletableFuture<Server> getServerById(String id);
+
+    /**
+     * Finds a server by its unique identifier.
+     *
+     * @param id the unique server ID
+     * @return a CompletableFuture that completes with the server, or an empty Optional if it does not exist
+     */
+    CompletableFuture<Optional<Server>> findServerById(String id);
 
     /**
      * Retrieves a server by its numerical ID.
      *
      * @param groupName the name of the server group
      * @param numericalId the numerical server ID
-     * @return a CompletableFuture that completes with the server, or fails if not found
+     * @return a CompletableFuture that completes with the server, or fails with a
+     * {@link CloudApiException} ({@link CloudApiException.Reason#NOT_FOUND}) if it does not exist
      */
     CompletableFuture<Server> getServerByNumericalId(String groupName, int numericalId);
+
+    /**
+     * Finds a server by its numerical ID.
+     *
+     * @param groupName the name of the server group
+     * @param numericalId the numerical server ID
+     * @return a CompletableFuture that completes with the server, or an empty Optional if it does not exist
+     */
+    CompletableFuture<Optional<Server>> findServerByNumericalId(String groupName, int numericalId);
 
     /**
      * Retrieves all servers belonging to a specific group.

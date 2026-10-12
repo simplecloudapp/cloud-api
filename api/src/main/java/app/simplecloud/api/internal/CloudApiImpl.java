@@ -1,6 +1,7 @@
 package app.simplecloud.api.internal;
 
 import app.simplecloud.api.CloudApi;
+import app.simplecloud.api.CloudApiException;
 import app.simplecloud.api.CloudApiOptions;
 import app.simplecloud.api.cache.CacheConfig;
 import app.simplecloud.api.cache.QueryCache;
@@ -61,7 +62,15 @@ public class CloudApiImpl implements CloudApi {
             );
             this.natsClient = natsConnectionManager.getConnection();
         } catch (IOException | InterruptedException e) {
-            throw new RuntimeException(e);
+            if (e instanceof InterruptedException) {
+                Thread.currentThread().interrupt();
+            }
+            throw new CloudApiException(
+                    CloudApiException.Reason.UNAVAILABLE,
+                    0,
+                    "Failed to connect to NATS at " + options.getNatsUrl(),
+                    e
+            );
         }
 
         // Initialize cache

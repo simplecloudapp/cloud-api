@@ -1,7 +1,9 @@
 package app.simplecloud.api.internal.player;
 
+import app.simplecloud.api.CloudApiException;
 import app.simplecloud.api.CloudApiOptions;
 import app.simplecloud.api.internal.web.ApiClients;
+import app.simplecloud.api.internal.web.ApiErrors;
 import app.simplecloud.api.player.CloudPlayer;
 import app.simplecloud.api.player.PlayerApi;
 import app.simplecloud.api.player.PlayerClientSettings;
@@ -52,10 +54,12 @@ import java.util.ArrayList;
 import java.util.HashMap;
 import java.util.List;
 import java.util.Map;
+import java.util.Optional;
 import java.util.UUID;
 import java.util.concurrent.CompletableFuture;
 import java.util.concurrent.Executor;
 import java.util.concurrent.ForkJoinPool;
+import java.util.function.Consumer;
 
 public class PlayerApiImpl implements PlayerApi {
 
@@ -107,6 +111,16 @@ public class PlayerApiImpl implements PlayerApi {
     }
 
     @Override
+    public CompletableFuture<Optional<CloudPlayer>> find(UUID uniqueId) {
+        return get(uniqueId).thenApply(Optional::ofNullable);
+    }
+
+    @Override
+    public CompletableFuture<Optional<CloudPlayer>> find(String name) {
+        return get(name).thenApply(Optional::ofNullable);
+    }
+
+    @Override
     public CompletableFuture<List<CloudPlayer>> getOnlinePlayers() {
         return getOnlinePlayers(null);
     }
@@ -131,10 +145,10 @@ public class PlayerApiImpl implements PlayerApi {
     public CompletableFuture<List<CloudPlayer>> list(@Nullable PlayerQuery query) {
         PlayerQuery q = query != null ? query : PlayerQuery.create();
         List<String> playerIds = q.getPlayerIds() == null ? null : q.getPlayerIds().stream().map(UUID::toString).toList();
-        Integer onlineTimeMin = toControllerOnlineTimeSeconds(q.getOnlineTimeSecondsMin());
-        Integer onlineTimeMax = toControllerOnlineTimeSeconds(q.getOnlineTimeSecondsMax());
 
         return call(() -> {
+            Integer onlineTimeMin = toControllerOnlineTimeSeconds(q.getOnlineTimeSecondsMin());
+            Integer onlineTimeMax = toControllerOnlineTimeSeconds(q.getOnlineTimeSecondsMax());
             ModelsListPlayersResponse response = playersApi.listPlayers(
                     options.getNetworkId(),
                     q.getOnline(),
@@ -189,31 +203,29 @@ public class PlayerApiImpl implements PlayerApi {
 
     @Override
     public CompletableFuture<CloudPlayer> setOnlineTimeSeconds(UUID uniqueId, long seconds) {
-        ModelsPatchPlayerRequest request = new ModelsPatchPlayerRequest();
-        request.setOnlineTimeSeconds(toControllerOnlineTimeSeconds(seconds));
-        return patchPlayer(uniqueId, request);
+        return patchPlayer(uniqueId, request -> request.setOnlineTimeSeconds(toControllerOnlineTimeSeconds(seconds)));
     }
 
     @Override
     public CompletableFuture<CloudPlayer> resetFirstSeen(UUID uniqueId) {
-        ModelsPatchPlayerRequest request = new ModelsPatchPlayerRequest();
-        request.setResetFirstSeen(true);
-        return patchPlayer(uniqueId, request);
+        return patchPlayer(uniqueId, request -> request.setResetFirstSeen(true));
     }
 
     @Override
     public CompletableFuture<CloudPlayer> resetLastSeen(UUID uniqueId) {
-        ModelsPatchPlayerRequest request = new ModelsPatchPlayerRequest();
-        request.setResetLastSeen(true);
-        return patchPlayer(uniqueId, request);
+        return patchPlayer(uniqueId, request -> request.setResetLastSeen(true));
     }
 
-    private CompletableFuture<CloudPlayer> patchPlayer(UUID uniqueId, ModelsPatchPlayerRequest request) {
-        return call(() -> convertPlayerResponse(playersApi.patchPlayer(
-                options.getNetworkId(),
-                uniqueId.toString(),
-                request
-        )));
+    private CompletableFuture<CloudPlayer> patchPlayer(UUID uniqueId, Consumer<ModelsPatchPlayerRequest> changes) {
+        return call(() -> {
+            ModelsPatchPlayerRequest request = new ModelsPatchPlayerRequest();
+            changes.accept(request);
+            return convertPlayerResponse(playersApi.patchPlayer(
+                    options.getNetworkId(),
+                    uniqueId.toString(),
+                    request
+            ));
+        });
     }
     
     @Override
@@ -268,8 +280,8 @@ public class PlayerApiImpl implements PlayerApi {
     
     @Override
     public CompletableFuture<List<PlayerProfile>> getProfiles(UUID uniqueId, int limit, int offset) {
-        validatePagination(limit, offset);
         return call(() -> {
+            validatePagination(limit, offset);
             ModelsListPlayerProfilesResponse response = playersApi.listPlayerProfiles(
                     options.getNetworkId(),
                     uniqueId.toString(),
@@ -300,8 +312,8 @@ public class PlayerApiImpl implements PlayerApi {
 
     @Override
     public CompletableFuture<List<PlayerSession>> getSessions(UUID uniqueId, int limit, int offset) {
-        validatePagination(limit, offset);
         return call(() -> {
+            validatePagination(limit, offset);
             ModelsListPlayerSessionsResponse response = playersApi.listPlayerSessions(
                     options.getNetworkId(),
                     uniqueId.toString(),
@@ -346,31 +358,34 @@ public class PlayerApiImpl implements PlayerApi {
 
     @Override
     public CompletableFuture<PlayerClientSettings> updateClientSettings(UUID uniqueId, UpdateClientSettingsRequest request) {
-        if (request == null) {
-            throw new IllegalArgumentException("request must not be null");
-        }
-
-        ModelsUpdateClientSettingsRequest body = new ModelsUpdateClientSettingsRequest();
-        if (request.getChatMode() != null) {
-            body.setChatMode(request.getChatMode().name());
-        }
-        body.setLocale(request.getLocale());
-        if (request.getMainHand() != null) {
-            body.setMainHand(request.getMainHand().name());
-        }
-        body.setViewDistance(request.getViewDistance());
-        body.setChatColors(request.getChatColors());
-        body.setClientListingAllowed(request.getClientListingAllowed());
-        body.setSkinParts(request.getSkinParts());
-
         return call(() -> {
+            if (request == null) {
+                throw new IllegalArgumentException("request must not be null");
+            }
+
+            ModelsUpdateClientSettingsRequest body = new ModelsUpdateClientSettingsRequest();
+            if (request.getChatMode() != null) {
+                body.setChatMode(request.getChatMode().name());
+            }
+            body.setLocale(request.getLocale());
+            if (request.getMainHand() != null) {
+                body.setMainHand(request.getMainHand().name());
+            }
+            body.setViewDistance(request.getViewDistance());
+            body.setChatColors(request.getChatColors());
+            body.setClientListingAllowed(request.getClientListingAllowed());
+            body.setSkinParts(request.getSkinParts());
+
             ModelsUpdateClientSettingsResponse response = playersApi.updateClientSettings(
                     options.getNetworkId(),
                     uniqueId.toString(),
                     body
             );
             if (response.getSettings() == null) {
-                throw new IllegalStateException("Controller did not return updated client settings: " + response.getMessage());
+                throw new CloudApiException(
+                        CloudApiException.Reason.UNKNOWN,
+                        "Controller did not return updated client settings: " + response.getMessage()
+                );
             }
             return convertClientSettings(response.getSettings());
         });
@@ -587,7 +602,7 @@ public class PlayerApiImpl implements PlayerApi {
             try {
                 return call.execute();
             } catch (ApiException e) {
-                throw new RuntimeException(e);
+                throw ApiErrors.from(e);
             }
         }, executor);
     }
@@ -600,7 +615,7 @@ public class PlayerApiImpl implements PlayerApi {
                 if (e.getCode() == 404) {
                     return null;
                 }
-                throw new RuntimeException(e);
+                throw ApiErrors.from(e);
             }
         }, executor);
     }
