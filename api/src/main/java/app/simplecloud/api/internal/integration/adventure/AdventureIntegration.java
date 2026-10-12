@@ -13,6 +13,7 @@ import net.kyori.adventure.sound.Sound;
 import net.kyori.adventure.text.Component;
 import net.kyori.adventure.text.serializer.gson.GsonComponentSerializer;
 import net.kyori.adventure.title.Title;
+import net.kyori.adventure.title.TitlePart;
 
 import java.time.Duration;
 import java.util.Map;
@@ -248,11 +249,11 @@ public class AdventureIntegration {
                     break;
                 case "title":
                     SendTitleRequest titleReq = SendTitleRequest.parseFrom(msg.getData());
-                    audience.showTitle(Title.title(deserialize(titleReq.getTitle()), Component.empty()));
+                    audience.sendTitlePart(TitlePart.TITLE, deserialize(titleReq.getTitle()));
                     break;
                 case "subtitle":
                     SendSubtitleRequest subReq = SendSubtitleRequest.parseFrom(msg.getData());
-                    audience.showTitle(Title.title(Component.empty(), deserialize(subReq.getSubtitle())));
+                    audience.sendTitlePart(TitlePart.SUBTITLE, deserialize(subReq.getSubtitle()));
                     break;
                 case "title-times":
                     SendTitleTimesRequest timesReq = SendTitleTimesRequest.parseFrom(msg.getData());
@@ -262,7 +263,7 @@ public class AdventureIntegration {
                             Duration.ofMillis(times.getStayMs()),
                             Duration.ofMillis(times.getFadeOutMs())
                     );
-                    audience.showTitle(Title.title(Component.empty(), Component.empty(), titleTimes));
+                    audience.sendTitlePart(TitlePart.TIMES, titleTimes);
                     break;
                 case "clear-title":
                     audience.clearTitle();

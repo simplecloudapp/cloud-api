@@ -15,10 +15,11 @@ import net.kyori.adventure.title.Title;
 import net.kyori.adventure.title.TitlePart;
 import org.jspecify.annotations.NonNull;
 
+import java.util.Collections;
 import java.util.Map;
 import java.util.Objects;
 import java.util.UUID;
-import java.util.concurrent.ConcurrentHashMap;
+import java.util.WeakHashMap;
 
 /**
  * An Adventure Audience implementation that sends all actions via NATS
@@ -26,9 +27,10 @@ import java.util.concurrent.ConcurrentHashMap;
  */
 public class RemoteAudience implements Audience {
 
+    private static final Map<BossBar, String> BOSS_BAR_IDS = Collections.synchronizedMap(new WeakHashMap<>());
+
     private final Connection natsConnection;
     private final String subjectPrefix;
-    private final Map<String, BossBar> activeBossBars = new ConcurrentHashMap<>();
 
     private RemoteAudience(Connection natsConnection, String subjectPrefix) {
         this.natsConnection = natsConnection;
@@ -178,13 +180,14 @@ public class RemoteAudience implements Audience {
         publish("stop-sound", builder.build().toByteArray());
     }
 
+    private String bossBarId(BossBar bar) {
+        return BOSS_BAR_IDS.computeIfAbsent(bar, ignored -> UUID.randomUUID().toString()) + "@" + subjectPrefix;
+    }
+
     @Override
     public void showBossBar(@NonNull BossBar bar) {
-        String id = UUID.randomUUID().toString();
-        activeBossBars.put(id, bar);
-
         AdventureBossBar protoBossBar = AdventureBossBar.newBuilder()
-                .setId(id)
+                .setId(bossBarId(bar))
                 .setTitle(serialize(bar.name()))
                 .setProgress(bar.progress())
                 .setColor(convertBossBarColor(bar.color()))
@@ -199,21 +202,10 @@ public class RemoteAudience implements Audience {
 
     @Override
     public void hideBossBar(@NonNull BossBar bar) {
-        String id = null;
-        for (Map.Entry<String, BossBar> entry : activeBossBars.entrySet()) {
-            if (entry.getValue() == bar) {
-                id = entry.getKey();
-                break;
-            }
-        }
-
-        if (id != null) {
-            activeBossBars.remove(id);
-            SendBossBarRemoveRequest request = SendBossBarRemoveRequest.newBuilder()
-                    .setBossBarId(id)
-                    .build();
-            publish("bossbar-remove", request.toByteArray());
-        }
+        SendBossBarRemoveRequest request = SendBossBarRemoveRequest.newBuilder()
+                .setBossBarId(bossBarId(bar))
+                .build();
+        publish("bossbar-remove", request.toByteArray());
     }
 
     @Override

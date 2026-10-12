@@ -40,6 +40,10 @@ final class ManifestServerUrlResolver implements InlineBlueprintSupport.ServerUr
         );
     }
 
+    ManifestServerUrlResolver(CloudApiOptions options, OkHttpClient httpClient) {
+        this(options.getServerVersionManifestUrl(), httpClient, new Gson());
+    }
+
     ManifestServerUrlResolver(String manifestUrl, OkHttpClient httpClient, Gson gson) {
         this.manifestUrl = Objects.requireNonNull(manifestUrl, "manifestUrl");
         this.httpClient = Objects.requireNonNull(httpClient, "httpClient");

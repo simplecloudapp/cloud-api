@@ -3,6 +3,7 @@ package app.simplecloud.api.internal.cache;
 import app.simplecloud.api.cache.*;
 import com.github.benmanes.caffeine.cache.Cache;
 import com.github.benmanes.caffeine.cache.Caffeine;
+import com.github.benmanes.caffeine.cache.Expiry;
 
 import java.time.Duration;
 import java.time.Instant;
@@ -49,9 +50,28 @@ public class QueryCacheImpl implements QueryCache {
 
         this.cache = Caffeine.newBuilder()
                 .maximumSize(config.getMaxEntries())
-                .expireAfterWrite(config.getDefaultCacheTime())
+                .expireAfter(new Expiry<QueryKey, CacheEntry<?>>() {
+                    @Override
+                    public long expireAfterCreate(QueryKey key, CacheEntry<?> value, long currentTime) {
+                        return remainingNanos(value);
+                    }
+
+                    @Override
+                    public long expireAfterUpdate(QueryKey key, CacheEntry<?> value, long currentTime, long currentDuration) {
+                        return remainingNanos(value);
+                    }
+
+                    @Override
+                    public long expireAfterRead(QueryKey key, CacheEntry<?> value, long currentTime, long currentDuration) {
+                        return currentDuration;
+                    }
+                })
                 .evictionListener((key, value, cause) -> evictionCount.incrementAndGet())
                 .build();
+    }
+
+    private static long remainingNanos(CacheEntry<?> entry) {
+        return Math.max(0, Duration.between(Instant.now(), entry.getExpiresAt()).toNanos());
     }
 
     @Override
@@ -99,39 +119,36 @@ public class QueryCacheImpl implements QueryCache {
 
     @SuppressWarnings("unchecked")
     <T> CompletableFuture<T> fetchWithDeduplication(QueryKey key, Supplier<CompletableFuture<T>> fetcher) {
-        // Query deduplication: if there's already an in-flight request for this key, share it
-        CompletableFuture<T> existing = (CompletableFuture<T>) inFlightRequests.get(key);
+        CompletableFuture<T> result = new CompletableFuture<>();
+        CompletableFuture<?> existing = inFlightRequests.putIfAbsent(key, result);
         if (existing != null) {
-            return existing;
+            return (CompletableFuture<T>) existing;
         }
 
-        CompletableFuture<T> future = fetcher.get()
-                .thenApply(data -> {
-                    // Cache the result
-                    Duration cacheTime = getCacheTime(key);
-                    Instant now = Instant.now();
-                    CacheEntry<T> newEntry = new CacheEntry<>(data, now, now.plus(cacheTime));
-                    cache.put(key, newEntry);
-                    return data;
-                })
-                .orTimeout(inFlightTimeout.toMillis(), TimeUnit.MILLISECONDS)
-                .whenComplete((result, error) -> inFlightRequests.remove(key));
+        result.orTimeout(inFlightTimeout.toMillis(), TimeUnit.MILLISECONDS)
+                .whenComplete((data, error) -> inFlightRequests.remove(key, result));
 
-        // Use putIfAbsent to handle race conditions
-        CompletableFuture<?> previousFuture = inFlightRequests.putIfAbsent(key, future);
-        if (previousFuture != null) {
-            // Another thread beat us to it, use their future
-            return (CompletableFuture<T>) previousFuture;
+        CompletableFuture<T> source;
+        try {
+            source = fetcher.get();
+        } catch (Throwable t) {
+            result.completeExceptionally(t);
+            return result;
         }
 
-        // If the future already completed before putIfAbsent ran (e.g. the fetcher
-        // returned a pre-completed future), whenComplete's remove was a no-op. Clean
-        // up here so subsequent callers don't dedup into a stale completed entry.
-        if (future.isDone()) {
-            inFlightRequests.remove(key, future);
-        }
+        source.whenComplete((data, error) -> {
+            if (error != null) {
+                result.completeExceptionally(error);
+                return;
+            }
+            if (inFlightRequests.remove(key, result)) {
+                Instant now = Instant.now();
+                cache.put(key, new CacheEntry<>(data, now, now.plus(getCacheTime(key))));
+            }
+            result.complete(data);
+        });
 
-        return future;
+        return result;
     }
 
     private <T> void triggerBackgroundRevalidation(QueryKey key, Supplier<CompletableFuture<T>> fetcher) {
@@ -140,13 +157,14 @@ public class QueryCacheImpl implements QueryCache {
             return;
         }
 
-        revalidationExecutor.submit(() -> {
-            fetchWithDeduplication(key, fetcher).exceptionally(e -> {
-                // Log but don't fail - we already returned stale data
+        try {
+            revalidationExecutor.execute(() -> fetchWithDeduplication(key, fetcher).exceptionally(e -> {
                 LOGGER.log(Level.WARNING, "Background revalidation failed for " + key, e);
                 return null;
-            });
-        });
+            }));
+        } catch (RejectedExecutionException e) {
+            LOGGER.log(Level.FINE, "Skipping background revalidation for " + key + " after shutdown", e);
+        }
     }
 
     private Duration getStaleTime(QueryKey key) {
@@ -173,25 +191,25 @@ public class QueryCacheImpl implements QueryCache {
 
     @Override
     public void invalidate(QueryKey key) {
+        inFlightRequests.remove(key);
         cache.invalidate(key);
     }
 
     @Override
     public void invalidateAll(QueryKey keyPattern) {
-        cache.asMap().keySet().stream()
-                .filter(keyPattern::matches)
-                .forEach(cache::invalidate);
+        inFlightRequests.keySet().removeIf(keyPattern::matches);
+        cache.asMap().keySet().removeIf(keyPattern::matches);
     }
 
     @Override
     public void invalidateByType(EntityType type) {
-        cache.asMap().keySet().stream()
-                .filter(key -> key.getEntityType() == type)
-                .forEach(cache::invalidate);
+        inFlightRequests.keySet().removeIf(key -> key.getEntityType() == type);
+        cache.asMap().keySet().removeIf(key -> key.getEntityType() == type);
     }
 
     @Override
     public void clear() {
+        inFlightRequests.clear();
         cache.invalidateAll();
     }
 
@@ -205,6 +223,7 @@ public class QueryCacheImpl implements QueryCache {
     public <T> void set(QueryKey key, T data) {
         Duration cacheTime = getCacheTime(key);
         Instant now = Instant.now();
+        inFlightRequests.remove(key);
         cache.put(key, new CacheEntry<>(data, now, now.plus(cacheTime)));
     }
 

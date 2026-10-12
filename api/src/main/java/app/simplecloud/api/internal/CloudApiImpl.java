@@ -27,10 +27,15 @@ import java.util.concurrent.Executor;
 import java.util.concurrent.ExecutorService;
 import java.util.concurrent.Executors;
 import java.util.concurrent.atomic.AtomicBoolean;
+import java.util.logging.Level;
+import java.util.logging.Logger;
 
 public class CloudApiImpl implements CloudApi {
 
+    private static final Logger LOGGER = Logger.getLogger(CloudApiImpl.class.getName());
+
     private final CloudApiOptions options;
+    private final ApiClient httpClient;
 
     private final NatsFailoverConnectionManager natsConnectionManager;
     private final Connection natsClient;
@@ -68,7 +73,7 @@ public class CloudApiImpl implements CloudApi {
         }
 
         // Initialize APIs with cache
-        ApiClient httpClient = ApiClients.create(options);
+        this.httpClient = ApiClients.create(options);
         this.playerApi = new PlayerApiImpl(options, natsClient, httpClient, executor);
         this.eventApi = new EventApiImpl(natsClient, options.getNetworkId(), playerApi);
         this.serverApi = new ServerApiImpl(options, queryCache, httpClient, executor);
@@ -141,12 +146,26 @@ public class CloudApiImpl implements CloudApi {
         }
 
         if (cacheEventListener != null) {
-            cacheEventListener.shutdown();
+            try {
+                cacheEventListener.shutdown();
+            } catch (RuntimeException e) {
+                LOGGER.log(Level.WARNING, "Failed to shut down cache event listener", e);
+            }
         }
         if (queryCache instanceof QueryCacheImpl queryCacheImpl) {
-            queryCacheImpl.shutdown();
+            try {
+                queryCacheImpl.shutdown();
+            } catch (RuntimeException e) {
+                LOGGER.log(Level.WARNING, "Failed to shut down query cache", e);
+            }
         }
-        natsConnectionManager.shutdown();
+        try {
+            natsConnectionManager.shutdown();
+        } catch (RuntimeException e) {
+            LOGGER.log(Level.WARNING, "Failed to shut down NATS connection", e);
+        }
+        httpClient.getHttpClient().dispatcher().executorService().shutdown();
+        httpClient.getHttpClient().connectionPool().evictAll();
         executor.shutdown();
     }
 
