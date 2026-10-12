@@ -54,6 +54,8 @@ import java.util.List;
 import java.util.Map;
 import java.util.UUID;
 import java.util.concurrent.CompletableFuture;
+import java.util.concurrent.Executor;
+import java.util.concurrent.ForkJoinPool;
 
 public class PlayerApiImpl implements PlayerApi {
 
@@ -62,20 +64,30 @@ public class PlayerApiImpl implements PlayerApi {
     private final CloudApiOptions options;
     private final Connection natsConnection;
     private final PlayersApi playersApi;
+    private final Executor executor;
 
     public PlayerApiImpl(CloudApiOptions options, Connection natsConnection) {
         this(options, natsConnection, ApiClients.create(options));
     }
 
     public PlayerApiImpl(CloudApiOptions options, Connection natsConnection, ApiClient httpClient) {
-        this(options, natsConnection, new PlayersApi(httpClient));
+        this(options, natsConnection, httpClient, ForkJoinPool.commonPool());
+    }
+
+    public PlayerApiImpl(CloudApiOptions options, Connection natsConnection, ApiClient httpClient, Executor executor) {
+        this(options, natsConnection, new PlayersApi(httpClient), executor);
     }
 
     PlayerApiImpl(CloudApiOptions options, Connection natsConnection, PlayersApi playersApi) {
+        this(options, natsConnection, playersApi, ForkJoinPool.commonPool());
+    }
+
+    PlayerApiImpl(CloudApiOptions options, Connection natsConnection, PlayersApi playersApi, Executor executor) {
         this.options = options;
         this.natsConnection = natsConnection;
         this.playersApi = playersApi;
         this.playersApi.setCustomBaseUrl(options.getControllerUrl());
+        this.executor = executor;
     }
     
     @Override
@@ -414,7 +426,7 @@ public class PlayerApiImpl implements PlayerApi {
             } catch (Exception e) {
                 return CloudPlayer.ConnectResult.CONNECTION_FAILED;
             }
-        });
+        }, executor);
     }
 
     @Override
@@ -451,7 +463,7 @@ public class PlayerApiImpl implements PlayerApi {
                 }
                 return CloudPlayer.ConnectResult.CONNECTION_FAILED;
             }
-        });
+        }, executor);
     }
     
     static CloudPlayer.ConnectResult toConnectResult(ModelsConnectPlayerResponse response) {
@@ -472,6 +484,7 @@ public class PlayerApiImpl implements PlayerApi {
     }
     
     private CloudPlayer convertPlayer(ModelsOnlinePlayerResponse player) {
+        assert player.getId() != null;
         return new CloudPlayerImpl(
                 this,
                 natsConnection,
@@ -569,17 +582,17 @@ public class PlayerApiImpl implements PlayerApi {
         return properties != null ? properties : new HashMap<>();
     }
 
-    private static <T> CompletableFuture<T> call(ApiCall<T> call) {
+    private <T> CompletableFuture<T> call(ApiCall<T> call) {
         return CompletableFuture.supplyAsync(() -> {
             try {
                 return call.execute();
             } catch (ApiException e) {
                 throw new RuntimeException(e);
             }
-        });
+        }, executor);
     }
 
-    private static <T> CompletableFuture<T> callOrNullIfNotFound(ApiCall<T> call) {
+    private <T> CompletableFuture<T> callOrNullIfNotFound(ApiCall<T> call) {
         return CompletableFuture.supplyAsync(() -> {
             try {
                 return call.execute();
@@ -589,7 +602,7 @@ public class PlayerApiImpl implements PlayerApi {
                 }
                 throw new RuntimeException(e);
             }
-        });
+        }, executor);
     }
 
     private static void validatePagination(int limit, int offset) {

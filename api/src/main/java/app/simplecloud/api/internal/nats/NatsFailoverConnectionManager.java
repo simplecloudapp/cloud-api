@@ -14,6 +14,7 @@ import java.lang.reflect.Method;
 import java.lang.reflect.Proxy;
 import java.time.Duration;
 import java.util.List;
+import java.util.concurrent.CompletableFuture;
 import java.util.concurrent.CopyOnWriteArrayList;
 import java.util.concurrent.Executors;
 import java.util.concurrent.ScheduledExecutorService;
@@ -38,6 +39,8 @@ public final class NatsFailoverConnectionManager {
     private final AtomicReference<Connection> connectionRef;
     private final Connection connectionProxy;
     private final List<DispatcherProxyState> dispatchers = new CopyOnWriteArrayList<>();
+    private final Object bindLock = new Object();
+    private boolean shutdown;
     private final AtomicBoolean reconnecting = new AtomicBoolean(false);
     private final AtomicLong reconnectingSince = new AtomicLong(-1);
 
@@ -73,7 +76,11 @@ public final class NatsFailoverConnectionManager {
     public void shutdown() {
         monitorExecutor.shutdownNow();
         reconnectExecutor.shutdownNow();
-        Connection connection = connectionRef.get();
+        Connection connection;
+        synchronized (bindLock) {
+            shutdown = true;
+            connection = connectionRef.get();
+        }
         if (connection != null) {
             try {
                 connection.close();
@@ -148,14 +155,20 @@ public final class NatsFailoverConnectionManager {
         while (!Thread.currentThread().isInterrupted()) {
             try {
                 Connection newConnection = createConnection();
-                try {
-                    rebindDispatchers(newConnection);
-                } catch (Exception rebindException) {
-                    newConnection.close();
-                    throw rebindException;
+                Connection oldConnection;
+                synchronized (bindLock) {
+                    if (shutdown) {
+                        newConnection.close();
+                        return;
+                    }
+                    try {
+                        rebindDispatchers(newConnection);
+                    } catch (Exception rebindException) {
+                        newConnection.close();
+                        throw rebindException;
+                    }
+                    oldConnection = connectionRef.getAndSet(newConnection);
                 }
-
-                Connection oldConnection = connectionRef.getAndSet(newConnection);
                 if (oldConnection != null && oldConnection != newConnection) {
                     oldConnection.close();
                 }
@@ -217,9 +230,24 @@ public final class NatsFailoverConnectionManager {
                 if (args != null && args.length > 0) {
                     messageHandler = (MessageHandler) args[0];
                 }
-                DispatcherProxyState dispatcherState = new DispatcherProxyState(messageHandler);
-                dispatchers.add(dispatcherState);
-                return dispatcherState.proxy;
+                synchronized (bindLock) {
+                    DispatcherProxyState dispatcherState = new DispatcherProxyState(messageHandler);
+                    dispatchers.add(dispatcherState);
+                    return dispatcherState.proxy;
+                }
+            }
+
+            if (method.getName().equals("closeDispatcher") && args != null && args.length == 1) {
+                for (DispatcherProxyState dispatcherState : dispatchers) {
+                    if (dispatcherState.proxy == args[0]) {
+                        Dispatcher delegate = dispatcherState.close();
+                        Connection connection = connectionRef.get();
+                        if (delegate != null && connection != null) {
+                            connection.closeDispatcher(delegate);
+                        }
+                        return null;
+                    }
+                }
             }
 
             if (method.getName().equals("close")) {
@@ -284,11 +312,13 @@ public final class NatsFailoverConnectionManager {
                 if (isSubscribeMethod(method)) {
                     String subject = (String) args[0];
                     MessageHandler handlerArg = (MessageHandler) args[1];
-                    Dispatcher dispatcher = delegateRef.get();
-                    Subscription created = dispatcher == null ? null : (Subscription) invoke(method, dispatcher, args);
-                    SubscriptionProxyState subState = new SubscriptionProxyState(this, subject, handlerArg, created);
-                    subscriptions.add(subState);
-                    return subState.proxy;
+                    synchronized (bindLock) {
+                        Dispatcher dispatcher = delegateRef.get();
+                        Subscription created = dispatcher == null ? null : (Subscription) invoke(method, dispatcher, args);
+                        SubscriptionProxyState subState = new SubscriptionProxyState(this, subject, handlerArg, created);
+                        subscriptions.add(subState);
+                        return subState.proxy;
+                    }
                 }
 
                 if (isUnsubscribeBySubject(method, args)) {
@@ -296,11 +326,20 @@ public final class NatsFailoverConnectionManager {
                     for (SubscriptionProxyState subscription : subscriptions) {
                         if (subscription.subject.equals(subject)) {
                             subscription.deactivate();
+                            subscriptions.remove(subscription);
                         }
                     }
                     if (delegateRef.get() == null) {
                         return null;
                     }
+                }
+
+                if (method.getName().equals("drain")) {
+                    Dispatcher dispatcher = close();
+                    if (dispatcher == null) {
+                        return CompletableFuture.completedFuture(Boolean.TRUE);
+                    }
+                    return invoke(method, dispatcher, args);
                 }
 
                 Dispatcher dispatcher = delegateRef.get();
@@ -320,6 +359,15 @@ public final class NatsFailoverConnectionManager {
                     new Class<?>[]{Dispatcher.class},
                     handler
             );
+        }
+
+        private Dispatcher close() {
+            synchronized (bindLock) {
+                dispatchers.remove(this);
+                subscriptions.forEach(SubscriptionProxyState::deactivate);
+                subscriptions.clear();
+                return delegateRef.get();
+            }
         }
 
         private void rebind(Connection newConnection) {
@@ -400,16 +448,18 @@ public final class NatsFailoverConnectionManager {
             if (!active.compareAndSet(true, false)) {
                 return;
             }
+            dispatcherState.subscriptions.remove(this);
 
             Dispatcher dispatcher = dispatcherState.delegateRef.get();
-            if (dispatcher == null) {
+            Subscription subscription = delegateRef.get();
+            if (dispatcher == null || subscription == null) {
                 return;
             }
             if (args != null && args.length == 1 && args[0] instanceof Integer maxMessages) {
-                dispatcher.unsubscribe(subject, maxMessages);
+                dispatcher.unsubscribe(subscription, maxMessages);
                 return;
             }
-            dispatcher.unsubscribe(subject);
+            dispatcher.unsubscribe(subscription);
         }
 
         private void rebind(Dispatcher newDispatcher) {

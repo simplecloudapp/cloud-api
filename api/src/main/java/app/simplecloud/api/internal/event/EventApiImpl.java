@@ -16,8 +16,6 @@ import io.nats.client.Connection;
 
 public class EventApiImpl implements EventApi {
 
-    private final Connection natsClient;
-    private final String networkId;
     private final GroupEventApi groupEventApi;
     private final ServerEventApi serverEventApi;
     private final PersistentServerEventApi persistentServerEventApi;
@@ -25,8 +23,6 @@ public class EventApiImpl implements EventApi {
     private final PlayerEventApi playerEventApi;
 
     public EventApiImpl(Connection natsClient, String networkId, PlayerApi playerApi) {
-        this.natsClient = natsClient;
-        this.networkId = networkId;
         this.groupEventApi = new GroupEventApiImpl(natsClient, networkId);
         this.serverEventApi = new ServerEventApiImpl(natsClient, networkId);
         this.persistentServerEventApi = new PersistentServerEventApiImpl(natsClient, networkId);

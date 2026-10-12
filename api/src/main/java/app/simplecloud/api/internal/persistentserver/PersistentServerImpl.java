@@ -230,7 +230,7 @@ public class PersistentServerImpl implements PersistentServer {
         if (typeStr != null) {
             try {
                 result.setType(SourceType.valueOf(typeStr.toUpperCase()));
-            } catch (IllegalArgumentException e) {
+            } catch (IllegalArgumentException ignored) {
             }
         }
         result.setBlueprint(config.getBlueprint());

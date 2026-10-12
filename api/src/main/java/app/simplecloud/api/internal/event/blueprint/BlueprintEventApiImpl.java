@@ -18,12 +18,10 @@ public class BlueprintEventApiImpl implements BlueprintEventApi {
 
     private static final Logger LOGGER = Logger.getLogger(BlueprintEventApiImpl.class.getName());
 
-    private final Connection natsConnection;
     private final String networkId;
     private final Dispatcher dispatcher;
 
     public BlueprintEventApiImpl(Connection natsConnection, String networkId) {
-        this.natsConnection = natsConnection;
         this.networkId = networkId;
         this.dispatcher = natsConnection.createDispatcher(null);
     }

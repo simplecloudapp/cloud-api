@@ -1,7 +1,6 @@
 package app.simplecloud.api;
 
 import app.simplecloud.api.cache.QueryCache;
-import app.simplecloud.api.cache.QueryKey;
 import app.simplecloud.api.event.EventApi;
 import app.simplecloud.api.group.GroupApi;
 import app.simplecloud.api.internal.CloudApiImpl;
@@ -49,7 +48,7 @@ public interface CloudApi extends AutoCloseable {
      *   <li>SIMPLECLOUD_NETWORK_SECRET (default: "")</li>
      *   <li>SIMPLECLOUD_NATS_URL (default: "wss://nats.simplecloud.app:443")</li>
      *   <li>SIMPLECLOUD_NATS_FAILOVER_RECONNECT_AFTER (default: "30s")</li>
-     *   <li>SIMPLECLOUD_CONTROLLER_URL (default: "https://controller.simplecloud.app")</li>
+     *   <li>SIMPLECLOUD_CONTROLLER_URL (default: "<a href="https://controller.simplecloud.app">...</a>")</li>
      * </ul>
      *
      * @return a new CloudApi instance

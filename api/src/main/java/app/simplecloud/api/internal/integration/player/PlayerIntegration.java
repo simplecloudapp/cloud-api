@@ -10,6 +10,7 @@ import io.nats.client.Message;
 
 import java.time.Duration;
 import java.util.concurrent.CompletableFuture;
+import java.util.concurrent.Executor;
 import java.util.concurrent.atomic.AtomicBoolean;
 import java.util.function.BiFunction;
 
@@ -23,6 +24,7 @@ public class PlayerIntegration {
 
     private final Connection natsConnection;
     private final String networkId;
+    private final Executor executor;
     private final AtomicBoolean running = new AtomicBoolean(false);
 
     private Dispatcher requestDispatcher;
@@ -32,6 +34,7 @@ public class PlayerIntegration {
     public PlayerIntegration(CloudApiImpl cloudApi) {
         this.natsConnection = cloudApi.getNatsConnection();
         this.networkId = cloudApi.getNetworkId();
+        this.executor = cloudApi.getExecutor();
     }
 
     /**
@@ -78,7 +81,7 @@ public class PlayerIntegration {
             } catch (Exception e) {
                 return LoginResult.failure(e.getMessage());
             }
-        });
+        }, executor);
     }
 
     /**
@@ -95,7 +98,7 @@ public class PlayerIntegration {
                 natsConnection.request(subject, request.toByteArray(), REQUEST_TIMEOUT);
             } catch (Exception ignored) {
             }
-        });
+        }, executor);
     }
 
     /**
@@ -113,7 +116,7 @@ public class PlayerIntegration {
                 natsConnection.request(subject, request.toByteArray(), REQUEST_TIMEOUT);
             } catch (Exception ignored) {
             }
-        });
+        }, executor);
     }
 
     /**
@@ -143,7 +146,7 @@ public class PlayerIntegration {
                 natsConnection.request(subject, request.toByteArray(), REQUEST_TIMEOUT);
             } catch (Exception ignored) {
             }
-        });
+        }, executor);
     }
 
     /**
@@ -269,26 +272,19 @@ public class PlayerIntegration {
     }
 
     private static ChatMode toProtoChatMode(PlayerClientSettings.ChatMode chatMode) {
-        switch (chatMode) {
-            case ENABLED:
-                return ChatMode.CHAT_MODE_ENABLED;
-            case COMMANDS_ONLY:
-                return ChatMode.CHAT_MODE_COMMANDS_ONLY;
-            case HIDDEN:
-                return ChatMode.CHAT_MODE_HIDDEN;
-            default:
-                return ChatMode.CHAT_MODE_UNSPECIFIED;
-        }
+        return switch (chatMode) {
+            case ENABLED -> ChatMode.CHAT_MODE_ENABLED;
+            case COMMANDS_ONLY -> ChatMode.CHAT_MODE_COMMANDS_ONLY;
+            case HIDDEN -> ChatMode.CHAT_MODE_HIDDEN;
+            default -> ChatMode.CHAT_MODE_UNSPECIFIED;
+        };
     }
 
     private static MainHand toProtoMainHand(PlayerClientSettings.MainHand mainHand) {
-        switch (mainHand) {
-            case LEFT:
-                return MainHand.MAIN_HAND_LEFT;
-            case RIGHT:
-                return MainHand.MAIN_HAND_RIGHT;
-            default:
-                return MainHand.MAIN_HAND_UNSPECIFIED;
-        }
+        return switch (mainHand) {
+            case LEFT -> MainHand.MAIN_HAND_LEFT;
+            case RIGHT -> MainHand.MAIN_HAND_RIGHT;
+            default -> MainHand.MAIN_HAND_UNSPECIFIED;
+        };
     }
 }
