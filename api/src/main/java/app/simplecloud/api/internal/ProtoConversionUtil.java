@@ -16,7 +16,7 @@ public final class ProtoConversionUtil {
         }
 
         String name = protoState.name();
-        if (name == null || name.isEmpty() || name.equals("UNRECOGNIZED")) {
+        if (name == null || name.isEmpty() || name.equals("UNRECOGNIZED") || name.endsWith("_UNSPECIFIED")) {
             return null;
         }
 

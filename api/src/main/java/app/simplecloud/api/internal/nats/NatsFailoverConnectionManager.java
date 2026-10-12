@@ -400,16 +400,18 @@ public final class NatsFailoverConnectionManager {
             if (!active.compareAndSet(true, false)) {
                 return;
             }
+            dispatcherState.subscriptions.remove(this);
 
             Dispatcher dispatcher = dispatcherState.delegateRef.get();
-            if (dispatcher == null) {
+            Subscription subscription = delegateRef.get();
+            if (dispatcher == null || subscription == null) {
                 return;
             }
             if (args != null && args.length == 1 && args[0] instanceof Integer maxMessages) {
-                dispatcher.unsubscribe(subject, maxMessages);
+                dispatcher.unsubscribe(subscription, maxMessages);
                 return;
             }
-            dispatcher.unsubscribe(subject);
+            dispatcher.unsubscribe(subscription);
         }
 
         private void rebind(Dispatcher newDispatcher) {

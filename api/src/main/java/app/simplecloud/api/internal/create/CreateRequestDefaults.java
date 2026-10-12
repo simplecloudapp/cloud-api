@@ -24,6 +24,7 @@ import java.util.Objects;
  */
 public final class CreateRequestDefaults {
     private static final int DEFAULT_MAX_PLAYERS = 50;
+    private static final int DEFAULT_MAX_SERVERS = 1;
     private static final double DEFAULT_PLAYER_THRESHOLD = 0.75d;
     private static final String DEFAULT_SCALE_DOWN_IDLE_TIME = "3m";
     private static final String DEFAULT_JAVA_VERSION = "21";
@@ -83,7 +84,7 @@ public final class CreateRequestDefaults {
         if (scaling == null) {
             return ScalingConfig.builder()
                     .minServers(0)
-                    .maxServers(0)
+                    .maxServers(DEFAULT_MAX_SERVERS)
                     .playerThreshold(DEFAULT_PLAYER_THRESHOLD)
                     .scalingMode(ScalingMode.SLOTS)
                     .scaleDown(defaultScaleDown(null))
