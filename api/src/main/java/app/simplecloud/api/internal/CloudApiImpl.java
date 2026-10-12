@@ -149,20 +149,20 @@ public class CloudApiImpl implements CloudApi {
             try {
                 cacheEventListener.shutdown();
             } catch (RuntimeException e) {
-                LOGGER.log(Level.WARNING, "Failed to shut down cache event listener", e);
+                LOGGER.log(Level.WARNING, "Failed to shutdown cache event listener", e);
             }
         }
         if (queryCache instanceof QueryCacheImpl queryCacheImpl) {
             try {
                 queryCacheImpl.shutdown();
             } catch (RuntimeException e) {
-                LOGGER.log(Level.WARNING, "Failed to shut down query cache", e);
+                LOGGER.log(Level.WARNING, "Failed to shutdown query cache", e);
             }
         }
         try {
             natsConnectionManager.shutdown();
         } catch (RuntimeException e) {
-            LOGGER.log(Level.WARNING, "Failed to shut down NATS connection", e);
+            LOGGER.log(Level.WARNING, "Failed to shutdown NATS connection", e);
         }
         httpClient.getHttpClient().dispatcher().executorService().shutdown();
         httpClient.getHttpClient().connectionPool().evictAll();
