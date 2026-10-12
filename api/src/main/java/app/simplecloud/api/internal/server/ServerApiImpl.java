@@ -28,6 +28,8 @@ import java.util.List;
 import java.util.Locale;
 import java.util.Map;
 import java.util.concurrent.CompletableFuture;
+import java.util.concurrent.Executor;
+import java.util.concurrent.ForkJoinPool;
 import java.util.logging.Logger;
 
 public class ServerApiImpl implements ServerApi {
@@ -38,19 +40,29 @@ public class ServerApiImpl implements ServerApi {
     private final CloudApiOptions options;
     private final ServersApi serversApi;
     private final QueryCache cache;
+    private final Executor executor;
 
     public ServerApiImpl(CloudApiOptions options, QueryCache cache) {
         this(options, cache, ApiClients.create(options));
     }
 
     public ServerApiImpl(CloudApiOptions options, QueryCache cache, ApiClient httpClient) {
-        this(options, cache, createServersApi(options, httpClient));
+        this(options, cache, httpClient, ForkJoinPool.commonPool());
+    }
+
+    public ServerApiImpl(CloudApiOptions options, QueryCache cache, ApiClient httpClient, Executor executor) {
+        this(options, cache, createServersApi(options, httpClient), executor);
     }
 
     ServerApiImpl(CloudApiOptions options, QueryCache cache, ServersApi serversApi) {
+        this(options, cache, serversApi, ForkJoinPool.commonPool());
+    }
+
+    ServerApiImpl(CloudApiOptions options, QueryCache cache, ServersApi serversApi, Executor executor) {
         this.options = options;
         this.cache = cache;
         this.serversApi = serversApi;
+        this.executor = executor;
     }
 
     @Override
@@ -112,7 +124,7 @@ public class ServerApiImpl implements ServerApi {
             } catch (ApiException e) {
                 throw new RuntimeException(e);
             }
-        }));
+        }, executor));
     }
 
     @Override
@@ -156,7 +168,7 @@ public class ServerApiImpl implements ServerApi {
             } catch (ApiException e) {
                 throw new RuntimeException(e);
             }
-        });
+        }, executor);
     }
 
     private CompletableFuture<Server> fetchServerByIdFromController(String id) {
@@ -175,7 +187,7 @@ public class ServerApiImpl implements ServerApi {
             } catch (ApiException e) {
                 throw new RuntimeException(e);
             }
-        });
+        }, executor);
     }
 
     private CompletableFuture<Server> fetchServerByNumericalIdFromController(String groupName, int numericalId) {
@@ -375,10 +387,11 @@ public class ServerApiImpl implements ServerApi {
                 // Invalidate this server and list caches
                 cache.invalidate(QueryKey.of("server", id));
                 cache.invalidateAll(QueryKey.of("servers"));
+                cache.invalidateAll(QueryKey.of("server", "numerical"));
             } catch (ApiException e) {
                 throw new RuntimeException(e);
             }
-        });
+        }, executor);
     }
 
     @Override
@@ -402,12 +415,13 @@ public class ServerApiImpl implements ServerApi {
                 // Update cache with new data and invalidate list caches
                 cache.set(QueryKey.of("server", id), server);
                 cache.invalidateAll(QueryKey.of("servers"));
+                cache.invalidateAll(QueryKey.of("server", "numerical"));
 
                 return server;
             } catch (ApiException e) {
                 throw new RuntimeException(e);
             }
-        });
+        }, executor);
     }
 
     @NotNull
@@ -450,13 +464,14 @@ public class ServerApiImpl implements ServerApi {
                 // Invalidate server cache (properties changed)
                 cache.invalidate(QueryKey.of("server", id));
                 cache.invalidateAll(QueryKey.of("servers"));
+                cache.invalidateAll(QueryKey.of("server", "numerical"));
 
                 Map<String, Object> result = response.getProperties();
                 return result != null ? result : new HashMap<>();
             } catch (ApiException e) {
                 throw new RuntimeException(e);
             }
-        });
+        }, executor);
     }
 
     @Override
@@ -475,12 +490,13 @@ public class ServerApiImpl implements ServerApi {
                 // Invalidate server cache (properties changed)
                 cache.invalidate(QueryKey.of("server", id));
                 cache.invalidateAll(QueryKey.of("servers"));
+                cache.invalidateAll(QueryKey.of("server", "numerical"));
 
                 Map<String, Object> result = response.getProperties();
                 return result != null ? result : new HashMap<>();
             } catch (ApiException e) {
                 throw new RuntimeException(e);
             }
-        });
+        }, executor);
     }
 }

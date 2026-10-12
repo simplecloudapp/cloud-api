@@ -20,6 +20,8 @@ import java.util.HashMap;
 import java.util.List;
 import java.util.Map;
 import java.util.concurrent.CompletableFuture;
+import java.util.concurrent.Executor;
+import java.util.concurrent.ForkJoinPool;
 
 public class GroupApiImpl implements GroupApi {
     private static final Duration TRANSIENT_MISS_RETRY_DELAY = Duration.ofMillis(200);
@@ -30,24 +32,31 @@ public class GroupApiImpl implements GroupApi {
     private final InlineBlueprintSupport inlineBlueprintSupport;
     private final CreateRequestDefaults createRequestDefaults;
     private final QueryCache cache;
+    private final Executor executor;
 
     public GroupApiImpl(CloudApiOptions options, QueryCache cache) {
         this(options, cache, ApiClients.create(options));
     }
 
     public GroupApiImpl(CloudApiOptions options, QueryCache cache, ApiClient httpClient) {
-        this(options, cache, createServerGroupsApi(options, httpClient), createBlueprintsApi(options, httpClient));
+        this(options, cache, httpClient, ForkJoinPool.commonPool());
+    }
+
+    public GroupApiImpl(CloudApiOptions options, QueryCache cache, ApiClient httpClient, Executor executor) {
+        this(
+                options,
+                cache,
+                createServerGroupsApi(options, httpClient),
+                new InlineBlueprintSupport(options, createBlueprintsApi(options, httpClient)),
+                executor
+        );
     }
 
     GroupApiImpl(CloudApiOptions options,
                  QueryCache cache,
                  ServerGroupsApi serverGroupsApi,
                  BlueprintsApi blueprintsApi) {
-        this.options = options;
-        this.cache = cache;
-        this.serverGroupsApi = serverGroupsApi;
-        this.inlineBlueprintSupport = new InlineBlueprintSupport(options, blueprintsApi);
-        this.createRequestDefaults = new CreateRequestDefaults();
+        this(options, cache, serverGroupsApi, new InlineBlueprintSupport(options, blueprintsApi), ForkJoinPool.commonPool());
     }
 
     GroupApiImpl(CloudApiOptions options,
@@ -55,11 +64,26 @@ public class GroupApiImpl implements GroupApi {
                  ServerGroupsApi serverGroupsApi,
                  BlueprintsApi blueprintsApi,
                  InlineBlueprintSupport.ServerUrlResolver serverUrlResolver) {
+        this(
+                options,
+                cache,
+                serverGroupsApi,
+                new InlineBlueprintSupport(options, blueprintsApi, serverUrlResolver),
+                ForkJoinPool.commonPool()
+        );
+    }
+
+    private GroupApiImpl(CloudApiOptions options,
+                         QueryCache cache,
+                         ServerGroupsApi serverGroupsApi,
+                         InlineBlueprintSupport inlineBlueprintSupport,
+                         Executor executor) {
         this.options = options;
         this.cache = cache;
         this.serverGroupsApi = serverGroupsApi;
-        this.inlineBlueprintSupport = new InlineBlueprintSupport(options, blueprintsApi, serverUrlResolver);
+        this.inlineBlueprintSupport = inlineBlueprintSupport;
         this.createRequestDefaults = new CreateRequestDefaults();
+        this.executor = executor;
     }
 
     @Override
@@ -86,7 +110,7 @@ public class GroupApiImpl implements GroupApi {
             } catch (ApiException e) {
                 throw new RuntimeException(e);
             }
-        });
+        }, executor);
     }
 
     @Override
@@ -108,7 +132,7 @@ public class GroupApiImpl implements GroupApi {
             } catch (ApiException e) {
                 throw new RuntimeException(e);
             }
-        });
+        }, executor);
     }
 
     @Override
@@ -127,7 +151,7 @@ public class GroupApiImpl implements GroupApi {
             } catch (ApiException e) {
                 throw new RuntimeException(e);
             }
-        });
+        }, executor);
     }
 
     @Override
@@ -184,7 +208,7 @@ public class GroupApiImpl implements GroupApi {
             } catch (ApiException e) {
                 throw new RuntimeException(e);
             }
-        }));
+        }, executor));
     }
 
     private QueryKey buildQueryKey(@org.jetbrains.annotations.Nullable GroupQuery query) {
@@ -255,7 +279,7 @@ public class GroupApiImpl implements GroupApi {
             } catch (ApiException e) {
                 throw new RuntimeException(e);
             }
-        });
+        }, executor);
     }
 
     private CompletableFuture<Group> fetchGroupByIdFromController(String id) {
@@ -275,7 +299,7 @@ public class GroupApiImpl implements GroupApi {
             } catch (ApiException e) {
                 throw new RuntimeException(e);
             }
-        });
+        }, executor);
     }
 
     @Override
@@ -345,6 +369,7 @@ public class GroupApiImpl implements GroupApi {
 
                 // Invalidate group list caches (new group created)
                 cache.invalidateAll(QueryKey.of("groups"));
+                cache.invalidateAll(QueryKey.of("group", "name"));
 
                 ModelsServerGroupSummary summary = new ModelsServerGroupSummary();
                 summary.setServerGroupId(response.getServerGroupId());
@@ -368,7 +393,7 @@ public class GroupApiImpl implements GroupApi {
             } catch (ApiException e) {
                 throw new RuntimeException(e);
             }
-        });
+        }, executor);
     }
 
     @Override
@@ -430,12 +455,13 @@ public class GroupApiImpl implements GroupApi {
                 // Update cache with new data and invalidate list caches
                 cache.set(QueryKey.of("group", id), group);
                 cache.invalidateAll(QueryKey.of("groups"));
+                cache.invalidateAll(QueryKey.of("group", "name"));
 
                 return group;
             } catch (ApiException e) {
                 throw new RuntimeException(e);
             }
-        });
+        }, executor);
     }
 
     private ModelsDeploymentConfig convertDeploymentConfig(DeploymentConfig config) {
@@ -555,12 +581,13 @@ public class GroupApiImpl implements GroupApi {
                 // Invalidate this group and list caches
                 cache.invalidate(QueryKey.of("group", id));
                 cache.invalidateAll(QueryKey.of("groups"));
+                cache.invalidateAll(QueryKey.of("group", "name"));
 
                 inlineBlueprintSupport.deleteBlueprint(blueprintId);
             } catch (ApiException e) {
                 throw new RuntimeException(e);
             }
-        });
+        }, executor);
     }
 
     @Override
@@ -579,13 +606,14 @@ public class GroupApiImpl implements GroupApi {
                 // Invalidate group cache (properties changed)
                 cache.invalidate(QueryKey.of("group", id));
                 cache.invalidateAll(QueryKey.of("groups"));
+                cache.invalidateAll(QueryKey.of("group", "name"));
 
                 Map<String, Object> result = response.getProperties();
                 return result != null ? result : new HashMap<>();
             } catch (ApiException e) {
                 throw new RuntimeException(e);
             }
-        });
+        }, executor);
     }
 
     @Override
@@ -604,13 +632,14 @@ public class GroupApiImpl implements GroupApi {
                 // Invalidate group cache (properties changed)
                 cache.invalidate(QueryKey.of("group", id));
                 cache.invalidateAll(QueryKey.of("groups"));
+                cache.invalidateAll(QueryKey.of("group", "name"));
 
                 Map<String, Object> result = response.getProperties();
                 return result != null ? result : new HashMap<>();
             } catch (ApiException e) {
                 throw new RuntimeException(e);
             }
-        });
+        }, executor);
     }
 
     private GroupStartQueueEntry convertStartQueueEntry(ModelsServerGroupStartQueueEntry entry) {

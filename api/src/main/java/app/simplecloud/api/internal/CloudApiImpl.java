@@ -23,6 +23,9 @@ import app.simplecloud.api.server.ServerApi;
 import io.nats.client.Connection;
 
 import java.io.IOException;
+import java.util.concurrent.Executor;
+import java.util.concurrent.ExecutorService;
+import java.util.concurrent.Executors;
 import java.util.concurrent.atomic.AtomicBoolean;
 
 public class CloudApiImpl implements CloudApi {
@@ -38,6 +41,7 @@ public class CloudApiImpl implements CloudApi {
     private final PersistentServerApi persistentServerApi;
     private final EventApi eventApi;
     private final PlayerApi playerApi;
+    private final ExecutorService executor = Executors.newVirtualThreadPerTaskExecutor();
     private final AtomicBoolean closed = new AtomicBoolean(false);
 
     public CloudApiImpl(CloudApiOptions options) {
@@ -65,11 +69,11 @@ public class CloudApiImpl implements CloudApi {
 
         // Initialize APIs with cache
         ApiClient httpClient = ApiClients.create(options);
-        this.playerApi = new PlayerApiImpl(options, natsClient, httpClient);
+        this.playerApi = new PlayerApiImpl(options, natsClient, httpClient, executor);
         this.eventApi = new EventApiImpl(natsClient, options.getNetworkId(), playerApi);
-        this.serverApi = new ServerApiImpl(options, queryCache, httpClient);
-        this.groupApi = new GroupApiImpl(options, queryCache, httpClient);
-        this.persistentServerApi = new PersistentServerApiImpl(options, queryCache, httpClient);
+        this.serverApi = new ServerApiImpl(options, queryCache, httpClient, executor);
+        this.groupApi = new GroupApiImpl(options, queryCache, httpClient, executor);
+        this.persistentServerApi = new PersistentServerApiImpl(options, queryCache, httpClient, executor);
 
         // Setup event-based cache invalidation with debouncing
         if (cacheConfig.isEnabled() && cacheConfig.isAutoInvalidateOnEvents()) {
@@ -116,6 +120,10 @@ public class CloudApiImpl implements CloudApi {
         return natsClient;
     }
 
+    public Executor getExecutor() {
+        return executor;
+    }
+
     @Override
     public String getNetworkId() {
         return options.getNetworkId();
@@ -139,6 +147,7 @@ public class CloudApiImpl implements CloudApi {
             queryCacheImpl.shutdown();
         }
         natsConnectionManager.shutdown();
+        executor.shutdown();
     }
 
 }

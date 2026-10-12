@@ -103,66 +103,79 @@ public class CacheEventListener {
         // Server events
         subscriptions.add(eventApi.server().onStarted(event -> {
             schedulePatternInvalidation(QueryKey.of("servers"));
+            schedulePatternInvalidation(QueryKey.of("server", "numerical"));
         }));
 
         subscriptions.add(eventApi.server().onStopped(event -> {
             scheduleInvalidation(QueryKey.of("server", event.getServerId()));
             schedulePatternInvalidation(QueryKey.of("servers"));
+            schedulePatternInvalidation(QueryKey.of("server", "numerical"));
         }));
 
         subscriptions.add(eventApi.server().onStateChanged(event -> {
             scheduleInvalidation(QueryKey.of("server", event.getServerId()));
             schedulePatternInvalidation(QueryKey.of("servers"));
+            schedulePatternInvalidation(QueryKey.of("server", "numerical"));
         }));
 
         subscriptions.add(eventApi.server().onDeleted(event -> {
             scheduleInvalidation(QueryKey.of("server", event.getServerId()));
             schedulePatternInvalidation(QueryKey.of("servers"));
+            schedulePatternInvalidation(QueryKey.of("server", "numerical"));
         }));
 
         subscriptions.add(eventApi.server().onUpdated(event -> {
             scheduleInvalidation(QueryKey.of("server", event.getServerId()));
             schedulePatternInvalidation(QueryKey.of("servers"));
+            schedulePatternInvalidation(QueryKey.of("server", "numerical"));
         }));
 
         // Group events
         subscriptions.add(eventApi.group().onCreated(event -> {
             schedulePatternInvalidation(QueryKey.of("groups"));
+            schedulePatternInvalidation(QueryKey.of("group", "name"));
         }));
 
         subscriptions.add(eventApi.group().onUpdated(event -> {
             scheduleInvalidation(QueryKey.of("group", event.getServerGroupId()));
             schedulePatternInvalidation(QueryKey.of("groups"));
+            schedulePatternInvalidation(QueryKey.of("group", "name"));
         }));
 
         subscriptions.add(eventApi.group().onDeleted(event -> {
             scheduleInvalidation(QueryKey.of("group", event.getServerGroupId()));
             schedulePatternInvalidation(QueryKey.of("groups"));
+            schedulePatternInvalidation(QueryKey.of("group", "name"));
         }));
 
         // Persistent server events
         subscriptions.add(eventApi.persistentServer().onCreated(event -> {
             schedulePatternInvalidation(QueryKey.of("persistentServers"));
+            schedulePatternInvalidation(QueryKey.of("persistentServer", "name"));
         }));
 
         subscriptions.add(eventApi.persistentServer().onStarted(event -> {
             scheduleInvalidation(QueryKey.of("persistentServer", event.getPersistentServerId()));
             schedulePatternInvalidation(QueryKey.of("persistentServers"));
+            schedulePatternInvalidation(QueryKey.of("persistentServer", "name"));
         }));
 
         subscriptions.add(eventApi.persistentServer().onStopped(event -> {
             scheduleInvalidation(QueryKey.of("persistentServer", event.getPersistentServerId()));
             schedulePatternInvalidation(QueryKey.of("persistentServers"));
+            schedulePatternInvalidation(QueryKey.of("persistentServer", "name"));
         }));
 
         subscriptions.add(eventApi.persistentServer().onUpdated(event -> {
             scheduleInvalidation(QueryKey.of("persistentServer", event.getPersistentServerId()));
             schedulePatternInvalidation(QueryKey.of("persistentServers"));
+            schedulePatternInvalidation(QueryKey.of("persistentServer", "name"));
         }));
 
         subscriptions.add(eventApi.persistentServer().onDeleted(event -> {
             scheduleInvalidation(QueryKey.of("persistentServer", event.getPersistentServerId()));
             schedulePatternInvalidation(QueryKey.of("persistentServers"));
+            schedulePatternInvalidation(QueryKey.of("persistentServer", "name"));
         }));
     }
 

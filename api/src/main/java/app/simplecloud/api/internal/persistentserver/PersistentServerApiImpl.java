@@ -23,6 +23,8 @@ import java.util.HashMap;
 import java.util.List;
 import java.util.Map;
 import java.util.concurrent.CompletableFuture;
+import java.util.concurrent.Executor;
+import java.util.concurrent.ForkJoinPool;
 
 public class PersistentServerApiImpl implements PersistentServerApi {
     private static final Duration TRANSIENT_MISS_RETRY_DELAY = Duration.ofMillis(200);
@@ -33,24 +35,31 @@ public class PersistentServerApiImpl implements PersistentServerApi {
     private final InlineBlueprintSupport inlineBlueprintSupport;
     private final CreateRequestDefaults createRequestDefaults;
     private final QueryCache cache;
+    private final Executor executor;
 
     public PersistentServerApiImpl(CloudApiOptions options, QueryCache cache) {
         this(options, cache, ApiClients.create(options));
     }
 
     public PersistentServerApiImpl(CloudApiOptions options, QueryCache cache, ApiClient httpClient) {
-        this(options, cache, createPersistentServersApi(options, httpClient), createBlueprintsApi(options, httpClient));
+        this(options, cache, httpClient, ForkJoinPool.commonPool());
+    }
+
+    public PersistentServerApiImpl(CloudApiOptions options, QueryCache cache, ApiClient httpClient, Executor executor) {
+        this(
+                options,
+                cache,
+                createPersistentServersApi(options, httpClient),
+                new InlineBlueprintSupport(options, createBlueprintsApi(options, httpClient)),
+                executor
+        );
     }
 
     PersistentServerApiImpl(CloudApiOptions options,
                             QueryCache cache,
                             PersistentServersApi persistentServersApi,
                             BlueprintsApi blueprintsApi) {
-        this.options = options;
-        this.cache = cache;
-        this.persistentServersApi = persistentServersApi;
-        this.inlineBlueprintSupport = new InlineBlueprintSupport(options, blueprintsApi);
-        this.createRequestDefaults = new CreateRequestDefaults();
+        this(options, cache, persistentServersApi, new InlineBlueprintSupport(options, blueprintsApi), ForkJoinPool.commonPool());
     }
 
     PersistentServerApiImpl(CloudApiOptions options,
@@ -58,11 +67,26 @@ public class PersistentServerApiImpl implements PersistentServerApi {
                             PersistentServersApi persistentServersApi,
                             BlueprintsApi blueprintsApi,
                             InlineBlueprintSupport.ServerUrlResolver serverUrlResolver) {
+        this(
+                options,
+                cache,
+                persistentServersApi,
+                new InlineBlueprintSupport(options, blueprintsApi, serverUrlResolver),
+                ForkJoinPool.commonPool()
+        );
+    }
+
+    private PersistentServerApiImpl(CloudApiOptions options,
+                                    QueryCache cache,
+                                    PersistentServersApi persistentServersApi,
+                                    InlineBlueprintSupport inlineBlueprintSupport,
+                                    Executor executor) {
         this.options = options;
         this.cache = cache;
         this.persistentServersApi = persistentServersApi;
-        this.inlineBlueprintSupport = new InlineBlueprintSupport(options, blueprintsApi, serverUrlResolver);
+        this.inlineBlueprintSupport = inlineBlueprintSupport;
         this.createRequestDefaults = new CreateRequestDefaults();
+        this.executor = executor;
     }
 
     @Override
@@ -119,7 +143,7 @@ public class PersistentServerApiImpl implements PersistentServerApi {
             } catch (ApiException e) {
                 throw new RuntimeException(e);
             }
-        }));
+        }, executor));
     }
 
     private QueryKey buildQueryKey(@Nullable PersistentServerQuery query) {
@@ -170,7 +194,7 @@ public class PersistentServerApiImpl implements PersistentServerApi {
             } catch (ApiException e) {
                 throw new RuntimeException(e);
             }
-        });
+        }, executor);
     }
 
     private CompletableFuture<PersistentServer> fetchPersistentServerByNameFromController(String name) {
@@ -190,7 +214,7 @@ public class PersistentServerApiImpl implements PersistentServerApi {
             } catch (ApiException e) {
                 throw new RuntimeException(e);
             }
-        });
+        }, executor);
     }
 
     private ModelsListPersistentServersResponse executeQuery(@Nullable PersistentServerQuery query,
@@ -278,12 +302,13 @@ public class PersistentServerApiImpl implements PersistentServerApi {
 
                 // Invalidate list caches (new persistent server created)
                 cache.invalidateAll(QueryKey.of("persistentServers"));
+                cache.invalidateAll(QueryKey.of("persistentServer", "name"));
 
                 return new PersistentServerImpl(toSummary(response));
             } catch (ApiException e) {
                 throw new RuntimeException(e);
             }
-        });
+        }, executor);
     }
 
     @Override
@@ -320,13 +345,14 @@ public class PersistentServerApiImpl implements PersistentServerApi {
                 // Invalidate cache before re-fetching
                 cache.invalidate(QueryKey.of("persistentServer", id));
                 cache.invalidateAll(QueryKey.of("persistentServers"));
+                cache.invalidateAll(QueryKey.of("persistentServer", "name"));
 
                 // Re-fetch to get the updated object
                 return getPersistentServerById(id).join();
             } catch (ApiException e) {
                 throw new RuntimeException(e);
             }
-        });
+        }, executor);
     }
 
     @Override
@@ -343,12 +369,13 @@ public class PersistentServerApiImpl implements PersistentServerApi {
                 // Invalidate this persistent server and list caches
                 cache.invalidate(QueryKey.of("persistentServer", id));
                 cache.invalidateAll(QueryKey.of("persistentServers"));
+                cache.invalidateAll(QueryKey.of("persistentServer", "name"));
 
                 inlineBlueprintSupport.deleteBlueprint(blueprintId);
             } catch (ApiException e) {
                 throw new RuntimeException(e);
             }
-        });
+        }, executor);
     }
 
     @Override
@@ -367,13 +394,14 @@ public class PersistentServerApiImpl implements PersistentServerApi {
                 // Invalidate persistent server cache (properties changed)
                 cache.invalidate(QueryKey.of("persistentServer", id));
                 cache.invalidateAll(QueryKey.of("persistentServers"));
+                cache.invalidateAll(QueryKey.of("persistentServer", "name"));
 
                 Map<String, Object> result = response.getProperties();
                 return result != null ? result : new HashMap<>();
             } catch (ApiException e) {
                 throw new RuntimeException(e);
             }
-        });
+        }, executor);
     }
 
     @Override
@@ -392,13 +420,14 @@ public class PersistentServerApiImpl implements PersistentServerApi {
                 // Invalidate persistent server cache (properties changed)
                 cache.invalidate(QueryKey.of("persistentServer", id));
                 cache.invalidateAll(QueryKey.of("persistentServers"));
+                cache.invalidateAll(QueryKey.of("persistentServer", "name"));
 
                 Map<String, Object> result = response.getProperties();
                 return result != null ? result : new HashMap<>();
             } catch (ApiException e) {
                 throw new RuntimeException(e);
             }
-        });
+        }, executor);
     }
 
     private ModelsSourceConfig convertSourceConfig(SourceConfig config) {
