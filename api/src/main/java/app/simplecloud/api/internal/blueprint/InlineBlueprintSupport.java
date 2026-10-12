@@ -108,8 +108,12 @@ public final class InlineBlueprintSupport {
                 );
                 return;
             } catch (ApiException deleteFailure) {
-                if (deleteFailure.getCode() == 404) {
+                int statusCode = deleteFailure.getCode();
+                if (statusCode == 404 || statusCode == 409) {
                     return;
+                }
+                if (!isRetryable(statusCode)) {
+                    throw deleteFailure;
                 }
                 lastDeleteFailure = deleteFailure;
                 if (attempt < DELETE_MAX_ATTEMPTS) {
@@ -152,6 +156,10 @@ public final class InlineBlueprintSupport {
     private boolean failureMayHaveCreatedResource(ApiException createFailure) {
         int statusCode = createFailure.getCode();
         return statusCode <= 0 || statusCode == 408 || statusCode >= 500;
+    }
+
+    private boolean isRetryable(int statusCode) {
+        return statusCode <= 0 || statusCode == 408 || statusCode == 429 || statusCode >= 500;
     }
 
     private boolean resourceExistsAfterReconciliation(Supplier<Boolean> resourceExistsProbe) {

@@ -254,28 +254,29 @@ public class PersistentServerApiImpl implements PersistentServerApi {
             List<String> effectiveTags = createRequestDefaults.defaultTags(request.getName(), request.getTags());
 
             inlineBlueprintSupport.validateInlineBlueprintSource(effectiveCreateBlueprint, request.getSource());
+
+            ModelsCreatePersistentServerRequest apiRequest = new ModelsCreatePersistentServerRequest();
+            apiRequest.setName(request.getName());
+            apiRequest.setMinMemory(request.getMinMemory());
+            apiRequest.setMaxMemory(request.getMaxMemory());
+            apiRequest.setMaxPlayers(effectiveMaxPlayers);
+            apiRequest.setActive(effectiveActive);
+            apiRequest.setPriority(request.getPriority());
+            apiRequest.setServerhostId(request.getServerhostId());
+            apiRequest.setProperties(effectiveProperties);
+            apiRequest.setTags(effectiveTags);
+            apiRequest.setType(ModelsCreatePersistentServerRequest.TypeEnum.valueOf(effectiveType.name()));
+            apiRequest.setWorkflows(convertWorkflowsConfig(effectiveWorkflows));
+
             String createdBlueprintId = null;
             try {
                 createdBlueprintId = inlineBlueprintSupport.createBlueprint(request.getName(), effectiveCreateBlueprint);
                 SourceConfig effectiveSource = createdBlueprintId != null
                         ? inlineBlueprintSupport.buildInlineBlueprintSource(request.getSource(), createdBlueprintId)
                         : request.getSource();
-
-                ModelsCreatePersistentServerRequest apiRequest = new ModelsCreatePersistentServerRequest();
-                apiRequest.setName(request.getName());
-                apiRequest.setMinMemory(request.getMinMemory());
-                apiRequest.setMaxMemory(request.getMaxMemory());
-                apiRequest.setMaxPlayers(effectiveMaxPlayers);
-                apiRequest.setActive(effectiveActive);
-                apiRequest.setPriority(request.getPriority());
-                apiRequest.setServerhostId(request.getServerhostId());
-                apiRequest.setProperties(effectiveProperties);
-                apiRequest.setTags(effectiveTags);
-                apiRequest.setType(ModelsCreatePersistentServerRequest.TypeEnum.valueOf(effectiveType.name()));
                 if (effectiveSource != null) {
                     apiRequest.setSource(convertSourceConfig(effectiveSource));
                 }
-                apiRequest.setWorkflows(convertWorkflowsConfig(effectiveWorkflows));
 
                 ModelsCreatePersistentServerResponse response;
                 try {

@@ -12,6 +12,9 @@ public enum ServerState {
      */
     UNKNOWN_STATE,
 
+    /**
+     * Server is queued and waiting to be started.
+     */
     QUEUED,
 
     /**
@@ -44,6 +47,9 @@ public enum ServerState {
      */
     CLEANUP,
 
+    /**
+     * Server has been stopped.
+     */
     STOPPED
     ;
 

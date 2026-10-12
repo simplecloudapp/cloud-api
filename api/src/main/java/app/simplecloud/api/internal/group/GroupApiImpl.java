@@ -320,29 +320,30 @@ public class GroupApiImpl implements GroupApi {
             ScalingConfig effectiveScaling = createRequestDefaults.defaultGroupScaling(request.getScaling());
 
             inlineBlueprintSupport.validateInlineBlueprintSource(effectiveCreateBlueprint, request.getSource());
+
+            ModelsCreateServerGroupRequest apiRequest = new ModelsCreateServerGroupRequest();
+            apiRequest.setName(request.getName());
+            apiRequest.setType(ModelsCreateServerGroupRequest.TypeEnum.valueOf(effectiveType.name()));
+            apiRequest.setMinMemory(request.getMinMemory());
+            apiRequest.setMaxMemory(request.getMaxMemory());
+            apiRequest.setMaxPlayers(effectiveMaxPlayers);
+            apiRequest.setActive(effectiveActive);
+            apiRequest.setPriority(request.getPriority());
+            apiRequest.setProperties(effectiveProperties);
+            apiRequest.setTags(effectiveTags);
+            apiRequest.setDeployment(convertDeploymentConfig(effectiveDeployment));
+            apiRequest.setScaling(convertScalingConfig(effectiveScaling));
+            apiRequest.setWorkflows(convertWorkflowsConfig(effectiveWorkflows));
+
             String createdBlueprintId;
             try {
                 createdBlueprintId = inlineBlueprintSupport.createBlueprint(request.getName(), effectiveCreateBlueprint);
                 SourceConfig effectiveSource = createdBlueprintId != null
                         ? inlineBlueprintSupport.buildInlineBlueprintSource(request.getSource(), createdBlueprintId)
                         : request.getSource();
-
-                ModelsCreateServerGroupRequest apiRequest = new ModelsCreateServerGroupRequest();
-                apiRequest.setName(request.getName());
-                apiRequest.setType(ModelsCreateServerGroupRequest.TypeEnum.valueOf(effectiveType.name()));
-                apiRequest.setMinMemory(request.getMinMemory());
-                apiRequest.setMaxMemory(request.getMaxMemory());
-                apiRequest.setMaxPlayers(effectiveMaxPlayers);
-                apiRequest.setActive(effectiveActive);
-                apiRequest.setPriority(request.getPriority());
-                apiRequest.setProperties(effectiveProperties);
-                apiRequest.setTags(effectiveTags);
-                apiRequest.setDeployment(convertDeploymentConfig(effectiveDeployment));
-                apiRequest.setScaling(convertScalingConfig(effectiveScaling));
                 if (effectiveSource != null) {
                     apiRequest.setSource(convertSourceConfig(effectiveSource));
                 }
-                apiRequest.setWorkflows(convertWorkflowsConfig(effectiveWorkflows));
 
                 ModelsCreateServerGroupResponse response;
                 try {
@@ -418,7 +419,7 @@ public class GroupApiImpl implements GroupApi {
                     apiRequest.setDeployment(convertDeploymentConfig(request.getDeployment()));
                 }
                 if (request.getScaling() != null) {
-                    apiRequest.setScaling(convertScalingConfig(request.getScaling()));
+                    apiRequest.setScaling(convertScalingConfig(createRequestDefaults.defaultGroupScaling(request.getScaling())));
                 }
                 if (request.getSource() != null) {
                     apiRequest.setSource(convertSourceConfig(request.getSource()));
