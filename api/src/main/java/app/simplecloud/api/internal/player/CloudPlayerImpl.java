@@ -1,5 +1,6 @@
 package app.simplecloud.api.internal.player;
 
+import app.simplecloud.api.CloudApiException;
 import app.simplecloud.api.internal.integration.adventure.RemoteAudience;
 import app.simplecloud.api.player.CloudPlayer;
 import app.simplecloud.api.player.PlayerApi;
@@ -129,7 +130,15 @@ public class CloudPlayerImpl implements CloudPlayer, ForwardingAudience.Single {
 
     @Override
     public CompletableFuture<Void> kick(Component reason) {
-        return playerApi.kick(uniqueId, reason).thenApply(ignored -> null);
+        return playerApi.kick(uniqueId, reason).thenApply(success -> {
+            if (!Boolean.TRUE.equals(success)) {
+                throw new CloudApiException(
+                        CloudApiException.Reason.UNKNOWN,
+                        "Player '" + uniqueId + "' could not be kicked"
+                );
+            }
+            return null;
+        });
     }
 
     @Override
