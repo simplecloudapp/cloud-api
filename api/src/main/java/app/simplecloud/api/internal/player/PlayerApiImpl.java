@@ -506,7 +506,7 @@ public class PlayerApiImpl implements PlayerApi {
                 if (e.getCode() == 404) {
                     return CloudPlayer.ConnectResult.PLAYER_NOT_FOUND;
                 }
-                return CloudPlayer.ConnectResult.CONNECTION_FAILED;
+                throw ApiErrors.from(e);
             }
         }, executor);
     }

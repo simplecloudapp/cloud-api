@@ -29,7 +29,7 @@ public class PlayerIntegration {
 
     private Dispatcher requestDispatcher;
     private BiFunction<String, String, CompletableFuture<Boolean>> kickHandler;
-    private BiFunction<String, String, CompletableFuture<CloudPlayer.ConnectResult>> connectHandler;
+    private BiFunction<String, ConnectTarget, CompletableFuture<CloudPlayer.ConnectResult>> connectHandler;
 
     public PlayerIntegration(CloudApiImpl cloudApi) {
         this.natsConnection = cloudApi.getNatsConnection();
@@ -159,9 +159,9 @@ public class PlayerIntegration {
 
     /**
      * Registers a handler for connect requests from the controller.
-     * Handler receives (playerUuid, serverName) and returns the result, null to not respond.
+     * Handler receives (playerUuid, target) and returns the result, null to not respond.
      */
-    public void onConnect(BiFunction<String, String, CompletableFuture<CloudPlayer.ConnectResult>> handler) {
+    public void onConnect(BiFunction<String, ConnectTarget, CompletableFuture<CloudPlayer.ConnectResult>> handler) {
         this.connectHandler = handler;
     }
 
@@ -236,7 +236,7 @@ public class PlayerIntegration {
             String[] parts = msg.getSubject().split("\\.");
             String playerUuid = parts.length >= 3 ? parts[2] : request.getPlayerId();
 
-            connectHandler.apply(playerUuid, request.getServerName())
+            connectHandler.apply(playerUuid, ConnectTarget.byName(request.getServerName()))
                     .thenAccept(result -> {
                         if (result != null) sendConnectResponse(msg, result);
                     })
