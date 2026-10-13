@@ -96,28 +96,32 @@ public class PlayerApiImpl implements PlayerApi {
     
     @Override
     public CompletableFuture<CloudPlayer> get(UUID uniqueId) {
-        return callOrNullIfNotFound(() -> {
+        return find(uniqueId).thenApply(player -> player.orElseThrow(
+                () -> ApiErrors.notFound("Player '" + uniqueId + "' not found")
+        ));
+    }
+
+    @Override
+    public CompletableFuture<CloudPlayer> get(String name) {
+        return find(name).thenApply(player -> player.orElseThrow(
+                () -> ApiErrors.notFound("Player '" + name + "' not found")
+        ));
+    }
+
+    @Override
+    public CompletableFuture<Optional<CloudPlayer>> find(UUID uniqueId) {
+        return callOrEmptyIfNotFound(() -> {
             ModelsPlayerResponse response = playersApi.getPlayer(options.getNetworkId(), uniqueId.toString());
             return response != null ? convertPlayerResponse(response) : null;
         });
     }
 
     @Override
-    public CompletableFuture<CloudPlayer> get(String name) {
-        return callOrNullIfNotFound(() -> {
+    public CompletableFuture<Optional<CloudPlayer>> find(String name) {
+        return callOrEmptyIfNotFound(() -> {
             ModelsPlayerResponse response = playersApi.getPlayerByName(options.getNetworkId(), name);
             return response != null ? convertPlayerResponse(response) : null;
         });
-    }
-
-    @Override
-    public CompletableFuture<Optional<CloudPlayer>> find(UUID uniqueId) {
-        return get(uniqueId).thenApply(Optional::ofNullable);
-    }
-
-    @Override
-    public CompletableFuture<Optional<CloudPlayer>> find(String name) {
-        return get(name).thenApply(Optional::ofNullable);
     }
 
     @Override
@@ -301,7 +305,14 @@ public class PlayerApiImpl implements PlayerApi {
 
     @Override
     public CompletableFuture<PlayerProfile> getLatestProfile(UUID uniqueId) {
-        return callOrNullIfNotFound(() -> {
+        return findLatestProfile(uniqueId).thenApply(profile -> profile.orElseThrow(
+                () -> ApiErrors.notFound("No profile recorded for player '" + uniqueId + "'")
+        ));
+    }
+
+    @Override
+    public CompletableFuture<Optional<PlayerProfile>> findLatestProfile(UUID uniqueId) {
+        return callOrEmptyIfNotFound(() -> {
             ModelsPlayerProfileResponse response = playersApi.getLatestPlayerProfile(
                     options.getNetworkId(),
                     uniqueId.toString()
@@ -333,7 +344,14 @@ public class PlayerApiImpl implements PlayerApi {
 
     @Override
     public CompletableFuture<PlayerSession> getCurrentSession(UUID uniqueId) {
-        return callOrNullIfNotFound(() -> {
+        return findCurrentSession(uniqueId).thenApply(session -> session.orElseThrow(
+                () -> ApiErrors.notFound("Player '" + uniqueId + "' has no active session")
+        ));
+    }
+
+    @Override
+    public CompletableFuture<Optional<PlayerSession>> findCurrentSession(UUID uniqueId) {
+        return callOrEmptyIfNotFound(() -> {
             ModelsCurrentSessionResponse response = playersApi.getCurrentSession(
                     options.getNetworkId(),
                     uniqueId.toString()
@@ -347,7 +365,14 @@ public class PlayerApiImpl implements PlayerApi {
 
     @Override
     public CompletableFuture<PlayerClientSettings> getClientSettings(UUID uniqueId) {
-        return callOrNullIfNotFound(() -> {
+        return findClientSettings(uniqueId).thenApply(settings -> settings.orElseThrow(
+                () -> ApiErrors.notFound("No client settings for player '" + uniqueId + "'")
+        ));
+    }
+
+    @Override
+    public CompletableFuture<Optional<PlayerClientSettings>> findClientSettings(UUID uniqueId) {
+        return callOrEmptyIfNotFound(() -> {
             ModelsPlayerClientSettingsResponse response = playersApi.getClientSettings(
                     options.getNetworkId(),
                     uniqueId.toString()
@@ -607,13 +632,13 @@ public class PlayerApiImpl implements PlayerApi {
         }, executor);
     }
 
-    private <T> CompletableFuture<T> callOrNullIfNotFound(ApiCall<T> call) {
+    private <T> CompletableFuture<Optional<T>> callOrEmptyIfNotFound(ApiCall<T> call) {
         return CompletableFuture.supplyAsync(() -> {
             try {
-                return call.execute();
+                return Optional.ofNullable(call.execute());
             } catch (ApiException e) {
                 if (e.getCode() == 404) {
-                    return null;
+                    return Optional.empty();
                 }
                 throw ApiErrors.from(e);
             }

@@ -46,7 +46,8 @@ public interface PlayerApi {
      * Gets a player by their unique ID.
      *
      * @param uniqueId the player's UUID
-     * @return a future containing the player, or null if not found
+     * @return a future containing the player, completed with a {@link app.simplecloud.api.CloudApiException}
+     *         with reason {@code NOT_FOUND} if the player does not exist
      */
     CompletableFuture<CloudPlayer> get(UUID uniqueId);
 
@@ -54,7 +55,8 @@ public interface PlayerApi {
      * Gets a player by their username.
      *
      * @param name the player's username (case-insensitive)
-     * @return a future containing the player, or null if not found
+     * @return a future containing the player, completed with a {@link app.simplecloud.api.CloudApiException}
+     *         with reason {@code NOT_FOUND} if the player does not exist
      */
     CompletableFuture<CloudPlayer> get(String name);
 
@@ -283,9 +285,18 @@ public interface PlayerApi {
      * Gets the most recent profile of a player.
      *
      * @param uniqueId the player's UUID
-     * @return a future containing the profile, or null if none was recorded
+     * @return a future containing the profile, completed with a {@link app.simplecloud.api.CloudApiException}
+     *         with reason {@code NOT_FOUND} if none was recorded
      */
     CompletableFuture<PlayerProfile> getLatestProfile(UUID uniqueId);
+
+    /**
+     * Finds the most recent profile of a player.
+     *
+     * @param uniqueId the player's UUID
+     * @return a future containing the profile, or an empty Optional if none was recorded
+     */
+    CompletableFuture<Optional<PlayerProfile>> findLatestProfile(UUID uniqueId);
 
     /**
      * Lists the sessions of a player, newest first.
@@ -311,17 +322,35 @@ public interface PlayerApi {
      * Gets the active session of a player including its client settings.
      *
      * @param uniqueId the player's UUID
-     * @return a future containing the session, or null if the player is offline
+     * @return a future containing the session, completed with a {@link app.simplecloud.api.CloudApiException}
+     *         with reason {@code NOT_FOUND} if the player is offline
      */
     CompletableFuture<PlayerSession> getCurrentSession(UUID uniqueId);
+
+    /**
+     * Finds the active session of a player including its client settings.
+     *
+     * @param uniqueId the player's UUID
+     * @return a future containing the session, or an empty Optional if the player is offline
+     */
+    CompletableFuture<Optional<PlayerSession>> findCurrentSession(UUID uniqueId);
 
     /**
      * Gets the client settings of a player's active session.
      *
      * @param uniqueId the player's UUID
-     * @return a future containing the settings, or null if unavailable
+     * @return a future containing the settings, completed with a {@link app.simplecloud.api.CloudApiException}
+     *         with reason {@code NOT_FOUND} if unavailable
      */
     CompletableFuture<PlayerClientSettings> getClientSettings(UUID uniqueId);
+
+    /**
+     * Finds the client settings of a player's active session.
+     *
+     * @param uniqueId the player's UUID
+     * @return a future containing the settings, or an empty Optional if unavailable
+     */
+    CompletableFuture<Optional<PlayerClientSettings>> findClientSettings(UUID uniqueId);
 
     /**
      * Updates the stored client settings of a player's active session.
