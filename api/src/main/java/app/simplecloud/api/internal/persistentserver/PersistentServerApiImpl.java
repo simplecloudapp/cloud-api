@@ -11,6 +11,7 @@ import app.simplecloud.api.internal.blueprint.InlineBlueprintSupport;
 import app.simplecloud.api.internal.create.CreateRequestDefaults;
 import app.simplecloud.api.internal.web.ApiClients;
 import app.simplecloud.api.internal.web.ApiErrors;
+import app.simplecloud.api.internal.web.Identifiers;
 import app.simplecloud.api.persistentserver.*;
 import app.simplecloud.api.web.ApiException;
 import app.simplecloud.api.web.ApiClient;
@@ -101,6 +102,9 @@ public class PersistentServerApiImpl implements PersistentServerApi {
 
     @Override
     public CompletableFuture<Optional<PersistentServer>> findPersistentServerById(String id) {
+        if (!Identifiers.isUuid(id)) {
+            return CompletableFuture.completedFuture(Optional.empty());
+        }
         QueryKey key = QueryKey.of("persistentServer", id);
 
         return cache.fetchWithTransientMissRecovery(

@@ -265,7 +265,7 @@ public interface PlayerApi {
      * Lists the recorded profiles (name and skin history) of a player, newest first.
      *
      * @param uniqueId the player's UUID
-     * @param limit the page size
+     * @param limit the page size, between 1 and 100
      * @param offset the number of profiles to skip
      * @return a future containing the requested profiles
      */
@@ -302,7 +302,7 @@ public interface PlayerApi {
      * Lists the sessions of a player, newest first.
      *
      * @param uniqueId the player's UUID
-     * @param limit the page size
+     * @param limit the page size, between 1 and 100
      * @param offset the number of sessions to skip
      * @return a future containing the requested sessions
      */

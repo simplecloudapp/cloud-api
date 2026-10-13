@@ -20,6 +20,7 @@ import com.velocitypowered.api.plugin.Plugin;
 import com.velocitypowered.api.proxy.ConnectionRequestBuilder;
 import com.velocitypowered.api.proxy.Player;
 import com.velocitypowered.api.proxy.ProxyServer;
+import net.kyori.adventure.text.Component;
 import net.kyori.adventure.text.serializer.gson.GsonComponentSerializer;
 import net.luckperms.api.LuckPermsProvider;
 import org.slf4j.Logger;
@@ -170,7 +171,7 @@ public class CloudApiVelocityPlugin implements ProxyPresencePlayerProvider {
                 // Returning null signals to not send a response
                 return null;
             }
-            player.disconnect(gsonComponentSerializer.deserialize(reason != null ? reason : "{}"));
+            player.disconnect(reason != null ? gsonComponentSerializer.deserialize(reason) : Component.empty());
             return true;
         });
     }

@@ -1,5 +1,6 @@
 package app.simplecloud.api.internal.nats;
 
+import app.simplecloud.api.CloudApiException;
 import io.nats.client.Connection;
 import io.nats.client.Dispatcher;
 import io.nats.client.MessageHandler;
@@ -52,7 +53,7 @@ public final class NatsFailoverConnectionManager {
             String networkId,
             String networkSecret,
             Duration failoverReconnectAfter
-    ) throws IOException, InterruptedException {
+    ) {
         this.natsUrl = natsUrl;
         this.networkId = networkId;
         this.networkSecret = networkSecret;
@@ -262,7 +263,10 @@ public final class NatsFailoverConnectionManager {
                     case "toString" -> "NATS connection proxy (disconnected)";
                     case "hashCode" -> System.identityHashCode(connectionProxy);
                     case "equals" -> args != null && args.length > 0 && proxy == args[0];
-                    default -> throw new IllegalStateException("NATS connection is not established");
+                    default -> throw new CloudApiException(
+                            CloudApiException.Reason.UNAVAILABLE,
+                            "NATS connection to " + natsUrl + " is not established"
+                    );
                 };
             }
 

@@ -6,6 +6,8 @@ import com.google.gson.JsonElement;
 import com.google.gson.JsonObject;
 import com.google.gson.JsonParser;
 
+import java.io.IOException;
+
 /**
  * Converts generated client failures into {@link CloudApiException}s.
  */
@@ -19,30 +21,49 @@ public final class ApiErrors {
     }
 
     public static CloudApiException from(String message, ApiException exception) {
-        return new CloudApiException(reason(exception.getCode()), exception.getCode(), message, exception);
+        return new CloudApiException(reason(exception), exception.getCode(), message, exception);
     }
 
     public static CloudApiException notFound(String message) {
         return new CloudApiException(CloudApiException.Reason.NOT_FOUND, 404, message, null);
     }
 
-    private static CloudApiException.Reason reason(int statusCode) {
+    private static CloudApiException.Reason reason(ApiException exception) {
+        int statusCode = exception.getCode();
+        if (statusCode <= 0) {
+            return isTransportFailure(exception) ? CloudApiException.Reason.UNAVAILABLE : CloudApiException.Reason.UNKNOWN;
+        }
         return switch (statusCode) {
             case 400, 422 -> CloudApiException.Reason.INVALID_REQUEST;
             case 401, 403 -> CloudApiException.Reason.UNAUTHORIZED;
             case 404 -> CloudApiException.Reason.NOT_FOUND;
             case 409 -> CloudApiException.Reason.CONFLICT;
             case 408, 429, 502, 503, 504 -> CloudApiException.Reason.UNAVAILABLE;
-            default -> statusCode <= 0 ? CloudApiException.Reason.UNAVAILABLE : CloudApiException.Reason.UNKNOWN;
+            default -> CloudApiException.Reason.UNKNOWN;
         };
+    }
+
+    private static boolean isTransportFailure(ApiException exception) {
+        return exception.getCause() instanceof IOException;
     }
 
     private static String message(ApiException exception) {
         int statusCode = exception.getCode();
         if (statusCode <= 0) {
-            return "Controller unreachable: " + causeMessage(exception);
+            if (isTransportFailure(exception)) {
+                return "Controller unreachable: " + causeMessage(exception);
+            }
+            return "Controller request failed: " + exceptionMessage(exception);
+        }
+        if (statusCode < 300) {
+            return exceptionMessage(exception) + " (" + statusCode + ")";
         }
         return errorMessage(exception) + " (" + statusCode + ")";
+    }
+
+    private static String exceptionMessage(ApiException exception) {
+        String message = exception.getMessage();
+        return message == null || message.isBlank() ? causeMessage(exception) : message;
     }
 
     private static String errorMessage(ApiException exception) {

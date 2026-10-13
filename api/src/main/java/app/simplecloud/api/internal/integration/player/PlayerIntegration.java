@@ -198,7 +198,9 @@ public class PlayerIntegration {
             KickPlayerRequest request = KickPlayerRequest.parseFrom(msg.getData());
             String[] parts = msg.getSubject().split("\\.");
             String playerUuid = parts.length >= 3 ? parts[2] : request.getPlayerId();
-            String reason = request.hasReason() ? request.getReason().getJson() : null;
+            String reason = request.hasReason() && !request.getReason().getJson().isBlank()
+                    ? request.getReason().getJson()
+                    : null;
 
             kickHandler.apply(playerUuid, reason)
                     .thenAccept(success -> {

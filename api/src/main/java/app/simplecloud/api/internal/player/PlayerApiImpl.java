@@ -4,6 +4,7 @@ import app.simplecloud.api.CloudApiException;
 import app.simplecloud.api.CloudApiOptions;
 import app.simplecloud.api.internal.web.ApiClients;
 import app.simplecloud.api.internal.web.ApiErrors;
+import app.simplecloud.api.internal.web.Identifiers;
 import app.simplecloud.api.player.CloudPlayer;
 import app.simplecloud.api.player.PlayerApi;
 import app.simplecloud.api.player.PlayerClientSettings;
@@ -64,6 +65,7 @@ import java.util.function.Consumer;
 public class PlayerApiImpl implements PlayerApi {
 
     private static final Duration REQUEST_TIMEOUT = Duration.ofSeconds(30);
+    private static final int MAX_PAGE_SIZE = 100;
 
     private final CloudApiOptions options;
     private final Connection natsConnection;
@@ -118,6 +120,9 @@ public class PlayerApiImpl implements PlayerApi {
 
     @Override
     public CompletableFuture<Optional<CloudPlayer>> find(String name) {
+        if (!Identifiers.isPlayerName(name)) {
+            return CompletableFuture.completedFuture(Optional.empty());
+        }
         return callOrEmptyIfNotFound(() -> {
             ModelsPlayerResponse response = playersApi.getPlayerByName(options.getNetworkId(), name);
             return response != null ? convertPlayerResponse(response) : null;
@@ -646,8 +651,8 @@ public class PlayerApiImpl implements PlayerApi {
     }
 
     private static void validatePagination(int limit, int offset) {
-        if (limit < 1) {
-            throw new IllegalArgumentException("limit must be >= 1");
+        if (limit < 1 || limit > MAX_PAGE_SIZE) {
+            throw new IllegalArgumentException("limit must be between 1 and " + MAX_PAGE_SIZE);
         }
         if (offset < 0) {
             throw new IllegalArgumentException("offset must be >= 0");
