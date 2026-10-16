@@ -23,7 +23,6 @@ public final class ServerNameRegistry {
     }
 
     public static Optional<String> nameOf(String serverId) {
-        Optional<String> name = mapping.apply(serverId);
-        return name != null ? name : Optional.empty();
+        return mapping.apply(serverId);
     }
 }

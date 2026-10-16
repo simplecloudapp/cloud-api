@@ -236,7 +236,11 @@ public class PlayerIntegration {
             String[] parts = msg.getSubject().split("\\.");
             String playerUuid = parts.length >= 3 ? parts[2] : request.getPlayerId();
 
-            connectHandler.apply(playerUuid, ConnectTarget.byName(request.getServerName()))
+            ConnectTarget target = request.getServerId().isEmpty()
+                    ? ConnectTarget.byName(request.getServerName())
+                    : ConnectTarget.byId(request.getServerId());
+
+            connectHandler.apply(playerUuid, target)
                     .thenAccept(result -> {
                         if (result != null) sendConnectResponse(msg, result);
                     })
