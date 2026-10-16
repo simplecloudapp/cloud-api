@@ -12,6 +12,7 @@ import org.junit.jupiter.api.Test;
 import org.mockito.ArgumentCaptor;
 
 import java.util.Map;
+import java.util.Optional;
 import java.util.UUID;
 import java.util.concurrent.CompletableFuture;
 import java.util.function.Consumer;
@@ -41,7 +42,7 @@ class LuckPermsPlayerPropertySynchronizerTest {
         when(user.getPrimaryGroup()).thenReturn("default");
         when(event.getUser()).thenReturn(user);
         when(player.getProperties()).thenReturn(Map.of());
-        when(playerApi.get(playerId)).thenReturn(CompletableFuture.completedFuture(player));
+        when(playerApi.find(playerId)).thenReturn(CompletableFuture.completedFuture(Optional.of(player)));
         when(playerApi.updatePlayerProperty(eq(playerId), anyString(), anyString()))
                 .thenReturn(CompletableFuture.completedFuture(Map.of()));
         LuckPermsPlayerPropertySynchronizer synchronizer = new LuckPermsPlayerPropertySynchronizer(
@@ -56,7 +57,7 @@ class LuckPermsPlayerPropertySynchronizerTest {
         verifyNoInteractions(playerApi);
 
         synchronizer.synchronize(playerId);
-        verify(playerApi).get(playerId);
+        verify(playerApi).find(playerId);
         verify(playerApi).updatePlayerProperty(playerId, "luckperms-primary-group", "default");
 
         when(user.getPrimaryGroup()).thenReturn("admin");

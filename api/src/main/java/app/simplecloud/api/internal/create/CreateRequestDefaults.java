@@ -17,12 +17,14 @@ import org.jetbrains.annotations.Nullable;
 import java.util.LinkedHashMap;
 import java.util.List;
 import java.util.Map;
+import java.util.Objects;
 
 /**
  * Applies dashboard-aligned defaults to create requests before converting them to controller payloads.
  */
 public final class CreateRequestDefaults {
     private static final int DEFAULT_MAX_PLAYERS = 50;
+    private static final int DEFAULT_MAX_SERVERS = 1;
     private static final double DEFAULT_PLAYER_THRESHOLD = 0.75d;
     private static final String DEFAULT_SCALE_DOWN_IDLE_TIME = "3m";
     private static final String DEFAULT_JAVA_VERSION = "21";
@@ -82,7 +84,7 @@ public final class CreateRequestDefaults {
         if (scaling == null) {
             return ScalingConfig.builder()
                     .minServers(0)
-                    .maxServers(0)
+                    .maxServers(DEFAULT_MAX_SERVERS)
                     .playerThreshold(DEFAULT_PLAYER_THRESHOLD)
                     .scalingMode(ScalingMode.SLOTS)
                     .scaleDown(defaultScaleDown(null))
@@ -122,7 +124,7 @@ public final class CreateRequestDefaults {
                 .softwareVersion(createBlueprint.getSoftwareVersion())
                 .workflowSteps(createBlueprint.getWorkflowSteps() != null
                         ? List.copyOf(createBlueprint.getWorkflowSteps())
-                        : List.copyOf(workflows.getWhen().getStart()))
+                        : List.copyOf(Objects.requireNonNull(Objects.requireNonNull(workflows.getWhen()).getStart())))
                 .build();
     }
 

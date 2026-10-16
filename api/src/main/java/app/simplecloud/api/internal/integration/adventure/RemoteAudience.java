@@ -13,10 +13,13 @@ import net.kyori.adventure.text.Component;
 import net.kyori.adventure.text.serializer.gson.GsonComponentSerializer;
 import net.kyori.adventure.title.Title;
 import net.kyori.adventure.title.TitlePart;
+import org.jspecify.annotations.NonNull;
 
+import java.util.Collections;
 import java.util.Map;
+import java.util.Objects;
 import java.util.UUID;
-import java.util.concurrent.ConcurrentHashMap;
+import java.util.WeakHashMap;
 
 /**
  * An Adventure Audience implementation that sends all actions via NATS
@@ -24,9 +27,10 @@ import java.util.concurrent.ConcurrentHashMap;
  */
 public class RemoteAudience implements Audience {
 
+    private static final Map<BossBar, String> BOSS_BAR_IDS = Collections.synchronizedMap(new WeakHashMap<>());
+
     private final Connection natsConnection;
     private final String subjectPrefix;
-    private final Map<String, BossBar> activeBossBars = new ConcurrentHashMap<>();
 
     private RemoteAudience(Connection natsConnection, String subjectPrefix) {
         this.natsConnection = natsConnection;
@@ -38,10 +42,9 @@ public class RemoteAudience implements Audience {
     }
 
     public static Builder builder(CloudApi cloudApi) {
-        if (!(cloudApi instanceof CloudApiImpl)) {
+        if (!(cloudApi instanceof CloudApiImpl impl)) {
             throw new IllegalArgumentException("CloudApi must be an instance of CloudApiImpl");
         }
-        CloudApiImpl impl = (CloudApiImpl) cloudApi;
         return new Builder(impl.getNatsConnection(), cloudApi.getNetworkId());
     }
 
@@ -81,7 +84,7 @@ public class RemoteAudience implements Audience {
     }
 
     @Override
-    public void sendMessage(Component message) {
+    public void sendMessage(@NonNull Component message) {
         SendMessageRequest request = SendMessageRequest.newBuilder()
                 .setMessage(serialize(message))
                 .build();
@@ -89,7 +92,7 @@ public class RemoteAudience implements Audience {
     }
 
     @Override
-    public void sendActionBar(Component message) {
+    public void sendActionBar(@NonNull Component message) {
         SendActionbarRequest request = SendActionbarRequest.newBuilder()
                 .setMessage(serialize(message))
                 .build();
@@ -107,8 +110,7 @@ public class RemoteAudience implements Audience {
     }
 
     @Override
-    @SuppressWarnings("unchecked")
-    public <T> void sendTitlePart(TitlePart<T> part, T value) {
+    public <T> void sendTitlePart(@NonNull TitlePart<T> part, @NonNull T value) {
         if (part == TitlePart.TITLE) {
             SendTitleRequest request = SendTitleRequest.newBuilder()
                     .setTitle(serialize((Component) value))
@@ -144,7 +146,7 @@ public class RemoteAudience implements Audience {
     }
 
     @Override
-    public void playSound(Sound sound) {
+    public void playSound(@NonNull Sound sound) {
         SendPlaySoundRequest request = SendPlaySoundRequest.newBuilder()
                 .setSound(convertSound(sound))
                 .build();
@@ -152,7 +154,7 @@ public class RemoteAudience implements Audience {
     }
 
     @Override
-    public void playSound(Sound sound, double x, double y, double z) {
+    public void playSound(@NonNull Sound sound, double x, double y, double z) {
         SendPlaySoundAtCoordinatesRequest request = SendPlaySoundAtCoordinatesRequest.newBuilder()
                 .setSound(convertSound(sound))
                 .setCoordinates(SoundCoordinates.newBuilder()
@@ -169,22 +171,23 @@ public class RemoteAudience implements Audience {
         SendStopSoundRequest.Builder builder = SendStopSoundRequest.newBuilder();
 
         if (stop.sound() != null) {
-            builder.setSound(stop.sound().asString());
+            builder.setSound(Objects.requireNonNull(stop.sound()).asString());
         }
         if (stop.source() != null) {
-            builder.setSource(convertSoundSource(stop.source()));
+            builder.setSource(convertSoundSource(Objects.requireNonNull(stop.source())));
         }
 
         publish("stop-sound", builder.build().toByteArray());
     }
 
-    @Override
-    public void showBossBar(BossBar bar) {
-        String id = UUID.randomUUID().toString();
-        activeBossBars.put(id, bar);
+    private String bossBarId(BossBar bar) {
+        return BOSS_BAR_IDS.computeIfAbsent(bar, ignored -> UUID.randomUUID().toString()) + "@" + subjectPrefix;
+    }
 
+    @Override
+    public void showBossBar(@NonNull BossBar bar) {
         AdventureBossBar protoBossBar = AdventureBossBar.newBuilder()
-                .setId(id)
+                .setId(bossBarId(bar))
                 .setTitle(serialize(bar.name()))
                 .setProgress(bar.progress())
                 .setColor(convertBossBarColor(bar.color()))
@@ -198,26 +201,15 @@ public class RemoteAudience implements Audience {
     }
 
     @Override
-    public void hideBossBar(BossBar bar) {
-        String id = null;
-        for (Map.Entry<String, BossBar> entry : activeBossBars.entrySet()) {
-            if (entry.getValue() == bar) {
-                id = entry.getKey();
-                break;
-            }
-        }
-
-        if (id != null) {
-            activeBossBars.remove(id);
-            SendBossBarRemoveRequest request = SendBossBarRemoveRequest.newBuilder()
-                    .setBossBarId(id)
-                    .build();
-            publish("bossbar-remove", request.toByteArray());
-        }
+    public void hideBossBar(@NonNull BossBar bar) {
+        SendBossBarRemoveRequest request = SendBossBarRemoveRequest.newBuilder()
+                .setBossBarId(bossBarId(bar))
+                .build();
+        publish("bossbar-remove", request.toByteArray());
     }
 
     @Override
-    public void sendPlayerListHeaderAndFooter(Component header, Component footer) {
+    public void sendPlayerListHeaderAndFooter(@NonNull Component header, @NonNull Component footer) {
         SendPlayerListHeaderAndFooterRequest request = SendPlayerListHeaderAndFooterRequest.newBuilder()
                 .setHeader(serialize(header))
                 .setFooter(serialize(footer))
@@ -251,61 +243,39 @@ public class RemoteAudience implements Audience {
     }
 
     private SoundSource convertSoundSource(Sound.Source source) {
-        switch (source) {
-            case MUSIC:
-                return SoundSource.SOUND_SOURCE_MUSIC;
-            case RECORD:
-                return SoundSource.SOUND_SOURCE_RECORD;
-            case WEATHER:
-                return SoundSource.SOUND_SOURCE_WEATHER;
-            case BLOCK:
-                return SoundSource.SOUND_SOURCE_BLOCK;
-            case HOSTILE:
-                return SoundSource.SOUND_SOURCE_HOSTILE;
-            case NEUTRAL:
-                return SoundSource.SOUND_SOURCE_NEUTRAL;
-            case PLAYER:
-                return SoundSource.SOUND_SOURCE_PLAYER;
-            case AMBIENT:
-                return SoundSource.SOUND_SOURCE_AMBIENT;
-            case VOICE:
-                return SoundSource.SOUND_SOURCE_VOICE;
-            default:
-                return SoundSource.SOUND_SOURCE_MASTER;
-        }
+        return switch (source) {
+            case MUSIC -> SoundSource.SOUND_SOURCE_MUSIC;
+            case RECORD -> SoundSource.SOUND_SOURCE_RECORD;
+            case WEATHER -> SoundSource.SOUND_SOURCE_WEATHER;
+            case BLOCK -> SoundSource.SOUND_SOURCE_BLOCK;
+            case HOSTILE -> SoundSource.SOUND_SOURCE_HOSTILE;
+            case NEUTRAL -> SoundSource.SOUND_SOURCE_NEUTRAL;
+            case PLAYER -> SoundSource.SOUND_SOURCE_PLAYER;
+            case AMBIENT -> SoundSource.SOUND_SOURCE_AMBIENT;
+            case VOICE -> SoundSource.SOUND_SOURCE_VOICE;
+            default -> SoundSource.SOUND_SOURCE_MASTER;
+        };
     }
 
     private BossBarColor convertBossBarColor(BossBar.Color color) {
-        switch (color) {
-            case BLUE:
-                return BossBarColor.BOSS_BAR_COLOR_BLUE;
-            case RED:
-                return BossBarColor.BOSS_BAR_COLOR_RED;
-            case GREEN:
-                return BossBarColor.BOSS_BAR_COLOR_GREEN;
-            case YELLOW:
-                return BossBarColor.BOSS_BAR_COLOR_YELLOW;
-            case PURPLE:
-                return BossBarColor.BOSS_BAR_COLOR_PURPLE;
-            case WHITE:
-                return BossBarColor.BOSS_BAR_COLOR_WHITE;
-            default:
-                return BossBarColor.BOSS_BAR_COLOR_PINK;
-        }
+        return switch (color) {
+            case BLUE -> BossBarColor.BOSS_BAR_COLOR_BLUE;
+            case RED -> BossBarColor.BOSS_BAR_COLOR_RED;
+            case GREEN -> BossBarColor.BOSS_BAR_COLOR_GREEN;
+            case YELLOW -> BossBarColor.BOSS_BAR_COLOR_YELLOW;
+            case PURPLE -> BossBarColor.BOSS_BAR_COLOR_PURPLE;
+            case WHITE -> BossBarColor.BOSS_BAR_COLOR_WHITE;
+            default -> BossBarColor.BOSS_BAR_COLOR_PINK;
+        };
     }
 
     private BossBarOverlay convertBossBarOverlay(BossBar.Overlay overlay) {
-        switch (overlay) {
-            case NOTCHED_6:
-                return BossBarOverlay.BOSS_BAR_OVERLAY_NOTCHED_6;
-            case NOTCHED_10:
-                return BossBarOverlay.BOSS_BAR_OVERLAY_NOTCHED_10;
-            case NOTCHED_12:
-                return BossBarOverlay.BOSS_BAR_OVERLAY_NOTCHED_12;
-            case NOTCHED_20:
-                return BossBarOverlay.BOSS_BAR_OVERLAY_NOTCHED_20;
-            default:
-                return BossBarOverlay.BOSS_BAR_OVERLAY_PROGRESS;
-        }
+        return switch (overlay) {
+            case NOTCHED_6 -> BossBarOverlay.BOSS_BAR_OVERLAY_NOTCHED_6;
+            case NOTCHED_10 -> BossBarOverlay.BOSS_BAR_OVERLAY_NOTCHED_10;
+            case NOTCHED_12 -> BossBarOverlay.BOSS_BAR_OVERLAY_NOTCHED_12;
+            case NOTCHED_20 -> BossBarOverlay.BOSS_BAR_OVERLAY_NOTCHED_20;
+            default -> BossBarOverlay.BOSS_BAR_OVERLAY_PROGRESS;
+        };
     }
 }

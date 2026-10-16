@@ -2,6 +2,7 @@ package app.simplecloud.api.platform.velocity;
 
 import app.simplecloud.api.CloudApi;
 import app.simplecloud.api.internal.CloudApiImpl;
+import app.simplecloud.api.internal.integration.player.ConnectTarget;
 import app.simplecloud.api.internal.integration.player.PlayerIntegration;
 import app.simplecloud.api.internal.integration.presence.ProxyPresenceResponder;
 import app.simplecloud.api.internal.integration.presence.ProxyPresenceTracker;
@@ -20,6 +21,7 @@ import com.velocitypowered.api.plugin.Plugin;
 import com.velocitypowered.api.proxy.ConnectionRequestBuilder;
 import com.velocitypowered.api.proxy.Player;
 import com.velocitypowered.api.proxy.ProxyServer;
+import net.kyori.adventure.text.Component;
 import net.kyori.adventure.text.serializer.gson.GsonComponentSerializer;
 import net.luckperms.api.LuckPermsProvider;
 import org.slf4j.Logger;
@@ -170,17 +172,17 @@ public class CloudApiVelocityPlugin implements ProxyPresencePlayerProvider {
                 // Returning null signals to not send a response
                 return null;
             }
-            player.disconnect(gsonComponentSerializer.deserialize(reason != null ? reason : "{}"));
+            player.disconnect(reason != null ? gsonComponentSerializer.deserialize(reason) : Component.empty());
             return true;
         });
     }
 
-    private CompletableFuture<CloudPlayer.ConnectResult> handleConnectRequest(String playerUniqueId, String serverName) {
+    private CompletableFuture<CloudPlayer.ConnectResult> handleConnectRequest(String playerUniqueId, ConnectTarget target) {
         Player player = proxyServer.getPlayer(UUID.fromString(playerUniqueId)).orElse(null);
         if (player == null) {
             return CompletableFuture.completedFuture(null);
         }
-        var registeredServer = proxyServer.getServer(serverName).orElse(null);
+        var registeredServer = target.resolve(proxyServer::getServer).orElse(null);
         if (registeredServer == null) {
             return CompletableFuture.completedFuture(CloudPlayer.ConnectResult.SERVER_NOT_FOUND);
         }
