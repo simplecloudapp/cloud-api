@@ -2,6 +2,7 @@ package app.simplecloud.api.platform.bungeecord;
 
 import app.simplecloud.api.CloudApi;
 import app.simplecloud.api.internal.CloudApiImpl;
+import app.simplecloud.api.internal.integration.player.ConnectTarget;
 import app.simplecloud.api.internal.integration.player.PlayerIntegration;
 import app.simplecloud.api.internal.integration.presence.ProxyPresenceResponder;
 import app.simplecloud.api.internal.integration.presence.ProxyPresenceTracker;
@@ -22,6 +23,7 @@ import net.luckperms.api.LuckPermsProvider;
 
 import java.util.List;
 import java.util.Locale;
+import java.util.Optional;
 import java.util.UUID;
 import java.util.concurrent.CompletableFuture;
 
@@ -164,16 +166,16 @@ public class BungeeCordApiProvider extends Plugin implements ProxyPresencePlayer
         });
     }
 
-    private CompletableFuture<CloudPlayer.ConnectResult> handleConnectRequest(String playerUniqueId, String serverName) {
+    private CompletableFuture<CloudPlayer.ConnectResult> handleConnectRequest(String playerUniqueId, ConnectTarget target) {
         ProxiedPlayer player = getProxy().getPlayer(UUID.fromString(playerUniqueId));
         if (player == null) {
             return CompletableFuture.completedFuture(null);
         }
-        var serverInfo = getProxy().getServerInfo(serverName);
+        var serverInfo = target.resolve(name -> Optional.ofNullable(getProxy().getServerInfo(name))).orElse(null);
         if (serverInfo == null) {
             return CompletableFuture.completedFuture(CloudPlayer.ConnectResult.SERVER_NOT_FOUND);
         }
-        if (player.getServer() != null && player.getServer().getInfo().getName().equals(serverName)) {
+        if (player.getServer() != null && player.getServer().getInfo().getName().equals(serverInfo.getName())) {
             return CompletableFuture.completedFuture(CloudPlayer.ConnectResult.ALREADY_CONNECTED);
         }
 

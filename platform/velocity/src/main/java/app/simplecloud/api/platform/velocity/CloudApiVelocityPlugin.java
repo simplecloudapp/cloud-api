@@ -2,6 +2,7 @@ package app.simplecloud.api.platform.velocity;
 
 import app.simplecloud.api.CloudApi;
 import app.simplecloud.api.internal.CloudApiImpl;
+import app.simplecloud.api.internal.integration.player.ConnectTarget;
 import app.simplecloud.api.internal.integration.player.PlayerIntegration;
 import app.simplecloud.api.internal.integration.presence.ProxyPresenceResponder;
 import app.simplecloud.api.internal.integration.presence.ProxyPresenceTracker;
@@ -176,12 +177,12 @@ public class CloudApiVelocityPlugin implements ProxyPresencePlayerProvider {
         });
     }
 
-    private CompletableFuture<CloudPlayer.ConnectResult> handleConnectRequest(String playerUniqueId, String serverName) {
+    private CompletableFuture<CloudPlayer.ConnectResult> handleConnectRequest(String playerUniqueId, ConnectTarget target) {
         Player player = proxyServer.getPlayer(UUID.fromString(playerUniqueId)).orElse(null);
         if (player == null) {
             return CompletableFuture.completedFuture(null);
         }
-        var registeredServer = proxyServer.getServer(serverName).orElse(null);
+        var registeredServer = target.resolve(proxyServer::getServer).orElse(null);
         if (registeredServer == null) {
             return CompletableFuture.completedFuture(CloudPlayer.ConnectResult.SERVER_NOT_FOUND);
         }
