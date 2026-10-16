@@ -504,13 +504,20 @@ public class PlayerApiImpl implements PlayerApi {
                 return toConnectResult(response);
             } catch (ApiException e) {
                 if (e.getCode() == 404) {
-                    return CloudPlayer.ConnectResult.PLAYER_NOT_FOUND;
+                    return isPlayerNotOnline(e)
+                            ? CloudPlayer.ConnectResult.PLAYER_NOT_FOUND
+                            : CloudPlayer.ConnectResult.SERVER_NOT_FOUND;
                 }
                 throw ApiErrors.from(e);
             }
         }, executor);
     }
     
+    private static boolean isPlayerNotOnline(ApiException e) {
+        String body = e.getResponseBody();
+        return body != null && body.contains("Player is not online");
+    }
+
     static CloudPlayer.ConnectResult toConnectResult(ModelsConnectPlayerResponse response) {
         if (response == null) {
             return CloudPlayer.ConnectResult.CONNECTION_FAILED;

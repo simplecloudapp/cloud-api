@@ -114,7 +114,7 @@ public class CloudApiOptions {
         private String serverVersionManifestUrl;
         private CacheConfig cacheConfig = CacheConfig.DEFAULT;
         private Duration httpConnectTimeout = Duration.ofSeconds(5);
-        private Duration httpReadTimeout = Duration.ofSeconds(10);
+        private Duration httpReadTimeout = Duration.ofSeconds(15);
         private Duration httpWriteTimeout = Duration.ofSeconds(10);
 
         public Builder() {

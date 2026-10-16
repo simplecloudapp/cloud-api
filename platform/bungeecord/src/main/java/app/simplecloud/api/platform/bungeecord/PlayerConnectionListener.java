@@ -20,6 +20,7 @@ import java.util.ArrayList;
 import java.util.List;
 import java.util.UUID;
 import java.util.concurrent.CompletableFuture;
+import java.util.concurrent.TimeUnit;
 import java.util.function.Consumer;
 import java.util.logging.Level;
 import java.util.logging.Logger;
@@ -27,6 +28,7 @@ import java.util.logging.Logger;
 public class PlayerConnectionListener implements Listener {
 
     private static final Logger logger = Logger.getLogger(PlayerConnectionListener.class.getName());
+    private static final long LOGIN_WAIT_SECONDS = 5;
 
     private final Plugin plugin;
     private final PlayerSynchronizer playerSynchronizer;
@@ -88,7 +90,8 @@ public class PlayerConnectionListener implements Listener {
         }).exceptionally(e -> {
             logger.log(Level.SEVERE, "Failed to send login event for " + player.getName(), e);
             return null;
-        }).whenComplete((ignored, error) -> event.completeIntent(plugin));
+        }).copy().completeOnTimeout(null, LOGIN_WAIT_SECONDS, TimeUnit.SECONDS)
+                .whenComplete((ignored, error) -> event.completeIntent(plugin));
 
         CompletableFuture.runAsync(() -> playerSynchronizer.updatePlayerCount());
     }

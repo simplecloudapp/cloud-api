@@ -20,11 +20,13 @@ import java.util.ArrayList;
 import java.util.List;
 import java.util.UUID;
 import java.util.concurrent.CompletableFuture;
+import java.util.concurrent.TimeUnit;
 import java.util.function.Consumer;
 
 public class PlayerConnectionListener {
 
     private static final Logger logger = LoggerFactory.getLogger(PlayerConnectionListener.class);
+    private static final long LOGIN_WAIT_SECONDS = 5;
 
     private final PlayerSynchronizer playerSynchronizer;
     private final PlayerIntegration playerIntegration;
@@ -91,7 +93,7 @@ public class PlayerConnectionListener {
 
         CompletableFuture.runAsync(() -> playerSynchronizer.updatePlayerCount());
         // Keep later login listeners and the initial backend connection behind registration.
-        return EventTask.resumeWhenComplete(registration);
+        return EventTask.resumeWhenComplete(registration.copy().completeOnTimeout(null, LOGIN_WAIT_SECONDS, TimeUnit.SECONDS));
     }
 
     @Subscribe
