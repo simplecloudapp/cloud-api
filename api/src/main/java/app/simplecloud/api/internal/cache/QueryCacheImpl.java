@@ -1,5 +1,6 @@
 package app.simplecloud.api.internal.cache;
 
+import app.simplecloud.api.CloudApiException;
 import app.simplecloud.api.cache.*;
 import com.github.benmanes.caffeine.cache.Cache;
 import com.github.benmanes.caffeine.cache.Caffeine;
@@ -20,7 +21,7 @@ import java.util.logging.Logger;
 public class QueryCacheImpl implements QueryCache {
 
     private static final Logger LOGGER = Logger.getLogger(QueryCacheImpl.class.getName());
-    private static final Duration DEFAULT_IN_FLIGHT_TIMEOUT = Duration.ofSeconds(5);
+    private static final Duration DEFAULT_IN_FLIGHT_TIMEOUT = Duration.ofSeconds(30);
 
     private final CacheConfig config;
     private final Duration inFlightTimeout;
@@ -38,7 +39,7 @@ public class QueryCacheImpl implements QueryCache {
         this(config, DEFAULT_IN_FLIGHT_TIMEOUT);
     }
 
-    QueryCacheImpl(CacheConfig config, Duration inFlightTimeout) {
+    public QueryCacheImpl(CacheConfig config, Duration inFlightTimeout) {
         this.config = config;
         this.inFlightTimeout = inFlightTimeout;
         this.inFlightRequests = new ConcurrentHashMap<>();
@@ -125,8 +126,12 @@ public class QueryCacheImpl implements QueryCache {
             return (CompletableFuture<T>) existing;
         }
 
-        result.orTimeout(inFlightTimeout.toMillis(), TimeUnit.MILLISECONDS)
-                .whenComplete((data, error) -> inFlightRequests.remove(key, result));
+        result.whenComplete((data, error) -> inFlightRequests.remove(key, result));
+        CompletableFuture.delayedExecutor(inFlightTimeout.toMillis(), TimeUnit.MILLISECONDS)
+                .execute(() -> result.completeExceptionally(new CloudApiException(
+                        CloudApiException.Reason.UNAVAILABLE,
+                        "Controller did not respond within " + inFlightTimeout.toMillis() + " ms"
+                )));
 
         CompletableFuture<T> source;
         try {

@@ -1,5 +1,6 @@
 package app.simplecloud.api.internal.cache;
 
+import app.simplecloud.api.CloudApiException;
 import app.simplecloud.api.cache.CacheConfig;
 import app.simplecloud.api.cache.CacheEntry;
 import app.simplecloud.api.cache.QueryKey;
@@ -9,7 +10,6 @@ import java.time.Duration;
 import java.util.concurrent.CompletableFuture;
 import java.util.concurrent.ExecutionException;
 import java.util.concurrent.TimeUnit;
-import java.util.concurrent.TimeoutException;
 import java.util.concurrent.atomic.AtomicInteger;
 
 import static org.junit.jupiter.api.Assertions.assertEquals;
@@ -23,6 +23,11 @@ class QueryCacheImplTest {
 
     private static final Duration LONG_TIMEOUT = Duration.ofSeconds(2);
     private static final Duration SHORT_TIMEOUT = Duration.ofMillis(200);
+
+    private static void assertUnavailable(Throwable error, String message) {
+        CloudApiException exception = assertInstanceOf(CloudApiException.class, error, message);
+        assertEquals(CloudApiException.Reason.UNAVAILABLE, exception.getReason(), message);
+    }
 
     private CacheConfig baseConfig() {
         return CacheConfig.builder()
@@ -94,8 +99,8 @@ class QueryCacheImplTest {
      *
      * <p>Before the fix, if the upstream fetcher hung forever, the in-flight map entry
      * was never removed. Every subsequent call dedup'd into the hanging future and
-     * the caller's .orTimeout() fired perpetually. The fix wraps the stored future in
-     * orTimeout so the map self-cleans after {@code inFlightTimeout}.
+     * the caller's .orTimeout() fired perpetually. The fix fails the stored future after
+     * {@code inFlightTimeout} so the map self-cleans.
      */
     @Test
     void fetch_hangingFetcher_storedFutureTimesOut() throws Exception {
@@ -109,7 +114,7 @@ class QueryCacheImplTest {
                 ExecutionException.class,
                 () -> result.get(1, TimeUnit.SECONDS)
         );
-        assertInstanceOf(TimeoutException.class, ex.getCause(),
+        assertUnavailable(ex.getCause(),
                 "hanging fetcher must time out via in-flight timeout");
     }
 
@@ -196,8 +201,8 @@ class QueryCacheImplTest {
                 () -> returned.get(1, TimeUnit.SECONDS),
                 "fetchWithDeduplication must return a future that eventually completes"
         );
-        assertInstanceOf(TimeoutException.class, ex.getCause(),
-                "in-flight timeout must complete the future exceptionally with TimeoutException");
+        assertUnavailable(ex.getCause(),
+                "in-flight timeout must complete the future exceptionally with CloudApiException");
         assertTrue(returned.isDone(), "returned future must be marked done after timeout");
     }
 

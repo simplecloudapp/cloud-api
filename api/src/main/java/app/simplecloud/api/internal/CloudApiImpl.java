@@ -22,7 +22,6 @@ import app.simplecloud.api.player.PlayerApi;
 import app.simplecloud.api.server.ServerApi;
 import io.nats.client.Connection;
 
-import java.io.IOException;
 import java.util.concurrent.Executor;
 import java.util.concurrent.ExecutorService;
 import java.util.concurrent.Executors;
@@ -52,22 +51,18 @@ public class CloudApiImpl implements CloudApi {
     public CloudApiImpl(CloudApiOptions options) {
         this.options = options;
 
-        try {
-            this.natsConnectionManager = new NatsFailoverConnectionManager(
-                    options.getNatsUrl(),
-                    options.getNetworkId(),
-                    options.getNetworkSecret(),
-                    options.getNatsFailoverReconnectAfter()
-            );
-            this.natsClient = natsConnectionManager.getConnection();
-        } catch (IOException | InterruptedException e) {
-            throw new RuntimeException(e);
-        }
+        this.natsConnectionManager = new NatsFailoverConnectionManager(
+                options.getNatsUrl(),
+                options.getNetworkId(),
+                options.getNetworkSecret(),
+                options.getNatsFailoverReconnectAfter()
+        );
+        this.natsClient = natsConnectionManager.getConnection();
 
         // Initialize cache
         CacheConfig cacheConfig = options.getCacheConfig();
         if (cacheConfig.isEnabled()) {
-            this.queryCache = new QueryCacheImpl(cacheConfig);
+            this.queryCache = new QueryCacheImpl(cacheConfig, ApiClients.maxRequestDuration(options));
         } else {
             this.queryCache = new NoOpQueryCache();
         }

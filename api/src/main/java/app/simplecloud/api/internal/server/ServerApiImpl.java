@@ -1,9 +1,12 @@
 package app.simplecloud.api.internal.server;
 
+import app.simplecloud.api.CloudApiException;
 import app.simplecloud.api.CloudApiOptions;
 import app.simplecloud.api.cache.QueryCache;
 import app.simplecloud.api.cache.QueryKey;
 import app.simplecloud.api.internal.web.ApiClients;
+import app.simplecloud.api.internal.web.ApiErrors;
+import app.simplecloud.api.internal.web.Identifiers;
 import app.simplecloud.api.server.Server;
 import app.simplecloud.api.server.ServerApi;
 import app.simplecloud.api.server.ServerQuery;
@@ -60,6 +63,16 @@ public class ServerApiImpl implements ServerApi {
 
     @Override
     public CompletableFuture<Server> getServerById(String id) {
+        return findServerById(id).thenApply(server -> server.orElseThrow(
+                () -> ApiErrors.notFound("Server with ID '" + id + "' not found")
+        ));
+    }
+
+    @Override
+    public CompletableFuture<Optional<Server>> findServerById(String id) {
+        if (!Identifiers.isUuid(id)) {
+            return CompletableFuture.completedFuture(Optional.empty());
+        }
         QueryKey key = QueryKey.of("server", id);
 
         return cache.fetchWithTransientMissRecovery(
@@ -68,16 +81,18 @@ public class ServerApiImpl implements ServerApi {
                 Objects::isNull,
                 TRANSIENT_MISS_RETRY_DELAY,
                 TRANSIENT_MISS_MAX_RETRIES
-        ).thenApply(server -> {
-            if (server == null) {
-                throw new RuntimeException("Server not found: " + id);
-            }
-            return server;
-        });
+        ).thenApply(Optional::ofNullable);
     }
 
     @Override
     public CompletableFuture<Server> getServerByNumericalId(String groupName, int numericalId) {
+        return findServerByNumericalId(groupName, numericalId).thenApply(server -> server.orElseThrow(
+                () -> ApiErrors.notFound("Server '" + groupName + "-" + numericalId + "' not found")
+        ));
+    }
+
+    @Override
+    public CompletableFuture<Optional<Server>> findServerByNumericalId(String groupName, int numericalId) {
         QueryKey key = QueryKey.of("server", "numerical", groupName, numericalId);
 
         return cache.fetchWithTransientMissRecovery(
@@ -86,14 +101,7 @@ public class ServerApiImpl implements ServerApi {
                 Objects::isNull,
                 TRANSIENT_MISS_RETRY_DELAY,
                 TRANSIENT_MISS_MAX_RETRIES
-        ).thenApply(server -> {
-            if (server == null) {
-                throw new RuntimeException(
-                        "Server not found in group " + groupName + " with numerical ID " + numericalId
-                );
-            }
-            return server;
-        });
+        ).thenApply(Optional::ofNullable);
     }
 
     @Override
@@ -115,7 +123,7 @@ public class ServerApiImpl implements ServerApi {
                         .<Server>map(ServerImpl::new)
                         .toList();
             } catch (ApiException e) {
-                throw new RuntimeException(e);
+                throw ApiErrors.from(e);
             }
         }, executor));
     }
@@ -159,7 +167,7 @@ public class ServerApiImpl implements ServerApi {
                         .<Server>map(ServerImpl::new)
                         .toList();
             } catch (ApiException e) {
-                throw new RuntimeException(e);
+                throw ApiErrors.from(e);
             }
         }, executor);
     }
@@ -178,7 +186,7 @@ public class ServerApiImpl implements ServerApi {
                         .<Server>map(ServerImpl::new)
                         .orElse(null);
             } catch (ApiException e) {
-                throw new RuntimeException(e);
+                throw ApiErrors.from(e);
             }
         }, executor);
     }
@@ -382,7 +390,7 @@ public class ServerApiImpl implements ServerApi {
                 cache.invalidateAll(QueryKey.of("servers"));
                 cache.invalidateAll(QueryKey.of("server", "numerical"));
             } catch (ApiException e) {
-                throw new RuntimeException(e);
+                throw ApiErrors.from(e);
             }
         }, executor);
     }
@@ -400,7 +408,10 @@ public class ServerApiImpl implements ServerApi {
                 );
 
                 if (response.getServer() == null) {
-                    throw new RuntimeException("Server update response did not contain server data");
+                    throw new CloudApiException(
+                            CloudApiException.Reason.UNKNOWN,
+                            "Server update response did not contain server data"
+                    );
                 }
 
                 Server server = new ServerImpl(response.getServer());
@@ -412,7 +423,7 @@ public class ServerApiImpl implements ServerApi {
 
                 return server;
             } catch (ApiException e) {
-                throw new RuntimeException(e);
+                throw ApiErrors.from(e);
             }
         }, executor);
     }
@@ -462,7 +473,7 @@ public class ServerApiImpl implements ServerApi {
                 Map<String, Object> result = response.getProperties();
                 return result != null ? result : new HashMap<>();
             } catch (ApiException e) {
-                throw new RuntimeException(e);
+                throw ApiErrors.from(e);
             }
         }, executor);
     }
@@ -488,7 +499,7 @@ public class ServerApiImpl implements ServerApi {
                 Map<String, Object> result = response.getProperties();
                 return result != null ? result : new HashMap<>();
             } catch (ApiException e) {
-                throw new RuntimeException(e);
+                throw ApiErrors.from(e);
             }
         }, executor);
     }
