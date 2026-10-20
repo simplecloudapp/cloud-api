@@ -178,6 +178,10 @@ public class CloudApiOptions {
          * Sets the manifest URL used to resolve software versions into concrete download URLs
          * for inline blueprint creation.
          *
+         * <p>The manifest is only fetched over HTTPS from publicly routable addresses; redirects
+         * are re-checked and the response size is capped. If a JVM-wide proxy is configured, the proxy
+         * resolves the manifest host, so the address check applies to the proxy host instead.
+         *
          * @param serverVersionManifestUrl manifest endpoint returning {@code server_versions.json}
          * @return this builder
          */

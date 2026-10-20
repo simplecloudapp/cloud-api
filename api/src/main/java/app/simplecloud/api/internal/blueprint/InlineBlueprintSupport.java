@@ -31,7 +31,7 @@ public final class InlineBlueprintSupport {
     private final ServerUrlResolver serverUrlResolver;
 
     public InlineBlueprintSupport(CloudApiOptions options, BlueprintsApi blueprintsApi) {
-        this(options, blueprintsApi, new ManifestServerUrlResolver(options, blueprintsApi.getApiClient().getHttpClient()));
+        this(options, blueprintsApi, new ManifestServerUrlResolver(options));
     }
 
     public InlineBlueprintSupport(CloudApiOptions options,
