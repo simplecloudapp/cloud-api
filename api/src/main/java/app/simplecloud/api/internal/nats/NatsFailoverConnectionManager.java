@@ -14,6 +14,7 @@ import java.lang.reflect.InvocationTargetException;
 import java.lang.reflect.Method;
 import java.lang.reflect.Proxy;
 import java.time.Duration;
+import java.util.ArrayList;
 import java.util.List;
 import java.util.concurrent.CompletableFuture;
 import java.util.concurrent.CopyOnWriteArrayList;
@@ -157,19 +158,22 @@ public final class NatsFailoverConnectionManager {
             try {
                 Connection newConnection = createConnection();
                 Connection oldConnection;
+                List<Dispatcher> previousDispatchers;
                 synchronized (bindLock) {
                     if (shutdown) {
                         newConnection.close();
                         return;
                     }
                     try {
-                        rebindDispatchers(newConnection);
+                        previousDispatchers = rebindDispatchers(newConnection);
                     } catch (Exception rebindException) {
                         newConnection.close();
                         throw rebindException;
                     }
                     oldConnection = connectionRef.getAndSet(newConnection);
                 }
+                // Draining flushes the old connection, which blocks while it is down, so it must not hold bindLock.
+                drainQuietly(previousDispatchers);
                 if (oldConnection != null && oldConnection != newConnection) {
                     oldConnection.close();
                 }
@@ -199,9 +203,23 @@ public final class NatsFailoverConnectionManager {
         }
     }
 
-    private void rebindDispatchers(Connection newConnection) {
+    private List<Dispatcher> rebindDispatchers(Connection newConnection) {
+        List<Dispatcher> previousDispatchers = new ArrayList<>();
         for (DispatcherProxyState dispatcherState : dispatchers) {
-            dispatcherState.rebind(newConnection);
+            Dispatcher previous = dispatcherState.rebind(newConnection);
+            if (previous != null) {
+                previousDispatchers.add(previous);
+            }
+        }
+        return previousDispatchers;
+    }
+
+    private static void drainQuietly(List<Dispatcher> dispatchers) {
+        for (Dispatcher dispatcher : dispatchers) {
+            try {
+                dispatcher.drain(Duration.ofSeconds(1));
+            } catch (Exception ignored) {
+            }
         }
     }
 
@@ -327,14 +345,15 @@ public final class NatsFailoverConnectionManager {
 
                 if (isUnsubscribeBySubject(method, args)) {
                     String subject = (String) args[0];
-                    for (SubscriptionProxyState subscription : subscriptions) {
-                        if (subscription.subject.equals(subject)) {
-                            subscription.deactivate();
-                            subscriptions.remove(subscription);
+                    synchronized (bindLock) {
+                        for (SubscriptionProxyState subscription : subscriptions) {
+                            if (subscription.subject.equals(subject)) {
+                                subscription.deactivate();
+                                subscriptions.remove(subscription);
+                            }
                         }
-                    }
-                    if (delegateRef.get() == null) {
-                        return null;
+                        Dispatcher dispatcher = delegateRef.get();
+                        return dispatcher == null ? null : invoke(method, dispatcher, args);
                     }
                 }
 
@@ -374,18 +393,13 @@ public final class NatsFailoverConnectionManager {
             }
         }
 
-        private void rebind(Connection newConnection) {
+        private Dispatcher rebind(Connection newConnection) {
             Dispatcher newDispatcher = newConnection.createDispatcher(messageHandler);
             for (SubscriptionProxyState subscription : subscriptions) {
                 subscription.rebind(newDispatcher);
             }
             Dispatcher previous = delegateRef.getAndSet(newDispatcher);
-            if (previous != null && previous != newDispatcher) {
-                try {
-                    previous.drain(Duration.ofSeconds(1));
-                } catch (Exception ignored) {
-                }
-            }
+            return previous != newDispatcher ? previous : null;
         }
     }
 
@@ -449,21 +463,24 @@ public final class NatsFailoverConnectionManager {
         }
 
         private void unsubscribe(Object[] args) {
-            if (!active.compareAndSet(true, false)) {
-                return;
-            }
-            dispatcherState.subscriptions.remove(this);
+            // Holds bindLock so a concurrent rebind cannot pair the old dispatcher with the new subscription.
+            synchronized (bindLock) {
+                if (!active.compareAndSet(true, false)) {
+                    return;
+                }
+                dispatcherState.subscriptions.remove(this);
 
-            Dispatcher dispatcher = dispatcherState.delegateRef.get();
-            Subscription subscription = delegateRef.get();
-            if (dispatcher == null || subscription == null) {
-                return;
+                Dispatcher dispatcher = dispatcherState.delegateRef.get();
+                Subscription subscription = delegateRef.get();
+                if (dispatcher == null || subscription == null) {
+                    return;
+                }
+                if (args != null && args.length == 1 && args[0] instanceof Integer maxMessages) {
+                    dispatcher.unsubscribe(subscription, maxMessages);
+                    return;
+                }
+                dispatcher.unsubscribe(subscription);
             }
-            if (args != null && args.length == 1 && args[0] instanceof Integer maxMessages) {
-                dispatcher.unsubscribe(subscription, maxMessages);
-                return;
-            }
-            dispatcher.unsubscribe(subscription);
         }
 
         private void rebind(Dispatcher newDispatcher) {
