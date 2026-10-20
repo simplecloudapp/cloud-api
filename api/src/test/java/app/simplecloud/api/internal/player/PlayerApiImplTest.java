@@ -9,8 +9,10 @@ import app.simplecloud.api.web.models.ModelsPlayerResponse;
 import org.junit.jupiter.api.Test;
 
 import java.util.UUID;
+import java.util.concurrent.CompletionException;
 
 import static org.junit.jupiter.api.Assertions.assertEquals;
+import static org.junit.jupiter.api.Assertions.assertInstanceOf;
 import static org.junit.jupiter.api.Assertions.assertThrows;
 
 class PlayerApiImplTest {
@@ -71,8 +73,11 @@ class PlayerApiImplTest {
     void setOnlineTimeSeconds_rejectsValuesControllerCannotStore() {
         PlayerApiImpl api = new PlayerApiImpl(options(), null, new FakePlayersApi());
 
-        assertThrows(IllegalArgumentException.class, () -> api.setOnlineTimeSeconds(PLAYER_ID, -1));
-        assertThrows(IllegalArgumentException.class, () -> api.setOnlineTimeSeconds(PLAYER_ID, (long) Integer.MAX_VALUE + 1L));
+        CompletionException negative = assertThrows(CompletionException.class, () -> api.setOnlineTimeSeconds(PLAYER_ID, -1).join());
+        CompletionException tooLarge = assertThrows(CompletionException.class, () -> api.setOnlineTimeSeconds(PLAYER_ID, (long) Integer.MAX_VALUE + 1L).join());
+
+        assertInstanceOf(IllegalArgumentException.class, negative.getCause());
+        assertInstanceOf(IllegalArgumentException.class, tooLarge.getCause());
     }
 
     private static CloudApiOptions options() {
@@ -103,7 +108,7 @@ class PlayerApiImplTest {
         private ModelsPatchPlayerRequest lastPatchRequest;
 
         @Override
-        public ModelsPlayerOnlineTimeResponse v0PlayersOnlineTimeGet(String xNetworkID, String xNetworkSecret, String playerId) {
+        public ModelsPlayerOnlineTimeResponse getPlayerOnlineTime(String xNetworkID, String playerId) {
             onlineTimeGetCalls++;
             lastOnlineTimePlayerId = playerId;
 
@@ -114,9 +119,8 @@ class PlayerApiImplTest {
         }
 
         @Override
-        public ModelsPlayerResponse v0PlayersPatch(
+        public ModelsPlayerResponse patchPlayer(
                 String xNetworkID,
-                String xNetworkSecret,
                 String playerId,
                 ModelsPatchPlayerRequest modelsPatchPlayerRequest
         ) {

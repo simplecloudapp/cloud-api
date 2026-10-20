@@ -1,9 +1,11 @@
 package app.simplecloud.api.persistentserver;
 
+import app.simplecloud.api.CloudApiException;
 import org.jetbrains.annotations.Nullable;
 
 import java.util.List;
 import java.util.Map;
+import java.util.Optional;
 import java.util.concurrent.CompletableFuture;
 
 /**
@@ -19,17 +21,35 @@ public interface PersistentServerApi {
      * Retrieves a persistent server by its unique identifier.
      *
      * @param id the unique ID of the persistent server
-     * @return a CompletableFuture that completes with the persistent server, or fails if not found
+     * @return a CompletableFuture that completes with the persistent server, or fails with a
+     * {@link CloudApiException} ({@link CloudApiException.Reason#NOT_FOUND}) if it does not exist
      */
     CompletableFuture<PersistentServer> getPersistentServerById(String id);
+
+    /**
+     * Finds a persistent server by its unique identifier.
+     *
+     * @param id the unique ID of the persistent server
+     * @return a CompletableFuture that completes with the persistent server, or an empty Optional if it does not exist
+     */
+    CompletableFuture<Optional<PersistentServer>> findPersistentServerById(String id);
 
     /**
      * Retrieves a persistent server by its name.
      *
      * @param name the name of the persistent server
-     * @return a CompletableFuture that completes with the persistent server, or fails if not found
+     * @return a CompletableFuture that completes with the persistent server, or fails with a
+     * {@link CloudApiException} ({@link CloudApiException.Reason#NOT_FOUND}) if it does not exist
      */
     CompletableFuture<PersistentServer> getPersistentServerByName(String name);
+
+    /**
+     * Finds a persistent server by its name.
+     *
+     * @param name the name of the persistent server
+     * @return a CompletableFuture that completes with the persistent server, or an empty Optional if it does not exist
+     */
+    CompletableFuture<Optional<PersistentServer>> findPersistentServerByName(String name);
 
     /**
      * Retrieves all persistent servers, optionally filtered by a query.

@@ -1,5 +1,6 @@
 package app.simplecloud.api.internal.blueprint;
 
+import app.simplecloud.api.CloudApiException;
 import app.simplecloud.api.CloudApiOptions;
 import app.simplecloud.api.blueprint.CreateBlueprintRequest;
 import app.simplecloud.api.blueprint.RuntimeConfig;
@@ -65,15 +66,14 @@ public final class InlineBlueprintSupport {
         }
 
         ModelsCreateBlueprintRequest apiRequest = convertCreateBlueprintRequest(blueprintName, request);
-        ModelsCreateBlueprintResponse response = blueprintsApi.v0BlueprintsPost(
+        ModelsCreateBlueprintResponse response = blueprintsApi.createBlueprint(
                 options.getNetworkId(),
-                options.getNetworkSecret(),
                 apiRequest
         );
 
         String blueprintId = response.getBlueprintId();
         if (blueprintId == null || blueprintId.isBlank()) {
-            throw new IllegalStateException("Controller returned blueprint without a blueprint ID");
+            throw new CloudApiException(CloudApiException.Reason.UNKNOWN, "Controller returned blueprint without a blueprint ID");
         }
         return blueprintId;
     }
@@ -103,15 +103,18 @@ public final class InlineBlueprintSupport {
         ApiException lastDeleteFailure = null;
         for (int attempt = 1; attempt <= DELETE_MAX_ATTEMPTS; attempt++) {
             try {
-                blueprintsApi.v0BlueprintsDelete(
+                blueprintsApi.deleteBlueprint(
                         options.getNetworkId(),
-                        options.getNetworkSecret(),
                         normalizedBlueprintId
                 );
                 return;
             } catch (ApiException deleteFailure) {
-                if (deleteFailure.getCode() == 404) {
+                int statusCode = deleteFailure.getCode();
+                if (statusCode == 404 || statusCode == 409) {
                     return;
+                }
+                if (!isRetryable(statusCode)) {
+                    throw deleteFailure;
                 }
                 lastDeleteFailure = deleteFailure;
                 if (attempt < DELETE_MAX_ATTEMPTS) {
@@ -154,6 +157,10 @@ public final class InlineBlueprintSupport {
     private boolean failureMayHaveCreatedResource(ApiException createFailure) {
         int statusCode = createFailure.getCode();
         return statusCode <= 0 || statusCode == 408 || statusCode >= 500;
+    }
+
+    private boolean isRetryable(int statusCode) {
+        return statusCode <= 0 || statusCode == 408 || statusCode == 429 || statusCode >= 500;
     }
 
     private boolean resourceExistsAfterReconciliation(Supplier<Boolean> resourceExistsProbe) {

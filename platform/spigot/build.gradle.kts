@@ -6,7 +6,6 @@ dependencies {
     api(project(":platform:shared"))
     compileOnly(rootProject.libs.paper.api)
     implementation(project(":api"))
-    implementation(rootProject.libs.faststats.bukkit)
 }
 
 modrinth {
@@ -39,6 +38,7 @@ modrinth {
         "26.1.1",
         "26.1.2",
         "26.2",
+        "26.3",
     )
     loaders.add("spigot")
     changelog.set("https://docs.simplecloud.app/changelog")

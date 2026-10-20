@@ -13,6 +13,11 @@ public enum ServerState {
     UNKNOWN_STATE,
 
     /**
+     * Server is queued and waiting to be started.
+     */
+    QUEUED,
+
+    /**
      * Server is being prepared (downloading files, setting up).
      */
     PREPARING,
@@ -40,7 +45,12 @@ public enum ServerState {
     /**
      * Server was shut down and is now being cleaned up.
      */
-    CLEANUP
+    CLEANUP,
+
+    /**
+     * Server has been stopped.
+     */
+    STOPPED
     ;
 
     public static ServerState parse(String state) {

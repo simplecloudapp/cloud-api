@@ -18,6 +18,7 @@ import java.lang.reflect.Proxy;
 import java.time.Duration;
 import java.util.concurrent.CompletableFuture;
 import java.util.concurrent.CompletionException;
+import java.util.concurrent.ForkJoinPool;
 import java.util.concurrent.TimeoutException;
 import java.util.concurrent.atomic.AtomicInteger;
 import java.util.concurrent.atomic.AtomicReference;
@@ -187,7 +188,7 @@ class PlayerIntegrationTest {
                     }
                     throw new AssertionError("Unexpected connection call: " + method.getName());
                 });
-        return new PlayerIntegration(connection, NETWORK_ID);
+        return new PlayerIntegration(connection, NETWORK_ID, ForkJoinPool.commonPool(), null);
     }
 
     @FunctionalInterface

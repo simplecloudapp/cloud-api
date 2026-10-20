@@ -37,15 +37,17 @@ import static org.junit.jupiter.api.Assertions.assertTrue;
 
 class PersistentServerApiImplTest {
 
+    private static final String PERSISTENT_SERVER_ID = "6f1c2d3e-4a5b-4c6d-8e7f-901234567890";
+
     @Test
     void getPersistentServerById_usesControllerIdFilter() {
         AtomicInteger order = new AtomicInteger();
         FakePersistentServersApi persistentServersApi = new FakePersistentServersApi(order);
         PersistentServerApiImpl api = new PersistentServerApiImpl(options(), new NoOpQueryCache(), persistentServersApi, new FakeBlueprintsApi(order));
 
-        api.getPersistentServerById("persistent-1").join();
+        api.getPersistentServerById(PERSISTENT_SERVER_ID).join();
 
-        assertEquals("persistent-1", persistentServersApi.lastPersistentServerId);
+        assertEquals(PERSISTENT_SERVER_ID, persistentServersApi.lastPersistentServerId);
         assertEquals(null, persistentServersApi.lastName);
     }
 
@@ -197,7 +199,7 @@ class PersistentServerApiImplTest {
         PersistentServerApiImpl api = new PersistentServerApiImpl(options(), new NoOpQueryCache(), persistentServersApi, new FakeBlueprintsApi(order));
 
         PersistentServer persistentServer = api.updatePersistentServer(
-                "persistent-1",
+                PERSISTENT_SERVER_ID,
                 UpdatePersistentServerRequest.builder()
                         .active(true)
                         .build()
@@ -208,7 +210,7 @@ class PersistentServerApiImplTest {
         assertEquals(Boolean.TRUE, persistentServersApi.lastPatchRequest.getActive());
         assertNull(persistentServersApi.lastPatchRequest.getType());
         assertNull(persistentServersApi.lastPatchRequest.getName());
-        assertEquals("persistent-1", persistentServer.getPersistentServerId());
+        assertEquals(PERSISTENT_SERVER_ID, persistentServer.getPersistentServerId());
     }
 
     @Test
@@ -219,7 +221,7 @@ class PersistentServerApiImplTest {
         persistentServersApi.listResponse = listResponseWithPersistentServer("bp-1");
         PersistentServerApiImpl api = new PersistentServerApiImpl(options(), new NoOpQueryCache(), persistentServersApi, blueprintsApi);
 
-        api.deletePersistentServer("persistent-1").join();
+        api.deletePersistentServer(PERSISTENT_SERVER_ID).join();
 
         assertEquals(1, persistentServersApi.deleteCalls);
         assertEquals(List.of("bp-1"), blueprintsApi.deletedBlueprintIds);
@@ -233,7 +235,7 @@ class PersistentServerApiImplTest {
         FakePersistentServersApi persistentServersApi = new FakePersistentServersApi(order);
         PersistentServerApiImpl api = new PersistentServerApiImpl(options(), new NoOpQueryCache(), persistentServersApi, blueprintsApi);
 
-        api.deletePersistentServer("persistent-1").join();
+        api.deletePersistentServer(PERSISTENT_SERVER_ID).join();
 
         assertEquals(1, persistentServersApi.deleteCalls);
         assertEquals(List.of(), blueprintsApi.deletedBlueprintIds);
@@ -254,7 +256,7 @@ class PersistentServerApiImplTest {
         source.setBlueprint(blueprintId);
 
         ModelsPersistentServerSummary summary = new ModelsPersistentServerSummary();
-        summary.setPersistentServerId("persistent-1");
+        summary.setPersistentServerId(PERSISTENT_SERVER_ID);
         summary.setName("Lobby-1");
         summary.setSource(source);
 
@@ -276,8 +278,7 @@ class PersistentServerApiImplTest {
         }
 
         @Override
-        public ModelsCreateBlueprintResponse v0BlueprintsPost(String xNetworkID,
-                                                              String xNetworkSecret,
+        public ModelsCreateBlueprintResponse createBlueprint(String xNetworkID,
                                                               ModelsCreateBlueprintRequest request) {
             postCalls++;
             postOrder = order.incrementAndGet();
@@ -292,8 +293,7 @@ class PersistentServerApiImplTest {
         }
 
         @Override
-        public app.simplecloud.api.web.models.ModelsDeleteBlueprintResponse v0BlueprintsDelete(String xNetworkID,
-                                                                                                String xNetworkSecret,
+        public app.simplecloud.api.web.models.ModelsDeleteBlueprintResponse deleteBlueprint(String xNetworkID,
                                                                                                 String blueprintId) {
             deleteOrder = order.incrementAndGet();
             deletedBlueprintIds.add(blueprintId);
@@ -322,8 +322,7 @@ class PersistentServerApiImplTest {
         }
 
         @Override
-        public app.simplecloud.api.web.models.ModelsDeletePersistentServerResponse v0PersistentServersDelete(String xNetworkID,
-                                                                                                               String xNetworkSecret,
+        public app.simplecloud.api.web.models.ModelsDeletePersistentServerResponse deletePersistentServer(String xNetworkID,
                                                                                                                String persistentServerId) {
             deleteCalls++;
             deleteOrder = order.incrementAndGet();
@@ -331,8 +330,7 @@ class PersistentServerApiImplTest {
         }
 
         @Override
-        public ModelsCreatePersistentServerResponse v0PersistentServersPost(String xNetworkID,
-                                                                            String xNetworkSecret,
+        public ModelsCreatePersistentServerResponse createPersistentServer(String xNetworkID,
                                                                             ModelsCreatePersistentServerRequest request) throws ApiException {
             postCalls++;
             postOrder = order.incrementAndGet();
@@ -342,7 +340,7 @@ class PersistentServerApiImplTest {
             }
 
             ModelsCreatePersistentServerResponse response = new ModelsCreatePersistentServerResponse();
-            response.setPersistentServerId("persistent-1");
+            response.setPersistentServerId(PERSISTENT_SERVER_ID);
             response.setName(lastCreateRequest.getName());
             response.setType(lastCreateRequest.getType().getValue());
             response.setMinMemory(lastCreateRequest.getMinMemory());
@@ -362,8 +360,7 @@ class PersistentServerApiImplTest {
         }
 
         @Override
-        public ModelsUpdatePersistentServerResponse v0PersistentServersPatch(String xNetworkID,
-                                                                              String xNetworkSecret,
+        public ModelsUpdatePersistentServerResponse patchPersistentServer(String xNetworkID,
                                                                               String persistentServerId,
                                                                               ModelsPatchPersistentServerRequest request) {
             patchCalls++;
@@ -372,8 +369,7 @@ class PersistentServerApiImplTest {
         }
 
         @Override
-        public ModelsUpdatePersistentServerResponse v0PersistentServersPut(String xNetworkID,
-                                                                            String xNetworkSecret,
+        public ModelsUpdatePersistentServerResponse updatePersistentServer(String xNetworkID,
                                                                             String persistentServerId,
                                                                             ModelsUpdatePersistentServerRequest request) {
             putCalls++;
@@ -381,8 +377,7 @@ class PersistentServerApiImplTest {
         }
 
         @Override
-        public ModelsListPersistentServersResponse v0PersistentServersGet(String xNetworkID,
-                                                                          String xNetworkSecret,
+        public ModelsListPersistentServersResponse listPersistentServers(String xNetworkID,
                                                                           String persistentServerId,
                                                                           String name,
                                                                           String type,

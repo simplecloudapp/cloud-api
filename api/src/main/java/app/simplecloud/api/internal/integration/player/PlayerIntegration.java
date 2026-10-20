@@ -2,6 +2,8 @@ package app.simplecloud.api.internal.integration.player;
 
 import app.simplecloud.api.internal.CloudApiImpl;
 import app.simplecloud.api.player.CloudPlayer;
+import app.simplecloud.api.player.PlayerClientSettings;
+import app.simplecloud.api.server.ServerApi;
 import build.buf.gen.simplecloud.player.v2.*;
 import io.nats.client.Connection;
 import io.nats.client.Dispatcher;
@@ -10,6 +12,7 @@ import io.nats.client.Message;
 import java.time.Duration;
 import java.util.concurrent.CompletableFuture;
 import java.util.concurrent.CompletionException;
+import java.util.concurrent.Executor;
 import java.util.concurrent.TimeoutException;
 import java.util.concurrent.atomic.AtomicBoolean;
 import java.util.function.BiFunction;
@@ -24,19 +27,23 @@ public class PlayerIntegration {
 
     private final Connection natsConnection;
     private final String networkId;
+    private final Executor executor;
+    private final ServerApi serverApi;
     private final AtomicBoolean running = new AtomicBoolean(false);
 
     private Dispatcher requestDispatcher;
     private BiFunction<String, String, CompletableFuture<Boolean>> kickHandler;
-    private BiFunction<String, String, CompletableFuture<CloudPlayer.ConnectResult>> connectHandler;
+    private BiFunction<String, ConnectTarget, CompletableFuture<CloudPlayer.ConnectResult>> connectHandler;
 
     public PlayerIntegration(CloudApiImpl cloudApi) {
-        this(cloudApi.getNatsConnection(), cloudApi.getNetworkId());
+        this(cloudApi.getNatsConnection(), cloudApi.getNetworkId(), cloudApi.getExecutor(), cloudApi.server());
     }
 
-    PlayerIntegration(Connection natsConnection, String networkId) {
+    PlayerIntegration(Connection natsConnection, String networkId, Executor executor, ServerApi serverApi) {
         this.natsConnection = natsConnection;
         this.networkId = networkId;
+        this.executor = executor;
+        this.serverApi = serverApi;
     }
 
     /**
@@ -83,7 +90,7 @@ public class PlayerIntegration {
             } catch (Exception e) {
                 return LoginResult.failure(e.getMessage());
             }
-        });
+        }, executor);
     }
 
     /**
@@ -111,7 +118,7 @@ public class PlayerIntegration {
                 }
                 throw new CompletionException("Failed to disconnect player " + playerId + ": " + e.getMessage(), e);
             }
-        });
+        }, executor);
     }
 
     /**
@@ -141,7 +148,37 @@ public class PlayerIntegration {
                 throw new CompletionException("Failed to switch player " + playerId + " to server "
                         + newServerName + ": " + e.getMessage(), e);
             }
-        });
+        }, executor);
+    }
+
+    /**
+     * Notifies the controller that a player's client settings changed.
+     */
+    public CompletableFuture<Void> updateClientSettings(String sessionId, PlayerClientSettings settings) {
+        return CompletableFuture.runAsync(() -> {
+            try {
+                build.buf.gen.simplecloud.player.v2.PlayerClientSettings.Builder settingsBuilder =
+                        build.buf.gen.simplecloud.player.v2.PlayerClientSettings.newBuilder()
+                                .setSessionId(sessionId)
+                                .setChatMode(toProtoChatMode(settings.getChatMode()))
+                                .setMainHand(toProtoMainHand(settings.getMainHand()))
+                                .setViewDistance(settings.getViewDistance())
+                                .setChatColors(settings.hasChatColors())
+                                .setClientListingAllowed(settings.isClientListingAllowed())
+                                .addAllSkinParts(settings.getSkinParts());
+
+                if (settings.getLocale() != null) settingsBuilder.setLocale(settings.getLocale());
+
+                UpdateClientSettingsRequest request = UpdateClientSettingsRequest.newBuilder()
+                        .setSessionId(sessionId)
+                        .setSettings(settingsBuilder)
+                        .build();
+
+                String subject = networkId + ".player.settings";
+                natsConnection.request(subject, request.toByteArray(), REQUEST_TIMEOUT);
+            } catch (Exception ignored) {
+            }
+        }, executor);
     }
 
     /**
@@ -154,9 +191,9 @@ public class PlayerIntegration {
 
     /**
      * Registers a handler for connect requests from the controller.
-     * Handler receives (playerUuid, serverName) and returns the result, null to not respond.
+     * Handler receives (playerUuid, target) and returns the result, null to not respond.
      */
-    public void onConnect(BiFunction<String, String, CompletableFuture<CloudPlayer.ConnectResult>> handler) {
+    public void onConnect(BiFunction<String, ConnectTarget, CompletableFuture<CloudPlayer.ConnectResult>> handler) {
         this.connectHandler = handler;
     }
 
@@ -193,7 +230,9 @@ public class PlayerIntegration {
             KickPlayerRequest request = KickPlayerRequest.parseFrom(msg.getData());
             String[] parts = msg.getSubject().split("\\.");
             String playerUuid = parts.length >= 3 ? parts[2] : request.getPlayerId();
-            String reason = request.hasReason() ? request.getReason().getJson() : null;
+            String reason = request.hasReason() && !request.getReason().getJson().isBlank()
+                    ? request.getReason().getJson()
+                    : null;
 
             kickHandler.apply(playerUuid, reason)
                     .thenAccept(success -> {
@@ -229,7 +268,11 @@ public class PlayerIntegration {
             String[] parts = msg.getSubject().split("\\.");
             String playerUuid = parts.length >= 3 ? parts[2] : request.getPlayerId();
 
-            connectHandler.apply(playerUuid, request.getServerName())
+            ConnectTarget target = request.getServerId().isEmpty()
+                    ? ConnectTarget.byName(request.getServerName(), serverApi::findServerById)
+                    : ConnectTarget.byId(request.getServerId(), serverApi::findServerById);
+
+            connectHandler.apply(playerUuid, target)
                     .thenAccept(result -> {
                         if (result != null) sendConnectResponse(msg, result);
                     })
@@ -264,5 +307,22 @@ public class PlayerIntegration {
             } catch (Exception ignored) {
             }
         }
+    }
+
+    private static ChatMode toProtoChatMode(PlayerClientSettings.ChatMode chatMode) {
+        return switch (chatMode) {
+            case ENABLED -> ChatMode.CHAT_MODE_ENABLED;
+            case COMMANDS_ONLY -> ChatMode.CHAT_MODE_COMMANDS_ONLY;
+            case HIDDEN -> ChatMode.CHAT_MODE_HIDDEN;
+            default -> ChatMode.CHAT_MODE_UNSPECIFIED;
+        };
+    }
+
+    private static MainHand toProtoMainHand(PlayerClientSettings.MainHand mainHand) {
+        return switch (mainHand) {
+            case LEFT -> MainHand.MAIN_HAND_LEFT;
+            case RIGHT -> MainHand.MAIN_HAND_RIGHT;
+            default -> MainHand.MAIN_HAND_UNSPECIFIED;
+        };
     }
 }

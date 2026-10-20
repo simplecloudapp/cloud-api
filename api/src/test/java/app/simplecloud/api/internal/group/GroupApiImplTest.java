@@ -46,6 +46,8 @@ import static org.junit.jupiter.api.Assertions.assertTrue;
 
 class GroupApiImplTest {
 
+    private static final String GROUP_ID = "0b6e2c4a-7d1f-4e3b-9a5c-2f8d6e1b3c7a";
+
     @Test
     void getGroupById_usesControllerIdFilter() {
         AtomicInteger order = new AtomicInteger();
@@ -53,9 +55,9 @@ class GroupApiImplTest {
         serverGroupsApi.listResponse = listResponseWithGroup("Lobby", null);
         GroupApiImpl api = new GroupApiImpl(options(), new NoOpQueryCache(), serverGroupsApi, new FakeBlueprintsApi(order));
 
-        api.getGroupById("group-1").join();
+        api.getGroupById(GROUP_ID).join();
 
-        assertEquals("group-1", serverGroupsApi.lastServerGroupId);
+        assertEquals(GROUP_ID, serverGroupsApi.lastServerGroupId);
         assertEquals(null, serverGroupsApi.lastName);
     }
 
@@ -407,7 +409,7 @@ class GroupApiImplTest {
         serverGroupsApi.listResponse = listResponseWithGroup("Lobby", "bp-1");
         GroupApiImpl api = new GroupApiImpl(options(), new NoOpQueryCache(), serverGroupsApi, blueprintsApi);
 
-        api.deleteGroup("group-1").join();
+        api.deleteGroup(GROUP_ID).join();
 
         assertEquals(1, serverGroupsApi.deleteCalls);
         assertEquals(List.of("bp-1"), blueprintsApi.deletedBlueprintIds);
@@ -422,7 +424,7 @@ class GroupApiImplTest {
         serverGroupsApi.listResponse = listResponseWithGroup("Lobby", null);
         GroupApiImpl api = new GroupApiImpl(options(), new NoOpQueryCache(), serverGroupsApi, blueprintsApi);
 
-        api.deleteGroup("group-1").join();
+        api.deleteGroup(GROUP_ID).join();
 
         assertEquals(1, serverGroupsApi.deleteCalls);
         assertEquals(List.of(), blueprintsApi.deletedBlueprintIds);
@@ -435,7 +437,7 @@ class GroupApiImplTest {
         GroupApiImpl api = new GroupApiImpl(options(), new NoOpQueryCache(), serverGroupsApi, new FakeBlueprintsApi(order));
 
         Group group = api.updateGroup(
-                "group-1",
+                GROUP_ID,
                 UpdateGroupRequest.builder()
                         .active(true)
                         .build()
@@ -446,7 +448,7 @@ class GroupApiImplTest {
         assertEquals(Boolean.TRUE, serverGroupsApi.lastPatchRequest.getActive());
         assertNull(serverGroupsApi.lastPatchRequest.getType());
         assertNull(serverGroupsApi.lastPatchRequest.getName());
-        assertEquals("group-1", group.getServerGroupId());
+        assertEquals(GROUP_ID, group.getServerGroupId());
     }
 
     private static CloudApiOptions options() {
@@ -464,7 +466,7 @@ class GroupApiImplTest {
         source.setBlueprint(blueprintId);
 
         ModelsServerGroupSummary summary = new ModelsServerGroupSummary();
-        summary.setServerGroupId("group-1");
+        summary.setServerGroupId(GROUP_ID);
         summary.setName(name);
         summary.setType(GroupServerType.SERVER.name());
         summary.setSource(source);
@@ -491,8 +493,7 @@ class GroupApiImplTest {
         }
 
         @Override
-        public ModelsCreateBlueprintResponse v0BlueprintsPost(String xNetworkID,
-                                                              String xNetworkSecret,
+        public ModelsCreateBlueprintResponse createBlueprint(String xNetworkID,
                                                               ModelsCreateBlueprintRequest request) {
             postCalls++;
             postOrder = order.incrementAndGet();
@@ -510,8 +511,7 @@ class GroupApiImplTest {
         }
 
         @Override
-        public app.simplecloud.api.web.models.ModelsDeleteBlueprintResponse v0BlueprintsDelete(String xNetworkID,
-                                                                                                String xNetworkSecret,
+        public app.simplecloud.api.web.models.ModelsDeleteBlueprintResponse deleteBlueprint(String xNetworkID,
                                                                                                 String blueprintId) throws ApiException {
             deleteCalls++;
             deleteOrder = order.incrementAndGet();
@@ -544,8 +544,7 @@ class GroupApiImplTest {
         }
 
         @Override
-        public app.simplecloud.api.web.models.ModelsDeleteServerGroupResponse v0ServerGroupsDelete(String xNetworkID,
-                                                                                                    String xNetworkSecret,
+        public app.simplecloud.api.web.models.ModelsDeleteServerGroupResponse deleteServerGroup(String xNetworkID,
                                                                                                     String serverGroupId) {
             deleteCalls++;
             deleteOrder = order.incrementAndGet();
@@ -553,8 +552,7 @@ class GroupApiImplTest {
         }
 
         @Override
-        public ModelsCreateServerGroupResponse v0ServerGroupsPost(String xNetworkID,
-                                                                  String xNetworkSecret,
+        public ModelsCreateServerGroupResponse createServerGroup(String xNetworkID,
                                                                   ModelsCreateServerGroupRequest request) throws ApiException {
             postCalls++;
             postOrder = order.incrementAndGet();
@@ -564,7 +562,7 @@ class GroupApiImplTest {
             }
 
             ModelsCreateServerGroupResponse response = new ModelsCreateServerGroupResponse();
-            response.setServerGroupId("group-1");
+            response.setServerGroupId(GROUP_ID);
             response.setName(lastCreateRequest.getName());
             response.setType(lastCreateRequest.getType().getValue());
             response.setMinMemory(lastCreateRequest.getMinMemory());
@@ -584,8 +582,7 @@ class GroupApiImplTest {
         }
 
         @Override
-        public ModelsUpdateServerGroupResponse v0ServerGroupsPatch(String xNetworkID,
-                                                                    String xNetworkSecret,
+        public ModelsUpdateServerGroupResponse patchServerGroup(String xNetworkID,
                                                                     String serverGroupId,
                                                                     ModelsPatchServerGroupRequest request) {
             patchCalls++;
@@ -594,8 +591,7 @@ class GroupApiImplTest {
         }
 
         @Override
-        public ModelsUpdateServerGroupResponse v0ServerGroupsPut(String xNetworkID,
-                                                                  String xNetworkSecret,
+        public ModelsUpdateServerGroupResponse updateServerGroup(String xNetworkID,
                                                                   String serverGroupId,
                                                                   ModelsUpdateServerGroupRequest request) {
             putCalls++;
@@ -614,8 +610,7 @@ class GroupApiImplTest {
         }
 
         @Override
-        public ModelsListServerGroupsResponse v0ServerGroupsGet(String xNetworkID,
-                                                                String xNetworkSecret,
+        public ModelsListServerGroupsResponse listServerGroups(String xNetworkID,
                                                                 String serverGroupId,
                                                                 String name,
                                                                 String type,

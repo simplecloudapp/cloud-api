@@ -6,6 +6,7 @@ import app.simplecloud.api.event.Subscription;
 import app.simplecloud.api.event.blueprint.BlueprintEventApi;
 import app.simplecloud.api.event.group.GroupEventApi;
 import app.simplecloud.api.event.persistentserver.PersistentServerEventApi;
+import app.simplecloud.api.event.player.PlayerEventApi;
 import app.simplecloud.api.event.server.ServerEventApi;
 import app.simplecloud.api.event.server.ServerUpdatedEvent;
 import app.simplecloud.api.server.Server;
@@ -124,6 +125,11 @@ class CacheEventListenerTest {
 
         @Override
         public BlueprintEventApi blueprint() {
+            return null;
+        }
+
+        @Override
+        public PlayerEventApi player() {
             return null;
         }
     }
