@@ -28,6 +28,14 @@ public final class ProxyPresenceTracker {
         }
     }
 
+    public String getSessionId(String playerId) {
+        TrackedPlayerMetadata metadata = players.get(normalize(playerId));
+        if (metadata == null || metadata.getSessionId().isEmpty()) {
+            return null;
+        }
+        return metadata.getSessionId();
+    }
+
     public void remove(String playerId) {
         players.remove(normalize(playerId));
     }

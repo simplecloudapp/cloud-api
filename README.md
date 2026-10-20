@@ -73,36 +73,22 @@ See the [Go API README](go/README.md) for installation, configuration, events, a
 #### Gradle Kotlin
 
 ```kt
-// Use Controller API if you want
-compileOnly("app.simplecloud.controller:controller-api:VERSION")
-// Use Player API if you want
-compileOnly("app.simplecloud.controller:controller-api:VERSION")
+compileOnly("app.simplecloud.api:api:VERSION")
 ```
 
 #### Gradle Groovy
 
 ```groovy
-// Use Controller API if you want
-compileOnly 'app.simplecloud.controller:controller-api:VERSION'
-// Use Player API if you want
-compileOnly 'app.simplecloud.controller:controller-api:VERSION'
+compileOnly 'app.simplecloud.api:api:VERSION'
 ```
 
 #### Maven
 
 ```xml
 <dependencies>
-    <!-- Use Controller API if you want -->
     <dependency>
-        <groupId>app.simplecloud.controller</groupId>
-        <artifactId>controller-api</artifactId>
-        <version>VERSION</version>
-        <scope>provided</scope>
-    </dependency>
-    <!-- Use Player API if you want -->
-    <dependency>
-        <groupId>app.simplecloud.droplet.player</groupId>
-        <artifactId>player-api</artifactId>
+        <groupId>app.simplecloud.api</groupId>
+        <artifactId>api</artifactId>
         <version>VERSION</version>
         <scope>provided</scope>
     </dependency>

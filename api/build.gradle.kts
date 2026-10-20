@@ -77,7 +77,7 @@ openApiGenerate {
     generatorName.set("java")
     remoteInputSpec.set("https://controller.simplecloud.app/swagger/doc.json")
 
-    outputDir.set(layout.buildDirectory.dir("generated").map { it.asFile.absolutePath })
+    outputDir.set(layout.buildDirectory.dir("generated"))
 
 //    generateSupportingFiles.set(false)
     generateApiDocumentation.set(false)
@@ -105,8 +105,8 @@ tasks.register<org.openapitools.generator.gradle.plugin.tasks.GenerateTask>("gen
     dependsOn("openApiGenerate")
 
     generatorName.set("go")
-    inputSpec.set(layout.buildDirectory.file("generated/api/openapi.yaml").map { it.asFile.absolutePath })
-    outputDir.set(rootProject.layout.projectDirectory.dir("go/generated").asFile.absolutePath)
+    inputSpec.set(layout.buildDirectory.file("generated/api/openapi.yaml"))
+    outputDir.set(rootProject.layout.projectDirectory.dir("go/generated"))
     packageName.set("generated")
 
     generateApiDocumentation.set(false)
@@ -124,13 +124,13 @@ tasks.register<org.openapitools.generator.gradle.plugin.tasks.GenerateTask>("gen
     )
 }
 
-val fixOpenApiGeneratedCode by tasks.registering(FixOpenApiGeneratedCode::class) {
+val fixOpenApiGeneratedCode = tasks.register<FixOpenApiGeneratedCode>("fixOpenApiGeneratedCode") {
     dependsOn("openApiGenerate")
     modelsDir.set(layout.buildDirectory.dir("generated/src/main/java/app/simplecloud/api/web/models"))
     markerFile.set(layout.buildDirectory.file("generated/.fixOpenApiGeneratedCode"))
 }
 
-val prepareGeneratedSources by tasks.registering {
+val prepareGeneratedSources = tasks.register("prepareGeneratedSources") {
     group = "build"
     description = "Generates and patches OpenAPI sources used by the API module."
     dependsOn(fixOpenApiGeneratedCode)

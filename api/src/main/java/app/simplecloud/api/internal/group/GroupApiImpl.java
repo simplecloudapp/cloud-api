@@ -8,6 +8,8 @@ import app.simplecloud.api.group.*;
 import app.simplecloud.api.internal.blueprint.InlineBlueprintSupport;
 import app.simplecloud.api.internal.create.CreateRequestDefaults;
 import app.simplecloud.api.internal.web.ApiClients;
+import app.simplecloud.api.internal.web.ApiErrors;
+import app.simplecloud.api.internal.web.Identifiers;
 import app.simplecloud.api.web.ApiException;
 import app.simplecloud.api.web.ApiClient;
 import app.simplecloud.api.web.apis.BlueprintsApi;
@@ -19,7 +21,11 @@ import java.time.Duration;
 import java.util.HashMap;
 import java.util.List;
 import java.util.Map;
+import java.util.Objects;
+import java.util.Optional;
 import java.util.concurrent.CompletableFuture;
+import java.util.concurrent.Executor;
+import java.util.concurrent.ForkJoinPool;
 
 public class GroupApiImpl implements GroupApi {
     private static final Duration TRANSIENT_MISS_RETRY_DELAY = Duration.ofMillis(200);
@@ -30,24 +36,31 @@ public class GroupApiImpl implements GroupApi {
     private final InlineBlueprintSupport inlineBlueprintSupport;
     private final CreateRequestDefaults createRequestDefaults;
     private final QueryCache cache;
+    private final Executor executor;
 
     public GroupApiImpl(CloudApiOptions options, QueryCache cache) {
         this(options, cache, ApiClients.create(options));
     }
 
     public GroupApiImpl(CloudApiOptions options, QueryCache cache, ApiClient httpClient) {
-        this(options, cache, createServerGroupsApi(options, httpClient), createBlueprintsApi(options, httpClient));
+        this(options, cache, httpClient, ForkJoinPool.commonPool());
+    }
+
+    public GroupApiImpl(CloudApiOptions options, QueryCache cache, ApiClient httpClient, Executor executor) {
+        this(
+                options,
+                cache,
+                createServerGroupsApi(options, httpClient),
+                new InlineBlueprintSupport(options, createBlueprintsApi(options, httpClient)),
+                executor
+        );
     }
 
     GroupApiImpl(CloudApiOptions options,
                  QueryCache cache,
                  ServerGroupsApi serverGroupsApi,
                  BlueprintsApi blueprintsApi) {
-        this.options = options;
-        this.cache = cache;
-        this.serverGroupsApi = serverGroupsApi;
-        this.inlineBlueprintSupport = new InlineBlueprintSupport(options, blueprintsApi);
-        this.createRequestDefaults = new CreateRequestDefaults();
+        this(options, cache, serverGroupsApi, new InlineBlueprintSupport(options, blueprintsApi), ForkJoinPool.commonPool());
     }
 
     GroupApiImpl(CloudApiOptions options,
@@ -55,11 +68,26 @@ public class GroupApiImpl implements GroupApi {
                  ServerGroupsApi serverGroupsApi,
                  BlueprintsApi blueprintsApi,
                  InlineBlueprintSupport.ServerUrlResolver serverUrlResolver) {
+        this(
+                options,
+                cache,
+                serverGroupsApi,
+                new InlineBlueprintSupport(options, blueprintsApi, serverUrlResolver),
+                ForkJoinPool.commonPool()
+        );
+    }
+
+    private GroupApiImpl(CloudApiOptions options,
+                         QueryCache cache,
+                         ServerGroupsApi serverGroupsApi,
+                         InlineBlueprintSupport inlineBlueprintSupport,
+                         Executor executor) {
         this.options = options;
         this.cache = cache;
         this.serverGroupsApi = serverGroupsApi;
-        this.inlineBlueprintSupport = new InlineBlueprintSupport(options, blueprintsApi, serverUrlResolver);
+        this.inlineBlueprintSupport = inlineBlueprintSupport;
         this.createRequestDefaults = new CreateRequestDefaults();
+        this.executor = executor;
     }
 
     @Override
@@ -84,9 +112,9 @@ public class GroupApiImpl implements GroupApi {
                         intValue(response.getTotalStarts())
                 );
             } catch (ApiException e) {
-                throw new RuntimeException(e);
+                throw ApiErrors.from(e);
             }
-        });
+        }, executor);
     }
 
     @Override
@@ -106,9 +134,9 @@ public class GroupApiImpl implements GroupApi {
                         request
                 );
             } catch (ApiException e) {
-                throw new RuntimeException(e);
+                throw ApiErrors.from(e);
             }
-        });
+        }, executor);
     }
 
     @Override
@@ -125,45 +153,52 @@ public class GroupApiImpl implements GroupApi {
                         normalizedServerGroupId
                 );
             } catch (ApiException e) {
-                throw new RuntimeException(e);
+                throw ApiErrors.from(e);
             }
-        });
+        }, executor);
     }
 
     @Override
     public CompletableFuture<Group> getGroupByName(String name) {
+        return findGroupByName(name).thenApply(group -> group.orElseThrow(
+                () -> ApiErrors.notFound("Group '" + name + "' not found")
+        ));
+    }
+
+    @Override
+    public CompletableFuture<Optional<Group>> findGroupByName(String name) {
         QueryKey key = QueryKey.of("group", "name", name);
 
         return cache.fetchWithTransientMissRecovery(
                 key,
                 () -> fetchGroupByNameFromController(name),
-                group -> group == null,
+                Objects::isNull,
                 TRANSIENT_MISS_RETRY_DELAY,
                 TRANSIENT_MISS_MAX_RETRIES
-        ).thenApply(group -> {
-            if (group == null) {
-                throw new RuntimeException("Group not found: " + name);
-            }
-            return group;
-        });
+        ).thenApply(Optional::ofNullable);
     }
 
     @Override
     public CompletableFuture<Group> getGroupById(String id) {
+        return findGroupById(id).thenApply(group -> group.orElseThrow(
+                () -> ApiErrors.notFound("Group with ID '" + id + "' not found")
+        ));
+    }
+
+    @Override
+    public CompletableFuture<Optional<Group>> findGroupById(String id) {
+        if (!Identifiers.isUuid(id)) {
+            return CompletableFuture.completedFuture(Optional.empty());
+        }
         QueryKey key = QueryKey.of("group", id);
 
         return cache.fetchWithTransientMissRecovery(
                 key,
                 () -> fetchGroupByIdFromController(id),
-                group -> group == null,
+                Objects::isNull,
                 TRANSIENT_MISS_RETRY_DELAY,
                 TRANSIENT_MISS_MAX_RETRIES
-        ).thenApply(group -> {
-            if (group == null) {
-                throw new RuntimeException("Group not found: " + id);
-            }
-            return group;
-        });
+        ).thenApply(Optional::ofNullable);
     }
 
     @Override
@@ -182,9 +217,9 @@ public class GroupApiImpl implements GroupApi {
                         .<Group>map(GroupImpl::new)
                         .toList();
             } catch (ApiException e) {
-                throw new RuntimeException(e);
+                throw ApiErrors.from(e);
             }
-        }));
+        }, executor));
     }
 
     private QueryKey buildQueryKey(@org.jetbrains.annotations.Nullable GroupQuery query) {
@@ -234,7 +269,7 @@ public class GroupApiImpl implements GroupApi {
             return groups.stream()
                     .anyMatch(summary -> name.equals(summary.getName()) && sourceReferencesBlueprint(summary.getSource(), blueprintId));
         } catch (ApiException e) {
-            throw new RuntimeException(e);
+            throw ApiErrors.from(e);
         }
     }
 
@@ -253,9 +288,9 @@ public class GroupApiImpl implements GroupApi {
                         .<Group>map(GroupImpl::new)
                         .orElse(null);
             } catch (ApiException e) {
-                throw new RuntimeException(e);
+                throw ApiErrors.from(e);
             }
-        });
+        }, executor);
     }
 
     private CompletableFuture<Group> fetchGroupByIdFromController(String id) {
@@ -273,9 +308,9 @@ public class GroupApiImpl implements GroupApi {
                         .<Group>map(GroupImpl::new)
                         .orElse(null);
             } catch (ApiException e) {
-                throw new RuntimeException(e);
+                throw ApiErrors.from(e);
             }
-        });
+        }, executor);
     }
 
     @Override
@@ -295,29 +330,30 @@ public class GroupApiImpl implements GroupApi {
             ScalingConfig effectiveScaling = createRequestDefaults.defaultGroupScaling(request.getScaling());
 
             inlineBlueprintSupport.validateInlineBlueprintSource(effectiveCreateBlueprint, request.getSource());
-            String createdBlueprintId = null;
+
+            ModelsCreateServerGroupRequest apiRequest = new ModelsCreateServerGroupRequest();
+            apiRequest.setName(request.getName());
+            apiRequest.setType(ModelsCreateServerGroupRequest.TypeEnum.valueOf(effectiveType.name()));
+            apiRequest.setMinMemory(request.getMinMemory());
+            apiRequest.setMaxMemory(request.getMaxMemory());
+            apiRequest.setMaxPlayers(effectiveMaxPlayers);
+            apiRequest.setActive(effectiveActive);
+            apiRequest.setPriority(request.getPriority());
+            apiRequest.setProperties(effectiveProperties);
+            apiRequest.setTags(effectiveTags);
+            apiRequest.setDeployment(convertDeploymentConfig(effectiveDeployment));
+            apiRequest.setScaling(convertScalingConfig(effectiveScaling));
+            apiRequest.setWorkflows(convertWorkflowsConfig(effectiveWorkflows));
+
+            String createdBlueprintId;
             try {
                 createdBlueprintId = inlineBlueprintSupport.createBlueprint(request.getName(), effectiveCreateBlueprint);
                 SourceConfig effectiveSource = createdBlueprintId != null
                         ? inlineBlueprintSupport.buildInlineBlueprintSource(request.getSource(), createdBlueprintId)
                         : request.getSource();
-
-                ModelsCreateServerGroupRequest apiRequest = new ModelsCreateServerGroupRequest();
-                apiRequest.setName(request.getName());
-                apiRequest.setType(ModelsCreateServerGroupRequest.TypeEnum.valueOf(effectiveType.name()));
-                apiRequest.setMinMemory(request.getMinMemory());
-                apiRequest.setMaxMemory(request.getMaxMemory());
-                apiRequest.setMaxPlayers(effectiveMaxPlayers);
-                apiRequest.setActive(effectiveActive);
-                apiRequest.setPriority(request.getPriority());
-                apiRequest.setProperties(effectiveProperties);
-                apiRequest.setTags(effectiveTags);
-                apiRequest.setDeployment(convertDeploymentConfig(effectiveDeployment));
-                apiRequest.setScaling(convertScalingConfig(effectiveScaling));
                 if (effectiveSource != null) {
                     apiRequest.setSource(convertSourceConfig(effectiveSource));
                 }
-                apiRequest.setWorkflows(convertWorkflowsConfig(effectiveWorkflows));
 
                 ModelsCreateServerGroupResponse response;
                 try {
@@ -333,7 +369,7 @@ public class GroupApiImpl implements GroupApi {
                             () -> groupExistsWithBlueprint(request.getName(), blueprintId)
                     );
                     if (rollbackFailure != null) {
-                        RuntimeException failure = new RuntimeException(
+                        RuntimeException failure = ApiErrors.from(
                                 "Failed to create group and rollback inline blueprint " + blueprintId,
                                 e
                         );
@@ -345,6 +381,7 @@ public class GroupApiImpl implements GroupApi {
 
                 // Invalidate group list caches (new group created)
                 cache.invalidateAll(QueryKey.of("groups"));
+                cache.invalidateAll(QueryKey.of("group", "name"));
 
                 ModelsServerGroupSummary summary = new ModelsServerGroupSummary();
                 summary.setServerGroupId(response.getServerGroupId());
@@ -366,9 +403,9 @@ public class GroupApiImpl implements GroupApi {
 
                 return new GroupImpl(summary);
             } catch (ApiException e) {
-                throw new RuntimeException(e);
+                throw ApiErrors.from(e);
             }
-        });
+        }, executor);
     }
 
     @Override
@@ -392,7 +429,7 @@ public class GroupApiImpl implements GroupApi {
                     apiRequest.setDeployment(convertDeploymentConfig(request.getDeployment()));
                 }
                 if (request.getScaling() != null) {
-                    apiRequest.setScaling(convertScalingConfig(request.getScaling()));
+                    apiRequest.setScaling(convertScalingConfig(createRequestDefaults.defaultGroupScaling(request.getScaling())));
                 }
                 if (request.getSource() != null) {
                     apiRequest.setSource(convertSourceConfig(request.getSource()));
@@ -430,12 +467,13 @@ public class GroupApiImpl implements GroupApi {
                 // Update cache with new data and invalidate list caches
                 cache.set(QueryKey.of("group", id), group);
                 cache.invalidateAll(QueryKey.of("groups"));
+                cache.invalidateAll(QueryKey.of("group", "name"));
 
                 return group;
             } catch (ApiException e) {
-                throw new RuntimeException(e);
+                throw ApiErrors.from(e);
             }
-        });
+        }, executor);
     }
 
     private ModelsDeploymentConfig convertDeploymentConfig(DeploymentConfig config) {
@@ -444,7 +482,7 @@ public class GroupApiImpl implements GroupApi {
             result.setStrategy(convertDeploymentStrategy(config.getStrategy()));
         }
 
-        if (config.getHosts() != null && config.getHosts().length > 0) {
+        if (config.getHosts() != null) {
             for (DeploymentHost host : config.getHosts()) {
                 ModelsDeploymentHost modelHost = new ModelsDeploymentHost();
                 modelHost.setName(host.getName());
@@ -536,7 +574,7 @@ public class GroupApiImpl implements GroupApi {
                 .filter(group -> groupId.equals(group.getServerGroupId()))
                 .map(ModelsServerGroupSummary::getSource)
                 .map(inlineBlueprintSupport::getReferencedBlueprintId)
-                .filter(blueprintId -> blueprintId != null)
+                .filter(Objects::nonNull)
                 .findFirst()
                 .orElse(null);
     }
@@ -555,12 +593,13 @@ public class GroupApiImpl implements GroupApi {
                 // Invalidate this group and list caches
                 cache.invalidate(QueryKey.of("group", id));
                 cache.invalidateAll(QueryKey.of("groups"));
+                cache.invalidateAll(QueryKey.of("group", "name"));
 
                 inlineBlueprintSupport.deleteBlueprint(blueprintId);
             } catch (ApiException e) {
-                throw new RuntimeException(e);
+                throw ApiErrors.from(e);
             }
-        });
+        }, executor);
     }
 
     @Override
@@ -579,13 +618,14 @@ public class GroupApiImpl implements GroupApi {
                 // Invalidate group cache (properties changed)
                 cache.invalidate(QueryKey.of("group", id));
                 cache.invalidateAll(QueryKey.of("groups"));
+                cache.invalidateAll(QueryKey.of("group", "name"));
 
                 Map<String, Object> result = response.getProperties();
                 return result != null ? result : new HashMap<>();
             } catch (ApiException e) {
-                throw new RuntimeException(e);
+                throw ApiErrors.from(e);
             }
-        });
+        }, executor);
     }
 
     @Override
@@ -604,13 +644,14 @@ public class GroupApiImpl implements GroupApi {
                 // Invalidate group cache (properties changed)
                 cache.invalidate(QueryKey.of("group", id));
                 cache.invalidateAll(QueryKey.of("groups"));
+                cache.invalidateAll(QueryKey.of("group", "name"));
 
                 Map<String, Object> result = response.getProperties();
                 return result != null ? result : new HashMap<>();
             } catch (ApiException e) {
-                throw new RuntimeException(e);
+                throw ApiErrors.from(e);
             }
-        });
+        }, executor);
     }
 
     private GroupStartQueueEntry convertStartQueueEntry(ModelsServerGroupStartQueueEntry entry) {

@@ -22,12 +22,19 @@ import app.simplecloud.api.player.PlayerApi;
 import app.simplecloud.api.server.ServerApi;
 import io.nats.client.Connection;
 
-import java.io.IOException;
+import java.util.concurrent.Executor;
+import java.util.concurrent.ExecutorService;
+import java.util.concurrent.Executors;
 import java.util.concurrent.atomic.AtomicBoolean;
+import java.util.logging.Level;
+import java.util.logging.Logger;
 
 public class CloudApiImpl implements CloudApi {
 
+    private static final Logger LOGGER = Logger.getLogger(CloudApiImpl.class.getName());
+
     private final CloudApiOptions options;
+    private final ApiClient httpClient;
 
     private final NatsFailoverConnectionManager natsConnectionManager;
     private final Connection natsClient;
@@ -38,38 +45,35 @@ public class CloudApiImpl implements CloudApi {
     private final PersistentServerApi persistentServerApi;
     private final EventApi eventApi;
     private final PlayerApi playerApi;
+    private final ExecutorService executor = Executors.newVirtualThreadPerTaskExecutor();
     private final AtomicBoolean closed = new AtomicBoolean(false);
 
     public CloudApiImpl(CloudApiOptions options) {
         this.options = options;
 
-        try {
-            this.natsConnectionManager = new NatsFailoverConnectionManager(
-                    options.getNatsUrl(),
-                    options.getNetworkId(),
-                    options.getNetworkSecret(),
-                    options.getNatsFailoverReconnectAfter()
-            );
-            this.natsClient = natsConnectionManager.getConnection();
-        } catch (IOException | InterruptedException e) {
-            throw new RuntimeException(e);
-        }
+        this.natsConnectionManager = new NatsFailoverConnectionManager(
+                options.getNatsUrl(),
+                options.getNetworkId(),
+                options.getNetworkSecret(),
+                options.getNatsFailoverReconnectAfter()
+        );
+        this.natsClient = natsConnectionManager.getConnection();
 
         // Initialize cache
         CacheConfig cacheConfig = options.getCacheConfig();
         if (cacheConfig.isEnabled()) {
-            this.queryCache = new QueryCacheImpl(cacheConfig);
+            this.queryCache = new QueryCacheImpl(cacheConfig, ApiClients.maxRequestDuration(options));
         } else {
             this.queryCache = new NoOpQueryCache();
         }
 
         // Initialize APIs with cache
-        ApiClient httpClient = ApiClients.create(options);
-        this.eventApi = new EventApiImpl(natsClient, options.getNetworkId());
-        this.serverApi = new ServerApiImpl(options, queryCache, httpClient);
-        this.groupApi = new GroupApiImpl(options, queryCache, httpClient);
-        this.persistentServerApi = new PersistentServerApiImpl(options, queryCache, httpClient);
-        this.playerApi = new PlayerApiImpl(options, natsClient, httpClient);
+        this.httpClient = ApiClients.create(options);
+        this.playerApi = new PlayerApiImpl(options, natsClient, httpClient, executor);
+        this.eventApi = new EventApiImpl(natsClient, options.getNetworkId(), playerApi);
+        this.serverApi = new ServerApiImpl(options, queryCache, httpClient, executor);
+        this.groupApi = new GroupApiImpl(options, queryCache, httpClient, executor);
+        this.persistentServerApi = new PersistentServerApiImpl(options, queryCache, httpClient, executor);
 
         // Setup event-based cache invalidation with debouncing
         if (cacheConfig.isEnabled() && cacheConfig.isAutoInvalidateOnEvents()) {
@@ -116,6 +120,10 @@ public class CloudApiImpl implements CloudApi {
         return natsClient;
     }
 
+    public Executor getExecutor() {
+        return executor;
+    }
+
     @Override
     public String getNetworkId() {
         return options.getNetworkId();
@@ -133,12 +141,27 @@ public class CloudApiImpl implements CloudApi {
         }
 
         if (cacheEventListener != null) {
-            cacheEventListener.shutdown();
+            try {
+                cacheEventListener.shutdown();
+            } catch (RuntimeException e) {
+                LOGGER.log(Level.WARNING, "Failed to shutdown cache event listener", e);
+            }
         }
         if (queryCache instanceof QueryCacheImpl queryCacheImpl) {
-            queryCacheImpl.shutdown();
+            try {
+                queryCacheImpl.shutdown();
+            } catch (RuntimeException e) {
+                LOGGER.log(Level.WARNING, "Failed to shutdown query cache", e);
+            }
         }
-        natsConnectionManager.shutdown();
+        try {
+            natsConnectionManager.shutdown();
+        } catch (RuntimeException e) {
+            LOGGER.log(Level.WARNING, "Failed to shutdown NATS connection", e);
+        }
+        httpClient.getHttpClient().dispatcher().executorService().shutdown();
+        httpClient.getHttpClient().connectionPool().evictAll();
+        executor.shutdown();
     }
 
 }

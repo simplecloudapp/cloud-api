@@ -326,7 +326,7 @@ public class GroupImpl implements app.simplecloud.api.group.Group {
         if (typeStr != null) {
             try {
                 result.setType(SourceType.valueOf(typeStr.toUpperCase()));
-            } catch (IllegalArgumentException e) {
+            } catch (IllegalArgumentException ignored) {
             }
         }
         result.setBlueprint(config.getBlueprint());

@@ -16,7 +16,7 @@ public final class ProtoConversionUtil {
         }
 
         String name = protoState.name();
-        if (name == null || name.isEmpty() || name.equals("UNRECOGNIZED")) {
+        if (name == null || name.isEmpty() || name.equals("UNRECOGNIZED") || name.endsWith("_UNSPECIFIED")) {
             return null;
         }
 
@@ -60,6 +60,31 @@ public final class ProtoConversionUtil {
 
         if (name.startsWith("SERVER_TYPE_")) {
             return name.substring("SERVER_TYPE_".length());
+        }
+
+        return name;
+    }
+
+    public static String convertChatModeToString(build.buf.gen.simplecloud.player.v2.ChatMode protoChatMode) {
+        return convertPlayerEnumToString(protoChatMode, "CHAT_MODE_");
+    }
+
+    public static String convertMainHandToString(build.buf.gen.simplecloud.player.v2.MainHand protoMainHand) {
+        return convertPlayerEnumToString(protoMainHand, "MAIN_HAND_");
+    }
+
+    private static String convertPlayerEnumToString(Enum<?> protoEnum, String prefix) {
+        if (protoEnum == null) {
+            return null;
+        }
+
+        String name = protoEnum.name();
+        if (name.isEmpty() || name.equals("UNRECOGNIZED") || name.endsWith("_UNSPECIFIED")) {
+            return null;
+        }
+
+        if (name.startsWith(prefix)) {
+            return name.substring(prefix.length());
         }
 
         return name;

@@ -1,5 +1,6 @@
 package app.simplecloud.api.internal.blueprint;
 
+import app.simplecloud.api.CloudApiException;
 import app.simplecloud.api.CloudApiOptions;
 import app.simplecloud.api.blueprint.CreateBlueprintRequest;
 import com.google.gson.Gson;
@@ -38,6 +39,10 @@ final class ManifestServerUrlResolver implements InlineBlueprintSupport.ServerUr
                         .build(),
                 new Gson()
         );
+    }
+
+    ManifestServerUrlResolver(CloudApiOptions options, OkHttpClient httpClient) {
+        this(options.getServerVersionManifestUrl(), httpClient, new Gson());
     }
 
     ManifestServerUrlResolver(String manifestUrl, OkHttpClient httpClient, Gson gson) {
@@ -90,19 +95,28 @@ final class ManifestServerUrlResolver implements InlineBlueprintSupport.ServerUr
 
         try (Response response = httpClient.newCall(request).execute()) {
             if (!response.isSuccessful()) {
-                throw new IllegalStateException("Failed to fetch server version manifest from " + manifestUrl
-                        + ": HTTP " + response.code());
+                throw new CloudApiException(
+                        CloudApiException.Reason.UNAVAILABLE,
+                        "Failed to fetch server version manifest from " + manifestUrl + ": HTTP " + response.code()
+                );
             }
 
             if (response.body() == null) {
-                throw new IllegalStateException("Failed to fetch server version manifest from " + manifestUrl
-                        + ": empty response body");
+                throw new CloudApiException(
+                        CloudApiException.Reason.UNAVAILABLE,
+                        "Failed to fetch server version manifest from " + manifestUrl + ": empty response body"
+                );
             }
 
             List<ManifestEntry> manifest = gson.fromJson(response.body().charStream(), MANIFEST_TYPE);
             return manifest != null ? manifest : List.of();
         } catch (IOException e) {
-            throw new IllegalStateException("Failed to fetch server version manifest from " + manifestUrl, e);
+            throw new CloudApiException(
+                    CloudApiException.Reason.UNAVAILABLE,
+                    0,
+                    "Failed to fetch server version manifest from " + manifestUrl,
+                    e
+            );
         }
     }
 
@@ -126,19 +140,16 @@ final class ManifestServerUrlResolver implements InlineBlueprintSupport.ServerUr
         return normalized.isEmpty() ? null : normalized;
     }
 
-    private static final class CachedManifest {
-        private final List<ManifestEntry> entries;
-        private final Instant expiresAt;
+    private record CachedManifest(List<ManifestEntry> entries, Instant expiresAt) {
+            private CachedManifest(List<ManifestEntry> entries, Instant expiresAt) {
+                this.entries = List.copyOf(entries);
+                this.expiresAt = expiresAt;
+            }
 
-        private CachedManifest(List<ManifestEntry> entries, Instant expiresAt) {
-            this.entries = List.copyOf(entries);
-            this.expiresAt = expiresAt;
+            private boolean isExpired() {
+                return Instant.now().isAfter(expiresAt);
+            }
         }
-
-        private boolean isExpired() {
-            return Instant.now().isAfter(expiresAt);
-        }
-    }
 
     private static final class ManifestEntry {
         private String name;
