@@ -62,18 +62,18 @@ class LuckPermsPlayerPropertySynchronizerTest {
 
         when(user.getPrimaryGroup()).thenReturn("admin");
         callback.getValue().accept(event);
-        verify(playerApi, times(2)).get(playerId);
+        verify(playerApi, times(2)).find(playerId);
         verify(playerApi).updatePlayerProperty(playerId, "luckperms-primary-group", "admin");
 
         synchronizer.forget(playerId);
         callback.getValue().accept(event);
-        verify(playerApi, times(2)).get(playerId);
+        verify(playerApi, times(2)).find(playerId);
 
         synchronizer.synchronize(playerId);
-        verify(playerApi, times(3)).get(playerId);
+        verify(playerApi, times(3)).find(playerId);
         synchronizer.stop();
         synchronizer.start();
         callback.getValue().accept(event);
-        verify(playerApi, times(3)).get(playerId);
+        verify(playerApi, times(3)).find(playerId);
     }
 }
