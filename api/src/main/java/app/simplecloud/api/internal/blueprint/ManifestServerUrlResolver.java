@@ -1,5 +1,6 @@
 package app.simplecloud.api.internal.blueprint;
 
+import app.simplecloud.api.CloudApiException;
 import app.simplecloud.api.CloudApiOptions;
 import app.simplecloud.api.blueprint.CreateBlueprintRequest;
 import com.google.gson.Gson;
@@ -149,7 +150,12 @@ final class ManifestServerUrlResolver implements InlineBlueprintSupport.ServerUr
                 }
             }
         } catch (IOException e) {
-            throw new IllegalStateException("Failed to fetch server version manifest from " + manifestUrlForErrors, e);
+            throw new CloudApiException(
+                    CloudApiException.Reason.UNAVAILABLE,
+                    0,
+                    "Failed to fetch server version manifest from " + manifestUrlForErrors,
+                    e
+            );
         }
     }
 
@@ -185,12 +191,18 @@ final class ManifestServerUrlResolver implements InlineBlueprintSupport.ServerUr
             List<ManifestEntry> manifest = gson.fromJson(source.getBuffer().readUtf8(), MANIFEST_TYPE);
             return manifest != null ? manifest : List.of();
         } catch (JsonParseException e) {
-            throw new IllegalStateException("Failed to parse server version manifest from " + manifestUrlForErrors, e);
+            throw new CloudApiException(
+                    CloudApiException.Reason.UNAVAILABLE,
+                    0,
+                    "Failed to parse server version manifest from " + manifestUrlForErrors,
+                    e
+            );
         }
     }
 
-    private IllegalStateException fetchFailure(String reason) {
-        return new IllegalStateException(
+    private CloudApiException fetchFailure(String reason) {
+        return new CloudApiException(
+                CloudApiException.Reason.UNAVAILABLE,
                 "Failed to fetch server version manifest from " + manifestUrlForErrors + ": " + reason
         );
     }

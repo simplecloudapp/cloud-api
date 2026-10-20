@@ -1,7 +1,10 @@
 package app.simplecloud.api.internal.blueprint;
 
+import app.simplecloud.api.CloudApiException;
 import app.simplecloud.api.CloudApiOptions;
 import app.simplecloud.api.blueprint.CreateBlueprintRequest;
+import app.simplecloud.api.internal.web.ApiClients;
+import app.simplecloud.api.web.apis.BlueprintsApi;
 import com.google.gson.Gson;
 import okhttp3.Dns;
 import okhttp3.OkHttpClient;
@@ -86,8 +89,8 @@ class ManifestServerUrlResolverTest {
     void resolve_rejectsHttpManifestUrl() {
         String httpUrl = server.url("/server_versions.json").newBuilder().scheme("http").host(HOST).build().toString();
 
-        IllegalStateException failure = assertThrows(
-                IllegalStateException.class,
+        CloudApiException failure = assertThrows(
+                CloudApiException.class,
                 () -> resolver(httpUrl).resolve(paper("1.21.11"))
         );
 
@@ -97,8 +100,8 @@ class ManifestServerUrlResolverTest {
 
     @Test
     void resolve_rejectsPrivateIpLiteralManifestUrl() {
-        IllegalStateException failure = assertThrows(
-                IllegalStateException.class,
+        CloudApiException failure = assertThrows(
+                CloudApiException.class,
                 () -> resolver("https://127.0.0.1:" + server.getPort() + "/server_versions.json").resolve(paper("1.21.11"))
         );
 
@@ -114,7 +117,7 @@ class ManifestServerUrlResolverTest {
                 new PublicAddressDns(hostname -> List.of(privateAddress))
         );
 
-        IllegalStateException failure = assertThrows(IllegalStateException.class, () -> resolver.resolve(paper("1.21.11")));
+        CloudApiException failure = assertThrows(CloudApiException.class, () -> resolver.resolve(paper("1.21.11")));
 
         assertInstanceOf(UnknownHostException.class, failure.getCause());
     }
@@ -125,7 +128,20 @@ class ManifestServerUrlResolverTest {
                 .serverVersionManifestUrl("https://localhost:" + server.getPort() + "/server_versions.json")
                 .build());
 
-        IllegalStateException failure = assertThrows(IllegalStateException.class, () -> resolver.resolve(paper("1.21.11")));
+        CloudApiException failure = assertThrows(CloudApiException.class, () -> resolver.resolve(paper("1.21.11")));
+
+        assertInstanceOf(UnknownHostException.class, failure.getCause());
+        assertEquals(0, server.getRequestCount());
+    }
+
+    @Test
+    void inlineBlueprintSupport_usesAddressFilteringClient() {
+        CloudApiOptions options = CloudApiOptions.builder()
+                .serverVersionManifestUrl("https://localhost:" + server.getPort() + "/server_versions.json")
+                .build();
+        InlineBlueprintSupport support = new InlineBlueprintSupport(options, new BlueprintsApi(ApiClients.create(options)));
+
+        CloudApiException failure = assertThrows(CloudApiException.class, () -> support.createBlueprint("paper", paper("1.21.11")));
 
         assertInstanceOf(UnknownHostException.class, failure.getCause());
         assertEquals(0, server.getRequestCount());
@@ -144,8 +160,8 @@ class ManifestServerUrlResolverTest {
     void resolve_rejectsRedirectToHttp() {
         server.enqueue(redirectTo("http://" + HOST + ":" + server.getPort() + "/server_versions.json"));
 
-        IllegalStateException failure = assertThrows(
-                IllegalStateException.class,
+        CloudApiException failure = assertThrows(
+                CloudApiException.class,
                 () -> resolver(manifestUrl()).resolve(paper("1.21.11"))
         );
 
@@ -157,8 +173,8 @@ class ManifestServerUrlResolverTest {
     void resolve_rejectsRedirectToPrivateAddress() {
         server.enqueue(redirectTo("https://169.254.169.254/latest/meta-data/"));
 
-        IllegalStateException failure = assertThrows(
-                IllegalStateException.class,
+        CloudApiException failure = assertThrows(
+                CloudApiException.class,
                 () -> resolver(manifestUrl()).resolve(paper("1.21.11"))
         );
 
@@ -169,8 +185,8 @@ class ManifestServerUrlResolverTest {
     void resolve_rejectsRedirectWithoutLocation() {
         server.enqueue(new MockResponse().setResponseCode(302));
 
-        IllegalStateException failure = assertThrows(
-                IllegalStateException.class,
+        CloudApiException failure = assertThrows(
+                CloudApiException.class,
                 () -> resolver(manifestUrl()).resolve(paper("1.21.11"))
         );
 
@@ -183,7 +199,7 @@ class ManifestServerUrlResolverTest {
             server.enqueue(redirectTo("/server_versions.json"));
         }
 
-        assertThrows(IllegalStateException.class, () -> resolver(manifestUrl()).resolve(paper("1.21.11")));
+        assertThrows(CloudApiException.class, () -> resolver(manifestUrl()).resolve(paper("1.21.11")));
         assertEquals(ManifestServerUrlResolver.MAX_REDIRECTS + 1, server.getRequestCount());
     }
 
@@ -198,7 +214,7 @@ class ManifestServerUrlResolverTest {
     void resolve_rejectsManifestOverSizeLimit() {
         server.enqueue(new MockResponse().setBody(paddedManifest(ManifestServerUrlResolver.MAX_MANIFEST_BYTES + 1)));
 
-        assertThrows(IllegalStateException.class, () -> resolver(manifestUrl()).resolve(paper("1.21.11")));
+        assertThrows(CloudApiException.class, () -> resolver(manifestUrl()).resolve(paper("1.21.11")));
     }
 
     @Test
@@ -208,7 +224,7 @@ class ManifestServerUrlResolverTest {
                 64 * 1024
         ));
 
-        assertThrows(IllegalStateException.class, () -> resolver(manifestUrl()).resolve(paper("1.21.11")));
+        assertThrows(CloudApiException.class, () -> resolver(manifestUrl()).resolve(paper("1.21.11")));
     }
 
     @Test
@@ -217,7 +233,7 @@ class ManifestServerUrlResolverTest {
         server.enqueue(new MockResponse().setBody(MANIFEST).throttleBody(16, 100, TimeUnit.MILLISECONDS));
 
         assertThrows(
-                IllegalStateException.class,
+                CloudApiException.class,
                 () -> resolver(manifestUrl(), LOOPBACK_DNS, Duration.ofMillis(300)).resolve(paper("1.21.11"))
         );
     }
@@ -233,7 +249,7 @@ class ManifestServerUrlResolverTest {
                 .build()
                 .toString();
 
-        IllegalStateException failure = assertThrows(IllegalStateException.class, () -> resolver(url).resolve(paper("1.21.11")));
+        CloudApiException failure = assertThrows(CloudApiException.class, () -> resolver(url).resolve(paper("1.21.11")));
 
         assertFalse(failure.getMessage().contains("hunter2"), failure.getMessage());
         assertFalse(failure.getMessage().contains("s3cret"), failure.getMessage());
@@ -243,7 +259,7 @@ class ManifestServerUrlResolverTest {
     void resolve_wrapsMalformedManifest() {
         server.enqueue(new MockResponse().setBody("{ not json"));
 
-        assertThrows(IllegalStateException.class, () -> resolver(manifestUrl()).resolve(paper("1.21.11")));
+        assertThrows(CloudApiException.class, () -> resolver(manifestUrl()).resolve(paper("1.21.11")));
     }
 
     private ManifestServerUrlResolver resolver(String manifestUrl) {

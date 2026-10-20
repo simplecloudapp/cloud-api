@@ -1,9 +1,11 @@
 package app.simplecloud.api.group;
 
+import app.simplecloud.api.CloudApiException;
 import org.jetbrains.annotations.Nullable;
 
 import java.util.List;
 import java.util.Map;
+import java.util.Optional;
 import java.util.concurrent.CompletableFuture;
 
 /**
@@ -61,17 +63,35 @@ public interface GroupApi {
      * Retrieves a server group by its name.
      *
      * @param name the name of the server group
-     * @return a CompletableFuture that completes with the group, or fails if not found
+     * @return a CompletableFuture that completes with the group, or fails with a
+     * {@link CloudApiException} ({@link CloudApiException.Reason#NOT_FOUND}) if it does not exist
      */
     CompletableFuture<Group> getGroupByName(String name);
+
+    /**
+     * Finds a server group by its name.
+     *
+     * @param name the name of the server group
+     * @return a CompletableFuture that completes with the group, or an empty Optional if it does not exist
+     */
+    CompletableFuture<Optional<Group>> findGroupByName(String name);
 
     /**
      * Retrieves a server group by its unique identifier.
      *
      * @param id the unique ID of the server group
-     * @return a CompletableFuture that completes with the group, or fails if not found
+     * @return a CompletableFuture that completes with the group, or fails with a
+     * {@link CloudApiException} ({@link CloudApiException.Reason#NOT_FOUND}) if it does not exist
      */
     CompletableFuture<Group> getGroupById(String id);
+
+    /**
+     * Finds a server group by its unique identifier.
+     *
+     * @param id the unique ID of the server group
+     * @return a CompletableFuture that completes with the group, or an empty Optional if it does not exist
+     */
+    CompletableFuture<Optional<Group>> findGroupById(String id);
 
     /**
      * Retrieves all server groups, optionally filtered by a query.

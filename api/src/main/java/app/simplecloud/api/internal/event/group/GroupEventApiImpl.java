@@ -21,12 +21,10 @@ public class GroupEventApiImpl implements GroupEventApi {
 
     private static final Logger LOGGER = Logger.getLogger(GroupEventApiImpl.class.getName());
 
-    private final Connection natsConnection;
     private final String networkId;
     private final Dispatcher dispatcher;
 
     public GroupEventApiImpl(Connection natsConnection, String networkId) {
-        this.natsConnection = natsConnection;
         this.networkId = networkId;
         this.dispatcher = natsConnection.createDispatcher(null);
     }

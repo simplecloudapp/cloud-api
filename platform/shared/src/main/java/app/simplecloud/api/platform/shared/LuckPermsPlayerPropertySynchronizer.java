@@ -118,8 +118,10 @@ public final class LuckPermsPlayerPropertySynchronizer {
         }
 
         String primaryGroup = desiredPrimaryGroups.get(uniqueId);
-        cloudApi.player().get(uniqueId)
-                .thenCompose(player -> updateIfChanged(uniqueId, player, primaryGroup))
+        cloudApi.player().find(uniqueId)
+                .thenCompose(player -> player
+                        .map(found -> updateIfChanged(uniqueId, found, primaryGroup))
+                        .orElseGet(() -> CompletableFuture.completedFuture(false)))
                 .whenComplete((synchronizedValue, throwable) -> {
                     if (throwable != null) {
                         errorLogger.accept("Failed to synchronize LuckPerms properties for " + uniqueId, throwable);
@@ -142,9 +144,6 @@ public final class LuckPermsPlayerPropertySynchronizer {
     }
 
     private CompletableFuture<Boolean> updateIfChanged(UUID uniqueId, CloudPlayer player, String primaryGroup) {
-        if (player == null) {
-            return CompletableFuture.completedFuture(false);
-        }
         if (primaryGroup.equals(player.getProperties().get(PRIMARY_GROUP_PROPERTY))) {
             return CompletableFuture.completedFuture(true);
         }

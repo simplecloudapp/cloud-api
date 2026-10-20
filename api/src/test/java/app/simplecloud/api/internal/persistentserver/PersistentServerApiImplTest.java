@@ -37,15 +37,17 @@ import static org.junit.jupiter.api.Assertions.assertTrue;
 
 class PersistentServerApiImplTest {
 
+    private static final String PERSISTENT_SERVER_ID = "6f1c2d3e-4a5b-4c6d-8e7f-901234567890";
+
     @Test
     void getPersistentServerById_usesControllerIdFilter() {
         AtomicInteger order = new AtomicInteger();
         FakePersistentServersApi persistentServersApi = new FakePersistentServersApi(order);
         PersistentServerApiImpl api = new PersistentServerApiImpl(options(), new NoOpQueryCache(), persistentServersApi, new FakeBlueprintsApi(order));
 
-        api.getPersistentServerById("persistent-1").join();
+        api.getPersistentServerById(PERSISTENT_SERVER_ID).join();
 
-        assertEquals("persistent-1", persistentServersApi.lastPersistentServerId);
+        assertEquals(PERSISTENT_SERVER_ID, persistentServersApi.lastPersistentServerId);
         assertEquals(null, persistentServersApi.lastName);
     }
 
@@ -197,7 +199,7 @@ class PersistentServerApiImplTest {
         PersistentServerApiImpl api = new PersistentServerApiImpl(options(), new NoOpQueryCache(), persistentServersApi, new FakeBlueprintsApi(order));
 
         PersistentServer persistentServer = api.updatePersistentServer(
-                "persistent-1",
+                PERSISTENT_SERVER_ID,
                 UpdatePersistentServerRequest.builder()
                         .active(true)
                         .build()
@@ -208,7 +210,7 @@ class PersistentServerApiImplTest {
         assertEquals(Boolean.TRUE, persistentServersApi.lastPatchRequest.getActive());
         assertNull(persistentServersApi.lastPatchRequest.getType());
         assertNull(persistentServersApi.lastPatchRequest.getName());
-        assertEquals("persistent-1", persistentServer.getPersistentServerId());
+        assertEquals(PERSISTENT_SERVER_ID, persistentServer.getPersistentServerId());
     }
 
     @Test
@@ -219,7 +221,7 @@ class PersistentServerApiImplTest {
         persistentServersApi.listResponse = listResponseWithPersistentServer("bp-1");
         PersistentServerApiImpl api = new PersistentServerApiImpl(options(), new NoOpQueryCache(), persistentServersApi, blueprintsApi);
 
-        api.deletePersistentServer("persistent-1").join();
+        api.deletePersistentServer(PERSISTENT_SERVER_ID).join();
 
         assertEquals(1, persistentServersApi.deleteCalls);
         assertEquals(List.of("bp-1"), blueprintsApi.deletedBlueprintIds);
@@ -233,7 +235,7 @@ class PersistentServerApiImplTest {
         FakePersistentServersApi persistentServersApi = new FakePersistentServersApi(order);
         PersistentServerApiImpl api = new PersistentServerApiImpl(options(), new NoOpQueryCache(), persistentServersApi, blueprintsApi);
 
-        api.deletePersistentServer("persistent-1").join();
+        api.deletePersistentServer(PERSISTENT_SERVER_ID).join();
 
         assertEquals(1, persistentServersApi.deleteCalls);
         assertEquals(List.of(), blueprintsApi.deletedBlueprintIds);
@@ -254,7 +256,7 @@ class PersistentServerApiImplTest {
         source.setBlueprint(blueprintId);
 
         ModelsPersistentServerSummary summary = new ModelsPersistentServerSummary();
-        summary.setPersistentServerId("persistent-1");
+        summary.setPersistentServerId(PERSISTENT_SERVER_ID);
         summary.setName("Lobby-1");
         summary.setSource(source);
 
@@ -338,7 +340,7 @@ class PersistentServerApiImplTest {
             }
 
             ModelsCreatePersistentServerResponse response = new ModelsCreatePersistentServerResponse();
-            response.setPersistentServerId("persistent-1");
+            response.setPersistentServerId(PERSISTENT_SERVER_ID);
             response.setName(lastCreateRequest.getName());
             response.setType(lastCreateRequest.getType().getValue());
             response.setMinMemory(lastCreateRequest.getMinMemory());
