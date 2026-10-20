@@ -3,6 +3,7 @@ package app.simplecloud.api.internal.integration.player;
 import app.simplecloud.api.internal.CloudApiImpl;
 import app.simplecloud.api.player.CloudPlayer;
 import app.simplecloud.api.player.PlayerClientSettings;
+import app.simplecloud.api.server.ServerApi;
 import build.buf.gen.simplecloud.player.v2.*;
 import io.nats.client.Connection;
 import io.nats.client.Dispatcher;
@@ -25,6 +26,7 @@ public class PlayerIntegration {
     private final Connection natsConnection;
     private final String networkId;
     private final Executor executor;
+    private final ServerApi serverApi;
     private final AtomicBoolean running = new AtomicBoolean(false);
 
     private Dispatcher requestDispatcher;
@@ -35,6 +37,7 @@ public class PlayerIntegration {
         this.natsConnection = cloudApi.getNatsConnection();
         this.networkId = cloudApi.getNetworkId();
         this.executor = cloudApi.getExecutor();
+        this.serverApi = cloudApi.server();
     }
 
     /**
@@ -237,8 +240,8 @@ public class PlayerIntegration {
             String playerUuid = parts.length >= 3 ? parts[2] : request.getPlayerId();
 
             ConnectTarget target = request.getServerId().isEmpty()
-                    ? ConnectTarget.byName(request.getServerName())
-                    : ConnectTarget.byId(request.getServerId());
+                    ? ConnectTarget.byName(request.getServerName(), serverApi::findServerById)
+                    : ConnectTarget.byId(request.getServerId(), serverApi::findServerById);
 
             connectHandler.apply(playerUuid, target)
                     .thenAccept(result -> {

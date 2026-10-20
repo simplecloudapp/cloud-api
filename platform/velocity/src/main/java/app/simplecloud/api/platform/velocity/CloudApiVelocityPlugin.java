@@ -21,6 +21,7 @@ import com.velocitypowered.api.plugin.Plugin;
 import com.velocitypowered.api.proxy.ConnectionRequestBuilder;
 import com.velocitypowered.api.proxy.Player;
 import com.velocitypowered.api.proxy.ProxyServer;
+import com.velocitypowered.api.proxy.server.RegisteredServer;
 import net.kyori.adventure.text.Component;
 import net.kyori.adventure.text.serializer.gson.GsonComponentSerializer;
 import net.luckperms.api.LuckPermsProvider;
@@ -28,6 +29,7 @@ import org.slf4j.Logger;
 
 import java.util.List;
 import java.util.Locale;
+import java.util.Optional;
 import java.util.UUID;
 import java.util.concurrent.CompletableFuture;
 
@@ -182,11 +184,19 @@ public class CloudApiVelocityPlugin implements ProxyPresencePlayerProvider {
         if (player == null) {
             return CompletableFuture.completedFuture(null);
         }
-        var registeredServer = target.resolve(proxyServer::getServer).orElse(null);
-        if (registeredServer == null) {
-            return CompletableFuture.completedFuture(CloudPlayer.ConnectResult.SERVER_NOT_FOUND);
-        }
+        return target.resolve(proxyServer::getServer, this::findServerByAddress)
+                .thenCompose(registeredServer -> registeredServer
+                        .map(server -> connect(player, server))
+                        .orElseGet(() -> CompletableFuture.completedFuture(CloudPlayer.ConnectResult.SERVER_NOT_FOUND)));
+    }
 
+    private Optional<RegisteredServer> findServerByAddress(String ip, int port) {
+        return proxyServer.getAllServers().stream()
+                .filter(server -> ConnectTarget.hasAddress(server.getServerInfo().getAddress(), ip, port))
+                .findFirst();
+    }
+
+    private CompletableFuture<CloudPlayer.ConnectResult> connect(Player player, RegisteredServer registeredServer) {
         return player.createConnectionRequest(registeredServer).connect()
                 .thenApply(result -> {
                     ConnectionRequestBuilder.Status status = result.getStatus();

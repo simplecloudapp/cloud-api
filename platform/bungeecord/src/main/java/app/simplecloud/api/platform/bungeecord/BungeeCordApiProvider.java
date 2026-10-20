@@ -17,6 +17,7 @@ import net.kyori.adventure.text.Component;
 import net.kyori.adventure.text.serializer.bungeecord.BungeeComponentSerializer;
 import net.kyori.adventure.text.serializer.gson.GsonComponentSerializer;
 import net.md_5.bungee.api.chat.TextComponent;
+import net.md_5.bungee.api.config.ServerInfo;
 import net.md_5.bungee.api.connection.ProxiedPlayer;
 import net.md_5.bungee.api.plugin.Plugin;
 import net.luckperms.api.LuckPermsProvider;
@@ -171,10 +172,19 @@ public class BungeeCordApiProvider extends Plugin implements ProxyPresencePlayer
         if (player == null) {
             return CompletableFuture.completedFuture(null);
         }
-        var serverInfo = target.resolve(name -> Optional.ofNullable(getProxy().getServerInfo(name))).orElse(null);
-        if (serverInfo == null) {
-            return CompletableFuture.completedFuture(CloudPlayer.ConnectResult.SERVER_NOT_FOUND);
-        }
+        return target.resolve(name -> Optional.ofNullable(getProxy().getServerInfo(name)), this::findServerByAddress)
+                .thenCompose(serverInfo -> serverInfo
+                        .map(server -> connect(player, server))
+                        .orElseGet(() -> CompletableFuture.completedFuture(CloudPlayer.ConnectResult.SERVER_NOT_FOUND)));
+    }
+
+    private Optional<ServerInfo> findServerByAddress(String ip, int port) {
+        return getProxy().getServers().values().stream()
+                .filter(server -> ConnectTarget.hasAddress(server.getSocketAddress(), ip, port))
+                .findFirst();
+    }
+
+    private CompletableFuture<CloudPlayer.ConnectResult> connect(ProxiedPlayer player, ServerInfo serverInfo) {
         if (player.getServer() != null && player.getServer().getInfo().getName().equals(serverInfo.getName())) {
             return CompletableFuture.completedFuture(CloudPlayer.ConnectResult.ALREADY_CONNECTED);
         }
