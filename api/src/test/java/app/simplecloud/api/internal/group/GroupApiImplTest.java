@@ -36,11 +36,13 @@ import java.util.Map;
 import java.util.concurrent.CompletionException;
 import java.util.concurrent.atomic.AtomicInteger;
 
+import static org.junit.jupiter.api.Assertions.assertArrayEquals;
 import static org.junit.jupiter.api.Assertions.assertEquals;
 import static org.junit.jupiter.api.Assertions.assertFalse;
 import static org.junit.jupiter.api.Assertions.assertInstanceOf;
 import static org.junit.jupiter.api.Assertions.assertNotNull;
 import static org.junit.jupiter.api.Assertions.assertNull;
+import static org.junit.jupiter.api.Assertions.assertSame;
 import static org.junit.jupiter.api.Assertions.assertThrows;
 import static org.junit.jupiter.api.Assertions.assertTrue;
 
@@ -331,8 +333,10 @@ class GroupApiImplTest {
         CompletionException failure = assertThrows(CompletionException.class, () -> api.createGroup(request).join());
 
         assertInstanceOf(RuntimeException.class, failure.getCause());
-        assertTrue(failure.getCause().getMessage().contains("rollback inline blueprint"));
-        assertInstanceOf(ApiException.class, failure.getCause().getCause());
+        assertEquals("Failed to create group and rollback inline blueprint bp-1", failure.getCause().getMessage());
+        assertSame(serverGroupsApi.postFailure, failure.getCause().getCause());
+        assertArrayEquals(new Throwable[]{blueprintsApi.deleteFailure}, failure.getCause().getSuppressed());
+        assertArrayEquals(new Throwable[]{blueprintsApi.deleteFailure}, serverGroupsApi.postFailure.getSuppressed());
         assertEquals(3, blueprintsApi.deleteCalls);
     }
 
