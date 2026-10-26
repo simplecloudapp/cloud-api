@@ -16,6 +16,7 @@ import org.junit.jupiter.params.provider.EnumSource;
 
 import java.lang.reflect.Proxy;
 import java.time.Duration;
+import java.util.UUID;
 import java.util.concurrent.CompletableFuture;
 import java.util.concurrent.CompletionException;
 import java.util.concurrent.ForkJoinPool;
@@ -30,6 +31,7 @@ class PlayerSessionReporterTest {
 
     private static final String NETWORK_ID = "test-network";
     private static final String PLAYER_ID = "11111111-1111-1111-1111-111111111111";
+    private static final UUID PLAYER_UUID = UUID.fromString(PLAYER_ID);
 
     enum Operation {
         DISCONNECT("disconnect"), SERVER_SWITCH("switch");
@@ -42,8 +44,8 @@ class PlayerSessionReporterTest {
 
         CompletableFuture<Void> invoke(PlayerSessionReporter reporter) {
             return this == DISCONNECT
-                    ? reporter.disconnect(PLAYER_ID)
-                    : reporter.serverSwitch(PLAYER_ID, "lobby-1");
+                    ? reporter.disconnect(PLAYER_UUID)
+                    : reporter.serverSwitch(PLAYER_UUID, "lobby-1");
         }
 
         byte[] response(boolean success) {
@@ -83,7 +85,7 @@ class PlayerSessionReporterTest {
                 PlayerDisconnectResponse.newBuilder().setSuccess(true).build().toByteArray()
         ));
 
-        assertNull(reporter.disconnect(PLAYER_ID).join());
+        assertNull(reporter.disconnect(PLAYER_UUID).join());
     }
 
     @ParameterizedTest
@@ -162,7 +164,7 @@ class PlayerSessionReporterTest {
                 PlayerLoginResponse.newBuilder().setSuccess(false).setErrorMessage("login rejected").build().toByteArray()
         ));
 
-        LoginResult result = reporter.login(PLAYER_ID, "Player", "Player", "proxy-1", "hash",
+        LoginResult result = reporter.login(PLAYER_UUID, "Player", "Player", "proxy-1", "hash",
                 "en_US", 1, true, null).join();
 
         assertFalse(result.isSuccess());

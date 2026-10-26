@@ -54,8 +54,8 @@ public class PlayerConnectionListener {
     @Subscribe(priority = 100)
     public EventTask onPlayerJoin(PostLoginEvent event) {
         Player player = event.getPlayer();
-        String playerId = player.getUniqueId().toString();
-        proxyPresenceTracker.trackLogin(playerId);
+        UUID playerId = player.getUniqueId();
+        proxyPresenceTracker.trackLogin(playerId.toString());
 
         String texture = null;
         var texturesProperty = player.getGameProfile().getProperties().stream()
@@ -77,8 +77,8 @@ public class PlayerConnectionListener {
                 texture
         ).thenAccept(result -> {
             if (result.isSuccess()) {
-                proxyPresenceTracker.updateSessionId(playerId, result.getSessionId());
-                synchronizePlayerProperties.accept(player.getUniqueId());
+                proxyPresenceTracker.updateSessionId(playerId.toString(), result.getSessionId());
+                synchronizePlayerProperties.accept(playerId);
                 if (player.hasSentPlayerSettings()) {
                     sendClientSettings(player, result.getSessionId(), player.getPlayerSettings());
                 }
@@ -99,15 +99,15 @@ public class PlayerConnectionListener {
     @Subscribe
     public void onPlayerQuit(DisconnectEvent event) {
         Player player = event.getPlayer();
-        String playerId = player.getUniqueId().toString();
+        UUID playerId = player.getUniqueId();
 
         playerSessionReporter.disconnect(playerId)
                 .exceptionally(e -> {
                     logger.error("Failed to send disconnect event for {}: {}", player.getUsername(), e.getMessage());
                     return null;
                 });
-        proxyPresenceTracker.remove(playerId);
-        forgetPlayerProperties.accept(player.getUniqueId());
+        proxyPresenceTracker.remove(playerId.toString());
+        forgetPlayerProperties.accept(playerId);
 
         CompletableFuture.runAsync(() -> playerSynchronizer.updatePlayerCount());
     }
@@ -129,7 +129,7 @@ public class PlayerConnectionListener {
         Player player = event.getPlayer();
         String newServer = event.getServer().getServerInfo().getName();
 
-        playerSessionReporter.serverSwitch(player.getUniqueId().toString(), newServer)
+        playerSessionReporter.serverSwitch(player.getUniqueId(), newServer)
                 .exceptionally(e -> {
                     logger.error("Failed to send server switch event for {}: {}", player.getUsername(), e.getMessage());
                     return null;

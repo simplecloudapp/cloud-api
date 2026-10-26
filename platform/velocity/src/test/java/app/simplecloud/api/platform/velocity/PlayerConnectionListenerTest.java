@@ -41,7 +41,7 @@ class PlayerConnectionListenerTest {
         UUID playerId = UUID.randomUUID();
         CompletableFuture<LoginResult> registration = new CompletableFuture<>();
         PlayerSessionReporter sessionReporter = mock(PlayerSessionReporter.class);
-        when(sessionReporter.login(anyString(), anyString(), anyString(), anyString(), anyString(),
+        when(sessionReporter.login(any(UUID.class), anyString(), anyString(), anyString(), anyString(),
                 anyString(), anyInt(), anyBoolean(), nullable(String.class))).thenReturn(registration);
         ProxyPresenceTracker presence = mock(ProxyPresenceTracker.class);
         Consumer<UUID> synchronize = mock(Consumer.class);
@@ -80,7 +80,7 @@ class PlayerConnectionListenerTest {
     void loginSendsClientSettingsAlreadyReportedByTheClient() {
         UUID playerId = UUID.randomUUID();
         PlayerSessionReporter sessionReporter = mock(PlayerSessionReporter.class);
-        when(sessionReporter.login(anyString(), anyString(), anyString(), anyString(), anyString(),
+        when(sessionReporter.login(any(UUID.class), anyString(), anyString(), anyString(), anyString(),
                 anyString(), anyInt(), anyBoolean(), nullable(String.class)))
                 .thenReturn(CompletableFuture.completedFuture(LoginResult.success("session-1")));
         when(sessionReporter.updateClientSettings(anyString(), any())).thenReturn(CompletableFuture.completedFuture(null));

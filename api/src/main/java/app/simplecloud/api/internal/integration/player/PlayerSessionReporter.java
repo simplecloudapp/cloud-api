@@ -7,6 +7,7 @@ import io.nats.client.Connection;
 import io.nats.client.Message;
 
 import java.time.Duration;
+import java.util.UUID;
 import java.util.concurrent.CompletableFuture;
 import java.util.concurrent.CompletionException;
 import java.util.concurrent.Executor;
@@ -37,7 +38,7 @@ public class PlayerSessionReporter {
      * Notifies the controller that a player logged in.
      */
     public CompletableFuture<LoginResult> login(
-            String uniqueId,
+            UUID playerId,
             String name,
             String displayName,
             String connectedProxyName,
@@ -50,7 +51,7 @@ public class PlayerSessionReporter {
         return CompletableFuture.supplyAsync(() -> {
             try {
                 PlayerLoginRequest.Builder builder = PlayerLoginRequest.newBuilder()
-                        .setUniqueId(uniqueId)
+                        .setUniqueId(playerId.toString())
                         .setName(name)
                         .setDisplayName(displayName)
                         .setConnectedProxyName(connectedProxyName)
@@ -84,11 +85,11 @@ public class PlayerSessionReporter {
      * Notifies the controller that a player disconnected.
      * Completes exceptionally if the controller rejects the request or no valid reply is received.
      */
-    public CompletableFuture<Void> disconnect(String playerId) {
+    public CompletableFuture<Void> disconnect(UUID playerId) {
         return CompletableFuture.runAsync(() -> {
             try {
                 PlayerDisconnectRequest request = PlayerDisconnectRequest.newBuilder()
-                        .setPlayerId(playerId)
+                        .setPlayerId(playerId.toString())
                         .build();
 
                 String subject = networkId + ".player.disconnect";
@@ -112,11 +113,11 @@ public class PlayerSessionReporter {
      * Notifies the controller that a player switched servers.
      * Completes exceptionally if the controller rejects the request or no valid reply is received.
      */
-    public CompletableFuture<Void> serverSwitch(String playerId, String newServerName) {
+    public CompletableFuture<Void> serverSwitch(UUID playerId, String newServerName) {
         return CompletableFuture.runAsync(() -> {
             try {
                 PlayerServerSwitchRequest request = PlayerServerSwitchRequest.newBuilder()
-                        .setPlayerId(playerId)
+                        .setPlayerId(playerId.toString())
                         .setNewServerName(newServerName)
                         .build();
 
