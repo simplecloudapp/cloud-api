@@ -16,7 +16,8 @@ import java.util.concurrent.Executor;
 import java.util.concurrent.atomic.AtomicBoolean;
 
 /**
- * Handles kick and connect requests from the controller for players on this proxy, and replies to them.
+ * Handles kick requests from the controller and connect requests from the controller or {@code connectDirect}
+ * for players on this proxy, and replies to them.
  */
 public class PlayerCommandHandler {
 
@@ -40,7 +41,7 @@ public class PlayerCommandHandler {
     }
 
     /**
-     * Starts listening for controller requests.
+     * Starts listening for kick and connect requests.
      */
     public void start() {
         if (!running.compareAndSet(false, true)) return;
@@ -51,7 +52,7 @@ public class PlayerCommandHandler {
     }
 
     /**
-     * Stops listening for controller requests.
+     * Stops listening for kick and connect requests.
      */
     public void stop() {
         if (!running.compareAndSet(true, false)) return;
