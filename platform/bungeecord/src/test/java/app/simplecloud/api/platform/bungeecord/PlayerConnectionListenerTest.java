@@ -1,6 +1,7 @@
 package app.simplecloud.api.platform.bungeecord;
 
 import app.simplecloud.api.internal.integration.player.LoginResult;
+import app.simplecloud.api.internal.integration.player.PlayerLogin;
 import app.simplecloud.api.internal.integration.player.PlayerSessionReporter;
 import app.simplecloud.api.internal.integration.presence.ProxyPresenceTracker;
 import app.simplecloud.api.platform.shared.PlayerSynchronizer;
@@ -39,8 +40,7 @@ class PlayerConnectionListenerTest {
         UUID playerId = UUID.randomUUID();
         CompletableFuture<LoginResult> registration = new CompletableFuture<>();
         PlayerSessionReporter sessionReporter = mock(PlayerSessionReporter.class);
-        when(sessionReporter.login(any(UUID.class), anyString(), anyString(), anyString(), anyString(),
-                anyString(), anyInt(), anyBoolean(), nullable(String.class))).thenReturn(registration);
+        when(sessionReporter.login(any(PlayerLogin.class))).thenReturn(registration);
         ProxyPresenceTracker presence = mock(ProxyPresenceTracker.class);
         Consumer<UUID> synchronize = mock(Consumer.class);
         PlayerConnectionListener listener = new PlayerConnectionListener(
@@ -77,11 +77,36 @@ class PlayerConnectionListenerTest {
 
     @Test
     @SuppressWarnings("unchecked")
+    void loginReportsThePlayerToTheController() {
+        UUID playerId = UUID.randomUUID();
+        InetSocketAddress address = new InetSocketAddress("127.0.0.1", 25565);
+        PlayerSessionReporter sessionReporter = mock(PlayerSessionReporter.class);
+        when(sessionReporter.login(any(PlayerLogin.class))).thenReturn(new CompletableFuture<>());
+        PlayerConnectionListener listener = new PlayerConnectionListener(
+                mock(Plugin.class), mock(PlayerSynchronizer.class), sessionReporter, mock(ProxyPresenceTracker.class), "proxy-1", ignored -> {}, ignored -> {});
+        ProxiedPlayer player = mock(ProxiedPlayer.class);
+        PendingConnection connection = mock(PendingConnection.class);
+        when(player.getUniqueId()).thenReturn(playerId);
+        when(player.getName()).thenReturn("Player");
+        when(player.getDisplayName()).thenReturn("Display");
+        when(player.getPendingConnection()).thenReturn(connection);
+        when(connection.getSocketAddress()).thenReturn(address);
+        when(connection.getVersion()).thenReturn(767);
+        when(connection.isOnlineMode()).thenReturn(true);
+
+        listener.onPlayerJoin(new PostLoginEvent(player, null, mock(Callback.class)));
+
+        PlayerLogin expected = new PlayerLogin(playerId, "Player", "Display", "proxy-1",
+                String.valueOf(address.hashCode()), "en_US", 767, true, null);
+        verify(sessionReporter).login(expected);
+    }
+
+    @Test
+    @SuppressWarnings("unchecked")
     void loginSendsClientSettingsAlreadyReportedByTheClient() {
         UUID playerId = UUID.randomUUID();
         PlayerSessionReporter sessionReporter = mock(PlayerSessionReporter.class);
-        when(sessionReporter.login(any(UUID.class), anyString(), anyString(), anyString(), anyString(),
-                anyString(), anyInt(), anyBoolean(), nullable(String.class)))
+        when(sessionReporter.login(any(PlayerLogin.class)))
                 .thenReturn(CompletableFuture.completedFuture(LoginResult.success("session-1")));
         when(sessionReporter.updateClientSettings(anyString(), any())).thenReturn(CompletableFuture.completedFuture(null));
         PlayerConnectionListener listener = new PlayerConnectionListener(

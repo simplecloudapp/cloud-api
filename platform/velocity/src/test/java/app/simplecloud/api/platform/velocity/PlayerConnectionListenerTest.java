@@ -1,6 +1,7 @@
 package app.simplecloud.api.platform.velocity;
 
 import app.simplecloud.api.internal.integration.player.LoginResult;
+import app.simplecloud.api.internal.integration.player.PlayerLogin;
 import app.simplecloud.api.internal.integration.player.PlayerSessionReporter;
 import app.simplecloud.api.internal.integration.presence.ProxyPresenceTracker;
 import app.simplecloud.api.platform.shared.PlayerSynchronizer;
@@ -41,8 +42,7 @@ class PlayerConnectionListenerTest {
         UUID playerId = UUID.randomUUID();
         CompletableFuture<LoginResult> registration = new CompletableFuture<>();
         PlayerSessionReporter sessionReporter = mock(PlayerSessionReporter.class);
-        when(sessionReporter.login(any(UUID.class), anyString(), anyString(), anyString(), anyString(),
-                anyString(), anyInt(), anyBoolean(), nullable(String.class))).thenReturn(registration);
+        when(sessionReporter.login(any(PlayerLogin.class))).thenReturn(registration);
         ProxyPresenceTracker presence = mock(ProxyPresenceTracker.class);
         Consumer<UUID> synchronize = mock(Consumer.class);
         PlayerConnectionListener listener = new PlayerConnectionListener(
@@ -77,11 +77,32 @@ class PlayerConnectionListenerTest {
     }
 
     @Test
+    void loginReportsThePlayerToTheController() {
+        UUID playerId = UUID.randomUUID();
+        InetSocketAddress address = new InetSocketAddress("127.0.0.1", 25565);
+        PlayerSessionReporter sessionReporter = mock(PlayerSessionReporter.class);
+        when(sessionReporter.login(any(PlayerLogin.class))).thenReturn(new CompletableFuture<>());
+        PlayerConnectionListener listener = new PlayerConnectionListener(
+                mock(PlayerSynchronizer.class), sessionReporter, mock(ProxyPresenceTracker.class), "proxy-1", ignored -> {}, ignored -> {});
+        Player player = mock(Player.class);
+        when(player.getUniqueId()).thenReturn(playerId);
+        when(player.getUsername()).thenReturn("Player");
+        when(player.getGameProfile()).thenReturn(new GameProfile(playerId, "Player", List.of()));
+        when(player.getRemoteAddress()).thenReturn(address);
+        when(player.getProtocolVersion()).thenReturn(ProtocolVersion.MINECRAFT_1_21);
+
+        listener.onPlayerJoin(new PostLoginEvent(player));
+
+        PlayerLogin expected = new PlayerLogin(playerId, "Player", "Player", "proxy-1",
+                String.valueOf(address.hashCode()), "en_US", ProtocolVersion.MINECRAFT_1_21.getProtocol(), false, null);
+        verify(sessionReporter).login(expected);
+    }
+
+    @Test
     void loginSendsClientSettingsAlreadyReportedByTheClient() {
         UUID playerId = UUID.randomUUID();
         PlayerSessionReporter sessionReporter = mock(PlayerSessionReporter.class);
-        when(sessionReporter.login(any(UUID.class), anyString(), anyString(), anyString(), anyString(),
-                anyString(), anyInt(), anyBoolean(), nullable(String.class)))
+        when(sessionReporter.login(any(PlayerLogin.class)))
                 .thenReturn(CompletableFuture.completedFuture(LoginResult.success("session-1")));
         when(sessionReporter.updateClientSettings(anyString(), any())).thenReturn(CompletableFuture.completedFuture(null));
         PlayerConnectionListener listener = new PlayerConnectionListener(

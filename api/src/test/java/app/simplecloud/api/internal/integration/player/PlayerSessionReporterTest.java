@@ -2,6 +2,7 @@ package app.simplecloud.api.internal.integration.player;
 
 import build.buf.gen.simplecloud.player.v2.PlayerDisconnectRequest;
 import build.buf.gen.simplecloud.player.v2.PlayerDisconnectResponse;
+import build.buf.gen.simplecloud.player.v2.PlayerLoginRequest;
 import build.buf.gen.simplecloud.player.v2.PlayerLoginResponse;
 import build.buf.gen.simplecloud.player.v2.PlayerServerSwitchRequest;
 import build.buf.gen.simplecloud.player.v2.PlayerServerSwitchResponse;
@@ -164,11 +165,51 @@ class PlayerSessionReporterTest {
                 PlayerLoginResponse.newBuilder().setSuccess(false).setErrorMessage("login rejected").build().toByteArray()
         ));
 
-        LoginResult result = reporter.login(PLAYER_UUID, "Player", "Player", "proxy-1", "hash",
-                "en_US", 1, true, null).join();
+        PlayerLogin login = new PlayerLogin(PLAYER_UUID, "Player", "Player", "proxy-1", "hash", "en_US", 1, true, null);
+
+        LoginResult result = reporter.login(login).join();
 
         assertFalse(result.isSuccess());
         assertEquals("login rejected", result.getErrorMessage());
+    }
+
+    @Test
+    void loginSendsEveryFieldOfThePlayerLogin() {
+        AtomicReference<PlayerLoginRequest> sentRequest = new AtomicReference<>();
+        PlayerSessionReporter reporter = reporterAnswering((subject, data, timeout) -> {
+            assertEquals(NETWORK_ID + ".player.login", subject);
+            sentRequest.set(PlayerLoginRequest.parseFrom(data));
+            return message(PlayerLoginResponse.newBuilder().setSuccess(true).setSessionId("session-1").build().toByteArray());
+        });
+        PlayerLogin login = new PlayerLogin(PLAYER_UUID, "Player", "Display", "proxy-1", "hash", "de_DE", 767, true, "skin");
+
+        LoginResult result = reporter.login(login).join();
+
+        PlayerLoginRequest request = sentRequest.get();
+        assertEquals("session-1", result.getSessionId());
+        assertEquals(PLAYER_ID, request.getUniqueId());
+        assertEquals("Player", request.getName());
+        assertEquals("Display", request.getDisplayName());
+        assertEquals("proxy-1", request.getConnectedProxyName());
+        assertEquals("hash", request.getAddressHash());
+        assertEquals("de_DE", request.getClientLanguage());
+        assertEquals(767, request.getClientVersion());
+        assertTrue(request.getOnlineMode());
+        assertEquals("skin", request.getTexture());
+    }
+
+    @Test
+    void loginWithoutTextureSendsNoTexture() {
+        AtomicReference<PlayerLoginRequest> sentRequest = new AtomicReference<>();
+        PlayerSessionReporter reporter = reporterAnswering((subject, data, timeout) -> {
+            sentRequest.set(PlayerLoginRequest.parseFrom(data));
+            return message(PlayerLoginResponse.newBuilder().setSuccess(true).build().toByteArray());
+        });
+        PlayerLogin login = new PlayerLogin(PLAYER_UUID, "Player", "Player", "proxy-1", "hash", "en_US", 767, false, null);
+
+        reporter.login(login).join();
+
+        assertEquals("", sentRequest.get().getTexture());
     }
 
     private static CompletionException assertFailure(Operation operation, CompletableFuture<Void> future) {

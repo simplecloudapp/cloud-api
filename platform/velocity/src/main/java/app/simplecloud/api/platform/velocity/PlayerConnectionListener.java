@@ -1,5 +1,6 @@
 package app.simplecloud.api.platform.velocity;
 
+import app.simplecloud.api.internal.integration.player.PlayerLogin;
 import app.simplecloud.api.internal.integration.player.PlayerSessionReporter;
 import app.simplecloud.api.internal.integration.presence.ProxyPresenceTracker;
 import app.simplecloud.api.platform.shared.PlayerSynchronizer;
@@ -65,17 +66,22 @@ public class PlayerConnectionListener {
             texture = texturesProperty.get().getValue();
         }
 
-        CompletableFuture<Void> registration = playerSessionReporter.login(
+        String connectedProxyName = proxyName != null && !proxyName.isBlank() ? proxyName : "unknown";
+        String addressHash = String.valueOf(player.getRemoteAddress().hashCode());
+        String clientLanguage = player.getEffectiveLocale() != null ? player.getEffectiveLocale().toString() : "en_US";
+        PlayerLogin login = new PlayerLogin(
                 playerId,
                 player.getUsername(),
                 player.getUsername(),
-                proxyName != null && !proxyName.isBlank() ? proxyName : "unknown",
-                String.valueOf(player.getRemoteAddress().hashCode()),
-                player.getEffectiveLocale() != null ? player.getEffectiveLocale().toString() : "en_US",
+                connectedProxyName,
+                addressHash,
+                clientLanguage,
                 player.getProtocolVersion().getProtocol(),
                 player.isOnlineMode(),
                 texture
-        ).thenAccept(result -> {
+        );
+
+        CompletableFuture<Void> registration = playerSessionReporter.login(login).thenAccept(result -> {
             if (result.isSuccess()) {
                 proxyPresenceTracker.updateSessionId(playerId.toString(), result.getSessionId());
                 synchronizePlayerProperties.accept(playerId);

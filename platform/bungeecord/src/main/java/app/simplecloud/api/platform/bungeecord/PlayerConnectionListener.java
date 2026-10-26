@@ -1,5 +1,6 @@
 package app.simplecloud.api.platform.bungeecord;
 
+import app.simplecloud.api.internal.integration.player.PlayerLogin;
 import app.simplecloud.api.internal.integration.player.PlayerSessionReporter;
 import app.simplecloud.api.internal.integration.presence.ProxyPresenceTracker;
 import app.simplecloud.api.platform.shared.PlayerSynchronizer;
@@ -63,17 +64,22 @@ public class PlayerConnectionListener implements Listener {
         UUID playerId = player.getUniqueId();
         proxyPresenceTracker.trackLogin(playerId.toString());
 
-        var registration = playerSessionReporter.login(
+        String connectedProxyName = proxyName != null && !proxyName.isBlank() ? proxyName : "unknown";
+        String addressHash = String.valueOf(connection.getSocketAddress().hashCode());
+        String clientLanguage = player.getLocale() != null ? player.getLocale().toString() : "en_US";
+        PlayerLogin login = new PlayerLogin(
                 playerId,
                 player.getName(),
                 player.getDisplayName(),
-                proxyName != null && !proxyName.isBlank() ? proxyName : "unknown",
-                String.valueOf(connection.getSocketAddress().hashCode()),
-                player.getLocale() != null ? player.getLocale().toString() : "en_US",
+                connectedProxyName,
+                addressHash,
+                clientLanguage,
                 connection.getVersion(),
                 connection.isOnlineMode(),
                 null
         );
+
+        var registration = playerSessionReporter.login(login);
         // Keep the initial backend connection behind controller registration.
         event.registerIntent(plugin);
         registration.thenAccept(result -> {

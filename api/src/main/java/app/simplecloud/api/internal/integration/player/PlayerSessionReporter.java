@@ -37,30 +37,20 @@ public class PlayerSessionReporter {
     /**
      * Notifies the controller that a player logged in.
      */
-    public CompletableFuture<LoginResult> login(
-            UUID playerId,
-            String name,
-            String displayName,
-            String connectedProxyName,
-            String addressHash,
-            String clientLanguage,
-            int clientVersion,
-            boolean onlineMode,
-            String texture
-    ) {
+    public CompletableFuture<LoginResult> login(PlayerLogin login) {
         return CompletableFuture.supplyAsync(() -> {
             try {
                 PlayerLoginRequest.Builder builder = PlayerLoginRequest.newBuilder()
-                        .setUniqueId(playerId.toString())
-                        .setName(name)
-                        .setDisplayName(displayName)
-                        .setConnectedProxyName(connectedProxyName)
-                        .setAddressHash(addressHash)
-                        .setClientLanguage(clientLanguage)
-                        .setClientVersion(clientVersion)
-                        .setOnlineMode(onlineMode);
+                        .setUniqueId(login.playerId().toString())
+                        .setName(login.name())
+                        .setDisplayName(login.displayName())
+                        .setConnectedProxyName(login.connectedProxyName())
+                        .setAddressHash(login.addressHash())
+                        .setClientLanguage(login.clientLanguage())
+                        .setClientVersion(login.clientVersion())
+                        .setOnlineMode(login.onlineMode());
 
-                if (texture != null) builder.setTexture(texture);
+                if (login.texture() != null) builder.setTexture(login.texture());
 
                 String subject = networkId + ".player.login";
                 Message response = natsConnection.request(subject, builder.build().toByteArray(), REQUEST_TIMEOUT);
