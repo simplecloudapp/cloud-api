@@ -13,6 +13,7 @@ import java.util.concurrent.CompletionException;
 
 import static org.junit.jupiter.api.Assertions.assertEquals;
 import static org.junit.jupiter.api.Assertions.assertInstanceOf;
+import static org.junit.jupiter.api.Assertions.assertNull;
 import static org.junit.jupiter.api.Assertions.assertThrows;
 
 class PlayerApiImplTest {
@@ -43,6 +44,32 @@ class PlayerApiImplTest {
         assertEquals(PLAYER_ID.toString(), playersApi.lastPatchPlayerId);
         assertEquals(Integer.valueOf(456), playersApi.lastPatchRequest.getOnlineTimeSeconds());
         assertEquals(456L, player.getOnlineTimeSeconds());
+    }
+
+    @Test
+    void resetFirstSeen_patchesOnlyTheFirstSeenReset() {
+        FakePlayersApi playersApi = new FakePlayersApi();
+        PlayerApiImpl api = new PlayerApiImpl(options(), null, playersApi);
+
+        api.resetFirstSeen(PLAYER_ID).join();
+
+        assertEquals(PLAYER_ID.toString(), playersApi.lastPatchPlayerId);
+        assertEquals(Boolean.TRUE, playersApi.lastPatchRequest.getResetFirstSeen());
+        assertNull(playersApi.lastPatchRequest.getResetLastSeen());
+        assertNull(playersApi.lastPatchRequest.getOnlineTimeSeconds());
+    }
+
+    @Test
+    void resetLastSeen_patchesOnlyTheLastSeenReset() {
+        FakePlayersApi playersApi = new FakePlayersApi();
+        PlayerApiImpl api = new PlayerApiImpl(options(), null, playersApi);
+
+        api.resetLastSeen(PLAYER_ID).join();
+
+        assertEquals(PLAYER_ID.toString(), playersApi.lastPatchPlayerId);
+        assertEquals(Boolean.TRUE, playersApi.lastPatchRequest.getResetLastSeen());
+        assertNull(playersApi.lastPatchRequest.getResetFirstSeen());
+        assertNull(playersApi.lastPatchRequest.getOnlineTimeSeconds());
     }
 
     @Test
@@ -127,7 +154,9 @@ class PlayerApiImplTest {
             patchCalls++;
             lastPatchPlayerId = playerId;
             lastPatchRequest = modelsPatchPlayerRequest;
-            onlineTimeSeconds = modelsPatchPlayerRequest.getOnlineTimeSeconds();
+            if (modelsPatchPlayerRequest.getOnlineTimeSeconds() != null) {
+                onlineTimeSeconds = modelsPatchPlayerRequest.getOnlineTimeSeconds();
+            }
             return playerResponse(onlineTimeSeconds);
         }
     }
