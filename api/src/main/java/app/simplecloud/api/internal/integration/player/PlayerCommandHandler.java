@@ -7,10 +7,14 @@ import build.buf.gen.simplecloud.player.v2.*;
 import io.nats.client.Connection;
 import io.nats.client.Dispatcher;
 import io.nats.client.Message;
+import net.kyori.adventure.text.Component;
+import net.kyori.adventure.text.serializer.gson.GsonComponentSerializer;
 
+import java.util.Optional;
+import java.util.UUID;
 import java.util.concurrent.CompletableFuture;
+import java.util.concurrent.Executor;
 import java.util.concurrent.atomic.AtomicBoolean;
-import java.util.function.BiFunction;
 
 /**
  * Handles kick and connect requests from the controller for players on this proxy, and replies to them.
@@ -19,37 +23,24 @@ public class PlayerCommandHandler {
 
     private final Connection natsConnection;
     private final String networkId;
+    private final Executor executor;
     private final ServerApi serverApi;
+    private final ProxyPlayers proxyPlayers;
     private final AtomicBoolean running = new AtomicBoolean(false);
 
     private Dispatcher requestDispatcher;
-    private BiFunction<String, String, CompletableFuture<Boolean>> kickHandler;
-    private BiFunction<String, ConnectTarget, CompletableFuture<CloudPlayer.ConnectResult>> connectHandler;
 
-    public PlayerCommandHandler(CloudApiImpl cloudApi) {
-        this(cloudApi.getNatsConnection(), cloudApi.getNetworkId(), cloudApi.server());
+    public PlayerCommandHandler(CloudApiImpl cloudApi, ProxyPlayers proxyPlayers) {
+        this(cloudApi.getNatsConnection(), cloudApi.getNetworkId(), cloudApi.getExecutor(), cloudApi.server(), proxyPlayers);
     }
 
-    PlayerCommandHandler(Connection natsConnection, String networkId, ServerApi serverApi) {
+    PlayerCommandHandler(Connection natsConnection, String networkId, Executor executor, ServerApi serverApi,
+                         ProxyPlayers proxyPlayers) {
         this.natsConnection = natsConnection;
         this.networkId = networkId;
+        this.executor = executor;
         this.serverApi = serverApi;
-    }
-
-    /**
-     * Registers a handler for kick requests from the controller.
-     * Handler receives (playerUuid, reason) and returns true if kicked, null to not respond.
-     */
-    public void onKick(BiFunction<String, String, CompletableFuture<Boolean>> handler) {
-        this.kickHandler = handler;
-    }
-
-    /**
-     * Registers a handler for connect requests from the controller.
-     * Handler receives (playerUuid, target) and returns the result, null to not respond.
-     */
-    public void onConnect(BiFunction<String, ConnectTarget, CompletableFuture<CloudPlayer.ConnectResult>> handler) {
-        this.connectHandler = handler;
+        this.proxyPlayers = proxyPlayers;
     }
 
     /**
@@ -76,23 +67,16 @@ public class PlayerCommandHandler {
     }
 
     private void handleKickRequest(Message msg) {
-        if (kickHandler == null) {
-            sendKickResponse(msg, false);
-            return;
-        }
-
         try {
             KickPlayerRequest request = KickPlayerRequest.parseFrom(msg.getData());
-            String[] parts = msg.getSubject().split("\\.");
-            String playerUuid = parts.length >= 3 ? parts[2] : request.getPlayerId();
-            String reason = request.hasReason() && !request.getReason().getJson().isBlank()
-                    ? request.getReason().getJson()
-                    : null;
+            UUID playerId = UUID.fromString(request.getPlayerId());
+            Optional<ProxyPlayer> player = proxyPlayers.findPlayer(playerId);
+            // Every proxy receives the request; only the proxy holding the player answers.
+            if (player.isEmpty()) return;
 
-            kickHandler.apply(playerUuid, reason)
-                    .thenAccept(success -> {
-                        if (success != null) sendKickResponse(msg, success);
-                    })
+            Component reason = kickReason(request);
+            CompletableFuture.runAsync(() -> player.get().kick(reason), executor)
+                    .thenRun(() -> sendKickResponse(msg, true))
                     .exceptionally(e -> {
                         sendKickResponse(msg, false);
                         return null;
@@ -100,6 +84,14 @@ public class PlayerCommandHandler {
         } catch (Exception e) {
             sendKickResponse(msg, false);
         }
+    }
+
+    private static Component kickReason(KickPlayerRequest request) {
+        String reasonJson = request.getReason().getJson();
+        if (reasonJson.isBlank()) {
+            return Component.empty();
+        }
+        return GsonComponentSerializer.gson().deserialize(reasonJson);
     }
 
     private void sendKickResponse(Message msg, boolean success) {
@@ -113,24 +105,19 @@ public class PlayerCommandHandler {
     }
 
     private void handleConnectRequest(Message msg) {
-        if (connectHandler == null) {
-            sendConnectResponse(msg, CloudPlayer.ConnectResult.PLAYER_NOT_FOUND);
-            return;
-        }
-
         try {
             ConnectPlayerRequest request = ConnectPlayerRequest.parseFrom(msg.getData());
-            String[] parts = msg.getSubject().split("\\.");
-            String playerUuid = parts.length >= 3 ? parts[2] : request.getPlayerId();
+            UUID playerId = UUID.fromString(request.getPlayerId());
+            Optional<ProxyPlayer> player = proxyPlayers.findPlayer(playerId);
+            // Every proxy receives the request; only the proxy holding the player answers.
+            if (player.isEmpty()) return;
 
             ConnectTarget target = request.getServerId().isEmpty()
                     ? ConnectTarget.byName(request.getServerName(), serverApi::findServerById)
                     : ConnectTarget.byId(request.getServerId(), serverApi::findServerById);
 
-            connectHandler.apply(playerUuid, target)
-                    .thenAccept(result -> {
-                        if (result != null) sendConnectResponse(msg, result);
-                    })
+            player.get().connect(target)
+                    .thenAccept(result -> sendConnectResponse(msg, result))
                     .exceptionally(e -> {
                         sendConnectResponse(msg, CloudPlayer.ConnectResult.CONNECTION_FAILED);
                         return null;
