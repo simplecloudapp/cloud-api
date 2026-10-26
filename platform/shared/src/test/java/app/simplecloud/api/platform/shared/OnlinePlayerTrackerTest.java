@@ -16,17 +16,17 @@ class OnlinePlayerTrackerTest {
         OnlinePlayerTracker tracker = new OnlinePlayerTracker();
 
         tracker.reset(List.of(first));
-        assertEquals(1, tracker.count());
+        assertEquals(1, tracker.onlinePlayerCount());
 
         tracker.add(second);
         tracker.add(second);
-        assertEquals(2, tracker.count());
+        assertEquals(2, tracker.onlinePlayerCount());
 
         tracker.remove(first);
         tracker.remove(first);
-        assertEquals(1, tracker.count());
+        assertEquals(1, tracker.onlinePlayerCount());
 
         tracker.reset(List.of());
-        assertEquals(0, tracker.count());
+        assertEquals(0, tracker.onlinePlayerCount());
     }
 }

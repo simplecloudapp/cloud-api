@@ -13,7 +13,7 @@ import net.neoforged.neoforge.event.server.ServerStoppingEvent;
 import org.slf4j.Logger;
 import org.slf4j.LoggerFactory;
 
-import java.util.concurrent.atomic.AtomicLong;
+import java.util.concurrent.atomic.AtomicInteger;
 
 @Mod(value = NeoForgeApiProvider.MOD_ID, dist = Dist.DEDICATED_SERVER)
 public final class NeoForgeApiProvider {
@@ -21,7 +21,7 @@ public final class NeoForgeApiProvider {
     public static final String MOD_ID = "simplecloud_api";
     private static final Logger LOGGER = LoggerFactory.getLogger(MOD_ID);
 
-    private final AtomicLong onlinePlayerCount = new AtomicLong();
+    private final AtomicInteger onlinePlayerCount = new AtomicInteger();
 
     private MinecraftServer server;
     private CloudApi cloudApi;

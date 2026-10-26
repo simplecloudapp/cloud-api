@@ -39,10 +39,7 @@ public class BungeeCordApiProvider extends Plugin implements ProxyPresencePlayer
         // Created before anything else that can fail, so onDisable can always stop it.
         this.playerPropertySynchronizer = createPlayerPropertySynchronizer();
         this.proxyName = SimpleCloudRuntime.serverName();
-        this.playerSynchronizer = new PlayerSynchronizer(
-            cloudApi,
-            () -> (long) getProxy().getOnlineCount()
-        );
+        this.playerSynchronizer = new PlayerSynchronizer(cloudApi, getProxy()::getOnlineCount);
         this.playerSessionReporter = new PlayerSessionReporter(cloudApi);
         this.playerCommandHandler = new PlayerCommandHandler(cloudApi, new BungeeCordPlayers(getProxy()));
         this.proxyPresenceTracker = new ProxyPresenceTracker(proxyName);

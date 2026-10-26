@@ -7,12 +7,11 @@ import java.util.HashMap;
 import java.util.Map;
 import java.util.concurrent.*;
 import java.util.concurrent.atomic.AtomicBoolean;
-import java.util.function.Supplier;
 
 public class PlayerSynchronizer {
 
     private final CloudApi cloudApi;
-    private final Supplier<Long> getCurrentOnlineCount;
+    private final OnlinePlayerCount onlinePlayers;
     private final String currentServerId;
     
     private ScheduledExecutorService scheduler;
@@ -23,9 +22,9 @@ public class PlayerSynchronizer {
     private final Object publishLock = new Object();
     private Integer lastPublishedCount;
 
-    public PlayerSynchronizer(CloudApi cloudApi, Supplier<Long> getCurrentOnlineCount) {
+    public PlayerSynchronizer(CloudApi cloudApi, OnlinePlayerCount onlinePlayers) {
         this.cloudApi = cloudApi;
-        this.getCurrentOnlineCount = getCurrentOnlineCount;
+        this.onlinePlayers = onlinePlayers;
         this.currentServerId = SimpleCloudRuntime.serverId();
     }
 
@@ -79,7 +78,7 @@ public class PlayerSynchronizer {
     void publishPlayerCount() {
         synchronized (publishLock) {
             try {
-                int playerCount = getCurrentOnlineCount.get().intValue();
+                int playerCount = onlinePlayers.onlinePlayerCount();
                 // Skip unchanged counts: every property patch is a controller write plus a ServerUpdated event.
                 if (lastPublishedCount != null && lastPublishedCount == playerCount) {
                     return;

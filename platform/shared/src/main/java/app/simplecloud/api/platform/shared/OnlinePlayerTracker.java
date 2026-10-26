@@ -10,7 +10,7 @@ import java.util.concurrent.ConcurrentHashMap;
  * Unlike reading the platform's player list, the count is already correct while the quit event runs
  * and can be read from any thread.
  */
-public class OnlinePlayerTracker {
+public class OnlinePlayerTracker implements OnlinePlayerCount {
 
     private final Set<UUID> onlinePlayers = ConcurrentHashMap.newKeySet();
 
@@ -27,7 +27,8 @@ public class OnlinePlayerTracker {
         onlinePlayers.remove(playerId);
     }
 
-    public long count() {
+    @Override
+    public int onlinePlayerCount() {
         return onlinePlayers.size();
     }
 }

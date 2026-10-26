@@ -44,7 +44,7 @@ public class FoliaApiProvider extends JavaPlugin {
         // The synchronizer reads the count off-thread, so it must not touch Bukkit.getOnlinePlayers() on Folia.
         OnlinePlayerTracker onlinePlayerTracker = new OnlinePlayerTracker();
         onlinePlayerTracker.reset(Bukkit.getOnlinePlayers().stream().map(Player::getUniqueId).toList());
-        this.playerSynchronizer = new PlayerSynchronizer(cloudApi, onlinePlayerTracker::count);
+        this.playerSynchronizer = new PlayerSynchronizer(cloudApi, onlinePlayerTracker);
         Bukkit.getPluginManager().registerEvents(new PlayerConnectionListener(onlinePlayerTracker, playerSynchronizer), this);
         playerSynchronizer.start();
         playerSynchronizer.updatePlayerCount();

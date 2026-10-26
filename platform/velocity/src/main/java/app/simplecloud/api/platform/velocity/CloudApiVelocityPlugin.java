@@ -57,10 +57,7 @@ public class CloudApiVelocityPlugin implements ProxyPresencePlayerProvider {
         this.proxyServer = proxyServer;
         this.cloudApi = (CloudApiImpl) CloudApi.create();
         this.proxyName = SimpleCloudRuntime.serverName();
-        this.playerSynchronizer = new PlayerSynchronizer(
-            cloudApi,
-            () -> (long) proxyServer.getPlayerCount()
-        );
+        this.playerSynchronizer = new PlayerSynchronizer(cloudApi, proxyServer::getPlayerCount);
         this.playerSessionReporter = new PlayerSessionReporter(cloudApi);
         this.playerCommandHandler = new PlayerCommandHandler(cloudApi, new VelocityPlayers(proxyServer));
         this.proxyPresenceTracker = new ProxyPresenceTracker(proxyName);
