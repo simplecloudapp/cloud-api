@@ -10,6 +10,7 @@ import app.simplecloud.api.presence.ProxyPresencePlayer;
 import app.simplecloud.api.presence.ProxyPresencePlayerProvider;
 import app.simplecloud.api.runtime.SimpleCloudRuntime;
 import app.simplecloud.api.platform.shared.LuckPermsPlayerPropertySynchronizer;
+import app.simplecloud.api.platform.shared.PlayerPropertySynchronizer;
 import app.simplecloud.api.platform.shared.PlayerSynchronizer;
 import com.google.inject.Inject;
 import com.velocitypowered.api.event.Subscribe;
@@ -24,7 +25,6 @@ import org.slf4j.Logger;
 
 import java.util.List;
 import java.util.Locale;
-import java.util.UUID;
 
 @Plugin(
         id = "simplecloud-api",
@@ -35,6 +35,9 @@ import java.util.UUID;
 )
 public class CloudApiVelocityPlugin implements ProxyPresencePlayerProvider {
 
+    // Higher priorities run first, so this runs before onProxyShutdown (priority 0) closes the CloudApi.
+    private static final short STOP_BEFORE_SHUTDOWN_PRIORITY = 100;
+
     private final Logger logger;
     private final ProxyServer proxyServer;
     private final CloudApiImpl cloudApi;
@@ -44,7 +47,6 @@ public class CloudApiVelocityPlugin implements ProxyPresencePlayerProvider {
     private final PlayerCommandHandler playerCommandHandler;
     private final ProxyPresenceTracker proxyPresenceTracker;
     private final ProxyPresenceResponder proxyPresenceResponder;
-    private LuckPermsPlayerPropertySynchronizer luckPermsSynchronizer;
 
     @Inject
     public CloudApiVelocityPlugin(
@@ -73,14 +75,16 @@ public class CloudApiVelocityPlugin implements ProxyPresencePlayerProvider {
     @Subscribe
     public void onProxyInitialize(ProxyInitializeEvent event) {
         logger.info("SimpleCloud v3 API provider initialized!");
-        initializeLuckPermsIntegration();
+        // LuckPerms registers its API while the proxy initializes, so this cannot happen in the constructor.
+        PlayerPropertySynchronizer playerPropertySynchronizer = createPlayerPropertySynchronizer();
+        proxyServer.getEventManager().register(this, ProxyShutdownEvent.class, STOP_BEFORE_SHUTDOWN_PRIORITY,
+                shutdown -> playerPropertySynchronizer.stop());
         proxyServer.getEventManager().register(this, new PlayerConnectionListener(
                 playerSynchronizer,
                 playerSessionReporter,
                 proxyPresenceTracker,
                 proxyName,
-                this::synchronizeLuckPermsProperties,
-                this::forgetLuckPermsProperties
+                playerPropertySynchronizer
         ));
 
         playerSynchronizer.start();
@@ -92,20 +96,17 @@ public class CloudApiVelocityPlugin implements ProxyPresencePlayerProvider {
     public void onProxyShutdown(ProxyShutdownEvent event) {
         logger.info("SimpleCloud v3 API provider uninitialized!");
         proxyPresenceResponder.stop();
-        if (luckPermsSynchronizer != null) {
-            luckPermsSynchronizer.stop();
-        }
         playerSynchronizer.stop();
         playerCommandHandler.stop();
         cloudApi.close();
     }
 
-    private void initializeLuckPermsIntegration() {
+    private PlayerPropertySynchronizer createPlayerPropertySynchronizer() {
         if (!proxyServer.getPluginManager().isLoaded("luckperms")) {
-            return;
+            return PlayerPropertySynchronizer.NONE;
         }
         try {
-            luckPermsSynchronizer = new LuckPermsPlayerPropertySynchronizer(
+            LuckPermsPlayerPropertySynchronizer luckPermsSynchronizer = new LuckPermsPlayerPropertySynchronizer(
                     cloudApi,
                     LuckPermsProvider.get(),
                     this,
@@ -114,21 +115,10 @@ public class CloudApiVelocityPlugin implements ProxyPresencePlayerProvider {
             );
             luckPermsSynchronizer.start();
             logger.info("LuckPerms player property synchronization enabled");
+            return luckPermsSynchronizer;
         } catch (IllegalStateException exception) {
-            luckPermsSynchronizer = null;
             logger.warn("LuckPerms is present but its API is not available", exception);
-        }
-    }
-
-    private void synchronizeLuckPermsProperties(UUID uniqueId) {
-        if (luckPermsSynchronizer != null) {
-            luckPermsSynchronizer.synchronize(uniqueId);
-        }
-    }
-
-    private void forgetLuckPermsProperties(UUID uniqueId) {
-        if (luckPermsSynchronizer != null) {
-            luckPermsSynchronizer.forget(uniqueId);
+            return PlayerPropertySynchronizer.NONE;
         }
     }
 

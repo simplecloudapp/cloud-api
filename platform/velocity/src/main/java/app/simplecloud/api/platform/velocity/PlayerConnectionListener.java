@@ -3,6 +3,7 @@ package app.simplecloud.api.platform.velocity;
 import app.simplecloud.api.internal.integration.player.PlayerLogin;
 import app.simplecloud.api.internal.integration.player.PlayerSessionReporter;
 import app.simplecloud.api.internal.integration.presence.ProxyPresenceTracker;
+import app.simplecloud.api.platform.shared.PlayerPropertySynchronizer;
 import app.simplecloud.api.platform.shared.PlayerSynchronizer;
 import app.simplecloud.api.player.PlayerClientSettings;
 import com.velocitypowered.api.event.EventTask;
@@ -22,7 +23,6 @@ import java.util.List;
 import java.util.UUID;
 import java.util.concurrent.CompletableFuture;
 import java.util.concurrent.TimeUnit;
-import java.util.function.Consumer;
 
 public class PlayerConnectionListener {
 
@@ -33,23 +33,20 @@ public class PlayerConnectionListener {
     private final PlayerSessionReporter playerSessionReporter;
     private final ProxyPresenceTracker proxyPresenceTracker;
     private final String proxyName;
-    private final Consumer<UUID> synchronizePlayerProperties;
-    private final Consumer<UUID> forgetPlayerProperties;
+    private final PlayerPropertySynchronizer playerPropertySynchronizer;
 
     public PlayerConnectionListener(
             PlayerSynchronizer playerSynchronizer,
             PlayerSessionReporter playerSessionReporter,
             ProxyPresenceTracker proxyPresenceTracker,
             String proxyName,
-            Consumer<UUID> synchronizePlayerProperties,
-            Consumer<UUID> forgetPlayerProperties
+            PlayerPropertySynchronizer playerPropertySynchronizer
     ) {
         this.playerSynchronizer = playerSynchronizer;
         this.playerSessionReporter = playerSessionReporter;
         this.proxyPresenceTracker = proxyPresenceTracker;
         this.proxyName = proxyName;
-        this.synchronizePlayerProperties = synchronizePlayerProperties;
-        this.forgetPlayerProperties = forgetPlayerProperties;
+        this.playerPropertySynchronizer = playerPropertySynchronizer;
     }
 
     @Subscribe(priority = 100)
@@ -84,7 +81,7 @@ public class PlayerConnectionListener {
         CompletableFuture<Void> registration = playerSessionReporter.login(login).thenAccept(result -> {
             if (result.isSuccess()) {
                 proxyPresenceTracker.updateSessionId(playerId.toString(), result.getSessionId());
-                synchronizePlayerProperties.accept(playerId);
+                playerPropertySynchronizer.synchronize(playerId);
                 if (player.hasSentPlayerSettings()) {
                     sendClientSettings(player, result.getSessionId(), player.getPlayerSettings());
                 }
@@ -113,7 +110,7 @@ public class PlayerConnectionListener {
                     return null;
                 });
         proxyPresenceTracker.remove(playerId.toString());
-        forgetPlayerProperties.accept(playerId);
+        playerPropertySynchronizer.forget(playerId);
 
         CompletableFuture.runAsync(() -> playerSynchronizer.updatePlayerCount());
     }

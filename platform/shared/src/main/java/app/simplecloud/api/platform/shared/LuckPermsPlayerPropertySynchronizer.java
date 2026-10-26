@@ -19,7 +19,7 @@ import java.util.function.Predicate;
 /**
  * Keeps a small, bounded subset of LuckPerms user data in SimpleCloud player properties.
  */
-public final class LuckPermsPlayerPropertySynchronizer {
+public final class LuckPermsPlayerPropertySynchronizer implements PlayerPropertySynchronizer {
 
     public static final String PRIMARY_GROUP_PROPERTY = "luckperms-primary-group";
 
@@ -63,6 +63,7 @@ public final class LuckPermsPlayerPropertySynchronizer {
         running = true;
     }
 
+    @Override
     public void stop() {
         running = false;
         if (subscription != null) {
@@ -76,9 +77,7 @@ public final class LuckPermsPlayerPropertySynchronizer {
         refreshRequested.clear();
     }
 
-    /**
-     * Starts synchronization after the controller acknowledges this player's login.
-     */
+    @Override
     public void synchronize(UUID uniqueId) {
         if (!running || !isOnline.test(uniqueId)) {
             return;
@@ -90,6 +89,7 @@ public final class LuckPermsPlayerPropertySynchronizer {
         }
     }
 
+    @Override
     public void forget(UUID uniqueId) {
         registeredPlayers.remove(uniqueId);
         desiredPrimaryGroups.remove(uniqueId);
