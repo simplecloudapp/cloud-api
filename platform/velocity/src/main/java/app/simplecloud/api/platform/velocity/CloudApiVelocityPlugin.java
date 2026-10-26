@@ -110,8 +110,8 @@ public class CloudApiVelocityPlugin implements ProxyPresencePlayerProvider {
                     cloudApi,
                     LuckPermsProvider.get(),
                     this,
-                    uniqueId -> proxyServer.getPlayer(uniqueId).isPresent(),
-                    (message, throwable) -> logger.error(message, throwable)
+                    new VelocityPlayers(proxyServer),
+                    logger::error
             );
             luckPermsSynchronizer.start();
             logger.info("LuckPerms player property synchronization enabled");

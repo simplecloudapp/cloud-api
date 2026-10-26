@@ -1,6 +1,8 @@
 package app.simplecloud.api.platform.shared;
 
 import app.simplecloud.api.CloudApi;
+import app.simplecloud.api.internal.integration.player.ProxyPlayer;
+import app.simplecloud.api.internal.integration.player.ProxyPlayers;
 import app.simplecloud.api.player.CloudPlayer;
 import net.luckperms.api.LuckPerms;
 import net.luckperms.api.event.EventSubscription;
@@ -9,12 +11,11 @@ import net.luckperms.api.model.user.User;
 
 import java.util.Map;
 import java.util.Objects;
+import java.util.Optional;
 import java.util.Set;
 import java.util.UUID;
 import java.util.concurrent.CompletableFuture;
 import java.util.concurrent.ConcurrentHashMap;
-import java.util.function.BiConsumer;
-import java.util.function.Predicate;
 
 /**
  * Keeps a small, bounded subset of LuckPerms user data in SimpleCloud player properties.
@@ -26,8 +27,8 @@ public final class LuckPermsPlayerPropertySynchronizer implements PlayerProperty
     private final CloudApi cloudApi;
     private final LuckPerms luckPerms;
     private final Object eventSubscriber;
-    private final Predicate<UUID> isOnline;
-    private final BiConsumer<String, Throwable> errorLogger;
+    private final ProxyPlayers proxyPlayers;
+    private final FailureLog failureLog;
     private final Set<UUID> registeredPlayers = ConcurrentHashMap.newKeySet();
     private final Map<UUID, String> desiredPrimaryGroups = new ConcurrentHashMap<>();
     private final Map<UUID, String> synchronizedPrimaryGroups = new ConcurrentHashMap<>();
@@ -41,14 +42,14 @@ public final class LuckPermsPlayerPropertySynchronizer implements PlayerProperty
             CloudApi cloudApi,
             LuckPerms luckPerms,
             Object eventSubscriber,
-            Predicate<UUID> isOnline,
-            BiConsumer<String, Throwable> errorLogger
+            ProxyPlayers proxyPlayers,
+            FailureLog failureLog
     ) {
         this.cloudApi = cloudApi;
         this.luckPerms = luckPerms;
         this.eventSubscriber = eventSubscriber;
-        this.isOnline = isOnline;
-        this.errorLogger = errorLogger;
+        this.proxyPlayers = proxyPlayers;
+        this.failureLog = failureLog;
     }
 
     public void start() {
@@ -78,76 +79,81 @@ public final class LuckPermsPlayerPropertySynchronizer implements PlayerProperty
     }
 
     @Override
-    public void synchronize(UUID uniqueId) {
-        if (!running || !isOnline.test(uniqueId)) {
+    public void synchronize(UUID playerId) {
+        if (!running || !isOnThisProxy(playerId)) {
             return;
         }
-        registeredPlayers.add(uniqueId);
-        User user = luckPerms.getUserManager().getUser(uniqueId);
+        registeredPlayers.add(playerId);
+        User user = luckPerms.getUserManager().getUser(playerId);
         if (user != null) {
             synchronize(user);
         }
     }
 
     @Override
-    public void forget(UUID uniqueId) {
-        registeredPlayers.remove(uniqueId);
-        desiredPrimaryGroups.remove(uniqueId);
-        synchronizedPrimaryGroups.remove(uniqueId);
-        refreshRequested.remove(uniqueId);
+    public void forget(UUID playerId) {
+        registeredPlayers.remove(playerId);
+        desiredPrimaryGroups.remove(playerId);
+        synchronizedPrimaryGroups.remove(playerId);
+        refreshRequested.remove(playerId);
     }
 
     private void synchronize(User user) {
-        UUID uniqueId = user.getUniqueId();
-        if (!running || !registeredPlayers.contains(uniqueId) || !isOnline.test(uniqueId)) {
+        UUID playerId = user.getUniqueId();
+        if (!running || !registeredPlayers.contains(playerId) || !isOnThisProxy(playerId)) {
             return;
         }
 
         String primaryGroup = user.getPrimaryGroup();
-        desiredPrimaryGroups.put(uniqueId, primaryGroup);
-        if (primaryGroup.equals(synchronizedPrimaryGroups.get(uniqueId))) {
+        desiredPrimaryGroups.put(playerId, primaryGroup);
+        if (primaryGroup.equals(synchronizedPrimaryGroups.get(playerId))) {
             return;
         }
-        synchronizeNext(uniqueId);
+        synchronizeNext(playerId);
     }
 
-    private void synchronizeNext(UUID uniqueId) {
-        if (!synchronizationsInProgress.add(uniqueId)) {
-            refreshRequested.add(uniqueId);
+    private void synchronizeNext(UUID playerId) {
+        if (!synchronizationsInProgress.add(playerId)) {
+            refreshRequested.add(playerId);
             return;
         }
 
-        String primaryGroup = desiredPrimaryGroups.get(uniqueId);
-        cloudApi.player().find(uniqueId)
+        String primaryGroup = desiredPrimaryGroups.get(playerId);
+        cloudApi.player().find(playerId)
                 .thenCompose(player -> player
-                        .map(found -> updateIfChanged(uniqueId, found, primaryGroup))
+                        .map(found -> updateIfChanged(playerId, found, primaryGroup))
                         .orElseGet(() -> CompletableFuture.completedFuture(false)))
                 .whenComplete((synchronizedValue, throwable) -> {
                     if (throwable != null) {
-                        errorLogger.accept("Failed to synchronize LuckPerms properties for " + uniqueId, throwable);
+                        failureLog.logFailure("Failed to synchronize LuckPerms properties for " + playerId, throwable);
                     } else if (Boolean.TRUE.equals(synchronizedValue)) {
-                        synchronizedPrimaryGroups.put(uniqueId, primaryGroup);
+                        synchronizedPrimaryGroups.put(playerId, primaryGroup);
                     }
-                    synchronizationsInProgress.remove(uniqueId);
-                    boolean shouldRefresh = refreshRequested.remove(uniqueId);
+                    synchronizationsInProgress.remove(playerId);
+                    boolean shouldRefresh = refreshRequested.remove(playerId);
 
-                    if (!running || !registeredPlayers.contains(uniqueId) || !isOnline.test(uniqueId)) {
-                        forget(uniqueId);
+                    if (!running || !registeredPlayers.contains(playerId) || !isOnThisProxy(playerId)) {
+                        forget(playerId);
                     } else if (shouldRefresh || (Boolean.TRUE.equals(synchronizedValue) &&
                             !Objects.equals(
-                                    desiredPrimaryGroups.get(uniqueId),
-                                    synchronizedPrimaryGroups.get(uniqueId)
+                                    desiredPrimaryGroups.get(playerId),
+                                    synchronizedPrimaryGroups.get(playerId)
                             ))) {
-                        synchronizeNext(uniqueId);
+                        synchronizeNext(playerId);
                     }
                 });
     }
 
-    private CompletableFuture<Boolean> updateIfChanged(UUID uniqueId, CloudPlayer player, String primaryGroup) {
+    private CompletableFuture<Boolean> updateIfChanged(UUID playerId, CloudPlayer player, String primaryGroup) {
         if (primaryGroup.equals(player.getProperties().get(PRIMARY_GROUP_PROPERTY))) {
             return CompletableFuture.completedFuture(true);
         }
-        return cloudApi.player().updatePlayerProperty(uniqueId, PRIMARY_GROUP_PROPERTY, primaryGroup)
+        return cloudApi.player().updatePlayerProperty(playerId, PRIMARY_GROUP_PROPERTY, primaryGroup)
                 .thenApply(ignored -> true);
+    }
+
+    private boolean isOnThisProxy(UUID playerId) {
+        Optional<ProxyPlayer> player = proxyPlayers.findPlayer(playerId);
+        return player.isPresent();
     }
 }
