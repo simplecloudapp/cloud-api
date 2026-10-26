@@ -30,7 +30,7 @@ public final class ProxyPresenceResponder {
     private final String serverId;
     private final String subject;
     private final AtomicBoolean running = new AtomicBoolean(false);
-    private volatile ProxyPresencePlayerProvider playerProvider;
+    private final ProxyPresencePlayerProvider playerProvider;
 
     private Dispatcher dispatcher;
 
@@ -46,14 +46,6 @@ public final class ProxyPresenceResponder {
         this.playerProvider = playerProvider;
     }
 
-    public ProxyPresenceResponder(
-            Connection natsConnection,
-            String networkId,
-            String serverId
-    ) {
-        this(natsConnection, networkId, serverId, null);
-    }
-
     public void start() {
         if (serverId.isBlank()) {
             LOGGER.warning("Presence responder not started because SIMPLECLOUD_UNIQUE_ID is missing");
@@ -65,14 +57,6 @@ public final class ProxyPresenceResponder {
 
         dispatcher = natsConnection.createDispatcher(null);
         dispatcher.subscribe(subject, this::handleCompareRequest);
-    }
-
-    public void registerPlayerProvider(ProxyPresencePlayerProvider playerProvider) {
-        this.playerProvider = Objects.requireNonNull(playerProvider, "playerProvider");
-    }
-
-    public void unregisterPlayerProvider() {
-        this.playerProvider = null;
     }
 
     public void stop() {

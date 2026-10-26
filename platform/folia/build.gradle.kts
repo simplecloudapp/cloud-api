@@ -12,7 +12,6 @@ dependencies {
     implementation(project(":api")) {
         exclude(group = "net.kyori")
     }
-    implementation(rootProject.libs.faststats.bukkit)
 }
 
 modrinth {
@@ -45,6 +44,7 @@ modrinth {
         "26.1.1",
         "26.1.2",
         "26.2",
+        "26.3",
     )
     loaders.add("folia")
     changelog.set("https://docs.simplecloud.app/changelog")

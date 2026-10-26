@@ -1,31 +1,29 @@
 package app.simplecloud.api.platform.spigot;
 
 import app.simplecloud.api.CloudApi;
+import app.simplecloud.api.platform.shared.OnlinePlayerTracker;
 import app.simplecloud.api.platform.shared.PlayerSynchronizer;
-import dev.faststats.Metrics;
-import dev.faststats.bukkit.BukkitContext;
 import org.bukkit.Bukkit;
+import org.bukkit.entity.Player;
 import org.bukkit.plugin.java.JavaPlugin;
 
 public class SpigotApiProvider extends JavaPlugin {
 
-    private final BukkitContext fastStatsContext = new BukkitContext.Factory(
-        this,
-        "2e8308cb6431a46a68fa0f59362978f7"
-    ).metrics(Metrics.Factory::create).create();
     private final CloudApi cloudApi = CloudApi.create();
+    private final OnlinePlayerTracker onlinePlayerTracker = new OnlinePlayerTracker();
     private final PlayerSynchronizer playerSynchronizer = new PlayerSynchronizer(
         cloudApi,
-        () -> (long) Bukkit.getOnlinePlayers().size()
+        onlinePlayerTracker::count
     );
 
     @Override
     public void onEnable() {
         getLogger().info("SimpleCloud v3 API provider initialized!");
-        Bukkit.getPluginManager().registerEvents(new PlayerConnectionListener(playerSynchronizer), this);
+        onlinePlayerTracker.reset(Bukkit.getOnlinePlayers().stream().map(Player::getUniqueId).toList());
+        Bukkit.getPluginManager().registerEvents(new PlayerConnectionListener(onlinePlayerTracker, playerSynchronizer), this);
 
         playerSynchronizer.start();
-        fastStatsContext.ready();
+        playerSynchronizer.updatePlayerCount();
     }
 
     @Override
@@ -33,6 +31,5 @@ public class SpigotApiProvider extends JavaPlugin {
         getLogger().info("SimpleCloud v3 API provider uninitialized!");
         playerSynchronizer.stop();
         cloudApi.close();
-        fastStatsContext.shutdown();
     }
 }

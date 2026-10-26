@@ -2,6 +2,7 @@ package app.simplecloud.api.platform.bungeecord;
 
 import app.simplecloud.api.CloudApi;
 import app.simplecloud.api.internal.CloudApiImpl;
+import app.simplecloud.api.internal.integration.player.ConnectTarget;
 import app.simplecloud.api.internal.integration.player.PlayerIntegration;
 import app.simplecloud.api.internal.integration.presence.ProxyPresenceResponder;
 import app.simplecloud.api.internal.integration.presence.ProxyPresenceTracker;
@@ -11,27 +12,24 @@ import app.simplecloud.api.player.CloudPlayer;
 import app.simplecloud.api.runtime.SimpleCloudRuntime;
 import app.simplecloud.api.platform.shared.LuckPermsPlayerPropertySynchronizer;
 import app.simplecloud.api.platform.shared.PlayerSynchronizer;
-import dev.faststats.Metrics;
-import dev.faststats.bungee.BungeeContext;
 import net.kyori.adventure.platform.bungeecord.BungeeAudiences;
+import net.kyori.adventure.text.Component;
 import net.kyori.adventure.text.serializer.bungeecord.BungeeComponentSerializer;
 import net.kyori.adventure.text.serializer.gson.GsonComponentSerializer;
 import net.md_5.bungee.api.chat.TextComponent;
+import net.md_5.bungee.api.config.ServerInfo;
 import net.md_5.bungee.api.connection.ProxiedPlayer;
 import net.md_5.bungee.api.plugin.Plugin;
 import net.luckperms.api.LuckPermsProvider;
 
 import java.util.List;
 import java.util.Locale;
+import java.util.Optional;
 import java.util.UUID;
 import java.util.concurrent.CompletableFuture;
 
 public class BungeeCordApiProvider extends Plugin implements ProxyPresencePlayerProvider {
 
-    private final BungeeContext fastStatsContext = new BungeeContext.Factory(
-            this,
-            "2e8308cb6431a46a68fa0f59362978f7"
-    ).metrics(Metrics.Factory::create).create();
     private CloudApiImpl cloudApi;
     private String proxyName;
     private PlayerSynchronizer playerSynchronizer;
@@ -71,6 +69,7 @@ public class BungeeCordApiProvider extends Plugin implements ProxyPresencePlayer
 
         getLogger().info("SimpleCloud v3 API provider initialized!");
         getProxy().getPluginManager().registerListener(this, new PlayerConnectionListener(
+                this,
                 playerSynchronizer,
                 playerIntegration,
                 proxyPresenceTracker,
@@ -82,7 +81,6 @@ public class BungeeCordApiProvider extends Plugin implements ProxyPresencePlayer
         playerSynchronizer.start();
         playerIntegration.start();
         proxyPresenceResponder.start();
-        fastStatsContext.ready();
     }
 
     @Override
@@ -99,7 +97,6 @@ public class BungeeCordApiProvider extends Plugin implements ProxyPresencePlayer
             bungeeAudiences.close();
         }
         cloudApi.close();
-        fastStatsContext.shutdown();
     }
 
     private void initializeLuckPermsIntegration() {
@@ -164,21 +161,31 @@ public class BungeeCordApiProvider extends Plugin implements ProxyPresencePlayer
                 // Don't respond - another proxy might have the player
                 return null;
             }
-            player.disconnect(bungeeComponentSerializer.serialize(gsonComponentSerializer.deserialize(reason != null ? reason : "{}")));
+            Component message = reason != null ? gsonComponentSerializer.deserialize(reason) : Component.empty();
+            player.disconnect(bungeeComponentSerializer.serialize(message));
             return true;
         });
     }
 
-    private CompletableFuture<CloudPlayer.ConnectResult> handleConnectRequest(String playerUniqueId, String serverName) {
+    private CompletableFuture<CloudPlayer.ConnectResult> handleConnectRequest(String playerUniqueId, ConnectTarget target) {
         ProxiedPlayer player = getProxy().getPlayer(UUID.fromString(playerUniqueId));
         if (player == null) {
             return CompletableFuture.completedFuture(null);
         }
-        var serverInfo = getProxy().getServerInfo(serverName);
-        if (serverInfo == null) {
-            return CompletableFuture.completedFuture(CloudPlayer.ConnectResult.SERVER_NOT_FOUND);
-        }
-        if (player.getServer() != null && player.getServer().getInfo().getName().equals(serverName)) {
+        return target.resolve(name -> Optional.ofNullable(getProxy().getServerInfo(name)), this::findServerByAddress)
+                .thenCompose(serverInfo -> serverInfo
+                        .map(server -> connect(player, server))
+                        .orElseGet(() -> CompletableFuture.completedFuture(CloudPlayer.ConnectResult.SERVER_NOT_FOUND)));
+    }
+
+    private Optional<ServerInfo> findServerByAddress(String ip, int port) {
+        return getProxy().getServers().values().stream()
+                .filter(server -> ConnectTarget.hasAddress(server.getSocketAddress(), ip, port))
+                .findFirst();
+    }
+
+    private CompletableFuture<CloudPlayer.ConnectResult> connect(ProxiedPlayer player, ServerInfo serverInfo) {
+        if (player.getServer() != null && player.getServer().getInfo().getName().equals(serverInfo.getName())) {
             return CompletableFuture.completedFuture(CloudPlayer.ConnectResult.ALREADY_CONNECTED);
         }
 

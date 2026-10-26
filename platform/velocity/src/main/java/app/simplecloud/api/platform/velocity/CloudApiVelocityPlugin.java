@@ -2,6 +2,7 @@ package app.simplecloud.api.platform.velocity;
 
 import app.simplecloud.api.CloudApi;
 import app.simplecloud.api.internal.CloudApiImpl;
+import app.simplecloud.api.internal.integration.player.ConnectTarget;
 import app.simplecloud.api.internal.integration.player.PlayerIntegration;
 import app.simplecloud.api.internal.integration.presence.ProxyPresenceResponder;
 import app.simplecloud.api.internal.integration.presence.ProxyPresenceTracker;
@@ -20,14 +21,15 @@ import com.velocitypowered.api.plugin.Plugin;
 import com.velocitypowered.api.proxy.ConnectionRequestBuilder;
 import com.velocitypowered.api.proxy.Player;
 import com.velocitypowered.api.proxy.ProxyServer;
-import dev.faststats.Metrics;
-import dev.faststats.velocity.VelocityContext;
+import com.velocitypowered.api.proxy.server.RegisteredServer;
+import net.kyori.adventure.text.Component;
 import net.kyori.adventure.text.serializer.gson.GsonComponentSerializer;
 import net.luckperms.api.LuckPermsProvider;
 import org.slf4j.Logger;
 
 import java.util.List;
 import java.util.Locale;
+import java.util.Optional;
 import java.util.UUID;
 import java.util.concurrent.CompletableFuture;
 
@@ -42,7 +44,6 @@ public class CloudApiVelocityPlugin implements ProxyPresencePlayerProvider {
 
     private final Logger logger;
     private final ProxyServer proxyServer;
-    private final VelocityContext fastStatsContext;
     private final CloudApiImpl cloudApi;
     private final String proxyName;
     private final PlayerSynchronizer playerSynchronizer;
@@ -56,15 +57,10 @@ public class CloudApiVelocityPlugin implements ProxyPresencePlayerProvider {
     @Inject
     public CloudApiVelocityPlugin(
             Logger logger,
-            ProxyServer proxyServer,
-            VelocityContext.Builder fastStatsContextBuilder
+            ProxyServer proxyServer
     ) {
         this.logger = logger;
         this.proxyServer = proxyServer;
-        this.fastStatsContext = fastStatsContextBuilder
-                .token("2e8308cb6431a46a68fa0f59362978f7")
-                .metrics(Metrics.Factory::create)
-                .create();
         this.cloudApi = (CloudApiImpl) CloudApi.create();
         this.proxyName = SimpleCloudRuntime.serverName();
         this.playerSynchronizer = new PlayerSynchronizer(
@@ -100,7 +96,6 @@ public class CloudApiVelocityPlugin implements ProxyPresencePlayerProvider {
         playerSynchronizer.start();
         playerIntegration.start();
         proxyPresenceResponder.start();
-        fastStatsContext.ready();
     }
 
     @Subscribe
@@ -113,7 +108,6 @@ public class CloudApiVelocityPlugin implements ProxyPresencePlayerProvider {
         playerSynchronizer.stop();
         playerIntegration.stop();
         cloudApi.close();
-        fastStatsContext.shutdown();
     }
 
     private void initializeLuckPermsIntegration() {
@@ -180,21 +174,29 @@ public class CloudApiVelocityPlugin implements ProxyPresencePlayerProvider {
                 // Returning null signals to not send a response
                 return null;
             }
-            player.disconnect(gsonComponentSerializer.deserialize(reason != null ? reason : "{}"));
+            player.disconnect(reason != null ? gsonComponentSerializer.deserialize(reason) : Component.empty());
             return true;
         });
     }
 
-    private CompletableFuture<CloudPlayer.ConnectResult> handleConnectRequest(String playerUniqueId, String serverName) {
+    private CompletableFuture<CloudPlayer.ConnectResult> handleConnectRequest(String playerUniqueId, ConnectTarget target) {
         Player player = proxyServer.getPlayer(UUID.fromString(playerUniqueId)).orElse(null);
         if (player == null) {
             return CompletableFuture.completedFuture(null);
         }
-        var registeredServer = proxyServer.getServer(serverName).orElse(null);
-        if (registeredServer == null) {
-            return CompletableFuture.completedFuture(CloudPlayer.ConnectResult.SERVER_NOT_FOUND);
-        }
+        return target.resolve(proxyServer::getServer, this::findServerByAddress)
+                .thenCompose(registeredServer -> registeredServer
+                        .map(server -> connect(player, server))
+                        .orElseGet(() -> CompletableFuture.completedFuture(CloudPlayer.ConnectResult.SERVER_NOT_FOUND)));
+    }
 
+    private Optional<RegisteredServer> findServerByAddress(String ip, int port) {
+        return proxyServer.getAllServers().stream()
+                .filter(server -> ConnectTarget.hasAddress(server.getServerInfo().getAddress(), ip, port))
+                .findFirst();
+    }
+
+    private CompletableFuture<CloudPlayer.ConnectResult> connect(Player player, RegisteredServer registeredServer) {
         return player.createConnectionRequest(registeredServer).connect()
                 .thenApply(result -> {
                     ConnectionRequestBuilder.Status status = result.getStatus();

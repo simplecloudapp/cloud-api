@@ -6,7 +6,6 @@ dependencies {
     api(project(":platform:shared"))
     compileOnly(rootProject.libs.paper.api)
     implementation(project(":api"))
-    implementation(rootProject.libs.faststats.bukkit)
 }
 
 modrinth {
