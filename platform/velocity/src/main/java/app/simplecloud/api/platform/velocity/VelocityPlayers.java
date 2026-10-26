@@ -11,14 +11,16 @@ import java.util.UUID;
 final class VelocityPlayers implements ProxyPlayers {
 
     private final ProxyServer proxyServer;
+    private final VelocityRegisteredServers registeredServers;
 
     VelocityPlayers(ProxyServer proxyServer) {
         this.proxyServer = proxyServer;
+        this.registeredServers = new VelocityRegisteredServers(proxyServer);
     }
 
     @Override
     public Optional<ProxyPlayer> findPlayer(UUID playerId) {
         Optional<Player> player = proxyServer.getPlayer(playerId);
-        return player.map(found -> new VelocityPlayer(proxyServer, found));
+        return player.map(found -> new VelocityPlayer(registeredServers, found));
     }
 }

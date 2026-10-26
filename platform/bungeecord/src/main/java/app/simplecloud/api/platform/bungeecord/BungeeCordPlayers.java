@@ -11,9 +11,11 @@ import java.util.UUID;
 final class BungeeCordPlayers implements ProxyPlayers {
 
     private final ProxyServer proxy;
+    private final BungeeCordRegisteredServers registeredServers;
 
     BungeeCordPlayers(ProxyServer proxy) {
         this.proxy = proxy;
+        this.registeredServers = new BungeeCordRegisteredServers(proxy);
     }
 
     @Override
@@ -22,6 +24,6 @@ final class BungeeCordPlayers implements ProxyPlayers {
         if (player == null) {
             return Optional.empty();
         }
-        return Optional.of(new BungeeCordPlayer(proxy, player));
+        return Optional.of(new BungeeCordPlayer(registeredServers, player));
     }
 }

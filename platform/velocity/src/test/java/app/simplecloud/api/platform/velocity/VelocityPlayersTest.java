@@ -41,12 +41,10 @@ class VelocityPlayersTest {
     }
 
     @Test
-    void connectToUnregisteredServerAnswersServerNotFound() {
+    void connectToUnresolvedTargetAnswersServerNotFound() {
         when(proxyServer.getPlayer(playerId)).thenReturn(Optional.of(player));
-        when(proxyServer.getServer("lobby-1")).thenReturn(Optional.empty());
-        ConnectTarget target = ConnectTarget.byName("lobby-1", serverId -> {
-            throw new AssertionError("Unexpected server lookup");
-        });
+        ConnectTarget target = mock(ConnectTarget.class);
+        when(target.resolve(any())).thenReturn(Optional.empty());
 
         ProxyPlayer proxyPlayer = players.findPlayer(playerId).orElseThrow();
         CloudPlayer.ConnectResult result = proxyPlayer.connect(target).join();

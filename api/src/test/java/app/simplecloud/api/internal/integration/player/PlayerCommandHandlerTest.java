@@ -2,7 +2,6 @@ package app.simplecloud.api.internal.integration.player;
 
 import app.simplecloud.api.internal.nats.FakeNatsConnection;
 import app.simplecloud.api.player.CloudPlayer;
-import app.simplecloud.api.server.ServerApi;
 import build.buf.gen.simplecloud.adventure.v1.AdventureComponent;
 import build.buf.gen.simplecloud.player.v2.ConnectPlayerRequest;
 import build.buf.gen.simplecloud.player.v2.ConnectPlayerResponse;
@@ -17,9 +16,9 @@ import org.junit.jupiter.api.Timeout;
 import org.junit.jupiter.params.ParameterizedTest;
 import org.junit.jupiter.params.provider.ValueSource;
 
-import java.lang.reflect.Proxy;
 import java.util.ArrayList;
 import java.util.List;
+import java.util.Map;
 import java.util.Optional;
 import java.util.Set;
 import java.util.UUID;
@@ -37,6 +36,7 @@ class PlayerCommandHandlerTest {
     private static final UUID OTHER_PLAYER_UUID = UUID.fromString(OTHER_PLAYER_ID);
     private static final String KICK_SUBSCRIPTION = NETWORK_ID + ".player.*.kick";
     private static final String CONNECT_SUBSCRIPTION = NETWORK_ID + ".player.*.connect";
+    private static final String SERVER_ID = "22222222-2222-2222-2222-222222222222";
 
     @Test
     void kickRequestForPlayerOnAnotherProxy_isNotAnswered() throws Exception {
@@ -172,18 +172,47 @@ class PlayerCommandHandlerTest {
         assertEquals(List.of(ConnectResult.CONNECT_RESULT_FAILED), publishedConnectResults(nats));
     }
 
-    private static void startCommandHandler(FakeNatsConnection nats, FakeProxyPlayers proxyPlayers) {
-        // Runs the kick on the calling thread, so the reply is published before deliver returns.
-        PlayerCommandHandler commandHandler = new PlayerCommandHandler(nats.connection(), NETWORK_ID, Runnable::run,
-                unusedServerApi(), proxyPlayers);
-        commandHandler.start();
+    @Test
+    void connectRequestWithServerId_reachesPlayerAsIdTarget() throws Exception {
+        FakeNatsConnection nats = FakeNatsConnection.withoutRequests();
+        FakeProxyPlayers proxyPlayers = FakeProxyPlayers.connected(PLAYER_UUID);
+        startCommandHandler(nats, proxyPlayers);
+        ConnectPlayerRequest request = ConnectPlayerRequest.newBuilder()
+                .setPlayerId(PLAYER_ID)
+                .setServerId(SERVER_ID)
+                .build();
+
+        nats.deliver(CONNECT_SUBSCRIPTION, connectMessage(PLAYER_ID, request));
+
+        ConnectTarget target = proxyPlayers.connectTargets.get(0);
+        RegisteredServers<String> registeredServers =
+                new FakeRegisteredServers(Map.of(), Map.of(SERVER_ID, "lobby-1"));
+        Optional<String> resolved = target.resolve(registeredServers);
+        assertEquals(List.of(PLAYER_UUID), proxyPlayers.connectRequests);
+        assertEquals(Optional.of("lobby-1"), resolved);
+        assertEquals(List.of(ConnectResult.CONNECT_RESULT_SUCCESS), publishedConnectResults(nats));
     }
 
-    private static ServerApi unusedServerApi() {
-        return (ServerApi) Proxy.newProxyInstance(
-                ServerApi.class.getClassLoader(), new Class<?>[]{ServerApi.class}, (proxy, method, args) -> {
-                    throw new AssertionError("Unexpected server API call: " + method.getName());
-                });
+    @Test
+    void connectThrowingFromServerLookup_answersConnectionFailed() throws Exception {
+        FakeNatsConnection nats = FakeNatsConnection.withoutRequests();
+        IllegalStateException lookupFailure = new IllegalStateException("server lookup failed");
+        FakeProxyPlayers proxyPlayers = FakeProxyPlayers.connectedFailingToConnect(PLAYER_UUID, lookupFailure);
+        startCommandHandler(nats, proxyPlayers);
+        ConnectPlayerRequest request = ConnectPlayerRequest.newBuilder()
+                .setPlayerId(PLAYER_ID)
+                .setServerId(SERVER_ID)
+                .build();
+
+        nats.deliver(CONNECT_SUBSCRIPTION, connectMessage(PLAYER_ID, request));
+
+        assertEquals(List.of(ConnectResult.CONNECT_RESULT_FAILED), publishedConnectResults(nats));
+    }
+
+    private static void startCommandHandler(FakeNatsConnection nats, FakeProxyPlayers proxyPlayers) {
+        // Runs the kick on the calling thread, so the reply is published before deliver returns.
+        PlayerCommandHandler commandHandler = new PlayerCommandHandler(nats.connection(), NETWORK_ID, Runnable::run, proxyPlayers);
+        commandHandler.start();
     }
 
     private static Message kickMessage(String subjectPlayerId, KickPlayerRequest request) {
@@ -225,22 +254,39 @@ class PlayerCommandHandlerTest {
     private record Kick(UUID playerId, Component reason) {
     }
 
+    private interface ConnectOutcome {
+
+        ConnectOutcome SUCCEEDS = () -> CompletableFuture.completedFuture(CloudPlayer.ConnectResult.SUCCESS);
+
+        CompletableFuture<CloudPlayer.ConnectResult> connect();
+    }
+
     private static final class FakeProxyPlayers implements ProxyPlayers {
 
         private final Set<UUID> players;
+        private final ConnectOutcome connectOutcome;
         private final List<Kick> kicks = new ArrayList<>();
         private final List<UUID> connectRequests = new ArrayList<>();
+        private final List<ConnectTarget> connectTargets = new ArrayList<>();
 
-        private FakeProxyPlayers(Set<UUID> players) {
+        private FakeProxyPlayers(Set<UUID> players, ConnectOutcome connectOutcome) {
             this.players = players;
+            this.connectOutcome = connectOutcome;
         }
 
         static FakeProxyPlayers withoutPlayers() {
-            return new FakeProxyPlayers(Set.of());
+            return new FakeProxyPlayers(Set.of(), ConnectOutcome.SUCCEEDS);
         }
 
         static FakeProxyPlayers connected(UUID... playerIds) {
-            return new FakeProxyPlayers(Set.of(playerIds));
+            return new FakeProxyPlayers(Set.of(playerIds), ConnectOutcome.SUCCEEDS);
+        }
+
+        static FakeProxyPlayers connectedFailingToConnect(UUID playerId, RuntimeException connectFailure) {
+            ConnectOutcome throwsFailure = () -> {
+                throw connectFailure;
+            };
+            return new FakeProxyPlayers(Set.of(playerId), throwsFailure);
         }
 
         @Override
@@ -267,7 +313,8 @@ class PlayerCommandHandlerTest {
             @Override
             public CompletableFuture<CloudPlayer.ConnectResult> connect(ConnectTarget target) {
                 connectRequests.add(playerId);
-                return CompletableFuture.completedFuture(CloudPlayer.ConnectResult.SUCCESS);
+                connectTargets.add(target);
+                return connectOutcome.connect();
             }
         }
     }

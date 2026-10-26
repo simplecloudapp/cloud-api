@@ -14,6 +14,7 @@ import org.junit.jupiter.api.Test;
 import org.mockito.ArgumentCaptor;
 import org.mockito.ArgumentMatchers;
 
+import java.util.Optional;
 import java.util.UUID;
 
 import static org.junit.jupiter.api.Assertions.assertEquals;
@@ -46,11 +47,10 @@ class BungeeCordPlayersTest {
     }
 
     @Test
-    void connectToUnregisteredServerAnswersServerNotFound() {
+    void connectToUnresolvedTargetAnswersServerNotFound() {
         when(proxy.getPlayer(playerId)).thenReturn(player);
-        ConnectTarget target = ConnectTarget.byName("lobby-1", serverId -> {
-            throw new AssertionError("Unexpected server lookup");
-        });
+        ConnectTarget target = mock(ConnectTarget.class);
+        when(target.resolve(any())).thenReturn(Optional.empty());
 
         ProxyPlayer proxyPlayer = players.findPlayer(playerId).orElseThrow();
         CloudPlayer.ConnectResult result = proxyPlayer.connect(target).join();

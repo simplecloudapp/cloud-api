@@ -2,10 +2,10 @@ package app.simplecloud.api.platform.bungeecord;
 
 import app.simplecloud.api.internal.integration.player.ConnectTarget;
 import app.simplecloud.api.internal.integration.player.ProxyPlayer;
+import app.simplecloud.api.internal.integration.player.RegisteredServers;
 import app.simplecloud.api.player.CloudPlayer;
 import net.kyori.adventure.text.Component;
 import net.kyori.adventure.text.serializer.bungeecord.BungeeComponentSerializer;
-import net.md_5.bungee.api.ProxyServer;
 import net.md_5.bungee.api.chat.BaseComponent;
 import net.md_5.bungee.api.config.ServerInfo;
 import net.md_5.bungee.api.connection.ProxiedPlayer;
@@ -15,11 +15,11 @@ import java.util.concurrent.CompletableFuture;
 
 final class BungeeCordPlayer implements ProxyPlayer {
 
-    private final ProxyServer proxy;
+    private final RegisteredServers<ServerInfo> registeredServers;
     private final ProxiedPlayer player;
 
-    BungeeCordPlayer(ProxyServer proxy, ProxiedPlayer player) {
-        this.proxy = proxy;
+    BungeeCordPlayer(RegisteredServers<ServerInfo> registeredServers, ProxiedPlayer player) {
+        this.registeredServers = registeredServers;
         this.player = player;
     }
 
@@ -31,16 +31,11 @@ final class BungeeCordPlayer implements ProxyPlayer {
 
     @Override
     public CompletableFuture<CloudPlayer.ConnectResult> connect(ConnectTarget target) {
-        return target.resolve(name -> Optional.ofNullable(proxy.getServerInfo(name)), this::findServerByAddress)
-                .thenCompose(serverInfo -> serverInfo
-                        .map(this::connectTo)
-                        .orElseGet(() -> CompletableFuture.completedFuture(CloudPlayer.ConnectResult.SERVER_NOT_FOUND)));
-    }
-
-    private Optional<ServerInfo> findServerByAddress(String ip, int port) {
-        return proxy.getServers().values().stream()
-                .filter(server -> ConnectTarget.hasAddress(server.getSocketAddress(), ip, port))
-                .findFirst();
+        Optional<ServerInfo> serverInfo = target.resolve(registeredServers);
+        if (serverInfo.isEmpty()) {
+            return CompletableFuture.completedFuture(CloudPlayer.ConnectResult.SERVER_NOT_FOUND);
+        }
+        return connectTo(serverInfo.get());
     }
 
     private CompletableFuture<CloudPlayer.ConnectResult> connectTo(ServerInfo serverInfo) {

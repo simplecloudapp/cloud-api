@@ -2,7 +2,6 @@ package app.simplecloud.api.internal.integration.player;
 
 import app.simplecloud.api.internal.CloudApiImpl;
 import app.simplecloud.api.player.CloudPlayer;
-import app.simplecloud.api.server.ServerApi;
 import build.buf.gen.simplecloud.player.v2.*;
 import io.nats.client.Connection;
 import io.nats.client.Dispatcher;
@@ -24,22 +23,19 @@ public class PlayerCommandHandler {
     private final Connection natsConnection;
     private final String networkId;
     private final Executor executor;
-    private final ServerApi serverApi;
     private final ProxyPlayers proxyPlayers;
     private final AtomicBoolean running = new AtomicBoolean(false);
 
     private Dispatcher requestDispatcher;
 
     public PlayerCommandHandler(CloudApiImpl cloudApi, ProxyPlayers proxyPlayers) {
-        this(cloudApi.getNatsConnection(), cloudApi.getNetworkId(), cloudApi.getExecutor(), cloudApi.server(), proxyPlayers);
+        this(cloudApi.getNatsConnection(), cloudApi.getNetworkId(), cloudApi.getExecutor(), proxyPlayers);
     }
 
-    PlayerCommandHandler(Connection natsConnection, String networkId, Executor executor, ServerApi serverApi,
-                         ProxyPlayers proxyPlayers) {
+    PlayerCommandHandler(Connection natsConnection, String networkId, Executor executor, ProxyPlayers proxyPlayers) {
         this.natsConnection = natsConnection;
         this.networkId = networkId;
         this.executor = executor;
-        this.serverApi = serverApi;
         this.proxyPlayers = proxyPlayers;
     }
 
@@ -112,9 +108,7 @@ public class PlayerCommandHandler {
             // Every proxy receives the request; only the proxy holding the player answers.
             if (player.isEmpty()) return;
 
-            ConnectTarget target = request.getServerId().isEmpty()
-                    ? ConnectTarget.byName(request.getServerName(), serverApi::findServerById)
-                    : ConnectTarget.byId(request.getServerId(), serverApi::findServerById);
+            ConnectTarget target = ConnectTarget.from(request);
 
             player.get().connect(target)
                     .thenAccept(result -> sendConnectResponse(msg, result))
