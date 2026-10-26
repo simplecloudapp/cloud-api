@@ -3,7 +3,8 @@ package app.simplecloud.api.platform.velocity;
 import app.simplecloud.api.CloudApi;
 import app.simplecloud.api.internal.CloudApiImpl;
 import app.simplecloud.api.internal.integration.player.ConnectTarget;
-import app.simplecloud.api.internal.integration.player.PlayerIntegration;
+import app.simplecloud.api.internal.integration.player.PlayerCommandHandler;
+import app.simplecloud.api.internal.integration.player.PlayerSessionReporter;
 import app.simplecloud.api.internal.integration.presence.ProxyPresenceResponder;
 import app.simplecloud.api.internal.integration.presence.ProxyPresenceTracker;
 import app.simplecloud.api.presence.ProxyPresencePlayer;
@@ -47,7 +48,8 @@ public class CloudApiVelocityPlugin implements ProxyPresencePlayerProvider {
     private final CloudApiImpl cloudApi;
     private final String proxyName;
     private final PlayerSynchronizer playerSynchronizer;
-    private final PlayerIntegration playerIntegration;
+    private final PlayerSessionReporter playerSessionReporter;
+    private final PlayerCommandHandler playerCommandHandler;
     private final ProxyPresenceTracker proxyPresenceTracker;
     private final ProxyPresenceResponder proxyPresenceResponder;
     private LuckPermsPlayerPropertySynchronizer luckPermsSynchronizer;
@@ -67,7 +69,8 @@ public class CloudApiVelocityPlugin implements ProxyPresencePlayerProvider {
             cloudApi,
             () -> (long) proxyServer.getPlayerCount()
         );
-        this.playerIntegration = new PlayerIntegration(cloudApi);
+        this.playerSessionReporter = new PlayerSessionReporter(cloudApi);
+        this.playerCommandHandler = new PlayerCommandHandler(cloudApi);
         this.proxyPresenceTracker = new ProxyPresenceTracker(proxyName);
         this.proxyPresenceResponder = new ProxyPresenceResponder(
                 cloudApi.getNatsConnection(),
@@ -76,8 +79,8 @@ public class CloudApiVelocityPlugin implements ProxyPresencePlayerProvider {
                 this
         );
 
-        playerIntegration.onKick(this::handleKickRequest);
-        playerIntegration.onConnect(this::handleConnectRequest);
+        playerCommandHandler.onKick(this::handleKickRequest);
+        playerCommandHandler.onConnect(this::handleConnectRequest);
     }
 
     @Subscribe
@@ -86,7 +89,7 @@ public class CloudApiVelocityPlugin implements ProxyPresencePlayerProvider {
         initializeLuckPermsIntegration();
         proxyServer.getEventManager().register(this, new PlayerConnectionListener(
                 playerSynchronizer,
-                playerIntegration,
+                playerSessionReporter,
                 proxyPresenceTracker,
                 proxyName,
                 this::synchronizeLuckPermsProperties,
@@ -94,7 +97,7 @@ public class CloudApiVelocityPlugin implements ProxyPresencePlayerProvider {
         ));
 
         playerSynchronizer.start();
-        playerIntegration.start();
+        playerCommandHandler.start();
         proxyPresenceResponder.start();
     }
 
@@ -106,7 +109,7 @@ public class CloudApiVelocityPlugin implements ProxyPresencePlayerProvider {
             luckPermsSynchronizer.stop();
         }
         playerSynchronizer.stop();
-        playerIntegration.stop();
+        playerCommandHandler.stop();
         cloudApi.close();
     }
 

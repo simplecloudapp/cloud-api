@@ -3,7 +3,8 @@ package app.simplecloud.api.platform.bungeecord;
 import app.simplecloud.api.CloudApi;
 import app.simplecloud.api.internal.CloudApiImpl;
 import app.simplecloud.api.internal.integration.player.ConnectTarget;
-import app.simplecloud.api.internal.integration.player.PlayerIntegration;
+import app.simplecloud.api.internal.integration.player.PlayerCommandHandler;
+import app.simplecloud.api.internal.integration.player.PlayerSessionReporter;
 import app.simplecloud.api.internal.integration.presence.ProxyPresenceResponder;
 import app.simplecloud.api.internal.integration.presence.ProxyPresenceTracker;
 import app.simplecloud.api.presence.ProxyPresencePlayer;
@@ -33,7 +34,8 @@ public class BungeeCordApiProvider extends Plugin implements ProxyPresencePlayer
     private CloudApiImpl cloudApi;
     private String proxyName;
     private PlayerSynchronizer playerSynchronizer;
-    private PlayerIntegration playerIntegration;
+    private PlayerSessionReporter playerSessionReporter;
+    private PlayerCommandHandler playerCommandHandler;
     private ProxyPresenceTracker proxyPresenceTracker;
     private ProxyPresenceResponder proxyPresenceResponder;
     private LuckPermsPlayerPropertySynchronizer luckPermsSynchronizer;
@@ -51,7 +53,8 @@ public class BungeeCordApiProvider extends Plugin implements ProxyPresencePlayer
             cloudApi,
             () -> (long) getProxy().getOnlineCount()
         );
-        this.playerIntegration = new PlayerIntegration(cloudApi);
+        this.playerSessionReporter = new PlayerSessionReporter(cloudApi);
+        this.playerCommandHandler = new PlayerCommandHandler(cloudApi);
         this.proxyPresenceTracker = new ProxyPresenceTracker(proxyName);
         this.proxyPresenceResponder = new ProxyPresenceResponder(
                 cloudApi.getNatsConnection(),
@@ -60,8 +63,8 @@ public class BungeeCordApiProvider extends Plugin implements ProxyPresencePlayer
                 this
         );
 
-        playerIntegration.onKick(this::handleKickRequest);
-        playerIntegration.onConnect(this::handleConnectRequest);
+        playerCommandHandler.onKick(this::handleKickRequest);
+        playerCommandHandler.onConnect(this::handleConnectRequest);
 
         this.bungeeAudiences = BungeeAudiences.create(this);
 
@@ -71,7 +74,7 @@ public class BungeeCordApiProvider extends Plugin implements ProxyPresencePlayer
         getProxy().getPluginManager().registerListener(this, new PlayerConnectionListener(
                 this,
                 playerSynchronizer,
-                playerIntegration,
+                playerSessionReporter,
                 proxyPresenceTracker,
                 proxyName,
                 this::synchronizeLuckPermsProperties,
@@ -79,7 +82,7 @@ public class BungeeCordApiProvider extends Plugin implements ProxyPresencePlayer
         ));
 
         playerSynchronizer.start();
-        playerIntegration.start();
+        playerCommandHandler.start();
         proxyPresenceResponder.start();
     }
 
@@ -91,7 +94,7 @@ public class BungeeCordApiProvider extends Plugin implements ProxyPresencePlayer
             luckPermsSynchronizer.stop();
         }
         playerSynchronizer.stop();
-        playerIntegration.stop();
+        playerCommandHandler.stop();
 
         if (bungeeAudiences != null) {
             bungeeAudiences.close();

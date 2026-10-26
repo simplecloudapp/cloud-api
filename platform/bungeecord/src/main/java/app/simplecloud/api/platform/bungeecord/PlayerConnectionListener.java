@@ -1,6 +1,6 @@
 package app.simplecloud.api.platform.bungeecord;
 
-import app.simplecloud.api.internal.integration.player.PlayerIntegration;
+import app.simplecloud.api.internal.integration.player.PlayerSessionReporter;
 import app.simplecloud.api.internal.integration.presence.ProxyPresenceTracker;
 import app.simplecloud.api.platform.shared.PlayerSynchronizer;
 import app.simplecloud.api.player.PlayerClientSettings;
@@ -32,7 +32,7 @@ public class PlayerConnectionListener implements Listener {
 
     private final Plugin plugin;
     private final PlayerSynchronizer playerSynchronizer;
-    private final PlayerIntegration playerIntegration;
+    private final PlayerSessionReporter playerSessionReporter;
     private final ProxyPresenceTracker proxyPresenceTracker;
     private final String proxyName;
     private final Consumer<UUID> synchronizePlayerProperties;
@@ -41,7 +41,7 @@ public class PlayerConnectionListener implements Listener {
     public PlayerConnectionListener(
             Plugin plugin,
             PlayerSynchronizer playerSynchronizer,
-            PlayerIntegration playerIntegration,
+            PlayerSessionReporter playerSessionReporter,
             ProxyPresenceTracker proxyPresenceTracker,
             String proxyName,
             Consumer<UUID> synchronizePlayerProperties,
@@ -49,7 +49,7 @@ public class PlayerConnectionListener implements Listener {
     ) {
         this.plugin = plugin;
         this.playerSynchronizer = playerSynchronizer;
-        this.playerIntegration = playerIntegration;
+        this.playerSessionReporter = playerSessionReporter;
         this.proxyPresenceTracker = proxyPresenceTracker;
         this.proxyName = proxyName;
         this.synchronizePlayerProperties = synchronizePlayerProperties;
@@ -63,7 +63,7 @@ public class PlayerConnectionListener implements Listener {
         String playerId = player.getUniqueId().toString();
         proxyPresenceTracker.trackLogin(playerId);
 
-        var registration = playerIntegration.login(
+        var registration = playerSessionReporter.login(
                 playerId,
                 player.getName(),
                 player.getDisplayName(),
@@ -101,7 +101,7 @@ public class PlayerConnectionListener implements Listener {
         ProxiedPlayer player = event.getPlayer();
         String playerId = player.getUniqueId().toString();
 
-        playerIntegration.disconnect(playerId)
+        playerSessionReporter.disconnect(playerId)
                 .exceptionally(e -> {
                     logger.log(Level.SEVERE, "Failed to send disconnect event for " + player.getName(), e);
                     return null;
@@ -130,7 +130,7 @@ public class PlayerConnectionListener implements Listener {
         String newServer = player.getServer() != null ? player.getServer().getInfo().getName() : null;
 
         if (newServer != null) {
-            playerIntegration.serverSwitch(player.getUniqueId().toString(), newServer)
+            playerSessionReporter.serverSwitch(player.getUniqueId().toString(), newServer)
                     .exceptionally(e -> {
                         logger.log(Level.SEVERE, "Failed to send server switch event for " + player.getName(), e);
                         return null;
@@ -139,7 +139,7 @@ public class PlayerConnectionListener implements Listener {
     }
 
     private void sendClientSettings(ProxiedPlayer player, String sessionId) {
-        playerIntegration.updateClientSettings(sessionId, toClientSettings(player))
+        playerSessionReporter.updateClientSettings(sessionId, toClientSettings(player))
                 .exceptionally(e -> {
                     logger.log(Level.SEVERE, "Failed to send client settings for " + player.getName(), e);
                     return null;

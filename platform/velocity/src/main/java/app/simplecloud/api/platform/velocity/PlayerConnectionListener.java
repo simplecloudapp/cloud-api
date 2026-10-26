@@ -1,6 +1,6 @@
 package app.simplecloud.api.platform.velocity;
 
-import app.simplecloud.api.internal.integration.player.PlayerIntegration;
+import app.simplecloud.api.internal.integration.player.PlayerSessionReporter;
 import app.simplecloud.api.internal.integration.presence.ProxyPresenceTracker;
 import app.simplecloud.api.platform.shared.PlayerSynchronizer;
 import app.simplecloud.api.player.PlayerClientSettings;
@@ -29,7 +29,7 @@ public class PlayerConnectionListener {
     private static final long LOGIN_WAIT_SECONDS = 5;
 
     private final PlayerSynchronizer playerSynchronizer;
-    private final PlayerIntegration playerIntegration;
+    private final PlayerSessionReporter playerSessionReporter;
     private final ProxyPresenceTracker proxyPresenceTracker;
     private final String proxyName;
     private final Consumer<UUID> synchronizePlayerProperties;
@@ -37,14 +37,14 @@ public class PlayerConnectionListener {
 
     public PlayerConnectionListener(
             PlayerSynchronizer playerSynchronizer,
-            PlayerIntegration playerIntegration,
+            PlayerSessionReporter playerSessionReporter,
             ProxyPresenceTracker proxyPresenceTracker,
             String proxyName,
             Consumer<UUID> synchronizePlayerProperties,
             Consumer<UUID> forgetPlayerProperties
     ) {
         this.playerSynchronizer = playerSynchronizer;
-        this.playerIntegration = playerIntegration;
+        this.playerSessionReporter = playerSessionReporter;
         this.proxyPresenceTracker = proxyPresenceTracker;
         this.proxyName = proxyName;
         this.synchronizePlayerProperties = synchronizePlayerProperties;
@@ -65,7 +65,7 @@ public class PlayerConnectionListener {
             texture = texturesProperty.get().getValue();
         }
 
-        CompletableFuture<Void> registration = playerIntegration.login(
+        CompletableFuture<Void> registration = playerSessionReporter.login(
                 playerId,
                 player.getUsername(),
                 player.getUsername(),
@@ -101,7 +101,7 @@ public class PlayerConnectionListener {
         Player player = event.getPlayer();
         String playerId = player.getUniqueId().toString();
 
-        playerIntegration.disconnect(playerId)
+        playerSessionReporter.disconnect(playerId)
                 .exceptionally(e -> {
                     logger.error("Failed to send disconnect event for {}: {}", player.getUsername(), e.getMessage());
                     return null;
@@ -129,7 +129,7 @@ public class PlayerConnectionListener {
         Player player = event.getPlayer();
         String newServer = event.getServer().getServerInfo().getName();
 
-        playerIntegration.serverSwitch(player.getUniqueId().toString(), newServer)
+        playerSessionReporter.serverSwitch(player.getUniqueId().toString(), newServer)
                 .exceptionally(e -> {
                     logger.error("Failed to send server switch event for {}: {}", player.getUsername(), e.getMessage());
                     return null;
@@ -137,7 +137,7 @@ public class PlayerConnectionListener {
     }
 
     private void sendClientSettings(Player player, String sessionId, PlayerSettings settings) {
-        playerIntegration.updateClientSettings(sessionId, toClientSettings(settings))
+        playerSessionReporter.updateClientSettings(sessionId, toClientSettings(settings))
                 .exceptionally(e -> {
                     logger.error("Failed to send client settings for {}: {}", player.getUsername(), e.getMessage());
                     return null;
