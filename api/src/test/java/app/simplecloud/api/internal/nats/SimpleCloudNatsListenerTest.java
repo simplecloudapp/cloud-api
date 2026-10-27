@@ -13,6 +13,7 @@ import java.util.logging.Level;
 import java.util.logging.LogRecord;
 import java.util.logging.Logger;
 
+import static org.junit.jupiter.api.Assertions.assertEquals;
 import static org.junit.jupiter.api.Assertions.assertFalse;
 import static org.junit.jupiter.api.Assertions.assertSame;
 import static org.junit.jupiter.api.Assertions.assertTrue;
@@ -82,7 +83,7 @@ class SimpleCloudNatsListenerTest {
     }
 
     @Test
-    void failoverConnectionsInstallSimpleCloudListenerForErrorsAndConnectionEvents() {
+    void failoverConnectionsUseNetworkInboxesAndSimpleCloudListeners() {
         SimpleCloudNatsListener listener = new SimpleCloudNatsListener();
         Options options = NatsFailoverConnectionManager.createOptions(
                 "nats://localhost:4222",
@@ -93,6 +94,7 @@ class SimpleCloudNatsListenerTest {
 
         assertSame(listener, options.getErrorListener());
         assertSame(listener, options.getConnectionListener());
+        assertEquals("network._INBOX.", options.getInboxPrefix());
     }
 
     private static List<LogRecord> captureDefaultErrorLogger(Runnable action) {

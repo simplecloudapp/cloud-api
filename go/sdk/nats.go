@@ -22,6 +22,9 @@ func (c *Client) NATS() (*nats.Conn, error) {
 		nats.Timeout(5 * time.Second),
 	}
 	options = append(options, c.options.NATSOptions...)
+	// Reply subjects must stay within this network, including when callers
+	// supply their own connection options.
+	options = append(options, nats.CustomInboxPrefix(c.options.NetworkID+"._INBOX"))
 	connection, err := nats.Connect(c.options.NATSURL, options...)
 	if err != nil {
 		return nil, fmt.Errorf("connect to SimpleCloud NATS: %w", err)
