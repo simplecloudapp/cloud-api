@@ -59,6 +59,10 @@ func main() {
 
 You can also pass `Options` directly to `NewClient`, including a custom `http.Client` or additional NATS options.
 
+NATS request reply subjects use `<networkId>._INBOX.<random>`. The SDK applies this network prefix after `NATSOptions`, so a custom inbox prefix cannot override it. Existing responders continue replying to the request's supplied reply subject.
+
+To run the NATS connection and reconnect integration tests, start an isolated NATS broker and run `NATS_TEST_URL=nats://127.0.0.1:4222 go test ./...`. Without this variable, the broker integration tests are skipped.
+
 ## Example project
 
 A small runnable command is available in [`examples/basic`](examples/basic). It loads the standard environment variables, lists the network's groups, and prints their names and IDs:
