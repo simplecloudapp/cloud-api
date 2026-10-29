@@ -90,7 +90,7 @@ public class BungeeCordApiProvider extends Plugin implements ProxyPresencePlayer
                     cloudApi,
                     LuckPermsProvider.get(),
                     this,
-                    new BungeeCordPlayers(getProxy()),
+                    playerId -> getProxy().getPlayer(playerId) != null,
                     (message, cause) -> getLogger().log(java.util.logging.Level.SEVERE, message, cause)
             );
             luckPermsSynchronizer.start();
