@@ -13,10 +13,6 @@ dependencies {
     }
     implementation(rootProject.libs.jnats)
 
-    // Match the plugin's runtime: adventure comes from adventure-platform-bungeecord, not from the API.
-    testImplementation(project(":api")) {
-        exclude(group = "net.kyori")
-    }
     testImplementation(rootProject.libs.junit.jupiter)
     testImplementation(rootProject.libs.mockito.core)
     testRuntimeOnly("org.junit.platform:junit-platform-launcher")
