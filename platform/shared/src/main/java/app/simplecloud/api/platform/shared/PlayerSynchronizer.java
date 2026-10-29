@@ -78,7 +78,7 @@ public class PlayerSynchronizer {
     void publishPlayerCount() {
         synchronized (publishLock) {
             try {
-                int playerCount = onlinePlayerCount.onlinePlayerCount();
+                int playerCount = onlinePlayerCount.count();
                 // Skip unchanged counts: every property patch is a controller write plus a ServerUpdated event.
                 if (lastPublishedCount != null && lastPublishedCount == playerCount) {
                     return;
