@@ -2,6 +2,7 @@ package app.simplecloud.api.internal.integration.player;
 
 import app.simplecloud.api.internal.CloudApiImpl;
 import app.simplecloud.api.player.CloudPlayer;
+import app.simplecloud.api.proxy.ProxyServerNames;
 import build.buf.gen.simplecloud.player.v2.*;
 import io.nats.client.Connection;
 import io.nats.client.Dispatcher;
@@ -109,9 +110,13 @@ public class PlayerCommandHandler {
             // Every proxy receives the request; only the proxy holding the player answers.
             if (player.isEmpty()) return;
 
-            ConnectTarget target = ConnectTarget.from(request);
+            Optional<String> proxyServerName = proxyServerNameOf(request);
+            if (proxyServerName.isEmpty()) {
+                sendConnectResponse(msg, CloudPlayer.ConnectResult.SERVER_NOT_FOUND);
+                return;
+            }
 
-            player.get().connect(target)
+            player.get().connect(proxyServerName.get())
                     .thenAccept(result -> sendConnectResponse(msg, result))
                     .exceptionally(e -> {
                         sendConnectResponse(msg, CloudPlayer.ConnectResult.CONNECTION_FAILED);
@@ -120,6 +125,17 @@ public class PlayerCommandHandler {
         } catch (Exception e) {
             sendConnectResponse(msg, CloudPlayer.ConnectResult.CONNECTION_FAILED);
         }
+    }
+
+    /**
+     * Returns the name under which this proxy registered the requested server.
+     * A server ID is mapped through {@link ProxyServerNames}; if both an ID and a name are set, the ID wins.
+     */
+    private static Optional<String> proxyServerNameOf(ConnectPlayerRequest request) {
+        if (request.getServerId().isEmpty()) {
+            return Optional.of(request.getServerName());
+        }
+        return ProxyServerNames.proxyNameOf(request.getServerId());
     }
 
     private void sendConnectResponse(Message msg, CloudPlayer.ConnectResult result) {

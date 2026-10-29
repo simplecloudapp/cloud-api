@@ -1,25 +1,23 @@
 package app.simplecloud.api.platform.bungeecord;
 
-import app.simplecloud.api.internal.integration.player.ConnectTarget;
 import app.simplecloud.api.internal.integration.player.ProxyPlayer;
-import app.simplecloud.api.internal.integration.player.RegisteredServers;
 import app.simplecloud.api.player.CloudPlayer;
 import net.kyori.adventure.text.Component;
 import net.kyori.adventure.text.serializer.bungeecord.BungeeComponentSerializer;
+import net.md_5.bungee.api.ProxyServer;
 import net.md_5.bungee.api.chat.BaseComponent;
 import net.md_5.bungee.api.config.ServerInfo;
 import net.md_5.bungee.api.connection.ProxiedPlayer;
 
-import java.util.Optional;
 import java.util.concurrent.CompletableFuture;
 
 final class BungeeCordPlayer implements ProxyPlayer {
 
-    private final RegisteredServers<ServerInfo> registeredServers;
+    private final ProxyServer proxy;
     private final ProxiedPlayer player;
 
-    BungeeCordPlayer(RegisteredServers<ServerInfo> registeredServers, ProxiedPlayer player) {
-        this.registeredServers = registeredServers;
+    BungeeCordPlayer(ProxyServer proxy, ProxiedPlayer player) {
+        this.proxy = proxy;
         this.player = player;
     }
 
@@ -30,12 +28,12 @@ final class BungeeCordPlayer implements ProxyPlayer {
     }
 
     @Override
-    public CompletableFuture<CloudPlayer.ConnectResult> connect(ConnectTarget target) {
-        Optional<ServerInfo> serverInfo = target.resolve(registeredServers);
-        if (serverInfo.isEmpty()) {
+    public CompletableFuture<CloudPlayer.ConnectResult> connect(String proxyServerName) {
+        ServerInfo serverInfo = proxy.getServerInfo(proxyServerName);
+        if (serverInfo == null) {
             return CompletableFuture.completedFuture(CloudPlayer.ConnectResult.SERVER_NOT_FOUND);
         }
-        return connectTo(serverInfo.get());
+        return connectTo(serverInfo);
     }
 
     private CompletableFuture<CloudPlayer.ConnectResult> connectTo(ServerInfo serverInfo) {

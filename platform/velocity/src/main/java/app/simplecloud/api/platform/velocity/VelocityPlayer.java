@@ -1,11 +1,10 @@
 package app.simplecloud.api.platform.velocity;
 
-import app.simplecloud.api.internal.integration.player.ConnectTarget;
 import app.simplecloud.api.internal.integration.player.ProxyPlayer;
-import app.simplecloud.api.internal.integration.player.RegisteredServers;
 import app.simplecloud.api.player.CloudPlayer;
 import com.velocitypowered.api.proxy.ConnectionRequestBuilder;
 import com.velocitypowered.api.proxy.Player;
+import com.velocitypowered.api.proxy.ProxyServer;
 import com.velocitypowered.api.proxy.server.RegisteredServer;
 import net.kyori.adventure.text.Component;
 
@@ -14,11 +13,11 @@ import java.util.concurrent.CompletableFuture;
 
 final class VelocityPlayer implements ProxyPlayer {
 
-    private final RegisteredServers<RegisteredServer> registeredServers;
+    private final ProxyServer proxyServer;
     private final Player player;
 
-    VelocityPlayer(RegisteredServers<RegisteredServer> registeredServers, Player player) {
-        this.registeredServers = registeredServers;
+    VelocityPlayer(ProxyServer proxyServer, Player player) {
+        this.proxyServer = proxyServer;
         this.player = player;
     }
 
@@ -28,8 +27,8 @@ final class VelocityPlayer implements ProxyPlayer {
     }
 
     @Override
-    public CompletableFuture<CloudPlayer.ConnectResult> connect(ConnectTarget target) {
-        Optional<RegisteredServer> registeredServer = target.resolve(registeredServers);
+    public CompletableFuture<CloudPlayer.ConnectResult> connect(String proxyServerName) {
+        Optional<RegisteredServer> registeredServer = proxyServer.getServer(proxyServerName);
         if (registeredServer.isEmpty()) {
             return CompletableFuture.completedFuture(CloudPlayer.ConnectResult.SERVER_NOT_FOUND);
         }

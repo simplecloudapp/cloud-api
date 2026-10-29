@@ -1,6 +1,5 @@
 package app.simplecloud.api.platform.bungeecord;
 
-import app.simplecloud.api.internal.integration.player.ConnectTarget;
 import app.simplecloud.api.internal.integration.player.ProxyPlayer;
 import app.simplecloud.api.player.CloudPlayer;
 import net.kyori.adventure.text.Component;
@@ -14,7 +13,6 @@ import org.junit.jupiter.api.Test;
 import org.mockito.ArgumentCaptor;
 import org.mockito.ArgumentMatchers;
 
-import java.util.Optional;
 import java.util.UUID;
 
 import static org.junit.jupiter.api.Assertions.assertEquals;
@@ -47,13 +45,11 @@ class BungeeCordPlayersTest {
     }
 
     @Test
-    void connectToUnresolvedTargetAnswersServerNotFound() {
+    void connectToUnregisteredServerAnswersServerNotFound() {
         when(proxy.getPlayer(playerId)).thenReturn(player);
-        ConnectTarget target = mock(ConnectTarget.class);
-        when(target.resolve(any())).thenReturn(Optional.empty());
 
         ProxyPlayer proxyPlayer = players.findPlayer(playerId).orElseThrow();
-        CloudPlayer.ConnectResult result = proxyPlayer.connect(target).join();
+        CloudPlayer.ConnectResult result = proxyPlayer.connect("lobby-1").join();
 
         assertEquals(CloudPlayer.ConnectResult.SERVER_NOT_FOUND, result);
         verify(player, never()).connect(any(ServerInfo.class), ArgumentMatchers.<Callback<Boolean>>any());

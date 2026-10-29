@@ -1,6 +1,5 @@
 package app.simplecloud.api.platform.velocity;
 
-import app.simplecloud.api.internal.integration.player.ConnectTarget;
 import app.simplecloud.api.internal.integration.player.ProxyPlayer;
 import app.simplecloud.api.player.CloudPlayer;
 import com.velocitypowered.api.proxy.Player;
@@ -41,13 +40,12 @@ class VelocityPlayersTest {
     }
 
     @Test
-    void connectToUnresolvedTargetAnswersServerNotFound() {
+    void connectToUnregisteredServerAnswersServerNotFound() {
         when(proxyServer.getPlayer(playerId)).thenReturn(Optional.of(player));
-        ConnectTarget target = mock(ConnectTarget.class);
-        when(target.resolve(any())).thenReturn(Optional.empty());
+        when(proxyServer.getServer("lobby-1")).thenReturn(Optional.empty());
 
         ProxyPlayer proxyPlayer = players.findPlayer(playerId).orElseThrow();
-        CloudPlayer.ConnectResult result = proxyPlayer.connect(target).join();
+        CloudPlayer.ConnectResult result = proxyPlayer.connect("lobby-1").join();
 
         assertEquals(CloudPlayer.ConnectResult.SERVER_NOT_FOUND, result);
         verify(player, never()).createConnectionRequest(any());

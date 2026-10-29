@@ -16,7 +16,8 @@ public interface ProxyPlayer {
     void kick(Component reason);
 
     /**
-     * Connects the player to the target server, for a connect request from the controller or {@code connectDirect}.
+     * Connects the player to the server this proxy registered under the given name, for a connect request
+     * from the controller or {@code connectDirect}. Answers {@code SERVER_NOT_FOUND} if no server has that name.
      */
-    CompletableFuture<CloudPlayer.ConnectResult> connect(ConnectTarget target);
+    CompletableFuture<CloudPlayer.ConnectResult> connect(String proxyServerName);
 }
