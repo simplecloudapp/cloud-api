@@ -129,7 +129,7 @@ public final class InlineBlueprintSupport {
     /**
      * Deletes the inline blueprint after creating the resource that references it failed,
      * and returns the exception the caller throws.
-     * Keeps the blueprint if the resource may have been created and turns out to exist.
+     * Keeps the blueprint if the resource may have been created and either turns out to exist or can't be checked.
      *
      * @param resourceKind names the resource in the failure message, for example {@code "group"}
      * @return the create failure, or a rollback failure wrapping it if the blueprint could not be deleted
