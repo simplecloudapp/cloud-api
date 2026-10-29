@@ -36,7 +36,8 @@ public class BungeeCordApiProvider extends Plugin implements ProxyPresencePlayer
     @Override
     public void onEnable() {
         this.cloudApi = (CloudApiImpl) CloudApi.create();
-        // Created before anything else that can fail, so onDisable can always stop it.
+        // Created right after the CloudApi and stopped first in onDisable, so onDisable stops it
+        // even if a later step of onEnable fails.
         this.playerPropertySynchronizer = createPlayerPropertySynchronizer();
         this.proxyName = SimpleCloudRuntime.serverName();
         this.playerSynchronizer = new PlayerSynchronizer(cloudApi, getProxy()::getOnlineCount);
@@ -70,8 +71,8 @@ public class BungeeCordApiProvider extends Plugin implements ProxyPresencePlayer
     @Override
     public void onDisable() {
         getLogger().info("SimpleCloud v3 API provider uninitialized!");
-        proxyPresenceResponder.stop();
         playerPropertySynchronizer.stop();
+        proxyPresenceResponder.stop();
         playerSynchronizer.stop();
         playerCommandHandler.stop();
 
