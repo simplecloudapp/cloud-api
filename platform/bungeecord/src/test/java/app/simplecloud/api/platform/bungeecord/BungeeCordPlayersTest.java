@@ -54,4 +54,22 @@ class BungeeCordPlayersTest {
         assertEquals(CloudPlayer.ConnectResult.SERVER_NOT_FOUND, result);
         verify(player, never()).connect(any(ServerInfo.class), ArgumentMatchers.<Callback<Boolean>>any());
     }
+
+    @Test
+    void connectToRegisteredServerConnectsThePlayerToIt() {
+        ServerInfo lobby = mock(ServerInfo.class);
+        when(proxy.getPlayer(playerId)).thenReturn(player);
+        when(proxy.getServerInfo("lobby-1")).thenReturn(lobby);
+        doAnswer(invocation -> {
+            Callback<Boolean> callback = invocation.getArgument(1);
+            callback.done(true, null);
+            return null;
+        }).when(player).connect(eq(lobby), ArgumentMatchers.<Callback<Boolean>>any());
+
+        ProxyPlayer proxyPlayer = players.findPlayer(playerId).orElseThrow();
+        CloudPlayer.ConnectResult result = proxyPlayer.connect("lobby-1").join();
+
+        assertEquals(CloudPlayer.ConnectResult.SUCCESS, result);
+        verify(player).connect(eq(lobby), ArgumentMatchers.<Callback<Boolean>>any());
+    }
 }
