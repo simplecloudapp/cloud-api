@@ -381,6 +381,30 @@ class GroupApiImplTest {
     }
 
     @Test
+    void createGroup_http5xx_keepsBlueprintWhenReconciliationFails() {
+        AtomicInteger order = new AtomicInteger();
+        FakeBlueprintsApi blueprintsApi = new FakeBlueprintsApi(order);
+        FakeServerGroupsApi serverGroupsApi = new FakeServerGroupsApi(order);
+        serverGroupsApi.postFailure = new ApiException(500, "controller unavailable");
+        serverGroupsApi.listFailure = new ApiException(503, "still unavailable");
+
+        GroupApiImpl api = new GroupApiImpl(options(), new NoOpQueryCache(), serverGroupsApi, blueprintsApi);
+        CreateGroupRequest request = CreateGroupRequest.builder()
+                .name("Lobby")
+                .createBlueprint(CreateBlueprintRequest.builder().build())
+                .build();
+
+        CompletionException failure = assertThrows(CompletionException.class, () -> api.createGroup(request).join());
+
+        Throwable[] suppressed = serverGroupsApi.postFailure.getSuppressed();
+        assertSame(serverGroupsApi.postFailure, failure.getCause().getCause());
+        assertEquals(1, suppressed.length);
+        assertSame(serverGroupsApi.listFailure, suppressed[0].getCause());
+        assertEquals(1, serverGroupsApi.getCalls);
+        assertEquals(List.of(), blueprintsApi.deletedBlueprintIds);
+    }
+
+    @Test
     void createGroup_inlineBlueprintRejectsConflictingSourceImage() {
         AtomicInteger order = new AtomicInteger();
         FakeBlueprintsApi blueprintsApi = new FakeBlueprintsApi(order);
@@ -541,6 +565,7 @@ class GroupApiImplTest {
         private ModelsCreateServerGroupRequest lastCreateRequest;
         private ModelsPatchServerGroupRequest lastPatchRequest;
         private ApiException postFailure;
+        private ApiException listFailure;
         private ModelsListServerGroupsResponse listResponse = new ModelsListServerGroupsResponse();
 
         private FakeServerGroupsApi(AtomicInteger order) {
@@ -623,10 +648,13 @@ class GroupApiImplTest {
                                                                 String sourceType,
                                                                 String blueprintId,
                                                                 Integer limit,
-                                                                Integer offset) {
+                                                                Integer offset) throws ApiException {
             getCalls++;
             lastServerGroupId = serverGroupId;
             lastName = name;
+            if (listFailure != null) {
+                throw listFailure;
+            }
             return listResponse;
         }
     }

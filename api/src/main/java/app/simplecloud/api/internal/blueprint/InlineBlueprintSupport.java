@@ -132,7 +132,8 @@ public final class InlineBlueprintSupport {
      * Keeps the blueprint if the resource may have been created and either turns out to exist or can't be checked.
      *
      * @param resourceKind names the resource in the failure message, for example {@code "group"}
-     * @return the create failure, or a rollback failure wrapping it if the blueprint could not be deleted
+     * @return the create failure converted to a {@link CloudApiException}, or a rollback failure wrapping it if
+     * the blueprint could not be deleted
      */
     public CloudApiException rollBackAfterCreateFailure(String resourceKind,
                                                         @Nullable String blueprintId,
