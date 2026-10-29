@@ -76,7 +76,7 @@ public class PlayerConnectionListener implements Listener {
                 null
         );
 
-        var registration = playerSessionReporter.login(login);
+        var registration = playerSessionReporter.reportLogin(login);
         // Keep the initial backend connection behind controller registration.
         event.registerIntent(plugin);
         registration.thenAccept(result -> {
@@ -104,7 +104,7 @@ public class PlayerConnectionListener implements Listener {
         ProxiedPlayer player = event.getPlayer();
         UUID playerId = player.getUniqueId();
 
-        playerSessionReporter.disconnect(playerId)
+        playerSessionReporter.reportDisconnect(playerId)
                 .exceptionally(e -> {
                     logger.log(Level.SEVERE, "Failed to send disconnect event for " + player.getName(), e);
                     return null;
@@ -133,7 +133,7 @@ public class PlayerConnectionListener implements Listener {
         String newServer = player.getServer() != null ? player.getServer().getInfo().getName() : null;
 
         if (newServer != null) {
-            playerSessionReporter.serverSwitch(player.getUniqueId(), newServer)
+            playerSessionReporter.reportServerSwitch(player.getUniqueId(), newServer)
                     .exceptionally(e -> {
                         logger.log(Level.SEVERE, "Failed to send server switch event for " + player.getName(), e);
                         return null;
@@ -142,7 +142,7 @@ public class PlayerConnectionListener implements Listener {
     }
 
     private void sendClientSettings(ProxiedPlayer player, String sessionId) {
-        playerSessionReporter.updateClientSettings(sessionId, toClientSettings(player))
+        playerSessionReporter.reportClientSettings(sessionId, toClientSettings(player))
                 .exceptionally(e -> {
                     logger.log(Level.SEVERE, "Failed to send client settings for " + player.getName(), e);
                     return null;

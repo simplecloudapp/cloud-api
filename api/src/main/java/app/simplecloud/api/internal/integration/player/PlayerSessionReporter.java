@@ -37,7 +37,7 @@ public class PlayerSessionReporter {
     /**
      * Notifies the controller that a player logged in.
      */
-    public CompletableFuture<LoginResult> login(PlayerLogin login) {
+    public CompletableFuture<LoginResult> reportLogin(PlayerLogin login) {
         return CompletableFuture.supplyAsync(() -> {
             try {
                 PlayerLoginRequest.Builder builder = PlayerLoginRequest.newBuilder()
@@ -75,7 +75,7 @@ public class PlayerSessionReporter {
      * Notifies the controller that a player disconnected.
      * Completes exceptionally if the controller rejects the request or no valid reply is received.
      */
-    public CompletableFuture<Void> disconnect(UUID playerId) {
+    public CompletableFuture<Void> reportDisconnect(UUID playerId) {
         return CompletableFuture.runAsync(() -> {
             try {
                 PlayerDisconnectRequest request = PlayerDisconnectRequest.newBuilder()
@@ -103,7 +103,7 @@ public class PlayerSessionReporter {
      * Notifies the controller that a player switched servers.
      * Completes exceptionally if the controller rejects the request or no valid reply is received.
      */
-    public CompletableFuture<Void> serverSwitch(UUID playerId, String newServerName) {
+    public CompletableFuture<Void> reportServerSwitch(UUID playerId, String newServerName) {
         return CompletableFuture.runAsync(() -> {
             try {
                 PlayerServerSwitchRequest request = PlayerServerSwitchRequest.newBuilder()
@@ -132,7 +132,7 @@ public class PlayerSessionReporter {
     /**
      * Notifies the controller that a player's client settings changed.
      */
-    public CompletableFuture<Void> updateClientSettings(String sessionId, PlayerClientSettings settings) {
+    public CompletableFuture<Void> reportClientSettings(String sessionId, PlayerClientSettings settings) {
         return CompletableFuture.runAsync(() -> {
             try {
                 build.buf.gen.simplecloud.player.v2.PlayerClientSettings.Builder settingsBuilder =

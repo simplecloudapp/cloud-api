@@ -42,8 +42,8 @@ class PlayerSessionReporterTest {
 
         CompletableFuture<Void> invoke(PlayerSessionReporter reporter) {
             return this == DISCONNECT
-                    ? reporter.disconnect(PLAYER_UUID)
-                    : reporter.serverSwitch(PLAYER_UUID, "lobby-1");
+                    ? reporter.reportDisconnect(PLAYER_UUID)
+                    : reporter.reportServerSwitch(PLAYER_UUID, "lobby-1");
         }
 
         byte[] response(boolean success) {
@@ -83,7 +83,7 @@ class PlayerSessionReporterTest {
                 PlayerDisconnectResponse.newBuilder().setSuccess(true).build().toByteArray()
         ));
 
-        assertNull(reporter.disconnect(PLAYER_UUID).join());
+        assertNull(reporter.reportDisconnect(PLAYER_UUID).join());
     }
 
     @ParameterizedTest
@@ -164,7 +164,7 @@ class PlayerSessionReporterTest {
 
         PlayerLogin login = new PlayerLogin(PLAYER_UUID, "Player", "Player", "proxy-1", "hash", "en_US", 1, true, null);
 
-        LoginResult result = reporter.login(login).join();
+        LoginResult result = reporter.reportLogin(login).join();
 
         assertFalse(result.isSuccess());
         assertEquals("login rejected", result.getErrorMessage());
@@ -180,7 +180,7 @@ class PlayerSessionReporterTest {
         });
         PlayerLogin login = new PlayerLogin(PLAYER_UUID, "Player", "Display", "proxy-1", "hash", "de_DE", 767, true, "skin");
 
-        LoginResult result = reporter.login(login).join();
+        LoginResult result = reporter.reportLogin(login).join();
 
         PlayerLoginRequest request = sentRequest.get();
         assertEquals("session-1", result.getSessionId());
@@ -204,7 +204,7 @@ class PlayerSessionReporterTest {
         });
         PlayerLogin login = new PlayerLogin(PLAYER_UUID, "Player", "Player", "proxy-1", "hash", "en_US", 767, false, null);
 
-        reporter.login(login).join();
+        reporter.reportLogin(login).join();
 
         assertEquals("", sentRequest.get().getTexture());
     }
