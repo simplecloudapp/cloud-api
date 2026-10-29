@@ -176,7 +176,8 @@ class PlayerSessionReporterTest {
         PlayerSessionReporter reporter = reporterAnswering((subject, data, timeout) -> {
             assertEquals(NETWORK_ID + ".player.login", subject);
             sentRequest.set(PlayerLoginRequest.parseFrom(data));
-            return FakeNatsConnection.reply(PlayerLoginResponse.newBuilder().setSuccess(true).setSessionId("session-1").build().toByteArray());
+            PlayerLoginResponse accepted = PlayerLoginResponse.newBuilder().setSuccess(true).setSessionId("session-1").build();
+            return FakeNatsConnection.reply(accepted.toByteArray());
         });
         PlayerLogin login = new PlayerLogin(PLAYER_UUID, "Player", "Display", "proxy-1", "hash", "de_DE", 767, true, "skin");
 
@@ -200,7 +201,8 @@ class PlayerSessionReporterTest {
         AtomicReference<PlayerLoginRequest> sentRequest = new AtomicReference<>();
         PlayerSessionReporter reporter = reporterAnswering((subject, data, timeout) -> {
             sentRequest.set(PlayerLoginRequest.parseFrom(data));
-            return FakeNatsConnection.reply(PlayerLoginResponse.newBuilder().setSuccess(true).build().toByteArray());
+            PlayerLoginResponse accepted = PlayerLoginResponse.newBuilder().setSuccess(true).build();
+            return FakeNatsConnection.reply(accepted.toByteArray());
         });
         PlayerLogin login = new PlayerLogin(PLAYER_UUID, "Player", "Player", "proxy-1", "hash", "en_US", 767, false, null);
 

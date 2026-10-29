@@ -93,7 +93,7 @@ class PlayerConnectionListenerTest {
     }
 
     @Test
-    @SuppressWarnings("unchecked")
+    @SuppressWarnings("unchecked") // mock(Callback.class) is a raw Callback passed as Callback<PostLoginEvent>
     void loginReportsThePlayerToTheController() {
         UUID playerId = UUID.randomUUID();
         InetSocketAddress address = new InetSocketAddress("127.0.0.1", 25565);
