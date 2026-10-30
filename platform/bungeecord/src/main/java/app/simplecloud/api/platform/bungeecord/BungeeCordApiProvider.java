@@ -36,8 +36,9 @@ public class BungeeCordApiProvider extends Plugin implements ProxyPresencePlayer
     @Override
     public void onEnable() {
         this.cloudApi = (CloudApiImpl) CloudApi.create();
-        // Created before anything else that can fail, so onDisable can always stop it.
-        this.playerPropertySynchronizer = createPlayerPropertySynchronizer();
+        // Started right after the CloudApi and stopped first in onDisable, so onDisable stops it
+        // even if a later step of onEnable fails.
+        this.playerPropertySynchronizer = startPlayerPropertySynchronizer();
         this.proxyName = SimpleCloudRuntime.serverName();
         this.playerSynchronizer = new PlayerSynchronizer(cloudApi, getProxy()::getOnlineCount);
         this.playerSessionReporter = new PlayerSessionReporter(cloudApi);
@@ -70,8 +71,8 @@ public class BungeeCordApiProvider extends Plugin implements ProxyPresencePlayer
     @Override
     public void onDisable() {
         getLogger().info("SimpleCloud v3 API provider uninitialized!");
-        proxyPresenceResponder.stop();
         playerPropertySynchronizer.stop();
+        proxyPresenceResponder.stop();
         playerSynchronizer.stop();
         playerCommandHandler.stop();
 
@@ -81,7 +82,7 @@ public class BungeeCordApiProvider extends Plugin implements ProxyPresencePlayer
         cloudApi.close();
     }
 
-    private PlayerPropertySynchronizer createPlayerPropertySynchronizer() {
+    private PlayerPropertySynchronizer startPlayerPropertySynchronizer() {
         if (getProxy().getPluginManager().getPlugin("LuckPerms") == null) {
             return PlayerPropertySynchronizer.NONE;
         }
@@ -90,7 +91,7 @@ public class BungeeCordApiProvider extends Plugin implements ProxyPresencePlayer
                     cloudApi,
                     LuckPermsProvider.get(),
                     this,
-                    new BungeeCordPlayers(getProxy()),
+                    playerId -> getProxy().getPlayer(playerId) != null,
                     (message, cause) -> getLogger().log(java.util.logging.Level.SEVERE, message, cause)
             );
             luckPermsSynchronizer.start();

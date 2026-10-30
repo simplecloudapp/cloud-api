@@ -28,7 +28,7 @@ public class OnlinePlayerTracker implements OnlinePlayerCount {
     }
 
     @Override
-    public int onlinePlayerCount() {
+    public int count() {
         return onlinePlayers.size();
     }
 }

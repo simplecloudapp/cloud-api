@@ -35,9 +35,6 @@ import java.util.Locale;
 )
 public class CloudApiVelocityPlugin implements ProxyPresencePlayerProvider {
 
-    // Higher priorities run first, so this runs before onProxyShutdown (priority 0) closes the CloudApi.
-    private static final short STOP_BEFORE_SHUTDOWN_PRIORITY = 100;
-
     private final Logger logger;
     private final ProxyServer proxyServer;
     private final CloudApiImpl cloudApi;
@@ -47,6 +44,8 @@ public class CloudApiVelocityPlugin implements ProxyPresencePlayerProvider {
     private final PlayerCommandHandler playerCommandHandler;
     private final ProxyPresenceTracker proxyPresenceTracker;
     private final ProxyPresenceResponder proxyPresenceResponder;
+    // Replaced while the proxy initializes, because LuckPerms only provides its API then.
+    private PlayerPropertySynchronizer playerPropertySynchronizer = PlayerPropertySynchronizer.NONE;
 
     @Inject
     public CloudApiVelocityPlugin(
@@ -72,10 +71,7 @@ public class CloudApiVelocityPlugin implements ProxyPresencePlayerProvider {
     @Subscribe
     public void onProxyInitialize(ProxyInitializeEvent event) {
         logger.info("SimpleCloud v3 API provider initialized!");
-        // LuckPerms registers its API while the proxy initializes, so this cannot happen in the constructor.
-        PlayerPropertySynchronizer playerPropertySynchronizer = createPlayerPropertySynchronizer();
-        proxyServer.getEventManager().register(this, ProxyShutdownEvent.class, STOP_BEFORE_SHUTDOWN_PRIORITY,
-                shutdown -> playerPropertySynchronizer.stop());
+        this.playerPropertySynchronizer = startPlayerPropertySynchronizer();
         proxyServer.getEventManager().register(this, new PlayerConnectionListener(
                 playerSynchronizer,
                 playerSessionReporter,
@@ -92,13 +88,14 @@ public class CloudApiVelocityPlugin implements ProxyPresencePlayerProvider {
     @Subscribe
     public void onProxyShutdown(ProxyShutdownEvent event) {
         logger.info("SimpleCloud v3 API provider uninitialized!");
+        playerPropertySynchronizer.stop();
         proxyPresenceResponder.stop();
         playerSynchronizer.stop();
         playerCommandHandler.stop();
         cloudApi.close();
     }
 
-    private PlayerPropertySynchronizer createPlayerPropertySynchronizer() {
+    private PlayerPropertySynchronizer startPlayerPropertySynchronizer() {
         if (!proxyServer.getPluginManager().isLoaded("luckperms")) {
             return PlayerPropertySynchronizer.NONE;
         }
@@ -107,7 +104,7 @@ public class CloudApiVelocityPlugin implements ProxyPresencePlayerProvider {
                     cloudApi,
                     LuckPermsProvider.get(),
                     this,
-                    new VelocityPlayers(proxyServer),
+                    playerId -> proxyServer.getPlayer(playerId).isPresent(),
                     logger::error
             );
             luckPermsSynchronizer.start();

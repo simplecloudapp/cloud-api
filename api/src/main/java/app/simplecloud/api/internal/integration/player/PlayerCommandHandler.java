@@ -72,7 +72,7 @@ public class PlayerCommandHandler {
             // Every proxy receives the request; only the proxy holding the player answers.
             if (player.isEmpty()) return;
 
-            Component reason = kickReason(request);
+            Component reason = parseKickReason(request);
             CompletableFuture.runAsync(() -> player.get().kick(reason), executor)
                     .thenRun(() -> sendKickResponse(msg, true))
                     .exceptionally(e -> {
@@ -84,7 +84,7 @@ public class PlayerCommandHandler {
         }
     }
 
-    private static Component kickReason(KickPlayerRequest request) {
+    private static Component parseKickReason(KickPlayerRequest request) {
         String reasonJson = request.getReason().getJson();
         if (reasonJson.isBlank()) {
             return Component.empty();

@@ -1,8 +1,6 @@
 package app.simplecloud.api.platform.shared;
 
 import app.simplecloud.api.CloudApi;
-import app.simplecloud.api.internal.integration.player.ProxyPlayer;
-import app.simplecloud.api.internal.integration.player.ProxyPlayers;
 import app.simplecloud.api.player.CloudPlayer;
 import app.simplecloud.api.player.PlayerApi;
 import net.luckperms.api.LuckPerms;
@@ -51,12 +49,12 @@ class LuckPermsPlayerPropertySynchronizerTest {
         when(playerApi.find(playerId)).thenReturn(CompletableFuture.completedFuture(Optional.of(player)));
         when(playerApi.updatePlayerProperty(eq(playerId), anyString(), anyString()))
                 .thenReturn(CompletableFuture.completedFuture(Map.of()));
-        ProxyPlayers everyoneConnected = ignored -> Optional.of(mock(ProxyPlayer.class));
+        OnlinePlayers everyoneOnline = ignored -> true;
         FailureLog failOnFailure = (message, cause) -> {
             throw new AssertionError(message, cause);
         };
         LuckPermsPlayerPropertySynchronizer synchronizer = new LuckPermsPlayerPropertySynchronizer(
-                cloudApi, luckPerms, this, everyoneConnected, failOnFailure);
+                cloudApi, luckPerms, this, everyoneOnline, failOnFailure);
         synchronizer.start();
         ArgumentCaptor<Consumer<UserDataRecalculateEvent>> callback = ArgumentCaptor.forClass(Consumer.class);
         verify(eventBus).subscribe(eq(this), eq(UserDataRecalculateEvent.class), callback.capture());
@@ -86,16 +84,16 @@ class LuckPermsPlayerPropertySynchronizerTest {
     }
 
     @Test
-    void playerNotConnectedToThisProxyIsNotSynchronized() {
+    void playerNotOnThisServerIsNotSynchronized() {
         UUID playerId = UUID.randomUUID();
         CloudApi cloudApi = mock(CloudApi.class);
         PlayerApi playerApi = mock(PlayerApi.class);
         when(cloudApi.player()).thenReturn(playerApi);
         LuckPerms luckPerms = mock(LuckPerms.class);
         when(luckPerms.getEventBus()).thenReturn(mock(EventBus.class));
-        ProxyPlayers nobodyConnected = ignored -> Optional.empty();
+        OnlinePlayers nobodyOnline = ignored -> false;
         LuckPermsPlayerPropertySynchronizer synchronizer = new LuckPermsPlayerPropertySynchronizer(
-                cloudApi, luckPerms, this, nobodyConnected, (message, cause) -> {});
+                cloudApi, luckPerms, this, nobodyOnline, (message, cause) -> {});
         synchronizer.start();
 
         synchronizer.synchronize(playerId);
@@ -127,7 +125,7 @@ class LuckPermsPlayerPropertySynchronizerTest {
             loggedCauses.add(cause);
         };
         LuckPermsPlayerPropertySynchronizer synchronizer = new LuckPermsPlayerPropertySynchronizer(
-                cloudApi, luckPerms, this, ignored -> Optional.of(mock(ProxyPlayer.class)), failureLog);
+                cloudApi, luckPerms, this, ignored -> true, failureLog);
         synchronizer.start();
 
         synchronizer.synchronize(playerId);

@@ -78,7 +78,7 @@ public class PlayerConnectionListener {
                 texture
         );
 
-        CompletableFuture<Void> registration = playerSessionReporter.login(login).thenAccept(result -> {
+        CompletableFuture<Void> registration = playerSessionReporter.reportLogin(login).thenAccept(result -> {
             if (result.isSuccess()) {
                 proxyPresenceTracker.updateSessionId(playerId.toString(), result.getSessionId());
                 playerPropertySynchronizer.synchronize(playerId);
@@ -104,7 +104,7 @@ public class PlayerConnectionListener {
         Player player = event.getPlayer();
         UUID playerId = player.getUniqueId();
 
-        playerSessionReporter.disconnect(playerId)
+        playerSessionReporter.reportDisconnect(playerId)
                 .exceptionally(e -> {
                     logger.error("Failed to send disconnect event for {}: {}", player.getUsername(), e.getMessage());
                     return null;
@@ -132,7 +132,7 @@ public class PlayerConnectionListener {
         Player player = event.getPlayer();
         String newServer = event.getServer().getServerInfo().getName();
 
-        playerSessionReporter.serverSwitch(player.getUniqueId(), newServer)
+        playerSessionReporter.reportServerSwitch(player.getUniqueId(), newServer)
                 .exceptionally(e -> {
                     logger.error("Failed to send server switch event for {}: {}", player.getUsername(), e.getMessage());
                     return null;
@@ -140,7 +140,7 @@ public class PlayerConnectionListener {
     }
 
     private void sendClientSettings(Player player, String sessionId, PlayerSettings settings) {
-        playerSessionReporter.updateClientSettings(sessionId, toClientSettings(settings))
+        playerSessionReporter.reportClientSettings(sessionId, toClientSettings(settings))
                 .exceptionally(e -> {
                     logger.error("Failed to send client settings for {}: {}", player.getUsername(), e.getMessage());
                     return null;

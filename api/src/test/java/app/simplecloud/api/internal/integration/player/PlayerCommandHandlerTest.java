@@ -46,8 +46,9 @@ class PlayerCommandHandlerTest {
         FakeNatsConnection nats = FakeNatsConnection.withoutRequests();
         FakeProxyPlayers proxyPlayers = FakeProxyPlayers.withoutPlayers();
         startCommandHandler(nats, proxyPlayers);
+        KickPlayerRequest request = KickPlayerRequest.newBuilder().setPlayerId(PLAYER_ID).build();
 
-        nats.deliver(KICK_SUBSCRIPTION, kickMessage(PLAYER_ID, KickPlayerRequest.newBuilder().setPlayerId(PLAYER_ID).build()));
+        nats.deliver(KICK_SUBSCRIPTION, kickMessage(PLAYER_ID, request));
 
         assertEquals(List.of(), proxyPlayers.kicks);
         assertEquals(List.of(), nats.published());

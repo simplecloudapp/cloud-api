@@ -5,5 +5,5 @@ package app.simplecloud.api.platform.shared;
  */
 public interface OnlinePlayerCount {
 
-    int onlinePlayerCount();
+    int count();
 }

@@ -29,6 +29,7 @@ class AdventureIntegrationTest {
     private static final UUID PLAYER_ID = UUID.fromString("11111111-1111-1111-1111-111111111111");
     private static final UUID OTHER_PLAYER_ID = UUID.fromString("22222222-2222-2222-2222-222222222222");
     private static final String PLAYER_MESSAGE_SUBSCRIPTION = NETWORK_ID + ".adventure.player.*.message";
+    private static final String PLAYER_BOSS_BAR_SUBSCRIPTION = NETWORK_ID + ".adventure.player.*.bossbar";
 
     private final RecordingAudience player = new RecordingAudience();
     private final RecordingAudience allPlayers = new RecordingAudience();
@@ -37,8 +38,9 @@ class AdventureIntegrationTest {
     @Test
     void playerMessage_reachesThePlayerOnThisServer() throws Exception {
         startIntegration();
+        String playerSubject = NETWORK_ID + ".adventure.player." + PLAYER_ID + ".message";
 
-        nats.deliver(PLAYER_MESSAGE_SUBSCRIPTION, messageAction(NETWORK_ID + ".adventure.player." + PLAYER_ID + ".message"));
+        nats.deliver(PLAYER_MESSAGE_SUBSCRIPTION, messageAction(playerSubject));
 
         assertEquals(List.of(Component.text("Hello")), player.messages);
         assertEquals(List.of(), allPlayers.messages);
@@ -47,8 +49,9 @@ class AdventureIntegrationTest {
     @Test
     void playerMessage_forPlayerOnAnotherServer_isIgnored() throws Exception {
         startIntegration();
+        String otherPlayerSubject = NETWORK_ID + ".adventure.player." + OTHER_PLAYER_ID + ".message";
 
-        nats.deliver(PLAYER_MESSAGE_SUBSCRIPTION, messageAction(NETWORK_ID + ".adventure.player." + OTHER_PLAYER_ID + ".message"));
+        nats.deliver(PLAYER_MESSAGE_SUBSCRIPTION, messageAction(otherPlayerSubject));
 
         assertEquals(List.of(), player.messages);
         assertEquals(List.of(), allPlayers.messages);
@@ -82,7 +85,7 @@ class AdventureIntegrationTest {
                 .setBossBarId("event")
                 .build();
 
-        nats.deliver(NETWORK_ID + ".adventure.player.*.bossbar", action(playerBossBarSubject, showBossBar.toByteArray()));
+        nats.deliver(PLAYER_BOSS_BAR_SUBSCRIPTION, action(playerBossBarSubject, showBossBar.toByteArray()));
         nats.deliver(serverRemoveSubject, action(serverRemoveSubject, removeBossBar.toByteArray()));
 
         // The boss bar was never registered here, so there is nothing to hide.

@@ -1,5 +1,6 @@
 package app.simplecloud.api.internal.integration.player;
 
+import app.simplecloud.api.internal.nats.FakeNatsConnection;
 import build.buf.gen.simplecloud.player.v2.PlayerDisconnectRequest;
 import build.buf.gen.simplecloud.player.v2.PlayerDisconnectResponse;
 import build.buf.gen.simplecloud.player.v2.PlayerLoginRequest;
@@ -7,15 +8,11 @@ import build.buf.gen.simplecloud.player.v2.PlayerLoginResponse;
 import build.buf.gen.simplecloud.player.v2.PlayerServerSwitchRequest;
 import build.buf.gen.simplecloud.player.v2.PlayerServerSwitchResponse;
 import com.google.protobuf.InvalidProtocolBufferException;
-import io.nats.client.Connection;
-import io.nats.client.Message;
-import io.nats.client.impl.NatsMessage;
 import org.junit.jupiter.api.Test;
 import org.junit.jupiter.api.Timeout;
 import org.junit.jupiter.params.ParameterizedTest;
 import org.junit.jupiter.params.provider.EnumSource;
 
-import java.lang.reflect.Proxy;
 import java.time.Duration;
 import java.util.UUID;
 import java.util.concurrent.CompletableFuture;
@@ -45,8 +42,8 @@ class PlayerSessionReporterTest {
 
         CompletableFuture<Void> invoke(PlayerSessionReporter reporter) {
             return this == DISCONNECT
-                    ? reporter.disconnect(PLAYER_UUID)
-                    : reporter.serverSwitch(PLAYER_UUID, "lobby-1");
+                    ? reporter.reportDisconnect(PLAYER_UUID)
+                    : reporter.reportServerSwitch(PLAYER_UUID, "lobby-1");
         }
 
         byte[] response(boolean success) {
@@ -72,7 +69,7 @@ class PlayerSessionReporterTest {
                 assertEquals(PLAYER_ID, request.getPlayerId());
                 assertEquals("lobby-1", request.getNewServerName());
             }
-            return message(operation.response(true));
+            return FakeNatsConnection.reply(operation.response(true));
         });
 
         assertNull(operation.invoke(reporter).join());
@@ -82,11 +79,11 @@ class PlayerSessionReporterTest {
     @Test
     void alreadyOfflineDisconnectCompletesNormally() {
         // Controller's idempotent reply has success=true and no session duration.
-        PlayerSessionReporter reporter = reporterAnswering((subject, data, timeout) -> message(
+        PlayerSessionReporter reporter = reporterAnswering((subject, data, timeout) -> FakeNatsConnection.reply(
                 PlayerDisconnectResponse.newBuilder().setSuccess(true).build().toByteArray()
         ));
 
-        assertNull(reporter.disconnect(PLAYER_UUID).join());
+        assertNull(reporter.reportDisconnect(PLAYER_UUID).join());
     }
 
     @ParameterizedTest
@@ -95,7 +92,7 @@ class PlayerSessionReporterTest {
         AtomicInteger requests = new AtomicInteger();
         PlayerSessionReporter reporter = reporterAnswering((subject, data, timeout) -> {
             requests.incrementAndGet();
-            return message(operation.response(false));
+            return FakeNatsConnection.reply(operation.response(false));
         });
         AtomicReference<Throwable> reportedFailure = new AtomicReference<>();
         CompletableFuture<Void> future = operation.invoke(reporter);
@@ -126,7 +123,7 @@ class PlayerSessionReporterTest {
     @ParameterizedTest
     @EnumSource(Operation.class)
     void malformedReplyPreservesDecodeFailure(Operation operation) {
-        PlayerSessionReporter reporter = reporterAnswering((subject, data, timeout) -> message(new byte[]{(byte) 0xff}));
+        PlayerSessionReporter reporter = reporterAnswering((subject, data, timeout) -> FakeNatsConnection.reply(new byte[]{(byte) 0xff}));
 
         CompletionException failure = assertFailure(operation, operation.invoke(reporter));
 
@@ -161,13 +158,13 @@ class PlayerSessionReporterTest {
 
     @Test
     void loginStillReturnsControllerFailureAsLoginResult() {
-        PlayerSessionReporter reporter = reporterAnswering((subject, data, timeout) -> message(
+        PlayerSessionReporter reporter = reporterAnswering((subject, data, timeout) -> FakeNatsConnection.reply(
                 PlayerLoginResponse.newBuilder().setSuccess(false).setErrorMessage("login rejected").build().toByteArray()
         ));
 
         PlayerLogin login = new PlayerLogin(PLAYER_UUID, "Player", "Player", "proxy-1", "hash", "en_US", 1, true, null);
 
-        LoginResult result = reporter.login(login).join();
+        LoginResult result = reporter.reportLogin(login).join();
 
         assertFalse(result.isSuccess());
         assertEquals("login rejected", result.getErrorMessage());
@@ -179,11 +176,12 @@ class PlayerSessionReporterTest {
         PlayerSessionReporter reporter = reporterAnswering((subject, data, timeout) -> {
             assertEquals(NETWORK_ID + ".player.login", subject);
             sentRequest.set(PlayerLoginRequest.parseFrom(data));
-            return message(PlayerLoginResponse.newBuilder().setSuccess(true).setSessionId("session-1").build().toByteArray());
+            PlayerLoginResponse accepted = PlayerLoginResponse.newBuilder().setSuccess(true).setSessionId("session-1").build();
+            return FakeNatsConnection.reply(accepted.toByteArray());
         });
         PlayerLogin login = new PlayerLogin(PLAYER_UUID, "Player", "Display", "proxy-1", "hash", "de_DE", 767, true, "skin");
 
-        LoginResult result = reporter.login(login).join();
+        LoginResult result = reporter.reportLogin(login).join();
 
         PlayerLoginRequest request = sentRequest.get();
         assertEquals("session-1", result.getSessionId());
@@ -203,11 +201,12 @@ class PlayerSessionReporterTest {
         AtomicReference<PlayerLoginRequest> sentRequest = new AtomicReference<>();
         PlayerSessionReporter reporter = reporterAnswering((subject, data, timeout) -> {
             sentRequest.set(PlayerLoginRequest.parseFrom(data));
-            return message(PlayerLoginResponse.newBuilder().setSuccess(true).build().toByteArray());
+            PlayerLoginResponse accepted = PlayerLoginResponse.newBuilder().setSuccess(true).build();
+            return FakeNatsConnection.reply(accepted.toByteArray());
         });
         PlayerLogin login = new PlayerLogin(PLAYER_UUID, "Player", "Player", "proxy-1", "hash", "en_US", 767, false, null);
 
-        reporter.login(login).join();
+        reporter.reportLogin(login).join();
 
         assertEquals("", sentRequest.get().getTexture());
     }
@@ -219,23 +218,8 @@ class PlayerSessionReporterTest {
         return failure;
     }
 
-    private static Message message(byte[] data) {
-        return NatsMessage.builder().subject("reply").data(data).build();
-    }
-
-    private static PlayerSessionReporter reporterAnswering(RequestHandler handler) {
-        Connection connection = (Connection) Proxy.newProxyInstance(
-                Connection.class.getClassLoader(), new Class<?>[]{Connection.class}, (proxy, method, args) -> {
-                    if (method.getName().equals("request") && args.length == 3) {
-                        return handler.request((String) args[0], (byte[]) args[1], (Duration) args[2]);
-                    }
-                    throw new AssertionError("Unexpected connection call: " + method.getName());
-                });
-        return new PlayerSessionReporter(connection, NETWORK_ID, ForkJoinPool.commonPool());
-    }
-
-    @FunctionalInterface
-    private interface RequestHandler {
-        Message request(String subject, byte[] data, Duration timeout) throws Exception;
+    private static PlayerSessionReporter reporterAnswering(FakeNatsConnection.RequestHandler requestHandler) {
+        FakeNatsConnection nats = FakeNatsConnection.answering(requestHandler);
+        return new PlayerSessionReporter(nats.connection(), NETWORK_ID, ForkJoinPool.commonPool());
     }
 }

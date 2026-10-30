@@ -1,8 +1,6 @@
 package app.simplecloud.api.platform.shared;
 
 import app.simplecloud.api.CloudApi;
-import app.simplecloud.api.internal.integration.player.ProxyPlayer;
-import app.simplecloud.api.internal.integration.player.ProxyPlayers;
 import app.simplecloud.api.player.CloudPlayer;
 import net.luckperms.api.LuckPerms;
 import net.luckperms.api.event.EventSubscription;
@@ -11,7 +9,6 @@ import net.luckperms.api.model.user.User;
 
 import java.util.Map;
 import java.util.Objects;
-import java.util.Optional;
 import java.util.Set;
 import java.util.UUID;
 import java.util.concurrent.CompletableFuture;
@@ -27,7 +24,7 @@ public final class LuckPermsPlayerPropertySynchronizer implements PlayerProperty
     private final CloudApi cloudApi;
     private final LuckPerms luckPerms;
     private final Object eventSubscriber;
-    private final ProxyPlayers proxyPlayers;
+    private final OnlinePlayers onlinePlayers;
     private final FailureLog failureLog;
     private final Set<UUID> registeredPlayers = ConcurrentHashMap.newKeySet();
     private final Map<UUID, String> desiredPrimaryGroups = new ConcurrentHashMap<>();
@@ -42,13 +39,13 @@ public final class LuckPermsPlayerPropertySynchronizer implements PlayerProperty
             CloudApi cloudApi,
             LuckPerms luckPerms,
             Object eventSubscriber,
-            ProxyPlayers proxyPlayers,
+            OnlinePlayers onlinePlayers,
             FailureLog failureLog
     ) {
         this.cloudApi = cloudApi;
         this.luckPerms = luckPerms;
         this.eventSubscriber = eventSubscriber;
-        this.proxyPlayers = proxyPlayers;
+        this.onlinePlayers = onlinePlayers;
         this.failureLog = failureLog;
     }
 
@@ -80,7 +77,7 @@ public final class LuckPermsPlayerPropertySynchronizer implements PlayerProperty
 
     @Override
     public void synchronize(UUID playerId) {
-        if (!running || !isOnThisProxy(playerId)) {
+        if (!running || !onlinePlayers.isOnline(playerId)) {
             return;
         }
         registeredPlayers.add(playerId);
@@ -100,7 +97,7 @@ public final class LuckPermsPlayerPropertySynchronizer implements PlayerProperty
 
     private void synchronize(User user) {
         UUID playerId = user.getUniqueId();
-        if (!running || !registeredPlayers.contains(playerId) || !isOnThisProxy(playerId)) {
+        if (!running || !registeredPlayers.contains(playerId) || !onlinePlayers.isOnline(playerId)) {
             return;
         }
 
@@ -132,7 +129,7 @@ public final class LuckPermsPlayerPropertySynchronizer implements PlayerProperty
                     synchronizationsInProgress.remove(playerId);
                     boolean shouldRefresh = refreshRequested.remove(playerId);
 
-                    if (!running || !registeredPlayers.contains(playerId) || !isOnThisProxy(playerId)) {
+                    if (!running || !registeredPlayers.contains(playerId) || !onlinePlayers.isOnline(playerId)) {
                         forget(playerId);
                     } else if (shouldRefresh || (Boolean.TRUE.equals(synchronizedValue) &&
                             !Objects.equals(
@@ -150,10 +147,5 @@ public final class LuckPermsPlayerPropertySynchronizer implements PlayerProperty
         }
         return cloudApi.player().updatePlayerProperty(playerId, PRIMARY_GROUP_PROPERTY, primaryGroup)
                 .thenApply(ignored -> true);
-    }
-
-    private boolean isOnThisProxy(UUID playerId) {
-        Optional<ProxyPlayer> player = proxyPlayers.findPlayer(playerId);
-        return player.isPresent();
     }
 }

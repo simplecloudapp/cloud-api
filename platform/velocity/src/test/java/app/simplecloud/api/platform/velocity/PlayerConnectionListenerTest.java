@@ -42,7 +42,7 @@ class PlayerConnectionListenerTest {
         UUID playerId = UUID.randomUUID();
         CompletableFuture<LoginResult> registration = new CompletableFuture<>();
         PlayerSessionReporter sessionReporter = mock(PlayerSessionReporter.class);
-        when(sessionReporter.login(any(PlayerLogin.class))).thenReturn(registration);
+        when(sessionReporter.reportLogin(any(PlayerLogin.class))).thenReturn(registration);
         ProxyPresenceTracker presence = mock(ProxyPresenceTracker.class);
         PlayerPropertySynchronizer propertySynchronizer = mock(PlayerPropertySynchronizer.class);
         PlayerConnectionListener listener = new PlayerConnectionListener(
@@ -81,7 +81,7 @@ class PlayerConnectionListenerTest {
         UUID playerId = UUID.randomUUID();
         InetSocketAddress address = new InetSocketAddress("127.0.0.1", 25565);
         PlayerSessionReporter sessionReporter = mock(PlayerSessionReporter.class);
-        when(sessionReporter.login(any(PlayerLogin.class))).thenReturn(new CompletableFuture<>());
+        when(sessionReporter.reportLogin(any(PlayerLogin.class))).thenReturn(new CompletableFuture<>());
         PlayerConnectionListener listener = new PlayerConnectionListener(
                 mock(PlayerSynchronizer.class), sessionReporter, mock(ProxyPresenceTracker.class), "proxy-1", PlayerPropertySynchronizer.NONE);
         Player player = mock(Player.class);
@@ -95,14 +95,14 @@ class PlayerConnectionListenerTest {
 
         PlayerLogin expected = new PlayerLogin(playerId, "Player", "Player", "proxy-1",
                 String.valueOf(address.hashCode()), "en_US", ProtocolVersion.MINECRAFT_1_21.getProtocol(), false, null);
-        verify(sessionReporter).login(expected);
+        verify(sessionReporter).reportLogin(expected);
     }
 
     @Test
     void quitForgetsPlayerProperties() {
         UUID playerId = UUID.randomUUID();
         PlayerSessionReporter sessionReporter = mock(PlayerSessionReporter.class);
-        when(sessionReporter.disconnect(playerId)).thenReturn(CompletableFuture.completedFuture(null));
+        when(sessionReporter.reportDisconnect(playerId)).thenReturn(CompletableFuture.completedFuture(null));
         PlayerPropertySynchronizer propertySynchronizer = mock(PlayerPropertySynchronizer.class);
         PlayerConnectionListener listener = new PlayerConnectionListener(
                 mock(PlayerSynchronizer.class), sessionReporter, mock(ProxyPresenceTracker.class), "proxy-1", propertySynchronizer);
@@ -118,9 +118,9 @@ class PlayerConnectionListenerTest {
     void loginSendsClientSettingsAlreadyReportedByTheClient() {
         UUID playerId = UUID.randomUUID();
         PlayerSessionReporter sessionReporter = mock(PlayerSessionReporter.class);
-        when(sessionReporter.login(any(PlayerLogin.class)))
+        when(sessionReporter.reportLogin(any(PlayerLogin.class)))
                 .thenReturn(CompletableFuture.completedFuture(LoginResult.success("session-1")));
-        when(sessionReporter.updateClientSettings(anyString(), any())).thenReturn(CompletableFuture.completedFuture(null));
+        when(sessionReporter.reportClientSettings(anyString(), any())).thenReturn(CompletableFuture.completedFuture(null));
         PlayerConnectionListener listener = new PlayerConnectionListener(
                 mock(PlayerSynchronizer.class), sessionReporter, mock(ProxyPresenceTracker.class), "proxy-1", PlayerPropertySynchronizer.NONE);
         Player player = mock(Player.class);
@@ -135,7 +135,7 @@ class PlayerConnectionListenerTest {
 
         listener.onPlayerJoin(new PostLoginEvent(player)).execute(mock(Continuation.class));
 
-        verify(sessionReporter).updateClientSettings(eq("session-1"), any(PlayerClientSettings.class));
+        verify(sessionReporter).reportClientSettings(eq("session-1"), any(PlayerClientSettings.class));
     }
 
     @Test
@@ -149,14 +149,14 @@ class PlayerConnectionListenerTest {
 
         listener.onPlayerSettingsChanged(new PlayerSettingsChangedEvent(player, settings()));
 
-        verify(sessionReporter, never()).updateClientSettings(anyString(), any());
+        verify(sessionReporter, never()).reportClientSettings(anyString(), any());
     }
 
     @Test
     void settingsChangeIsForwardedWithTheSession() {
         UUID playerId = UUID.randomUUID();
         PlayerSessionReporter sessionReporter = mock(PlayerSessionReporter.class);
-        when(sessionReporter.updateClientSettings(anyString(), any())).thenReturn(CompletableFuture.completedFuture(null));
+        when(sessionReporter.reportClientSettings(anyString(), any())).thenReturn(CompletableFuture.completedFuture(null));
         ProxyPresenceTracker presence = mock(ProxyPresenceTracker.class);
         when(presence.getSessionId(playerId.toString())).thenReturn("session-1");
         PlayerConnectionListener listener = new PlayerConnectionListener(
@@ -166,7 +166,7 @@ class PlayerConnectionListenerTest {
 
         listener.onPlayerSettingsChanged(new PlayerSettingsChangedEvent(player, settings()));
 
-        verify(sessionReporter).updateClientSettings(eq("session-1"), any(PlayerClientSettings.class));
+        verify(sessionReporter).reportClientSettings(eq("session-1"), any(PlayerClientSettings.class));
     }
 
     @Test
