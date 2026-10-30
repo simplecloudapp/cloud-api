@@ -15,9 +15,10 @@ import java.util.concurrent.CompletableFuture;
 import java.util.concurrent.ConcurrentHashMap;
 
 /**
- * Keeps a small, bounded subset of LuckPerms user data in SimpleCloud player properties.
+ * Stores each player's LuckPerms primary group in their {@value #PRIMARY_GROUP_PROPERTY} cloud property
+ * and keeps it current while they are on this proxy.
  */
-public final class LuckPermsPlayerPropertySynchronizer implements PlayerPropertySynchronizer {
+public final class LuckPermsPrimaryGroupSynchronizer implements LuckPermsSynchronizer {
 
     public static final String PRIMARY_GROUP_PROPERTY = "luckperms-primary-group";
 
@@ -40,7 +41,7 @@ public final class LuckPermsPlayerPropertySynchronizer implements PlayerProperty
     private EventSubscription<UserDataRecalculateEvent> subscription;
     private volatile boolean running;
 
-    public LuckPermsPlayerPropertySynchronizer(
+    public LuckPermsPrimaryGroupSynchronizer(
             CloudApi cloudApi,
             LuckPerms luckPerms,
             Object eventSubscriber,
@@ -163,7 +164,7 @@ public final class LuckPermsPlayerPropertySynchronizer implements PlayerProperty
     private void finishStore(UUID playerId, String primaryGroup, Boolean stored, Throwable failure) {
         boolean storedSuccessfully = failure == null && stored;
         if (failure != null) {
-            failureLog.logFailure("Failed to synchronize LuckPerms properties for " + playerId, failure);
+            failureLog.logFailure("Failed to synchronize the LuckPerms primary group of " + playerId, failure);
         }
         if (storedSuccessfully) {
             storedPrimaryGroups.put(playerId, primaryGroup);

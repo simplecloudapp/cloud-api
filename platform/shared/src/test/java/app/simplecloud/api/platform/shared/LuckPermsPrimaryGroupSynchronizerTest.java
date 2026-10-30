@@ -19,13 +19,13 @@ import java.util.UUID;
 import java.util.concurrent.CompletableFuture;
 import java.util.function.Consumer;
 
-import static app.simplecloud.api.platform.shared.LuckPermsPlayerPropertySynchronizer.PRIMARY_GROUP_PROPERTY;
+import static app.simplecloud.api.platform.shared.LuckPermsPrimaryGroupSynchronizer.PRIMARY_GROUP_PROPERTY;
 import static org.junit.jupiter.api.Assertions.assertEquals;
 import static org.junit.jupiter.api.Assertions.assertSame;
 import static org.mockito.ArgumentMatchers.*;
 import static org.mockito.Mockito.*;
 
-class LuckPermsPlayerPropertySynchronizerTest {
+class LuckPermsPrimaryGroupSynchronizerTest {
 
     @Test
     @SuppressWarnings({"unchecked", "rawtypes"})
@@ -54,7 +54,7 @@ class LuckPermsPlayerPropertySynchronizerTest {
         FailureLog failOnFailure = (message, cause) -> {
             throw new AssertionError(message, cause);
         };
-        LuckPermsPlayerPropertySynchronizer synchronizer = new LuckPermsPlayerPropertySynchronizer(
+        LuckPermsPrimaryGroupSynchronizer synchronizer = new LuckPermsPrimaryGroupSynchronizer(
                 cloudApi, luckPerms, this, everyoneOnline, failOnFailure);
         synchronizer.start();
         ArgumentCaptor<Consumer<UserDataRecalculateEvent>> callback = ArgumentCaptor.forClass(Consumer.class);
@@ -93,7 +93,7 @@ class LuckPermsPlayerPropertySynchronizerTest {
         LuckPerms luckPerms = mock(LuckPerms.class);
         when(luckPerms.getEventBus()).thenReturn(mock(EventBus.class));
         OnlinePlayers nobodyOnline = ignored -> false;
-        LuckPermsPlayerPropertySynchronizer synchronizer = new LuckPermsPlayerPropertySynchronizer(
+        LuckPermsPrimaryGroupSynchronizer synchronizer = new LuckPermsPrimaryGroupSynchronizer(
                 cloudApi, luckPerms, this, nobodyOnline, (message, cause) -> {});
         synchronizer.start();
 
@@ -125,13 +125,13 @@ class LuckPermsPlayerPropertySynchronizerTest {
             loggedMessages.add(message);
             loggedCauses.add(cause);
         };
-        LuckPermsPlayerPropertySynchronizer synchronizer = new LuckPermsPlayerPropertySynchronizer(
+        LuckPermsPrimaryGroupSynchronizer synchronizer = new LuckPermsPrimaryGroupSynchronizer(
                 cloudApi, luckPerms, this, ignored -> true, failureLog);
         synchronizer.start();
 
         synchronizer.synchronize(playerId);
 
-        assertEquals(List.of("Failed to synchronize LuckPerms properties for " + playerId), loggedMessages);
+        assertEquals(List.of("Failed to synchronize the LuckPerms primary group of " + playerId), loggedMessages);
         // The failure arrives wrapped by the future chain.
         assertSame(controllerFailure, loggedCauses.get(0).getCause());
     }
@@ -161,7 +161,7 @@ class LuckPermsPlayerPropertySynchronizerTest {
         when(playerApi.updatePlayerProperty(playerId, PRIMARY_GROUP_PROPERTY, "default")).thenReturn(failingStore);
         when(playerApi.updatePlayerProperty(playerId, PRIMARY_GROUP_PROPERTY, "admin"))
                 .thenReturn(CompletableFuture.completedFuture(Map.of()));
-        LuckPermsPlayerPropertySynchronizer synchronizer = new LuckPermsPlayerPropertySynchronizer(
+        LuckPermsPrimaryGroupSynchronizer synchronizer = new LuckPermsPrimaryGroupSynchronizer(
                 cloudApi, luckPerms, this, ignored -> true, (message, cause) -> {});
         synchronizer.start();
         ArgumentCaptor<Consumer<UserDataRecalculateEvent>> recalculation = ArgumentCaptor.forClass(Consumer.class);
@@ -201,7 +201,7 @@ class LuckPermsPlayerPropertySynchronizerTest {
         when(playerApi.updatePlayerProperty(playerId, PRIMARY_GROUP_PROPERTY, "admin"))
                 .thenReturn(CompletableFuture.completedFuture(Map.of()));
         when(playerApi.updatePlayerProperty(playerId, PRIMARY_GROUP_PROPERTY, "default")).thenReturn(slowStore);
-        LuckPermsPlayerPropertySynchronizer synchronizer = new LuckPermsPlayerPropertySynchronizer(
+        LuckPermsPrimaryGroupSynchronizer synchronizer = new LuckPermsPrimaryGroupSynchronizer(
                 cloudApi, luckPerms, this, ignored -> true, (message, cause) -> {});
         synchronizer.start();
         ArgumentCaptor<Consumer<UserDataRecalculateEvent>> recalculation = ArgumentCaptor.forClass(Consumer.class);

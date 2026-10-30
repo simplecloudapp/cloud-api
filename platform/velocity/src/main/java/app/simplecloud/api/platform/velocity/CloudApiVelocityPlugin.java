@@ -9,8 +9,8 @@ import app.simplecloud.api.internal.integration.presence.ProxyPresenceTracker;
 import app.simplecloud.api.presence.ProxyPresencePlayer;
 import app.simplecloud.api.presence.ProxyPresencePlayerProvider;
 import app.simplecloud.api.runtime.SimpleCloudRuntime;
-import app.simplecloud.api.platform.shared.LuckPermsPlayerPropertySynchronizer;
-import app.simplecloud.api.platform.shared.PlayerPropertySynchronizer;
+import app.simplecloud.api.platform.shared.LuckPermsPrimaryGroupSynchronizer;
+import app.simplecloud.api.platform.shared.LuckPermsSynchronizer;
 import app.simplecloud.api.platform.shared.PlayerSynchronizer;
 import com.google.inject.Inject;
 import com.velocitypowered.api.event.Subscribe;
@@ -45,7 +45,7 @@ public class CloudApiVelocityPlugin implements ProxyPresencePlayerProvider {
     private final ProxyPresenceTracker proxyPresenceTracker;
     private final ProxyPresenceResponder proxyPresenceResponder;
     // Replaced while the proxy initializes, because LuckPerms only provides its API then.
-    private PlayerPropertySynchronizer playerPropertySynchronizer = PlayerPropertySynchronizer.NONE;
+    private LuckPermsSynchronizer luckPermsSynchronizer = LuckPermsSynchronizer.DISABLED;
 
     @Inject
     public CloudApiVelocityPlugin(
@@ -71,13 +71,13 @@ public class CloudApiVelocityPlugin implements ProxyPresencePlayerProvider {
     @Subscribe
     public void onProxyInitialize(ProxyInitializeEvent event) {
         logger.info("SimpleCloud v3 API provider initialized!");
-        this.playerPropertySynchronizer = startPlayerPropertySynchronizer();
+        this.luckPermsSynchronizer = startLuckPermsSynchronizer();
         proxyServer.getEventManager().register(this, new PlayerConnectionListener(
                 playerSynchronizer,
                 playerSessionReporter,
                 proxyPresenceTracker,
                 proxyName,
-                playerPropertySynchronizer
+                luckPermsSynchronizer
         ));
 
         playerSynchronizer.start();
@@ -88,31 +88,31 @@ public class CloudApiVelocityPlugin implements ProxyPresencePlayerProvider {
     @Subscribe
     public void onProxyShutdown(ProxyShutdownEvent event) {
         logger.info("SimpleCloud v3 API provider uninitialized!");
-        playerPropertySynchronizer.stop();
+        luckPermsSynchronizer.stop();
         proxyPresenceResponder.stop();
         playerSynchronizer.stop();
         playerCommandHandler.stop();
         cloudApi.close();
     }
 
-    private PlayerPropertySynchronizer startPlayerPropertySynchronizer() {
+    private LuckPermsSynchronizer startLuckPermsSynchronizer() {
         if (!proxyServer.getPluginManager().isLoaded("luckperms")) {
-            return PlayerPropertySynchronizer.NONE;
+            return LuckPermsSynchronizer.DISABLED;
         }
         try {
-            LuckPermsPlayerPropertySynchronizer luckPermsSynchronizer = new LuckPermsPlayerPropertySynchronizer(
+            LuckPermsPrimaryGroupSynchronizer primaryGroupSynchronizer = new LuckPermsPrimaryGroupSynchronizer(
                     cloudApi,
                     LuckPermsProvider.get(),
                     this,
                     playerId -> proxyServer.getPlayer(playerId).isPresent(),
                     logger::error
             );
-            luckPermsSynchronizer.start();
-            logger.info("LuckPerms player property synchronization enabled");
-            return luckPermsSynchronizer;
+            primaryGroupSynchronizer.start();
+            logger.info("LuckPerms primary group synchronization enabled");
+            return primaryGroupSynchronizer;
         } catch (IllegalStateException exception) {
             logger.warn("LuckPerms is present but its API is not available", exception);
-            return PlayerPropertySynchronizer.NONE;
+            return LuckPermsSynchronizer.DISABLED;
         }
     }
 

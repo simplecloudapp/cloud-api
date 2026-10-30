@@ -4,7 +4,7 @@ import app.simplecloud.api.internal.integration.player.LoginResult;
 import app.simplecloud.api.internal.integration.player.PlayerLogin;
 import app.simplecloud.api.internal.integration.player.PlayerSessionReporter;
 import app.simplecloud.api.internal.integration.presence.ProxyPresenceTracker;
-import app.simplecloud.api.platform.shared.PlayerPropertySynchronizer;
+import app.simplecloud.api.platform.shared.LuckPermsSynchronizer;
 import app.simplecloud.api.platform.shared.PlayerSynchronizer;
 import app.simplecloud.api.player.PlayerClientSettings;
 import com.velocitypowered.api.event.EventTask;
@@ -34,20 +34,20 @@ public class PlayerConnectionListener {
     private final PlayerSessionReporter playerSessionReporter;
     private final ProxyPresenceTracker proxyPresenceTracker;
     private final String proxyName;
-    private final PlayerPropertySynchronizer playerPropertySynchronizer;
+    private final LuckPermsSynchronizer luckPermsSynchronizer;
 
     public PlayerConnectionListener(
             PlayerSynchronizer playerSynchronizer,
             PlayerSessionReporter playerSessionReporter,
             ProxyPresenceTracker proxyPresenceTracker,
             String proxyName,
-            PlayerPropertySynchronizer playerPropertySynchronizer
+            LuckPermsSynchronizer luckPermsSynchronizer
     ) {
         this.playerSynchronizer = playerSynchronizer;
         this.playerSessionReporter = playerSessionReporter;
         this.proxyPresenceTracker = proxyPresenceTracker;
         this.proxyName = proxyName;
-        this.playerPropertySynchronizer = playerPropertySynchronizer;
+        this.luckPermsSynchronizer = luckPermsSynchronizer;
     }
 
     @Subscribe(priority = 100)
@@ -101,7 +101,7 @@ public class PlayerConnectionListener {
         UUID playerId = player.getUniqueId();
         String sessionId = result.getSessionId();
         proxyPresenceTracker.updateSessionId(playerId.toString(), sessionId);
-        playerPropertySynchronizer.synchronize(playerId);
+        luckPermsSynchronizer.synchronize(playerId);
         if (player.hasSentPlayerSettings()) {
             sendClientSettings(player, sessionId, player.getPlayerSettings());
         }
@@ -118,7 +118,7 @@ public class PlayerConnectionListener {
                     return null;
                 });
         proxyPresenceTracker.remove(playerId.toString());
-        playerPropertySynchronizer.forget(playerId);
+        luckPermsSynchronizer.forget(playerId);
 
         CompletableFuture.runAsync(() -> playerSynchronizer.updatePlayerCount());
     }

@@ -4,7 +4,7 @@ import app.simplecloud.api.internal.integration.player.LoginResult;
 import app.simplecloud.api.internal.integration.player.PlayerLogin;
 import app.simplecloud.api.internal.integration.player.PlayerSessionReporter;
 import app.simplecloud.api.internal.integration.presence.ProxyPresenceTracker;
-import app.simplecloud.api.platform.shared.PlayerPropertySynchronizer;
+import app.simplecloud.api.platform.shared.LuckPermsSynchronizer;
 import app.simplecloud.api.platform.shared.PlayerSynchronizer;
 import app.simplecloud.api.player.PlayerClientSettings;
 import com.velocitypowered.api.event.Continuation;
@@ -44,9 +44,9 @@ class PlayerConnectionListenerTest {
         PlayerSessionReporter sessionReporter = mock(PlayerSessionReporter.class);
         when(sessionReporter.reportLogin(any(PlayerLogin.class))).thenReturn(registration);
         ProxyPresenceTracker presence = mock(ProxyPresenceTracker.class);
-        PlayerPropertySynchronizer propertySynchronizer = mock(PlayerPropertySynchronizer.class);
+        LuckPermsSynchronizer luckPermsSynchronizer = mock(LuckPermsSynchronizer.class);
         PlayerConnectionListener listener = new PlayerConnectionListener(
-                mock(PlayerSynchronizer.class), sessionReporter, presence, "proxy-1", propertySynchronizer);
+                mock(PlayerSynchronizer.class), sessionReporter, presence, "proxy-1", luckPermsSynchronizer);
         Player player = mock(Player.class);
         when(player.getUniqueId()).thenReturn(playerId);
         when(player.getUsername()).thenReturn("Player");
@@ -63,16 +63,16 @@ class PlayerConnectionListenerTest {
         task.execute(continuation);
         if (!completedBeforeEvent) {
             verifyNoInteractions(continuation);
-            verifyNoInteractions(propertySynchronizer);
+            verifyNoInteractions(luckPermsSynchronizer);
             completeRegistration(registration, outcome);
         }
 
         verify(continuation).resume();
         if (outcome.equals("success")) {
             verify(presence).updateSessionId(playerId.toString(), "session-1");
-            verify(propertySynchronizer).synchronize(playerId);
+            verify(luckPermsSynchronizer).synchronize(playerId);
         } else {
-            verifyNoInteractions(propertySynchronizer);
+            verifyNoInteractions(luckPermsSynchronizer);
         }
     }
 
@@ -83,7 +83,7 @@ class PlayerConnectionListenerTest {
         PlayerSessionReporter sessionReporter = mock(PlayerSessionReporter.class);
         when(sessionReporter.reportLogin(any(PlayerLogin.class))).thenReturn(new CompletableFuture<>());
         PlayerConnectionListener listener = new PlayerConnectionListener(
-                mock(PlayerSynchronizer.class), sessionReporter, mock(ProxyPresenceTracker.class), "proxy-1", PlayerPropertySynchronizer.NONE);
+                mock(PlayerSynchronizer.class), sessionReporter, mock(ProxyPresenceTracker.class), "proxy-1", LuckPermsSynchronizer.DISABLED);
         Player player = mock(Player.class);
         when(player.getUniqueId()).thenReturn(playerId);
         when(player.getUsername()).thenReturn("Player");
@@ -99,19 +99,19 @@ class PlayerConnectionListenerTest {
     }
 
     @Test
-    void quitForgetsPlayerProperties() {
+    void quitStopsLuckPermsSynchronizationForThePlayer() {
         UUID playerId = UUID.randomUUID();
         PlayerSessionReporter sessionReporter = mock(PlayerSessionReporter.class);
         when(sessionReporter.reportDisconnect(playerId)).thenReturn(CompletableFuture.completedFuture(null));
-        PlayerPropertySynchronizer propertySynchronizer = mock(PlayerPropertySynchronizer.class);
+        LuckPermsSynchronizer luckPermsSynchronizer = mock(LuckPermsSynchronizer.class);
         PlayerConnectionListener listener = new PlayerConnectionListener(
-                mock(PlayerSynchronizer.class), sessionReporter, mock(ProxyPresenceTracker.class), "proxy-1", propertySynchronizer);
+                mock(PlayerSynchronizer.class), sessionReporter, mock(ProxyPresenceTracker.class), "proxy-1", luckPermsSynchronizer);
         Player player = mock(Player.class);
         when(player.getUniqueId()).thenReturn(playerId);
 
         listener.onPlayerQuit(new DisconnectEvent(player, DisconnectEvent.LoginStatus.SUCCESSFUL_LOGIN));
 
-        verify(propertySynchronizer).forget(playerId);
+        verify(luckPermsSynchronizer).forget(playerId);
     }
 
     @Test
@@ -122,7 +122,7 @@ class PlayerConnectionListenerTest {
                 .thenReturn(CompletableFuture.completedFuture(LoginResult.success("session-1")));
         when(sessionReporter.reportClientSettings(anyString(), any())).thenReturn(CompletableFuture.completedFuture(null));
         PlayerConnectionListener listener = new PlayerConnectionListener(
-                mock(PlayerSynchronizer.class), sessionReporter, mock(ProxyPresenceTracker.class), "proxy-1", PlayerPropertySynchronizer.NONE);
+                mock(PlayerSynchronizer.class), sessionReporter, mock(ProxyPresenceTracker.class), "proxy-1", LuckPermsSynchronizer.DISABLED);
         Player player = mock(Player.class);
         when(player.getUniqueId()).thenReturn(playerId);
         when(player.getUsername()).thenReturn("Player");
@@ -143,7 +143,7 @@ class PlayerConnectionListenerTest {
         PlayerSessionReporter sessionReporter = mock(PlayerSessionReporter.class);
         ProxyPresenceTracker presence = mock(ProxyPresenceTracker.class);
         PlayerConnectionListener listener = new PlayerConnectionListener(
-                mock(PlayerSynchronizer.class), sessionReporter, presence, "proxy-1", PlayerPropertySynchronizer.NONE);
+                mock(PlayerSynchronizer.class), sessionReporter, presence, "proxy-1", LuckPermsSynchronizer.DISABLED);
         Player player = mock(Player.class);
         when(player.getUniqueId()).thenReturn(UUID.randomUUID());
 
@@ -160,7 +160,7 @@ class PlayerConnectionListenerTest {
         ProxyPresenceTracker presence = mock(ProxyPresenceTracker.class);
         when(presence.getSessionId(playerId.toString())).thenReturn("session-1");
         PlayerConnectionListener listener = new PlayerConnectionListener(
-                mock(PlayerSynchronizer.class), sessionReporter, presence, "proxy-1", PlayerPropertySynchronizer.NONE);
+                mock(PlayerSynchronizer.class), sessionReporter, presence, "proxy-1", LuckPermsSynchronizer.DISABLED);
         Player player = mock(Player.class);
         when(player.getUniqueId()).thenReturn(playerId);
 
