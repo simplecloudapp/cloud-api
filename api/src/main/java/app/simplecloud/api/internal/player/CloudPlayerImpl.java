@@ -147,6 +147,11 @@ public class CloudPlayerImpl implements CloudPlayer, ForwardingAudience.Single {
     }
 
     @Override
+    public CompletableFuture<ConnectResult> connectDirect(String serverName) {
+        return playerApi.connectDirect(uniqueId, serverName);
+    }
+
+    @Override
     public CompletableFuture<ConnectResult> connectToGroup(String groupName, ServerSelectionMode selectionMode) {
         return playerApi.connectToGroup(uniqueId, groupName, selectionMode);
     }
