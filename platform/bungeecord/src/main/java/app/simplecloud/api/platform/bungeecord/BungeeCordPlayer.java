@@ -8,6 +8,7 @@ import net.md_5.bungee.api.ProxyServer;
 import net.md_5.bungee.api.chat.BaseComponent;
 import net.md_5.bungee.api.config.ServerInfo;
 import net.md_5.bungee.api.connection.ProxiedPlayer;
+import net.md_5.bungee.api.connection.Server;
 
 import java.util.concurrent.CompletableFuture;
 
@@ -37,7 +38,7 @@ final class BungeeCordPlayer implements ProxyPlayer {
     }
 
     private CompletableFuture<CloudPlayer.ConnectResult> connectTo(ServerInfo serverInfo) {
-        if (player.getServer() != null && player.getServer().getInfo().getName().equals(serverInfo.getName())) {
+        if (isConnectedTo(serverInfo)) {
             return CompletableFuture.completedFuture(CloudPlayer.ConnectResult.ALREADY_CONNECTED);
         }
 
@@ -50,5 +51,14 @@ final class BungeeCordPlayer implements ProxyPlayer {
             }
         });
         return future;
+    }
+
+    private boolean isConnectedTo(ServerInfo serverInfo) {
+        Server currentServer = player.getServer();
+        if (currentServer == null) {
+            return false;
+        }
+        String currentServerName = currentServer.getInfo().getName();
+        return currentServerName.equals(serverInfo.getName());
     }
 }

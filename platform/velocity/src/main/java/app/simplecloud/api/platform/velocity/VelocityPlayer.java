@@ -36,16 +36,16 @@ final class VelocityPlayer implements ProxyPlayer {
     }
 
     private CompletableFuture<CloudPlayer.ConnectResult> connectTo(RegisteredServer registeredServer) {
-        return player.createConnectionRequest(registeredServer).connect()
-                .thenApply(result -> {
-                    ConnectionRequestBuilder.Status status = result.getStatus();
-                    if (status == ConnectionRequestBuilder.Status.SUCCESS) {
-                        return CloudPlayer.ConnectResult.SUCCESS;
-                    } else if (status == ConnectionRequestBuilder.Status.ALREADY_CONNECTED) {
-                        return CloudPlayer.ConnectResult.ALREADY_CONNECTED;
-                    } else {
-                        return CloudPlayer.ConnectResult.CONNECTION_FAILED;
-                    }
-                });
+        ConnectionRequestBuilder connectionRequest = player.createConnectionRequest(registeredServer);
+        CompletableFuture<ConnectionRequestBuilder.Result> connection = connectionRequest.connect();
+        return connection.thenApply(result -> toConnectResult(result.getStatus()));
+    }
+
+    private static CloudPlayer.ConnectResult toConnectResult(ConnectionRequestBuilder.Status status) {
+        return switch (status) {
+            case SUCCESS -> CloudPlayer.ConnectResult.SUCCESS;
+            case ALREADY_CONNECTED -> CloudPlayer.ConnectResult.ALREADY_CONNECTED;
+            default -> CloudPlayer.ConnectResult.CONNECTION_FAILED;
+        };
     }
 }

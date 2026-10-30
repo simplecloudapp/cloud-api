@@ -1,5 +1,6 @@
 package app.simplecloud.api.platform.bungeecord;
 
+import app.simplecloud.api.internal.integration.player.LoginResult;
 import app.simplecloud.api.internal.integration.player.PlayerLogin;
 import app.simplecloud.api.internal.integration.player.PlayerSessionReporter;
 import app.simplecloud.api.internal.integration.presence.ProxyPresenceTracker;
@@ -76,27 +77,33 @@ public class PlayerConnectionListener implements Listener {
                 null
         );
 
-        var registration = playerSessionReporter.reportLogin(login);
+        CompletableFuture<LoginResult> loginReport = playerSessionReporter.reportLogin(login);
         // Keep the initial backend connection behind controller registration.
         event.registerIntent(plugin);
-        registration.thenAccept(result -> {
-            if (result.isSuccess()) {
-                proxyPresenceTracker.updateSessionId(playerId.toString(), result.getSessionId());
-                playerPropertySynchronizer.synchronize(playerId);
-                if (player.getLocale() != null) {
-                    sendClientSettings(player, result.getSessionId());
-                }
-            }
-            if (!result.isSuccess()) {
-                logger.warning("Login failed for " + player.getName() + ": " + result.getErrorMessage());
-            }
-        }).exceptionally(e -> {
-            logger.log(Level.SEVERE, "Failed to send login event for " + player.getName(), e);
+        CompletableFuture<Void> loginApplied = loginReport.thenAccept(result -> applyLoginResult(player, result));
+        CompletableFuture<Void> registration = loginApplied.exceptionally(failure -> {
+            logger.log(Level.SEVERE, "Failed to send login event for " + player.getName(), failure);
             return null;
-        }).copy().completeOnTimeout(null, LOGIN_WAIT_SECONDS, TimeUnit.SECONDS)
-                .whenComplete((ignored, error) -> event.completeIntent(plugin));
+        });
+        CompletableFuture<Void> registrationOrTimeout =
+                registration.copy().completeOnTimeout(null, LOGIN_WAIT_SECONDS, TimeUnit.SECONDS);
+        registrationOrTimeout.whenComplete((ignored, failure) -> event.completeIntent(plugin));
 
         CompletableFuture.runAsync(() -> playerSynchronizer.updatePlayerCount());
+    }
+
+    private void applyLoginResult(ProxiedPlayer player, LoginResult result) {
+        if (!result.isSuccess()) {
+            logger.warning("Login failed for " + player.getName() + ": " + result.getErrorMessage());
+            return;
+        }
+        UUID playerId = player.getUniqueId();
+        String sessionId = result.getSessionId();
+        proxyPresenceTracker.updateSessionId(playerId.toString(), sessionId);
+        playerPropertySynchronizer.synchronize(playerId);
+        if (player.getLocale() != null) {
+            sendClientSettings(player, sessionId);
+        }
     }
 
     @EventHandler
