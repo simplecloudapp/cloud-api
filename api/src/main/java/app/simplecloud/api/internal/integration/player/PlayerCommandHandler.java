@@ -75,12 +75,8 @@ public class PlayerCommandHandler {
             if (player.isEmpty()) return;
 
             Component reason = parseKickReason(request);
-            CompletableFuture.runAsync(() -> player.get().kick(reason), executor)
-                    .thenRun(() -> sendKickResponse(msg, true))
-                    .exceptionally(e -> {
-                        sendKickResponse(msg, false);
-                        return null;
-                    });
+            CompletableFuture<Void> kick = CompletableFuture.runAsync(() -> player.get().kick(reason), executor);
+            kick.whenComplete((ignored, failure) -> sendKickResponse(msg, failure == null));
         } catch (Exception e) {
             sendKickResponse(msg, false);
         }
@@ -116,12 +112,11 @@ public class PlayerCommandHandler {
                     ? ConnectTarget.byName(request.getServerName(), serverApi::findServerById)
                     : ConnectTarget.byId(request.getServerId(), serverApi::findServerById);
 
-            player.get().connect(target)
-                    .thenAccept(result -> sendConnectResponse(msg, result))
-                    .exceptionally(e -> {
-                        sendConnectResponse(msg, CloudPlayer.ConnectResult.CONNECTION_FAILED);
-                        return null;
-                    });
+            CompletableFuture<CloudPlayer.ConnectResult> connect = player.get().connect(target);
+            connect.whenComplete((result, failure) -> {
+                CloudPlayer.ConnectResult reply = failure == null ? result : CloudPlayer.ConnectResult.CONNECTION_FAILED;
+                sendConnectResponse(msg, reply);
+            });
         } catch (Exception e) {
             sendConnectResponse(msg, CloudPlayer.ConnectResult.CONNECTION_FAILED);
         }
@@ -130,24 +125,21 @@ public class PlayerCommandHandler {
     private void sendConnectResponse(Message msg, CloudPlayer.ConnectResult result) {
         if (msg.getReplyTo() != null) {
             try {
-                ConnectPlayerResponse.Builder builder = ConnectPlayerResponse.newBuilder();
-                switch (result) {
-                    case SUCCESS:
-                        builder.setResult(build.buf.gen.simplecloud.player.v2.ConnectResult.CONNECT_RESULT_SUCCESS);
-                        break;
-                    case SERVER_NOT_FOUND:
-                        builder.setResult(build.buf.gen.simplecloud.player.v2.ConnectResult.CONNECT_RESULT_SERVER_NOT_FOUND);
-                        break;
-                    case ALREADY_CONNECTED:
-                        builder.setResult(build.buf.gen.simplecloud.player.v2.ConnectResult.CONNECT_RESULT_ALREADY_CONNECTED);
-                        break;
-                    default:
-                        builder.setResult(build.buf.gen.simplecloud.player.v2.ConnectResult.CONNECT_RESULT_FAILED);
-                        break;
-                }
-                natsConnection.publish(msg.getReplyTo(), builder.build().toByteArray());
+                ConnectPlayerResponse response = ConnectPlayerResponse.newBuilder()
+                        .setResult(toProtoConnectResult(result))
+                        .build();
+                natsConnection.publish(msg.getReplyTo(), response.toByteArray());
             } catch (Exception ignored) {
             }
         }
+    }
+
+    private static ConnectResult toProtoConnectResult(CloudPlayer.ConnectResult result) {
+        return switch (result) {
+            case SUCCESS -> ConnectResult.CONNECT_RESULT_SUCCESS;
+            case SERVER_NOT_FOUND -> ConnectResult.CONNECT_RESULT_SERVER_NOT_FOUND;
+            case ALREADY_CONNECTED -> ConnectResult.CONNECT_RESULT_ALREADY_CONNECTED;
+            default -> ConnectResult.CONNECT_RESULT_FAILED;
+        };
     }
 }
