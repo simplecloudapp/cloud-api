@@ -9,8 +9,8 @@ import app.simplecloud.api.internal.integration.presence.ProxyPresenceTracker;
 import app.simplecloud.api.presence.ProxyPresencePlayer;
 import app.simplecloud.api.presence.ProxyPresencePlayerProvider;
 import app.simplecloud.api.runtime.SimpleCloudRuntime;
-import app.simplecloud.api.platform.shared.LuckPermsPlayerPropertySynchronizer;
-import app.simplecloud.api.platform.shared.PlayerPropertySynchronizer;
+import app.simplecloud.api.platform.shared.LuckPermsPrimaryGroupSynchronizer;
+import app.simplecloud.api.platform.shared.LuckPermsSynchronizer;
 import app.simplecloud.api.platform.shared.PlayerSynchronizer;
 import net.kyori.adventure.platform.bungeecord.BungeeAudiences;
 import net.md_5.bungee.api.connection.ProxiedPlayer;
@@ -29,7 +29,7 @@ public class BungeeCordApiProvider extends Plugin implements ProxyPresencePlayer
     private PlayerCommandHandler playerCommandHandler;
     private ProxyPresenceTracker proxyPresenceTracker;
     private ProxyPresenceResponder proxyPresenceResponder;
-    private PlayerPropertySynchronizer playerPropertySynchronizer;
+    private LuckPermsSynchronizer luckPermsSynchronizer;
 
     private BungeeAudiences bungeeAudiences;
 
@@ -38,7 +38,7 @@ public class BungeeCordApiProvider extends Plugin implements ProxyPresencePlayer
         this.cloudApi = (CloudApiImpl) CloudApi.create();
         // Started right after the CloudApi and stopped first in onDisable, so onDisable stops it
         // even if a later step of onEnable fails.
-        this.playerPropertySynchronizer = startPlayerPropertySynchronizer();
+        this.luckPermsSynchronizer = startLuckPermsSynchronizer();
         this.proxyName = SimpleCloudRuntime.serverName();
         this.playerSynchronizer = new PlayerSynchronizer(cloudApi, getProxy()::getOnlineCount);
         this.playerSessionReporter = new PlayerSessionReporter(cloudApi);
@@ -60,7 +60,7 @@ public class BungeeCordApiProvider extends Plugin implements ProxyPresencePlayer
                 playerSessionReporter,
                 proxyPresenceTracker,
                 proxyName,
-                playerPropertySynchronizer
+                luckPermsSynchronizer
         ));
 
         playerSynchronizer.start();
@@ -71,7 +71,7 @@ public class BungeeCordApiProvider extends Plugin implements ProxyPresencePlayer
     @Override
     public void onDisable() {
         getLogger().info("SimpleCloud v3 API provider uninitialized!");
-        playerPropertySynchronizer.stop();
+        luckPermsSynchronizer.stop();
         proxyPresenceResponder.stop();
         playerSynchronizer.stop();
         playerCommandHandler.stop();
@@ -82,24 +82,24 @@ public class BungeeCordApiProvider extends Plugin implements ProxyPresencePlayer
         cloudApi.close();
     }
 
-    private PlayerPropertySynchronizer startPlayerPropertySynchronizer() {
+    private LuckPermsSynchronizer startLuckPermsSynchronizer() {
         if (getProxy().getPluginManager().getPlugin("LuckPerms") == null) {
-            return PlayerPropertySynchronizer.NONE;
+            return LuckPermsSynchronizer.DISABLED;
         }
         try {
-            LuckPermsPlayerPropertySynchronizer luckPermsSynchronizer = new LuckPermsPlayerPropertySynchronizer(
+            LuckPermsPrimaryGroupSynchronizer primaryGroupSynchronizer = new LuckPermsPrimaryGroupSynchronizer(
                     cloudApi,
                     LuckPermsProvider.get(),
                     this,
                     playerId -> getProxy().getPlayer(playerId) != null,
                     (message, cause) -> getLogger().log(java.util.logging.Level.SEVERE, message, cause)
             );
-            luckPermsSynchronizer.start();
-            getLogger().info("LuckPerms player property synchronization enabled");
-            return luckPermsSynchronizer;
+            primaryGroupSynchronizer.start();
+            getLogger().info("LuckPerms primary group synchronization enabled");
+            return primaryGroupSynchronizer;
         } catch (IllegalStateException exception) {
             getLogger().log(java.util.logging.Level.WARNING, "LuckPerms is present but its API is not available", exception);
-            return PlayerPropertySynchronizer.NONE;
+            return LuckPermsSynchronizer.DISABLED;
         }
     }
 
