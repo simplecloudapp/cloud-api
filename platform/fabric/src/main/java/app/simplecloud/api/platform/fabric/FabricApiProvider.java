@@ -9,14 +9,14 @@ import net.minecraft.server.MinecraftServer;
 import org.slf4j.Logger;
 import org.slf4j.LoggerFactory;
 
-import java.util.concurrent.atomic.AtomicLong;
+import java.util.concurrent.atomic.AtomicInteger;
 
 public final class FabricApiProvider implements DedicatedServerModInitializer {
 
     public static final String MOD_ID = "simplecloud_api";
     private static final Logger LOGGER = LoggerFactory.getLogger(MOD_ID);
 
-    private final AtomicLong onlinePlayerCount = new AtomicLong();
+    private final AtomicInteger onlinePlayerCount = new AtomicInteger();
 
     private MinecraftServer server;
     private CloudApi cloudApi;

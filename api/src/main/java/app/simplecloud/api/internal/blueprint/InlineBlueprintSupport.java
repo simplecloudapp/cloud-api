@@ -6,6 +6,7 @@ import app.simplecloud.api.blueprint.CreateBlueprintRequest;
 import app.simplecloud.api.blueprint.RuntimeConfig;
 import app.simplecloud.api.group.SourceConfig;
 import app.simplecloud.api.group.SourceType;
+import app.simplecloud.api.internal.web.ApiErrors;
 import app.simplecloud.api.web.ApiException;
 import app.simplecloud.api.web.apis.BlueprintsApi;
 import app.simplecloud.api.web.models.ModelsCreateBlueprintRequest;
@@ -15,7 +16,6 @@ import app.simplecloud.api.web.models.ModelsSourceConfig;
 import org.jetbrains.annotations.Nullable;
 
 import java.time.Duration;
-import java.util.function.Supplier;
 
 /**
  * Shared support for resources that create or delete a referenced blueprint as part of their lifecycle.
@@ -126,31 +126,45 @@ public final class InlineBlueprintSupport {
         throw lastDeleteFailure;
     }
 
-    @Nullable
-    public ApiException rollbackBlueprintAfterCreateFailure(@Nullable String blueprintId,
-                                                            ApiException createFailure,
-                                                            Supplier<Boolean> resourceExistsProbe) {
+    /**
+     * Deletes the inline blueprint after creating the resource that references it failed,
+     * and returns the exception the caller throws.
+     * Keeps the blueprint if the resource may have been created and either turns out to exist or can't be checked.
+     *
+     * @param resourceKind names the resource in the failure message, for example {@code "group"}
+     * @return the create failure converted to a {@link CloudApiException}, or a rollback failure wrapping it if
+     * the blueprint could not be deleted
+     */
+    public CloudApiException rollBackAfterCreateFailure(String resourceKind,
+                                                        @Nullable String blueprintId,
+                                                        ApiException createFailure,
+                                                        CreatedResourceCheck createdResource) {
         if (blueprintId == null) {
-            return null;
+            return ApiErrors.from(createFailure);
         }
 
         if (failureMayHaveCreatedResource(createFailure)) {
             try {
-                if (resourceExistsAfterReconciliation(resourceExistsProbe)) {
-                    return null;
+                if (resourceExistsAfterReconciliation(createdResource)) {
+                    return ApiErrors.from(createFailure);
                 }
             } catch (RuntimeException reconcileFailure) {
                 createFailure.addSuppressed(reconcileFailure);
-                return null;
+                return ApiErrors.from(createFailure);
             }
         }
 
         try {
             deleteBlueprint(blueprintId);
-            return null;
+            return ApiErrors.from(createFailure);
         } catch (ApiException deleteFailure) {
             createFailure.addSuppressed(deleteFailure);
-            return deleteFailure;
+            CloudApiException rollbackFailure = ApiErrors.from(
+                    "Failed to create " + resourceKind + " and rollback inline blueprint " + blueprintId,
+                    createFailure
+            );
+            rollbackFailure.addSuppressed(deleteFailure);
+            return rollbackFailure;
         }
     }
 
@@ -163,9 +177,9 @@ public final class InlineBlueprintSupport {
         return statusCode <= 0 || statusCode == 408 || statusCode == 429 || statusCode >= 500;
     }
 
-    private boolean resourceExistsAfterReconciliation(Supplier<Boolean> resourceExistsProbe) {
+    private boolean resourceExistsAfterReconciliation(CreatedResourceCheck createdResource) {
         for (int attempt = 1; attempt <= RECONCILE_MAX_ATTEMPTS; attempt++) {
-            if (resourceExistsProbe.get()) {
+            if (createdResource.resourceExists()) {
                 return true;
             }
             if (attempt < RECONCILE_MAX_ATTEMPTS) {
@@ -249,5 +263,13 @@ public final class InlineBlueprintSupport {
     @FunctionalInterface
     public interface ServerUrlResolver {
         @Nullable String resolve(CreateBlueprintRequest request);
+    }
+
+    /**
+     * Checks whether the resource that references the inline blueprint exists.
+     */
+    @FunctionalInterface
+    public interface CreatedResourceCheck {
+        boolean resourceExists();
     }
 }

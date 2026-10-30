@@ -28,10 +28,12 @@ import java.util.Map;
 import java.util.concurrent.CompletionException;
 import java.util.concurrent.atomic.AtomicInteger;
 
+import static org.junit.jupiter.api.Assertions.assertArrayEquals;
 import static org.junit.jupiter.api.Assertions.assertEquals;
 import static org.junit.jupiter.api.Assertions.assertInstanceOf;
 import static org.junit.jupiter.api.Assertions.assertNotNull;
 import static org.junit.jupiter.api.Assertions.assertNull;
+import static org.junit.jupiter.api.Assertions.assertSame;
 import static org.junit.jupiter.api.Assertions.assertThrows;
 import static org.junit.jupiter.api.Assertions.assertTrue;
 
@@ -173,6 +175,28 @@ class PersistentServerApiImplTest {
     }
 
     @Test
+    void createPersistentServer_httpFailure_surfacesRollbackFailure() {
+        AtomicInteger order = new AtomicInteger();
+        FakeBlueprintsApi blueprintsApi = new FakeBlueprintsApi(order);
+        FakePersistentServersApi persistentServersApi = new FakePersistentServersApi(order);
+        persistentServersApi.postFailure = new ApiException(400, "bad request");
+        blueprintsApi.deleteFailure = new ApiException(403, "delete forbidden");
+
+        PersistentServerApiImpl api = new PersistentServerApiImpl(options(), new NoOpQueryCache(), persistentServersApi, blueprintsApi);
+        CreatePersistentServerRequest request = CreatePersistentServerRequest.builder()
+                .name("Lobby-1")
+                .createBlueprint(CreateBlueprintRequest.builder().build())
+                .build();
+
+        CompletionException failure = assertThrows(CompletionException.class, () -> api.createPersistentServer(request).join());
+
+        assertEquals("Failed to create persistent server and rollback inline blueprint bp-1", failure.getCause().getMessage());
+        assertSame(persistentServersApi.postFailure, failure.getCause().getCause());
+        assertArrayEquals(new Throwable[]{blueprintsApi.deleteFailure}, failure.getCause().getSuppressed());
+        assertArrayEquals(new Throwable[]{blueprintsApi.deleteFailure}, persistentServersApi.postFailure.getSuppressed());
+    }
+
+    @Test
     void createPersistentServer_http5xx_rollsBackBlueprintWhenReconciliationFindsNoServer() {
         AtomicInteger order = new AtomicInteger();
         FakeBlueprintsApi blueprintsApi = new FakeBlueprintsApi(order);
@@ -271,6 +295,7 @@ class PersistentServerApiImplTest {
         private int postOrder;
         private int deleteOrder;
         private ModelsCreateBlueprintRequest lastCreateRequest;
+        private ApiException deleteFailure;
         private final List<String> deletedBlueprintIds = new ArrayList<>();
 
         private FakeBlueprintsApi(AtomicInteger order) {
@@ -294,9 +319,12 @@ class PersistentServerApiImplTest {
 
         @Override
         public app.simplecloud.api.web.models.ModelsDeleteBlueprintResponse deleteBlueprint(String xNetworkID,
-                                                                                                String blueprintId) {
+                                                                                                String blueprintId) throws ApiException {
             deleteOrder = order.incrementAndGet();
             deletedBlueprintIds.add(blueprintId);
+            if (deleteFailure != null) {
+                throw deleteFailure;
+            }
             return new app.simplecloud.api.web.models.ModelsDeleteBlueprintResponse();
         }
     }

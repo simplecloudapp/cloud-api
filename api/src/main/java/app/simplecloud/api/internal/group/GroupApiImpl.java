@@ -363,20 +363,12 @@ public class GroupApiImpl implements GroupApi {
                     );
                 } catch (ApiException e) {
                     String blueprintId = createdBlueprintId;
-                    ApiException rollbackFailure = inlineBlueprintSupport.rollbackBlueprintAfterCreateFailure(
+                    throw inlineBlueprintSupport.rollBackAfterCreateFailure(
+                            "group",
                             blueprintId,
                             e,
                             () -> groupExistsWithBlueprint(request.getName(), blueprintId)
                     );
-                    if (rollbackFailure != null) {
-                        RuntimeException failure = ApiErrors.from(
-                                "Failed to create group and rollback inline blueprint " + blueprintId,
-                                e
-                        );
-                        failure.addSuppressed(rollbackFailure);
-                        throw failure;
-                    }
-                    throw e;
                 }
 
                 // Invalidate group list caches (new group created)

@@ -1,11 +1,11 @@
 package app.simplecloud.api.internal.integration.adventure;
 
-import app.simplecloud.api.CloudApi;
 import app.simplecloud.api.internal.CloudApiImpl;
 import build.buf.gen.simplecloud.adventure.v1.*;
 import io.nats.client.Connection;
 import io.nats.client.Dispatcher;
 import io.nats.client.Message;
+import io.nats.client.MessageHandler;
 import net.kyori.adventure.audience.Audience;
 import net.kyori.adventure.bossbar.BossBar;
 import net.kyori.adventure.key.Key;
@@ -16,12 +16,12 @@ import net.kyori.adventure.title.Title;
 import net.kyori.adventure.title.TitlePart;
 
 import java.time.Duration;
+import java.util.List;
 import java.util.Map;
+import java.util.Optional;
 import java.util.UUID;
 import java.util.concurrent.ConcurrentHashMap;
 import java.util.concurrent.atomic.AtomicBoolean;
-import java.util.function.Function;
-import java.util.function.Supplier;
 
 /**
  * Adventure integration for server plugins.
@@ -29,111 +29,48 @@ import java.util.function.Supplier;
  */
 public class AdventureIntegration {
 
+    private static final List<String> ACTIONS = List.of(
+            "message",
+            "actionbar",
+            "title",
+            "subtitle",
+            "title-times",
+            "clear-title",
+            "reset-title",
+            "sound",
+            "sound-at",
+            "stop-sound",
+            "bossbar",
+            "bossbar-remove",
+            "player-list",
+            "open-book"
+    );
+
     private final Connection natsConnection;
     private final String networkId;
-    private final Function<UUID, Audience> playerResolver;
-    private final Supplier<Audience> allPlayersSupplier;
-
-    private final boolean subscribeToPlayers;
-    private final String subscribeToServerId;
-    private final String subscribeToGroup;
+    private final PlayerAudiences playerAudiences;
+    private final String serverId;
+    private final String groupName;
 
     private final AtomicBoolean running = new AtomicBoolean(false);
     private final Map<String, BossBar> activeBossBars = new ConcurrentHashMap<>();
 
     private Dispatcher dispatcher;
 
-    private AdventureIntegration(Builder builder) {
-        this.natsConnection = builder.natsConnection;
-        this.networkId = builder.networkId;
-        this.playerResolver = builder.playerResolver;
-        this.allPlayersSupplier = builder.allPlayersSupplier;
-        this.subscribeToPlayers = builder.subscribeToPlayers;
-        this.subscribeToServerId = builder.subscribeToServerId;
-        this.subscribeToGroup = builder.subscribeToGroup;
+    /**
+     * Creates an integration for actions sent to a player on this server, to this server, or to its group.
+     */
+    public AdventureIntegration(CloudApiImpl cloudApi, PlayerAudiences playerAudiences, String serverId, String groupName) {
+        this(cloudApi.getNatsConnection(), cloudApi.getNetworkId(), playerAudiences, serverId, groupName);
     }
 
-    public static Builder builder(Connection natsConnection, String networkId) {
-        return new Builder(natsConnection, networkId);
-    }
-
-    public static Builder builder(CloudApi cloudApi) {
-        if (!(cloudApi instanceof CloudApiImpl)) {
-            throw new IllegalArgumentException("CloudApi must be an instance of CloudApiImpl");
-        }
-        CloudApiImpl impl = (CloudApiImpl) cloudApi;
-        return new Builder(impl.getNatsConnection(), cloudApi.getNetworkId());
-    }
-
-    public static class Builder {
-        private final Connection natsConnection;
-        private final String networkId;
-        private Function<UUID, Audience> playerResolver;
-        private Supplier<Audience> allPlayersSupplier;
-        private boolean subscribeToPlayers = false;
-        private String subscribeToServerId = null;
-        private String subscribeToGroup = null;
-
-        private Builder(Connection natsConnection, String networkId) {
-            this.natsConnection = natsConnection;
-            this.networkId = networkId;
-        }
-
-        /**
-         * Sets the resolver for player-specific messages.
-         * The function receives a player UUID and returns their Audience (or null if not on this server).
-         */
-        public Builder playerResolver(Function<UUID, Audience> resolver) {
-            this.playerResolver = resolver;
-            return this;
-        }
-
-        /**
-         * Sets the supplier for all players on this server.
-         * Used for server-wide and group-wide messages.
-         * Can be a ForwardingAudience wrapping multiple audiences.
-         */
-        public Builder allPlayersSupplier(Supplier<Audience> supplier) {
-            this.allPlayersSupplier = supplier;
-            return this;
-        }
-
-        /**
-         * Subscribe to player-specific messages.
-         * Subject pattern: {networkId}.adventure.player.{uuid}.{action}
-         */
-        public Builder forPlayers() {
-            this.subscribeToPlayers = true;
-            return this;
-        }
-
-        /**
-         * Subscribe to server-specific messages.
-         * Subject pattern: {networkId}.adventure.server.{serverId}.{action}
-         */
-        public Builder forServer(String serverId) {
-            this.subscribeToServerId = serverId;
-            return this;
-        }
-
-        /**
-         * Subscribe to group-specific messages.
-         * Subject pattern: {networkId}.adventure.group.{groupName}.{action}
-         */
-        public Builder forGroup(String groupName) {
-            this.subscribeToGroup = groupName;
-            return this;
-        }
-
-        public AdventureIntegration build() {
-            if (playerResolver == null) {
-                throw new IllegalStateException("playerResolver is required");
-            }
-            if ((subscribeToServerId != null || subscribeToGroup != null) && allPlayersSupplier == null) {
-                throw new IllegalStateException("allPlayersSupplier is required when subscribing to server or group");
-            }
-            return new AdventureIntegration(this);
-        }
+    AdventureIntegration(Connection natsConnection, String networkId, PlayerAudiences playerAudiences,
+                         String serverId, String groupName) {
+        this.natsConnection = natsConnection;
+        this.networkId = networkId;
+        this.playerAudiences = playerAudiences;
+        this.serverId = serverId;
+        this.groupName = groupName;
     }
 
     /**
@@ -144,37 +81,20 @@ public class AdventureIntegration {
 
         dispatcher = natsConnection.createDispatcher(null);
 
-        if (subscribeToPlayers) {
-            String playerPrefix = networkId + ".adventure.player.*.";
-            subscribeActions(playerPrefix, this::handlePlayerMessage);
-        }
+        String playerPrefix = networkId + ".adventure.player.*.";
+        subscribeActions(playerPrefix, this::handlePlayerMessage);
 
-        if (subscribeToServerId != null) {
-            String serverPrefix = networkId + ".adventure.server." + subscribeToServerId + ".";
-            subscribeActions(serverPrefix, this::handleBroadcastMessage);
-        }
+        String serverPrefix = networkId + ".adventure.server." + serverId + ".";
+        subscribeActions(serverPrefix, this::handleBroadcastMessage);
 
-        if (subscribeToGroup != null) {
-            String groupPrefix = networkId + ".adventure.group." + subscribeToGroup + ".";
-            subscribeActions(groupPrefix, this::handleBroadcastMessage);
-        }
+        String groupPrefix = networkId + ".adventure.group." + groupName + ".";
+        subscribeActions(groupPrefix, this::handleBroadcastMessage);
     }
 
-    private void subscribeActions(String prefix, java.util.function.BiConsumer<Message, AudienceProvider> handler) {
-        dispatcher.subscribe(prefix + "message", msg -> handler.accept(msg, () -> getAudienceFromSubject(msg.getSubject())));
-        dispatcher.subscribe(prefix + "actionbar", msg -> handler.accept(msg, () -> getAudienceFromSubject(msg.getSubject())));
-        dispatcher.subscribe(prefix + "title", msg -> handler.accept(msg, () -> getAudienceFromSubject(msg.getSubject())));
-        dispatcher.subscribe(prefix + "subtitle", msg -> handler.accept(msg, () -> getAudienceFromSubject(msg.getSubject())));
-        dispatcher.subscribe(prefix + "title-times", msg -> handler.accept(msg, () -> getAudienceFromSubject(msg.getSubject())));
-        dispatcher.subscribe(prefix + "clear-title", msg -> handler.accept(msg, () -> getAudienceFromSubject(msg.getSubject())));
-        dispatcher.subscribe(prefix + "reset-title", msg -> handler.accept(msg, () -> getAudienceFromSubject(msg.getSubject())));
-        dispatcher.subscribe(prefix + "sound", msg -> handler.accept(msg, () -> getAudienceFromSubject(msg.getSubject())));
-        dispatcher.subscribe(prefix + "sound-at", msg -> handler.accept(msg, () -> getAudienceFromSubject(msg.getSubject())));
-        dispatcher.subscribe(prefix + "stop-sound", msg -> handler.accept(msg, () -> getAudienceFromSubject(msg.getSubject())));
-        dispatcher.subscribe(prefix + "bossbar", msg -> handler.accept(msg, () -> getAudienceFromSubject(msg.getSubject())));
-        dispatcher.subscribe(prefix + "bossbar-remove", msg -> handler.accept(msg, () -> getAudienceFromSubject(msg.getSubject())));
-        dispatcher.subscribe(prefix + "player-list", msg -> handler.accept(msg, () -> getAudienceFromSubject(msg.getSubject())));
-        dispatcher.subscribe(prefix + "open-book", msg -> handler.accept(msg, () -> getAudienceFromSubject(msg.getSubject())));
+    private void subscribeActions(String prefix, MessageHandler handler) {
+        for (String action : ACTIONS) {
+            dispatcher.subscribe(prefix + action, handler);
+        }
     }
 
     /**
@@ -192,43 +112,30 @@ public class AdventureIntegration {
         }
     }
 
-    @FunctionalInterface
-    private interface AudienceProvider {
-        Audience get();
+    private void handlePlayerMessage(Message msg) {
+        Optional<Audience> player = findAddressedPlayer(msg.getSubject());
+        // Every server receives player actions; only the server holding the player runs them.
+        if (player.isEmpty()) return;
+
+        String action = extractAction(msg.getSubject());
+        executeAction(action, msg, player.get());
     }
 
-    private Audience getAudienceFromSubject(String subject) {
-        // Subject patterns:
-        // Player: {networkId}.adventure.player.{uuid}.{action}
-        // Server: {networkId}.adventure.server.{serverId}.{action}
-        // Group:  {networkId}.adventure.group.{groupName}.{action}
+    private void handleBroadcastMessage(Message msg) {
+        String action = extractAction(msg.getSubject());
+        executeAction(action, msg, playerAudiences.allPlayers());
+    }
+
+    private Optional<Audience> findAddressedPlayer(String subject) {
+        // Subject pattern: {networkId}.adventure.player.{uuid}.{action}
         String[] parts = subject.split("\\.");
-        if (parts.length < 5) return Audience.empty();
-
-        String type = parts[2]; // "player", "server", or "group"
-
-        if ("player".equals(type)) {
-            try {
-                UUID uuid = UUID.fromString(parts[3]);
-                Audience audience = playerResolver.apply(uuid);
-                return audience != null ? audience : Audience.empty();
-            } catch (IllegalArgumentException e) {
-                return Audience.empty();
-            }
-        } else {
-            // Server or group - return all players
-            return allPlayersSupplier.get();
+        String playerToken = parts[parts.length - 2];
+        try {
+            UUID playerId = UUID.fromString(playerToken);
+            return playerAudiences.findPlayer(playerId);
+        } catch (IllegalArgumentException e) {
+            return Optional.empty();
         }
-    }
-
-    private void handlePlayerMessage(Message msg, AudienceProvider provider) {
-        String action = extractAction(msg.getSubject());
-        executeAction(action, msg, provider.get());
-    }
-
-    private void handleBroadcastMessage(Message msg, AudienceProvider ignored) {
-        String action = extractAction(msg.getSubject());
-        executeAction(action, msg, allPlayersSupplier.get());
     }
 
     private String extractAction(String subject) {

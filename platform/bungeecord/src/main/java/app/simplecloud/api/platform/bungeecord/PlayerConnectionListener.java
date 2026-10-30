@@ -1,7 +1,10 @@
 package app.simplecloud.api.platform.bungeecord;
 
-import app.simplecloud.api.internal.integration.player.PlayerIntegration;
+import app.simplecloud.api.internal.integration.player.LoginResult;
+import app.simplecloud.api.internal.integration.player.PlayerLogin;
+import app.simplecloud.api.internal.integration.player.PlayerSessionReporter;
 import app.simplecloud.api.internal.integration.presence.ProxyPresenceTracker;
+import app.simplecloud.api.platform.shared.LuckPermsSynchronizer;
 import app.simplecloud.api.platform.shared.PlayerSynchronizer;
 import app.simplecloud.api.player.PlayerClientSettings;
 import net.md_5.bungee.api.SkinConfiguration;
@@ -21,7 +24,6 @@ import java.util.List;
 import java.util.UUID;
 import java.util.concurrent.CompletableFuture;
 import java.util.concurrent.TimeUnit;
-import java.util.function.Consumer;
 import java.util.logging.Level;
 import java.util.logging.Logger;
 
@@ -32,82 +34,90 @@ public class PlayerConnectionListener implements Listener {
 
     private final Plugin plugin;
     private final PlayerSynchronizer playerSynchronizer;
-    private final PlayerIntegration playerIntegration;
+    private final PlayerSessionReporter playerSessionReporter;
     private final ProxyPresenceTracker proxyPresenceTracker;
     private final String proxyName;
-    private final Consumer<UUID> synchronizePlayerProperties;
-    private final Consumer<UUID> forgetPlayerProperties;
+    private final LuckPermsSynchronizer luckPermsSynchronizer;
 
     public PlayerConnectionListener(
             Plugin plugin,
             PlayerSynchronizer playerSynchronizer,
-            PlayerIntegration playerIntegration,
+            PlayerSessionReporter playerSessionReporter,
             ProxyPresenceTracker proxyPresenceTracker,
             String proxyName,
-            Consumer<UUID> synchronizePlayerProperties,
-            Consumer<UUID> forgetPlayerProperties
+            LuckPermsSynchronizer luckPermsSynchronizer
     ) {
         this.plugin = plugin;
         this.playerSynchronizer = playerSynchronizer;
-        this.playerIntegration = playerIntegration;
+        this.playerSessionReporter = playerSessionReporter;
         this.proxyPresenceTracker = proxyPresenceTracker;
         this.proxyName = proxyName;
-        this.synchronizePlayerProperties = synchronizePlayerProperties;
-        this.forgetPlayerProperties = forgetPlayerProperties;
+        this.luckPermsSynchronizer = luckPermsSynchronizer;
     }
 
     @EventHandler(priority = EventPriority.LOW)
     public void onPlayerJoin(PostLoginEvent event) {
         ProxiedPlayer player = event.getPlayer();
         PendingConnection connection = player.getPendingConnection();
-        String playerId = player.getUniqueId().toString();
-        proxyPresenceTracker.trackLogin(playerId);
+        UUID playerId = player.getUniqueId();
+        proxyPresenceTracker.trackLogin(playerId.toString());
 
-        var registration = playerIntegration.login(
+        String connectedProxyName = proxyName != null && !proxyName.isBlank() ? proxyName : "unknown";
+        String addressHash = String.valueOf(connection.getSocketAddress().hashCode());
+        String clientLanguage = player.getLocale() != null ? player.getLocale().toString() : "en_US";
+        PlayerLogin login = new PlayerLogin(
                 playerId,
                 player.getName(),
                 player.getDisplayName(),
-                proxyName != null && !proxyName.isBlank() ? proxyName : "unknown",
-                String.valueOf(connection.getSocketAddress().hashCode()),
-                player.getLocale() != null ? player.getLocale().toString() : "en_US",
+                connectedProxyName,
+                addressHash,
+                clientLanguage,
                 connection.getVersion(),
                 connection.isOnlineMode(),
                 null
         );
+
+        CompletableFuture<LoginResult> loginReport = playerSessionReporter.reportLogin(login);
         // Keep the initial backend connection behind controller registration.
         event.registerIntent(plugin);
-        registration.thenAccept(result -> {
-            if (result.isSuccess()) {
-                proxyPresenceTracker.updateSessionId(playerId, result.getSessionId());
-                synchronizePlayerProperties.accept(player.getUniqueId());
-                if (player.getLocale() != null) {
-                    sendClientSettings(player, result.getSessionId());
-                }
-            }
-            if (!result.isSuccess()) {
-                logger.warning("Login failed for " + player.getName() + ": " + result.getErrorMessage());
-            }
-        }).exceptionally(e -> {
-            logger.log(Level.SEVERE, "Failed to send login event for " + player.getName(), e);
+        CompletableFuture<Void> loginApplied = loginReport.thenAccept(result -> applyLoginResult(player, result));
+        CompletableFuture<Void> registration = loginApplied.exceptionally(failure -> {
+            logger.log(Level.SEVERE, "Failed to send login event for " + player.getName(), failure);
             return null;
-        }).copy().completeOnTimeout(null, LOGIN_WAIT_SECONDS, TimeUnit.SECONDS)
-                .whenComplete((ignored, error) -> event.completeIntent(plugin));
+        });
+        CompletableFuture<Void> registrationOrTimeout =
+                registration.copy().completeOnTimeout(null, LOGIN_WAIT_SECONDS, TimeUnit.SECONDS);
+        registrationOrTimeout.whenComplete((ignored, failure) -> event.completeIntent(plugin));
 
         CompletableFuture.runAsync(() -> playerSynchronizer.updatePlayerCount());
+    }
+
+    private void applyLoginResult(ProxiedPlayer player, LoginResult result) {
+        if (!result.isSuccess()) {
+            logger.warning("Login failed for " + player.getName() + ": " + result.getErrorMessage());
+            return;
+        }
+        UUID playerId = player.getUniqueId();
+        String sessionId = result.getSessionId();
+        proxyPresenceTracker.updateSessionId(playerId.toString(), sessionId);
+        luckPermsSynchronizer.synchronize(playerId);
+        if (player.getLocale() != null) {
+            sendClientSettings(player, sessionId);
+        }
     }
 
     @EventHandler
     public void onPlayerQuit(PlayerDisconnectEvent event) {
         ProxiedPlayer player = event.getPlayer();
-        String playerId = player.getUniqueId().toString();
+        UUID playerId = player.getUniqueId();
 
-        playerIntegration.disconnect(playerId)
+        playerSessionReporter.reportDisconnect(playerId)
                 .exceptionally(e -> {
                     logger.log(Level.SEVERE, "Failed to send disconnect event for " + player.getName(), e);
                     return null;
                 });
-        proxyPresenceTracker.remove(playerId);
-        forgetPlayerProperties.accept(player.getUniqueId());
+        proxyPresenceTracker.remove(playerId.toString());
+        luckPermsSynchronizer.forget(playerId);
 
         CompletableFuture.runAsync(() -> playerSynchronizer.updatePlayerCount());
     }
@@ -130,7 +140,7 @@ public class PlayerConnectionListener implements Listener {
         String newServer = player.getServer() != null ? player.getServer().getInfo().getName() : null;
 
         if (newServer != null) {
-            playerIntegration.serverSwitch(player.getUniqueId().toString(), newServer)
+            playerSessionReporter.reportServerSwitch(player.getUniqueId(), newServer)
                     .exceptionally(e -> {
                         logger.log(Level.SEVERE, "Failed to send server switch event for " + player.getName(), e);
                         return null;
@@ -139,7 +149,7 @@ public class PlayerConnectionListener implements Listener {
     }
 
     private void sendClientSettings(ProxiedPlayer player, String sessionId) {
-        playerIntegration.updateClientSettings(sessionId, toClientSettings(player))
+        playerSessionReporter.reportClientSettings(sessionId, toClientSettings(player))
                 .exceptionally(e -> {
                     logger.log(Level.SEVERE, "Failed to send client settings for " + player.getName(), e);
                     return null;

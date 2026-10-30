@@ -13,7 +13,6 @@ dependencies {
     }
     implementation(rootProject.libs.jnats)
 
-    testImplementation(project(":api"))
     testImplementation(rootProject.libs.junit.jupiter)
     testImplementation(rootProject.libs.mockito.core)
     testRuntimeOnly("org.junit.platform:junit-platform-launcher")

@@ -296,20 +296,12 @@ public class PersistentServerApiImpl implements PersistentServerApi {
                     );
                 } catch (ApiException e) {
                     String blueprintId = createdBlueprintId;
-                    ApiException rollbackFailure = inlineBlueprintSupport.rollbackBlueprintAfterCreateFailure(
+                    throw inlineBlueprintSupport.rollBackAfterCreateFailure(
+                            "persistent server",
                             blueprintId,
                             e,
                             () -> persistentServerExistsWithBlueprint(request.getName(), blueprintId)
                     );
-                    if (rollbackFailure != null) {
-                        RuntimeException failure = ApiErrors.from(
-                                "Failed to create persistent server and rollback inline blueprint " + blueprintId,
-                                e
-                        );
-                        failure.addSuppressed(rollbackFailure);
-                        throw failure;
-                    }
-                    throw e;
                 }
 
                 // Invalidate list caches (new persistent server created)

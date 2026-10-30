@@ -60,7 +60,6 @@ import java.util.UUID;
 import java.util.concurrent.CompletableFuture;
 import java.util.concurrent.Executor;
 import java.util.concurrent.ForkJoinPool;
-import java.util.function.Consumer;
 
 public class PlayerApiImpl implements PlayerApi {
 
@@ -212,29 +211,33 @@ public class PlayerApiImpl implements PlayerApi {
 
     @Override
     public CompletableFuture<CloudPlayer> setOnlineTimeSeconds(UUID uniqueId, long seconds) {
-        return patchPlayer(uniqueId, request -> request.setOnlineTimeSeconds(toControllerOnlineTimeSeconds(seconds)));
+        return call(() -> {
+            // Validated inside the call, so an out-of-range value fails the returned future.
+            int controllerSeconds = toControllerOnlineTimeSeconds(seconds);
+            ModelsPatchPlayerRequest request = new ModelsPatchPlayerRequest().onlineTimeSeconds(controllerSeconds);
+            return patchPlayer(uniqueId, request);
+        });
     }
 
     @Override
     public CompletableFuture<CloudPlayer> resetFirstSeen(UUID uniqueId) {
-        return patchPlayer(uniqueId, request -> request.setResetFirstSeen(true));
+        ModelsPatchPlayerRequest request = new ModelsPatchPlayerRequest().resetFirstSeen(true);
+        return call(() -> patchPlayer(uniqueId, request));
     }
 
     @Override
     public CompletableFuture<CloudPlayer> resetLastSeen(UUID uniqueId) {
-        return patchPlayer(uniqueId, request -> request.setResetLastSeen(true));
+        ModelsPatchPlayerRequest request = new ModelsPatchPlayerRequest().resetLastSeen(true);
+        return call(() -> patchPlayer(uniqueId, request));
     }
 
-    private CompletableFuture<CloudPlayer> patchPlayer(UUID uniqueId, Consumer<ModelsPatchPlayerRequest> changes) {
-        return call(() -> {
-            ModelsPatchPlayerRequest request = new ModelsPatchPlayerRequest();
-            changes.accept(request);
-            return convertPlayerResponse(playersApi.patchPlayer(
-                    options.getNetworkId(),
-                    uniqueId.toString(),
-                    request
-            ));
-        });
+    private CloudPlayer patchPlayer(UUID uniqueId, ModelsPatchPlayerRequest request) throws ApiException {
+        ModelsPlayerResponse response = playersApi.patchPlayer(
+                options.getNetworkId(),
+                uniqueId.toString(),
+                request
+        );
+        return convertPlayerResponse(response);
     }
     
     @Override

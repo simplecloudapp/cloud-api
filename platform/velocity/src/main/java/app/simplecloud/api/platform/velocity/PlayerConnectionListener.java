@@ -1,7 +1,10 @@
 package app.simplecloud.api.platform.velocity;
 
-import app.simplecloud.api.internal.integration.player.PlayerIntegration;
+import app.simplecloud.api.internal.integration.player.LoginResult;
+import app.simplecloud.api.internal.integration.player.PlayerLogin;
+import app.simplecloud.api.internal.integration.player.PlayerSessionReporter;
 import app.simplecloud.api.internal.integration.presence.ProxyPresenceTracker;
+import app.simplecloud.api.platform.shared.LuckPermsSynchronizer;
 import app.simplecloud.api.platform.shared.PlayerSynchronizer;
 import app.simplecloud.api.player.PlayerClientSettings;
 import com.velocitypowered.api.event.EventTask;
@@ -21,7 +24,6 @@ import java.util.List;
 import java.util.UUID;
 import java.util.concurrent.CompletableFuture;
 import java.util.concurrent.TimeUnit;
-import java.util.function.Consumer;
 
 public class PlayerConnectionListener {
 
@@ -29,33 +31,30 @@ public class PlayerConnectionListener {
     private static final long LOGIN_WAIT_SECONDS = 5;
 
     private final PlayerSynchronizer playerSynchronizer;
-    private final PlayerIntegration playerIntegration;
+    private final PlayerSessionReporter playerSessionReporter;
     private final ProxyPresenceTracker proxyPresenceTracker;
     private final String proxyName;
-    private final Consumer<UUID> synchronizePlayerProperties;
-    private final Consumer<UUID> forgetPlayerProperties;
+    private final LuckPermsSynchronizer luckPermsSynchronizer;
 
     public PlayerConnectionListener(
             PlayerSynchronizer playerSynchronizer,
-            PlayerIntegration playerIntegration,
+            PlayerSessionReporter playerSessionReporter,
             ProxyPresenceTracker proxyPresenceTracker,
             String proxyName,
-            Consumer<UUID> synchronizePlayerProperties,
-            Consumer<UUID> forgetPlayerProperties
+            LuckPermsSynchronizer luckPermsSynchronizer
     ) {
         this.playerSynchronizer = playerSynchronizer;
-        this.playerIntegration = playerIntegration;
+        this.playerSessionReporter = playerSessionReporter;
         this.proxyPresenceTracker = proxyPresenceTracker;
         this.proxyName = proxyName;
-        this.synchronizePlayerProperties = synchronizePlayerProperties;
-        this.forgetPlayerProperties = forgetPlayerProperties;
+        this.luckPermsSynchronizer = luckPermsSynchronizer;
     }
 
     @Subscribe(priority = 100)
     public EventTask onPlayerJoin(PostLoginEvent event) {
         Player player = event.getPlayer();
-        String playerId = player.getUniqueId().toString();
-        proxyPresenceTracker.trackLogin(playerId);
+        UUID playerId = player.getUniqueId();
+        proxyPresenceTracker.trackLogin(playerId.toString());
 
         String texture = null;
         var texturesProperty = player.getGameProfile().getProperties().stream()
@@ -65,49 +64,61 @@ public class PlayerConnectionListener {
             texture = texturesProperty.get().getValue();
         }
 
-        CompletableFuture<Void> registration = playerIntegration.login(
+        String connectedProxyName = proxyName != null && !proxyName.isBlank() ? proxyName : "unknown";
+        String addressHash = String.valueOf(player.getRemoteAddress().hashCode());
+        String clientLanguage = player.getEffectiveLocale() != null ? player.getEffectiveLocale().toString() : "en_US";
+        PlayerLogin login = new PlayerLogin(
                 playerId,
                 player.getUsername(),
                 player.getUsername(),
-                proxyName != null && !proxyName.isBlank() ? proxyName : "unknown",
-                String.valueOf(player.getRemoteAddress().hashCode()),
-                player.getEffectiveLocale() != null ? player.getEffectiveLocale().toString() : "en_US",
+                connectedProxyName,
+                addressHash,
+                clientLanguage,
                 player.getProtocolVersion().getProtocol(),
                 player.isOnlineMode(),
                 texture
-        ).thenAccept(result -> {
-            if (result.isSuccess()) {
-                proxyPresenceTracker.updateSessionId(playerId, result.getSessionId());
-                synchronizePlayerProperties.accept(player.getUniqueId());
-                if (player.hasSentPlayerSettings()) {
-                    sendClientSettings(player, result.getSessionId(), player.getPlayerSettings());
-                }
-            }
-            if (!result.isSuccess()) {
-                logger.warn("Login failed for {}: {}", player.getUsername(), result.getErrorMessage());
-            }
-        }).exceptionally(e -> {
-            logger.error("Failed to send login event for {}: {}", player.getUsername(), e.getMessage());
+        );
+
+        CompletableFuture<LoginResult> loginReport = playerSessionReporter.reportLogin(login);
+        CompletableFuture<Void> loginApplied = loginReport.thenAccept(result -> applyLoginResult(player, result));
+        CompletableFuture<Void> registration = loginApplied.exceptionally(failure -> {
+            logger.error("Failed to send login event for {}: {}", player.getUsername(), failure.getMessage());
             return null;
         });
 
         CompletableFuture.runAsync(() -> playerSynchronizer.updatePlayerCount());
         // Keep later login listeners and the initial backend connection behind registration.
-        return EventTask.resumeWhenComplete(registration.copy().completeOnTimeout(null, LOGIN_WAIT_SECONDS, TimeUnit.SECONDS));
+        CompletableFuture<Void> registrationOrTimeout =
+                registration.copy().completeOnTimeout(null, LOGIN_WAIT_SECONDS, TimeUnit.SECONDS);
+        return EventTask.resumeWhenComplete(registrationOrTimeout);
+    }
+
+    private void applyLoginResult(Player player, LoginResult result) {
+        if (!result.isSuccess()) {
+            logger.warn("Login failed for {}: {}", player.getUsername(), result.getErrorMessage());
+            return;
+        }
+        UUID playerId = player.getUniqueId();
+        String sessionId = result.getSessionId();
+        proxyPresenceTracker.updateSessionId(playerId.toString(), sessionId);
+        luckPermsSynchronizer.synchronize(playerId);
+        if (player.hasSentPlayerSettings()) {
+            sendClientSettings(player, sessionId, player.getPlayerSettings());
+        }
     }
 
     @Subscribe
     public void onPlayerQuit(DisconnectEvent event) {
         Player player = event.getPlayer();
-        String playerId = player.getUniqueId().toString();
+        UUID playerId = player.getUniqueId();
 
-        playerIntegration.disconnect(playerId)
+        playerSessionReporter.reportDisconnect(playerId)
                 .exceptionally(e -> {
                     logger.error("Failed to send disconnect event for {}: {}", player.getUsername(), e.getMessage());
                     return null;
                 });
-        proxyPresenceTracker.remove(playerId);
-        forgetPlayerProperties.accept(player.getUniqueId());
+        proxyPresenceTracker.remove(playerId.toString());
+        luckPermsSynchronizer.forget(playerId);
 
         CompletableFuture.runAsync(() -> playerSynchronizer.updatePlayerCount());
     }
@@ -129,7 +140,7 @@ public class PlayerConnectionListener {
         Player player = event.getPlayer();
         String newServer = event.getServer().getServerInfo().getName();
 
-        playerIntegration.serverSwitch(player.getUniqueId().toString(), newServer)
+        playerSessionReporter.reportServerSwitch(player.getUniqueId(), newServer)
                 .exceptionally(e -> {
                     logger.error("Failed to send server switch event for {}: {}", player.getUsername(), e.getMessage());
                     return null;
@@ -137,7 +148,7 @@ public class PlayerConnectionListener {
     }
 
     private void sendClientSettings(Player player, String sessionId, PlayerSettings settings) {
-        playerIntegration.updateClientSettings(sessionId, toClientSettings(settings))
+        playerSessionReporter.reportClientSettings(sessionId, toClientSettings(settings))
                 .exceptionally(e -> {
                     logger.error("Failed to send client settings for {}: {}", player.getUsername(), e.getMessage());
                     return null;

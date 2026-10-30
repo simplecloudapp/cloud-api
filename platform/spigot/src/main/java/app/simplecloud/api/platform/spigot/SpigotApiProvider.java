@@ -11,10 +11,7 @@ public class SpigotApiProvider extends JavaPlugin {
 
     private final CloudApi cloudApi = CloudApi.create();
     private final OnlinePlayerTracker onlinePlayerTracker = new OnlinePlayerTracker();
-    private final PlayerSynchronizer playerSynchronizer = new PlayerSynchronizer(
-        cloudApi,
-        onlinePlayerTracker::count
-    );
+    private final PlayerSynchronizer playerSynchronizer = new PlayerSynchronizer(cloudApi, onlinePlayerTracker);
 
     @Override
     public void onEnable() {
