@@ -1,5 +1,6 @@
 package app.simplecloud.api.platform.velocity;
 
+import app.simplecloud.api.internal.integration.player.LoginResult;
 import app.simplecloud.api.internal.integration.player.PlayerLogin;
 import app.simplecloud.api.internal.integration.player.PlayerSessionReporter;
 import app.simplecloud.api.internal.integration.presence.ProxyPresenceTracker;
@@ -78,25 +79,32 @@ public class PlayerConnectionListener {
                 texture
         );
 
-        CompletableFuture<Void> registration = playerSessionReporter.reportLogin(login).thenAccept(result -> {
-            if (result.isSuccess()) {
-                proxyPresenceTracker.updateSessionId(playerId.toString(), result.getSessionId());
-                playerPropertySynchronizer.synchronize(playerId);
-                if (player.hasSentPlayerSettings()) {
-                    sendClientSettings(player, result.getSessionId(), player.getPlayerSettings());
-                }
-            }
-            if (!result.isSuccess()) {
-                logger.warn("Login failed for {}: {}", player.getUsername(), result.getErrorMessage());
-            }
-        }).exceptionally(e -> {
-            logger.error("Failed to send login event for {}: {}", player.getUsername(), e.getMessage());
+        CompletableFuture<LoginResult> loginReport = playerSessionReporter.reportLogin(login);
+        CompletableFuture<Void> loginApplied = loginReport.thenAccept(result -> applyLoginResult(player, result));
+        CompletableFuture<Void> registration = loginApplied.exceptionally(failure -> {
+            logger.error("Failed to send login event for {}: {}", player.getUsername(), failure.getMessage());
             return null;
         });
 
         CompletableFuture.runAsync(() -> playerSynchronizer.updatePlayerCount());
         // Keep later login listeners and the initial backend connection behind registration.
-        return EventTask.resumeWhenComplete(registration.copy().completeOnTimeout(null, LOGIN_WAIT_SECONDS, TimeUnit.SECONDS));
+        CompletableFuture<Void> registrationOrTimeout =
+                registration.copy().completeOnTimeout(null, LOGIN_WAIT_SECONDS, TimeUnit.SECONDS);
+        return EventTask.resumeWhenComplete(registrationOrTimeout);
+    }
+
+    private void applyLoginResult(Player player, LoginResult result) {
+        if (!result.isSuccess()) {
+            logger.warn("Login failed for {}: {}", player.getUsername(), result.getErrorMessage());
+            return;
+        }
+        UUID playerId = player.getUniqueId();
+        String sessionId = result.getSessionId();
+        proxyPresenceTracker.updateSessionId(playerId.toString(), sessionId);
+        playerPropertySynchronizer.synchronize(playerId);
+        if (player.hasSentPlayerSettings()) {
+            sendClientSettings(player, sessionId, player.getPlayerSettings());
+        }
     }
 
     @Subscribe
