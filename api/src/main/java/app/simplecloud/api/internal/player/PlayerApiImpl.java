@@ -450,6 +450,11 @@ public class PlayerApiImpl implements PlayerApi {
     
     @Override
     public CompletableFuture<CloudPlayer.ConnectResult> connect(UUID uniqueId, String serverName) {
+        return connectDirect(uniqueId, serverName);
+    }
+
+    @Override
+    public CompletableFuture<CloudPlayer.ConnectResult> connectDirect(UUID uniqueId, String serverName) {
         return CompletableFuture.supplyAsync(() -> {
             try {
                 ConnectPlayerRequest request = ConnectPlayerRequest.newBuilder()

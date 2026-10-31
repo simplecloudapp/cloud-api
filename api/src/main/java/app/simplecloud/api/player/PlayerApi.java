@@ -378,11 +378,30 @@ public interface PlayerApi {
     /**
      * Connects a player to a specific server.
      *
+     * <p>Today this targets the name the proxy registered the server under, exactly like
+     * {@link #connectDirect(UUID, String)}. In a later release it will take the cloud server name
+     * ({@code <group>-<number>} or the persistent server's name) and route through the controller, so it
+     * will only reach cloud-managed servers. Server IDs are not accepted.
+     *
+     * <p>To reach servers that are not managed by the cloud, use {@link #connectDirect(UUID, String)}.
+     *
      * @param uniqueId the player's UUID
      * @param serverName the name of the target server
      * @return a future containing the connection result
      */
     CompletableFuture<CloudPlayer.ConnectResult> connect(UUID uniqueId, String serverName);
+
+    /**
+     * Connects a player to a server by the name the proxy registered it under.
+     *
+     * <p>The request goes straight to the player's proxy, without the controller. It works for any server
+     * the proxy knows, including servers that are not managed by the cloud.
+     *
+     * @param uniqueId the player's UUID
+     * @param serverName the name of the target server on the proxy
+     * @return a future containing the connection result
+     */
+    CompletableFuture<CloudPlayer.ConnectResult> connectDirect(UUID uniqueId, String serverName);
 
     /**
      * Connects a player to a server of the given server group.

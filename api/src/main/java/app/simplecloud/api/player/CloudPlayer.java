@@ -128,10 +128,28 @@ public interface CloudPlayer extends Audience {
     /**
      * Connects the player to the specified server.
      *
-     * @param serverName the name/ID of the server to connect to
+     * <p>Today this targets the name the proxy registered the server under, exactly like
+     * {@link #connectDirect(String)}. In a later release it will take the cloud server name
+     * ({@code <group>-<number>} or the persistent server's name) and route through the controller, so it
+     * will only reach cloud-managed servers. Server IDs are not accepted.
+     *
+     * <p>To reach servers that are not managed by the cloud, use {@link #connectDirect(String)}.
+     *
+     * @param serverName the name of the server to connect to
      * @return a future containing the connection result
      */
     CompletableFuture<ConnectResult> connect(String serverName);
+
+    /**
+     * Connects the player to a server by the name the proxy registered it under.
+     *
+     * <p>The request goes straight to the player's proxy, without the controller. It works for any server
+     * the proxy knows, including servers that are not managed by the cloud.
+     *
+     * @param serverName the name of the server on the proxy
+     * @return a future containing the connection result
+     */
+    CompletableFuture<ConnectResult> connectDirect(String serverName);
 
     /**
      * Connects the player to a server of the given server group.

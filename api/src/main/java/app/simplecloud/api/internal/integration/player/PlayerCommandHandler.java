@@ -2,7 +2,7 @@ package app.simplecloud.api.internal.integration.player;
 
 import app.simplecloud.api.internal.CloudApiImpl;
 import app.simplecloud.api.player.CloudPlayer;
-import app.simplecloud.api.server.ServerApi;
+import app.simplecloud.api.proxy.ProxyServerNames;
 import build.buf.gen.simplecloud.player.v2.*;
 import io.nats.client.Connection;
 import io.nats.client.Dispatcher;
@@ -17,34 +17,32 @@ import java.util.concurrent.Executor;
 import java.util.concurrent.atomic.AtomicBoolean;
 
 /**
- * Handles kick and connect requests from the controller for players on this proxy, and replies to them.
+ * Handles kick requests from the controller and connect requests from the controller or {@code connectDirect}
+ * for players on this proxy, and replies to them.
  */
 public class PlayerCommandHandler {
 
     private final Connection natsConnection;
     private final String networkId;
     private final Executor executor;
-    private final ServerApi serverApi;
     private final ProxyPlayers proxyPlayers;
     private final AtomicBoolean running = new AtomicBoolean(false);
 
     private Dispatcher requestDispatcher;
 
     public PlayerCommandHandler(CloudApiImpl cloudApi, ProxyPlayers proxyPlayers) {
-        this(cloudApi.getNatsConnection(), cloudApi.getNetworkId(), cloudApi.getExecutor(), cloudApi.server(), proxyPlayers);
+        this(cloudApi.getNatsConnection(), cloudApi.getNetworkId(), cloudApi.getExecutor(), proxyPlayers);
     }
 
-    PlayerCommandHandler(Connection natsConnection, String networkId, Executor executor, ServerApi serverApi,
-                         ProxyPlayers proxyPlayers) {
+    PlayerCommandHandler(Connection natsConnection, String networkId, Executor executor, ProxyPlayers proxyPlayers) {
         this.natsConnection = natsConnection;
         this.networkId = networkId;
         this.executor = executor;
-        this.serverApi = serverApi;
         this.proxyPlayers = proxyPlayers;
     }
 
     /**
-     * Starts listening for controller requests.
+     * Starts listening for kick and connect requests.
      */
     public void start() {
         if (!running.compareAndSet(false, true)) return;
@@ -55,7 +53,7 @@ public class PlayerCommandHandler {
     }
 
     /**
-     * Stops listening for controller requests.
+     * Stops listening for kick and connect requests.
      */
     public void stop() {
         if (!running.compareAndSet(true, false)) return;
@@ -108,11 +106,13 @@ public class PlayerCommandHandler {
             // Every proxy receives the request; only the proxy holding the player answers.
             if (player.isEmpty()) return;
 
-            ConnectTarget target = request.getServerId().isEmpty()
-                    ? ConnectTarget.byName(request.getServerName(), serverApi::findServerById)
-                    : ConnectTarget.byId(request.getServerId(), serverApi::findServerById);
+            Optional<String> proxyServerName = proxyServerNameOf(request);
+            if (proxyServerName.isEmpty()) {
+                sendConnectResponse(msg, CloudPlayer.ConnectResult.SERVER_NOT_FOUND);
+                return;
+            }
 
-            CompletableFuture<CloudPlayer.ConnectResult> connect = player.get().connect(target);
+            CompletableFuture<CloudPlayer.ConnectResult> connect = player.get().connect(proxyServerName.get());
             connect.whenComplete((result, failure) -> {
                 CloudPlayer.ConnectResult reply = failure == null ? result : CloudPlayer.ConnectResult.CONNECTION_FAILED;
                 sendConnectResponse(msg, reply);
@@ -120,6 +120,17 @@ public class PlayerCommandHandler {
         } catch (Exception e) {
             sendConnectResponse(msg, CloudPlayer.ConnectResult.CONNECTION_FAILED);
         }
+    }
+
+    /**
+     * Returns the name under which this proxy registered the requested server.
+     * A server ID is mapped through {@link ProxyServerNames}; if both an ID and a name are set, the ID wins.
+     */
+    private static Optional<String> proxyServerNameOf(ConnectPlayerRequest request) {
+        if (request.getServerId().isEmpty()) {
+            return Optional.of(request.getServerName());
+        }
+        return ProxyServerNames.proxyNameOf(request.getServerId());
     }
 
     private void sendConnectResponse(Message msg, CloudPlayer.ConnectResult result) {

@@ -2,13 +2,15 @@ package app.simplecloud.api.internal.integration.player;
 
 import app.simplecloud.api.internal.nats.FakeNatsConnection;
 import app.simplecloud.api.player.CloudPlayer;
-import app.simplecloud.api.server.ServerApi;
+import app.simplecloud.api.proxy.ProxyServerNames;
 import build.buf.gen.simplecloud.adventure.v1.AdventureComponent;
 import build.buf.gen.simplecloud.player.v2.ConnectPlayerRequest;
 import build.buf.gen.simplecloud.player.v2.ConnectPlayerResponse;
+import build.buf.gen.simplecloud.player.v2.ConnectPlayerToGroupRequest;
 import build.buf.gen.simplecloud.player.v2.ConnectResult;
 import build.buf.gen.simplecloud.player.v2.KickPlayerRequest;
 import build.buf.gen.simplecloud.player.v2.KickPlayerResponse;
+import build.buf.gen.simplecloud.player.v2.ServerSelectionMode;
 import io.nats.client.Message;
 import io.nats.client.impl.NatsMessage;
 import net.kyori.adventure.text.Component;
@@ -17,7 +19,6 @@ import org.junit.jupiter.api.Timeout;
 import org.junit.jupiter.params.ParameterizedTest;
 import org.junit.jupiter.params.provider.ValueSource;
 
-import java.lang.reflect.Proxy;
 import java.util.ArrayList;
 import java.util.List;
 import java.util.Optional;
@@ -37,6 +38,8 @@ class PlayerCommandHandlerTest {
     private static final UUID OTHER_PLAYER_UUID = UUID.fromString(OTHER_PLAYER_ID);
     private static final String KICK_SUBSCRIPTION = NETWORK_ID + ".player.*.kick";
     private static final String CONNECT_SUBSCRIPTION = NETWORK_ID + ".player.*.connect";
+    private static final String SERVER_ID = "22222222-2222-2222-2222-222222222222";
+    private static final String UNKNOWN_SERVER_ID = "99999999-9999-9999-9999-999999999999";
 
     @Test
     void kickRequestForPlayerOnAnotherProxy_isNotAnswered() throws Exception {
@@ -95,7 +98,7 @@ class PlayerCommandHandlerTest {
 
         nats.deliver(CONNECT_SUBSCRIPTION, connectMessage(PLAYER_ID, request));
 
-        assertEquals(List.of(), proxyPlayers.connectRequests);
+        assertEquals(List.of(), proxyPlayers.connects);
         assertEquals(List.of(), nats.published());
     }
 
@@ -111,7 +114,7 @@ class PlayerCommandHandlerTest {
 
         nats.deliver(CONNECT_SUBSCRIPTION, connectMessage(PLAYER_ID, request));
 
-        assertEquals(List.of(PLAYER_UUID), proxyPlayers.connectRequests);
+        assertEquals(List.of(new Connect(PLAYER_UUID, "lobby-1")), proxyPlayers.connects);
         assertEquals(List.of(ConnectResult.CONNECT_RESULT_SUCCESS), publishedConnectResults(nats));
     }
 
@@ -139,7 +142,7 @@ class PlayerCommandHandlerTest {
 
         nats.deliver(CONNECT_SUBSCRIPTION, connectMessage(OTHER_PLAYER_ID, request));
 
-        assertEquals(List.of(PLAYER_UUID), proxyPlayers.connectRequests);
+        assertEquals(List.of(new Connect(PLAYER_UUID, "lobby-1")), proxyPlayers.connects);
     }
 
     @ParameterizedTest
@@ -169,22 +172,169 @@ class PlayerCommandHandlerTest {
 
         nats.deliver(CONNECT_SUBSCRIPTION, connectMessage(PLAYER_ID, request));
 
-        assertEquals(List.of(), proxyPlayers.connectRequests);
+        assertEquals(List.of(), proxyPlayers.connects);
+        assertEquals(List.of(ConnectResult.CONNECT_RESULT_FAILED), publishedConnectResults(nats));
+    }
+
+    @Test
+    void connectRequestByIdForPlayerOnAnotherProxy_isNotAnswered() throws Exception {
+        FakeNatsConnection nats = FakeNatsConnection.withoutRequests();
+        FakeProxyPlayers proxyPlayers = FakeProxyPlayers.withoutPlayers();
+        startCommandHandler(nats, proxyPlayers);
+
+        nats.deliver(CONNECT_SUBSCRIPTION, connectMessage(PLAYER_ID, connectById(SERVER_ID)));
+
+        assertEquals(List.of(), nats.published());
+    }
+
+    @Test
+    void connectRequestById_connectsToTheMappedProxyName() throws Exception {
+        FakeNatsConnection nats = FakeNatsConnection.withoutRequests();
+        FakeProxyPlayers proxyPlayers = FakeProxyPlayers.connected(PLAYER_UUID);
+        startCommandHandler(nats, proxyPlayers);
+
+        try (ProxyServerNames.Registration ignored = ProxyServerNames.register(PlayerCommandHandlerTest::proxyNameOfServer)) {
+            nats.deliver(CONNECT_SUBSCRIPTION, connectMessage(PLAYER_ID, connectById(SERVER_ID)));
+        }
+
+        assertEquals(List.of(new Connect(PLAYER_UUID, "lobby-1")), proxyPlayers.connects);
+        assertEquals(List.of(ConnectResult.CONNECT_RESULT_SUCCESS), publishedConnectResults(nats));
+    }
+
+    @Test
+    void connectRequestByIdUnknownToTheLookup_answersServerNotFound() throws Exception {
+        FakeNatsConnection nats = FakeNatsConnection.withoutRequests();
+        FakeProxyPlayers proxyPlayers = FakeProxyPlayers.connected(PLAYER_UUID);
+        startCommandHandler(nats, proxyPlayers);
+
+        try (ProxyServerNames.Registration ignored = ProxyServerNames.register(PlayerCommandHandlerTest::proxyNameOfServer)) {
+            nats.deliver(CONNECT_SUBSCRIPTION, connectMessage(PLAYER_ID, connectById(UNKNOWN_SERVER_ID)));
+        }
+
+        assertEquals(List.of(), proxyPlayers.connects);
+        assertEquals(List.of(ConnectResult.CONNECT_RESULT_SERVER_NOT_FOUND), publishedConnectResults(nats));
+    }
+
+    @Test
+    void connectRequestByIdWithoutLookup_answersServerNotFound() throws Exception {
+        FakeNatsConnection nats = FakeNatsConnection.withoutRequests();
+        FakeProxyPlayers proxyPlayers = FakeProxyPlayers.connected(PLAYER_UUID);
+        startCommandHandler(nats, proxyPlayers);
+
+        nats.deliver(CONNECT_SUBSCRIPTION, connectMessage(PLAYER_ID, connectById(SERVER_ID)));
+
+        assertEquals(List.of(), proxyPlayers.connects);
+        assertEquals(List.of(ConnectResult.CONNECT_RESULT_SERVER_NOT_FOUND), publishedConnectResults(nats));
+    }
+
+    @Test
+    void connectRequestByIdAndName_usesTheId() throws Exception {
+        FakeNatsConnection nats = FakeNatsConnection.withoutRequests();
+        FakeProxyPlayers proxyPlayers = FakeProxyPlayers.connected(PLAYER_UUID);
+        startCommandHandler(nats, proxyPlayers);
+        ConnectPlayerRequest request = ConnectPlayerRequest.newBuilder()
+                .setPlayerId(PLAYER_ID)
+                .setServerId(SERVER_ID)
+                .setServerName("lobby-2")
+                .build();
+
+        try (ProxyServerNames.Registration ignored = ProxyServerNames.register(PlayerCommandHandlerTest::proxyNameOfServer)) {
+            nats.deliver(CONNECT_SUBSCRIPTION, connectMessage(PLAYER_ID, request));
+        }
+
+        assertEquals(List.of(new Connect(PLAYER_UUID, "lobby-1")), proxyPlayers.connects);
+    }
+
+    @Test
+    void connectRequestByUnknownIdAndName_doesNotFallBackToTheName() throws Exception {
+        FakeNatsConnection nats = FakeNatsConnection.withoutRequests();
+        FakeProxyPlayers proxyPlayers = FakeProxyPlayers.connected(PLAYER_UUID);
+        startCommandHandler(nats, proxyPlayers);
+        ConnectPlayerRequest request = ConnectPlayerRequest.newBuilder()
+                .setPlayerId(PLAYER_ID)
+                .setServerId(UNKNOWN_SERVER_ID)
+                .setServerName("lobby-2")
+                .build();
+
+        try (ProxyServerNames.Registration ignored = ProxyServerNames.register(PlayerCommandHandlerTest::proxyNameOfServer)) {
+            nats.deliver(CONNECT_SUBSCRIPTION, connectMessage(PLAYER_ID, request));
+        }
+
+        assertEquals(List.of(), proxyPlayers.connects);
+        assertEquals(List.of(ConnectResult.CONNECT_RESULT_SERVER_NOT_FOUND), publishedConnectResults(nats));
+    }
+
+    @Test
+    void connectRequestByNameHoldingAnId_connectsByThatName() throws Exception {
+        FakeNatsConnection nats = FakeNatsConnection.withoutRequests();
+        FakeProxyPlayers proxyPlayers = FakeProxyPlayers.connected(PLAYER_UUID);
+        startCommandHandler(nats, proxyPlayers);
+
+        try (ProxyServerNames.Registration ignored = ProxyServerNames.register(PlayerCommandHandlerTest::proxyNameOfServer)) {
+            nats.deliver(CONNECT_SUBSCRIPTION, connectMessage(PLAYER_ID, connectByName(SERVER_ID)));
+        }
+
+        assertEquals(List.of(new Connect(PLAYER_UUID, SERVER_ID)), proxyPlayers.connects);
+    }
+
+    @Test
+    void groupRequestOnTheConnectSubject_connectsByTheGroupName() throws Exception {
+        FakeNatsConnection nats = FakeNatsConnection.withoutRequests();
+        FakeProxyPlayers proxyPlayers = FakeProxyPlayers.connected(PLAYER_UUID);
+        startCommandHandler(nats, proxyPlayers);
+        // Today's controller sends ConnectPlayerToGroupRequest on the connect subject for group connects.
+        // Its selection_mode is field 3 like server_id, but a varint, so it must not become an ID connect.
+        ConnectPlayerToGroupRequest groupRequest = ConnectPlayerToGroupRequest.newBuilder()
+                .setPlayerId(PLAYER_ID)
+                .setGroupName("lobby")
+                .setSelectionMode(ServerSelectionMode.SERVER_SELECTION_MODE_MIN_PLAYERS)
+                .build();
+        Message message = NatsMessage.builder()
+                .subject(NETWORK_ID + ".player." + PLAYER_ID + ".connect")
+                .replyTo("connect-reply")
+                .data(groupRequest.toByteArray())
+                .build();
+
+        nats.deliver(CONNECT_SUBSCRIPTION, message);
+
+        assertEquals(List.of(new Connect(PLAYER_UUID, "lobby")), proxyPlayers.connects);
+    }
+
+    @Test
+    void connectRequestWithThrowingLookup_answersConnectionFailed() throws Exception {
+        FakeNatsConnection nats = FakeNatsConnection.withoutRequests();
+        FakeProxyPlayers proxyPlayers = FakeProxyPlayers.connected(PLAYER_UUID);
+        startCommandHandler(nats, proxyPlayers);
+        ProxyServerNames.Lookup throwingLookup = serverId -> {
+            throw new IllegalStateException("lookup failed");
+        };
+
+        try (ProxyServerNames.Registration ignored = ProxyServerNames.register(throwingLookup)) {
+            nats.deliver(CONNECT_SUBSCRIPTION, connectMessage(PLAYER_ID, connectById(SERVER_ID)));
+        }
+
+        assertEquals(List.of(), proxyPlayers.connects);
+        assertEquals(List.of(ConnectResult.CONNECT_RESULT_FAILED), publishedConnectResults(nats));
+    }
+
+    @Test
+    void connectRequestWithLookupReturningNull_answersConnectionFailed() throws Exception {
+        FakeNatsConnection nats = FakeNatsConnection.withoutRequests();
+        FakeProxyPlayers proxyPlayers = FakeProxyPlayers.connected(PLAYER_UUID);
+        startCommandHandler(nats, proxyPlayers);
+
+        try (ProxyServerNames.Registration ignored = ProxyServerNames.register(serverId -> null)) {
+            nats.deliver(CONNECT_SUBSCRIPTION, connectMessage(PLAYER_ID, connectById(SERVER_ID)));
+        }
+
+        assertEquals(List.of(), proxyPlayers.connects);
         assertEquals(List.of(ConnectResult.CONNECT_RESULT_FAILED), publishedConnectResults(nats));
     }
 
     private static void startCommandHandler(FakeNatsConnection nats, FakeProxyPlayers proxyPlayers) {
         // Runs the kick on the calling thread, so the reply is published before deliver returns.
-        PlayerCommandHandler commandHandler = new PlayerCommandHandler(nats.connection(), NETWORK_ID, Runnable::run,
-                unusedServerApi(), proxyPlayers);
+        PlayerCommandHandler commandHandler = new PlayerCommandHandler(nats.connection(), NETWORK_ID, Runnable::run, proxyPlayers);
         commandHandler.start();
-    }
-
-    private static ServerApi unusedServerApi() {
-        return (ServerApi) Proxy.newProxyInstance(
-                ServerApi.class.getClassLoader(), new Class<?>[]{ServerApi.class}, (proxy, method, args) -> {
-                    throw new AssertionError("Unexpected server API call: " + method.getName());
-                });
     }
 
     private static Message kickMessage(String subjectPlayerId, KickPlayerRequest request) {
@@ -201,6 +351,27 @@ class PlayerCommandHandlerTest {
                 .replyTo("connect-reply")
                 .data(request.toByteArray())
                 .build();
+    }
+
+    private static ConnectPlayerRequest connectByName(String serverName) {
+        return ConnectPlayerRequest.newBuilder()
+                .setPlayerId(PLAYER_ID)
+                .setServerName(serverName)
+                .build();
+    }
+
+    private static ConnectPlayerRequest connectById(String serverId) {
+        return ConnectPlayerRequest.newBuilder()
+                .setPlayerId(PLAYER_ID)
+                .setServerId(serverId)
+                .build();
+    }
+
+    private static Optional<String> proxyNameOfServer(String serverId) {
+        if (SERVER_ID.equals(serverId)) {
+            return Optional.of("lobby-1");
+        }
+        return Optional.empty();
     }
 
     private static List<Boolean> publishedKickResults(FakeNatsConnection nats) throws Exception {
@@ -226,11 +397,14 @@ class PlayerCommandHandlerTest {
     private record Kick(UUID playerId, Component reason) {
     }
 
+    private record Connect(UUID playerId, String proxyServerName) {
+    }
+
     private static final class FakeProxyPlayers implements ProxyPlayers {
 
         private final Set<UUID> players;
         private final List<Kick> kicks = new ArrayList<>();
-        private final List<UUID> connectRequests = new ArrayList<>();
+        private final List<Connect> connects = new ArrayList<>();
 
         private FakeProxyPlayers(Set<UUID> players) {
             this.players = players;
@@ -266,8 +440,8 @@ class PlayerCommandHandlerTest {
             }
 
             @Override
-            public CompletableFuture<CloudPlayer.ConnectResult> connect(ConnectTarget target) {
-                connectRequests.add(playerId);
+            public CompletableFuture<CloudPlayer.ConnectResult> connect(String proxyServerName) {
+                connects.add(new Connect(playerId, proxyServerName));
                 return CompletableFuture.completedFuture(CloudPlayer.ConnectResult.SUCCESS);
             }
         }

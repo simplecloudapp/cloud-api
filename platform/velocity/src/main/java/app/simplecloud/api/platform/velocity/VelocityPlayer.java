@@ -1,6 +1,5 @@
 package app.simplecloud.api.platform.velocity;
 
-import app.simplecloud.api.internal.integration.player.ConnectTarget;
 import app.simplecloud.api.internal.integration.player.ProxyPlayer;
 import app.simplecloud.api.player.CloudPlayer;
 import com.velocitypowered.api.proxy.ConnectionRequestBuilder;
@@ -28,17 +27,12 @@ final class VelocityPlayer implements ProxyPlayer {
     }
 
     @Override
-    public CompletableFuture<CloudPlayer.ConnectResult> connect(ConnectTarget target) {
-        return target.resolve(proxyServer::getServer, this::findServerByAddress)
-                .thenCompose(registeredServer -> registeredServer
-                        .map(this::connectTo)
-                        .orElseGet(() -> CompletableFuture.completedFuture(CloudPlayer.ConnectResult.SERVER_NOT_FOUND)));
-    }
-
-    private Optional<RegisteredServer> findServerByAddress(String ip, int port) {
-        return proxyServer.getAllServers().stream()
-                .filter(server -> ConnectTarget.hasAddress(server.getServerInfo().getAddress(), ip, port))
-                .findFirst();
+    public CompletableFuture<CloudPlayer.ConnectResult> connect(String proxyServerName) {
+        Optional<RegisteredServer> registeredServer = proxyServer.getServer(proxyServerName);
+        if (registeredServer.isEmpty()) {
+            return CompletableFuture.completedFuture(CloudPlayer.ConnectResult.SERVER_NOT_FOUND);
+        }
+        return connectTo(registeredServer.get());
     }
 
     private CompletableFuture<CloudPlayer.ConnectResult> connectTo(RegisteredServer registeredServer) {

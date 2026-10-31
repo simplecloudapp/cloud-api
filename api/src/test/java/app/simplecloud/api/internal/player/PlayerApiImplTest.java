@@ -1,13 +1,20 @@
 package app.simplecloud.api.internal.player;
 
 import app.simplecloud.api.CloudApiOptions;
+import app.simplecloud.api.internal.nats.FakeNatsConnection;
 import app.simplecloud.api.player.CloudPlayer;
 import app.simplecloud.api.web.apis.PlayersApi;
 import app.simplecloud.api.web.models.ModelsPatchPlayerRequest;
 import app.simplecloud.api.web.models.ModelsPlayerOnlineTimeResponse;
 import app.simplecloud.api.web.models.ModelsPlayerResponse;
+import build.buf.gen.simplecloud.player.v2.ConnectPlayerRequest;
+import build.buf.gen.simplecloud.player.v2.ConnectPlayerResponse;
+import build.buf.gen.simplecloud.player.v2.ConnectResult;
+import io.nats.client.Message;
 import org.junit.jupiter.api.Test;
 
+import java.util.ArrayList;
+import java.util.List;
 import java.util.UUID;
 import java.util.concurrent.CompletionException;
 
@@ -19,6 +26,7 @@ import static org.junit.jupiter.api.Assertions.assertThrows;
 class PlayerApiImplTest {
 
     private static final UUID PLAYER_ID = UUID.fromString("11111111-1111-1111-1111-111111111111");
+    private static final String CONNECT_SUBJECT = "network.player." + PLAYER_ID + ".connect";
 
     @Test
     void getOnlineTimeSeconds_readsControllerOnlineTime() {
@@ -105,6 +113,64 @@ class PlayerApiImplTest {
 
         assertInstanceOf(IllegalArgumentException.class, negative.getCause());
         assertInstanceOf(IllegalArgumentException.class, tooLarge.getCause());
+    }
+
+    @Test
+    void connectDirect_sendsServerNameToPlayerProxy() {
+        List<String> subjects = new ArrayList<>();
+        List<ConnectPlayerRequest> requests = new ArrayList<>();
+        FakeNatsConnection nats = FakeNatsConnection.answering((subject, data, timeout) -> {
+            subjects.add(subject);
+            requests.add(ConnectPlayerRequest.parseFrom(data));
+            return connectResponse(ConnectResult.CONNECT_RESULT_SUCCESS);
+        });
+        PlayerApiImpl api = new PlayerApiImpl(options(), nats.connection(), new FakePlayersApi());
+
+        CloudPlayer.ConnectResult result = api.connectDirect(PLAYER_ID, "lobby-1").join();
+
+        assertEquals(CloudPlayer.ConnectResult.SUCCESS, result);
+        assertEquals(List.of(CONNECT_SUBJECT), subjects);
+        assertEquals(List.of(expectedConnectRequest("lobby-1")), requests);
+    }
+
+    @Test
+    void connectDirect_withoutReply_failsConnection() {
+        FakeNatsConnection nats = FakeNatsConnection.answering((subject, data, timeout) -> null);
+        PlayerApiImpl api = new PlayerApiImpl(options(), nats.connection(), new FakePlayersApi());
+
+        CloudPlayer.ConnectResult result = api.connectDirect(PLAYER_ID, "lobby-1").join();
+
+        assertEquals(CloudPlayer.ConnectResult.CONNECTION_FAILED, result);
+    }
+
+    @Test
+    void connect_sendsTheSameRequestAsConnectDirect() {
+        List<String> subjects = new ArrayList<>();
+        List<ConnectPlayerRequest> requests = new ArrayList<>();
+        FakeNatsConnection nats = FakeNatsConnection.answering((subject, data, timeout) -> {
+            subjects.add(subject);
+            requests.add(ConnectPlayerRequest.parseFrom(data));
+            return connectResponse(ConnectResult.CONNECT_RESULT_SERVER_NOT_FOUND);
+        });
+        PlayerApiImpl api = new PlayerApiImpl(options(), nats.connection(), new FakePlayersApi());
+
+        CloudPlayer.ConnectResult result = api.connect(PLAYER_ID, "lobby-2").join();
+
+        assertEquals(CloudPlayer.ConnectResult.SERVER_NOT_FOUND, result);
+        assertEquals(List.of(CONNECT_SUBJECT), subjects);
+        assertEquals(List.of(expectedConnectRequest("lobby-2")), requests);
+    }
+
+    private static ConnectPlayerRequest expectedConnectRequest(String serverName) {
+        return ConnectPlayerRequest.newBuilder()
+                .setPlayerId(PLAYER_ID.toString())
+                .setServerName(serverName)
+                .build();
+    }
+
+    private static Message connectResponse(ConnectResult result) {
+        ConnectPlayerResponse response = ConnectPlayerResponse.newBuilder().setResult(result).build();
+        return FakeNatsConnection.reply(response.toByteArray());
     }
 
     private static CloudApiOptions options() {
