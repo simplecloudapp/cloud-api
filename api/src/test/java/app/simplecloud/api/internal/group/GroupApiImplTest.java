@@ -36,11 +36,13 @@ import java.util.Map;
 import java.util.concurrent.CompletionException;
 import java.util.concurrent.atomic.AtomicInteger;
 
+import static org.junit.jupiter.api.Assertions.assertArrayEquals;
 import static org.junit.jupiter.api.Assertions.assertEquals;
 import static org.junit.jupiter.api.Assertions.assertFalse;
 import static org.junit.jupiter.api.Assertions.assertInstanceOf;
 import static org.junit.jupiter.api.Assertions.assertNotNull;
 import static org.junit.jupiter.api.Assertions.assertNull;
+import static org.junit.jupiter.api.Assertions.assertSame;
 import static org.junit.jupiter.api.Assertions.assertThrows;
 import static org.junit.jupiter.api.Assertions.assertTrue;
 
@@ -331,8 +333,10 @@ class GroupApiImplTest {
         CompletionException failure = assertThrows(CompletionException.class, () -> api.createGroup(request).join());
 
         assertInstanceOf(RuntimeException.class, failure.getCause());
-        assertTrue(failure.getCause().getMessage().contains("rollback inline blueprint"));
-        assertInstanceOf(ApiException.class, failure.getCause().getCause());
+        assertEquals("Failed to create group and rollback inline blueprint bp-1", failure.getCause().getMessage());
+        assertSame(serverGroupsApi.postFailure, failure.getCause().getCause());
+        assertArrayEquals(new Throwable[]{blueprintsApi.deleteFailure}, failure.getCause().getSuppressed());
+        assertArrayEquals(new Throwable[]{blueprintsApi.deleteFailure}, serverGroupsApi.postFailure.getSuppressed());
         assertEquals(3, blueprintsApi.deleteCalls);
     }
 
@@ -374,6 +378,30 @@ class GroupApiImplTest {
         assertInstanceOf(RuntimeException.class, failure.getCause());
         assertEquals(3, serverGroupsApi.getCalls);
         assertEquals(List.of("bp-1"), blueprintsApi.deletedBlueprintIds);
+    }
+
+    @Test
+    void createGroup_http5xx_keepsBlueprintWhenReconciliationFails() {
+        AtomicInteger order = new AtomicInteger();
+        FakeBlueprintsApi blueprintsApi = new FakeBlueprintsApi(order);
+        FakeServerGroupsApi serverGroupsApi = new FakeServerGroupsApi(order);
+        serverGroupsApi.postFailure = new ApiException(500, "controller unavailable");
+        serverGroupsApi.listFailure = new ApiException(503, "still unavailable");
+
+        GroupApiImpl api = new GroupApiImpl(options(), new NoOpQueryCache(), serverGroupsApi, blueprintsApi);
+        CreateGroupRequest request = CreateGroupRequest.builder()
+                .name("Lobby")
+                .createBlueprint(CreateBlueprintRequest.builder().build())
+                .build();
+
+        CompletionException failure = assertThrows(CompletionException.class, () -> api.createGroup(request).join());
+
+        Throwable[] suppressed = serverGroupsApi.postFailure.getSuppressed();
+        assertSame(serverGroupsApi.postFailure, failure.getCause().getCause());
+        assertEquals(1, suppressed.length);
+        assertSame(serverGroupsApi.listFailure, suppressed[0].getCause());
+        assertEquals(1, serverGroupsApi.getCalls);
+        assertEquals(List.of(), blueprintsApi.deletedBlueprintIds);
     }
 
     @Test
@@ -537,6 +565,7 @@ class GroupApiImplTest {
         private ModelsCreateServerGroupRequest lastCreateRequest;
         private ModelsPatchServerGroupRequest lastPatchRequest;
         private ApiException postFailure;
+        private ApiException listFailure;
         private ModelsListServerGroupsResponse listResponse = new ModelsListServerGroupsResponse();
 
         private FakeServerGroupsApi(AtomicInteger order) {
@@ -619,10 +648,13 @@ class GroupApiImplTest {
                                                                 String sourceType,
                                                                 String blueprintId,
                                                                 Integer limit,
-                                                                Integer offset) {
+                                                                Integer offset) throws ApiException {
             getCalls++;
             lastServerGroupId = serverGroupId;
             lastName = name;
+            if (listFailure != null) {
+                throw listFailure;
+            }
             return listResponse;
         }
     }

@@ -6,7 +6,7 @@ import org.junit.jupiter.api.Test;
 
 import java.util.Map;
 import java.util.concurrent.CompletableFuture;
-import java.util.concurrent.atomic.AtomicLong;
+import java.util.concurrent.atomic.AtomicInteger;
 
 import static org.mockito.ArgumentMatchers.*;
 import static org.mockito.Mockito.*;
@@ -20,7 +20,7 @@ class PlayerSynchronizerTest {
         when(cloudApi.server()).thenReturn(serverApi);
         when(serverApi.updateServerProperties(anyString(), anyMap()))
                 .thenReturn(CompletableFuture.completedFuture(Map.of()));
-        AtomicLong onlineCount = new AtomicLong(3);
+        AtomicInteger onlineCount = new AtomicInteger(3);
         PlayerSynchronizer synchronizer = new PlayerSynchronizer(cloudApi, onlineCount::get);
 
         synchronizer.publishPlayerCount();

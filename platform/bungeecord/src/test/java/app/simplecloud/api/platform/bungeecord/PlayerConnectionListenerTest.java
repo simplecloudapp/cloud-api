@@ -1,8 +1,10 @@
 package app.simplecloud.api.platform.bungeecord;
 
 import app.simplecloud.api.internal.integration.player.LoginResult;
-import app.simplecloud.api.internal.integration.player.PlayerIntegration;
+import app.simplecloud.api.internal.integration.player.PlayerLogin;
+import app.simplecloud.api.internal.integration.player.PlayerSessionReporter;
 import app.simplecloud.api.internal.integration.presence.ProxyPresenceTracker;
+import app.simplecloud.api.platform.shared.LuckPermsSynchronizer;
 import app.simplecloud.api.platform.shared.PlayerSynchronizer;
 import app.simplecloud.api.player.PlayerClientSettings;
 import net.md_5.bungee.api.Callback;
@@ -10,6 +12,7 @@ import net.md_5.bungee.api.SkinConfiguration;
 import net.md_5.bungee.api.plugin.Plugin;
 import net.md_5.bungee.api.connection.PendingConnection;
 import net.md_5.bungee.api.connection.ProxiedPlayer;
+import net.md_5.bungee.api.event.PlayerDisconnectEvent;
 import net.md_5.bungee.api.event.PostLoginEvent;
 import net.md_5.bungee.api.event.SettingsChangedEvent;
 import org.junit.jupiter.api.Test;
@@ -21,7 +24,6 @@ import java.util.List;
 import java.util.Locale;
 import java.util.UUID;
 import java.util.concurrent.CompletableFuture;
-import java.util.function.Consumer;
 
 import static org.junit.jupiter.api.Assertions.assertEquals;
 import static org.mockito.ArgumentMatchers.*;
@@ -38,13 +40,12 @@ class PlayerConnectionListenerTest {
     void loginWaitsForControllerAndAlwaysReleasesEvent(String outcome, boolean completedBeforeEvent) {
         UUID playerId = UUID.randomUUID();
         CompletableFuture<LoginResult> registration = new CompletableFuture<>();
-        PlayerIntegration integration = mock(PlayerIntegration.class);
-        when(integration.login(anyString(), anyString(), anyString(), anyString(), anyString(),
-                anyString(), anyInt(), anyBoolean(), nullable(String.class))).thenReturn(registration);
+        PlayerSessionReporter sessionReporter = mock(PlayerSessionReporter.class);
+        when(sessionReporter.reportLogin(any(PlayerLogin.class))).thenReturn(registration);
         ProxyPresenceTracker presence = mock(ProxyPresenceTracker.class);
-        Consumer<UUID> synchronize = mock(Consumer.class);
+        LuckPermsSynchronizer luckPermsSynchronizer = mock(LuckPermsSynchronizer.class);
         PlayerConnectionListener listener = new PlayerConnectionListener(
-                mock(Plugin.class), mock(PlayerSynchronizer.class), integration, presence, "proxy-1", synchronize, ignored -> {});
+                mock(Plugin.class), mock(PlayerSynchronizer.class), sessionReporter, presence, "proxy-1", luckPermsSynchronizer);
         ProxiedPlayer player = mock(ProxiedPlayer.class);
         PendingConnection connection = mock(PendingConnection.class);
         when(player.getUniqueId()).thenReturn(playerId);
@@ -62,30 +63,71 @@ class PlayerConnectionListenerTest {
         event.postCall();
         if (!completedBeforeEvent) {
             verifyNoInteractions(callback);
-            verifyNoInteractions(synchronize);
+            verifyNoInteractions(luckPermsSynchronizer);
             completeRegistration(registration, outcome);
         }
 
         verify(callback).done(event, null);
         if (outcome.equals("success")) {
             verify(presence).updateSessionId(playerId.toString(), "session-1");
-            verify(synchronize).accept(playerId);
+            verify(luckPermsSynchronizer).synchronize(playerId);
         } else {
-            verifyNoInteractions(synchronize);
+            verifyNoInteractions(luckPermsSynchronizer);
         }
+    }
+
+    @Test
+    void quitStopsLuckPermsSynchronizationForThePlayer() {
+        UUID playerId = UUID.randomUUID();
+        PlayerSessionReporter sessionReporter = mock(PlayerSessionReporter.class);
+        when(sessionReporter.reportDisconnect(playerId)).thenReturn(CompletableFuture.completedFuture(null));
+        LuckPermsSynchronizer luckPermsSynchronizer = mock(LuckPermsSynchronizer.class);
+        PlayerConnectionListener listener = new PlayerConnectionListener(
+                mock(Plugin.class), mock(PlayerSynchronizer.class), sessionReporter, mock(ProxyPresenceTracker.class), "proxy-1", luckPermsSynchronizer);
+        ProxiedPlayer player = mock(ProxiedPlayer.class);
+        when(player.getUniqueId()).thenReturn(playerId);
+
+        listener.onPlayerQuit(new PlayerDisconnectEvent(player));
+
+        verify(luckPermsSynchronizer).forget(playerId);
+    }
+
+    @Test
+    @SuppressWarnings("unchecked") // mock(Callback.class) is a raw Callback passed as Callback<PostLoginEvent>
+    void loginReportsThePlayerToTheController() {
+        UUID playerId = UUID.randomUUID();
+        InetSocketAddress address = new InetSocketAddress("127.0.0.1", 25565);
+        PlayerSessionReporter sessionReporter = mock(PlayerSessionReporter.class);
+        when(sessionReporter.reportLogin(any(PlayerLogin.class))).thenReturn(new CompletableFuture<>());
+        PlayerConnectionListener listener = new PlayerConnectionListener(
+                mock(Plugin.class), mock(PlayerSynchronizer.class), sessionReporter, mock(ProxyPresenceTracker.class), "proxy-1", LuckPermsSynchronizer.DISABLED);
+        ProxiedPlayer player = mock(ProxiedPlayer.class);
+        PendingConnection connection = mock(PendingConnection.class);
+        when(player.getUniqueId()).thenReturn(playerId);
+        when(player.getName()).thenReturn("Player");
+        when(player.getDisplayName()).thenReturn("Display");
+        when(player.getPendingConnection()).thenReturn(connection);
+        when(connection.getSocketAddress()).thenReturn(address);
+        when(connection.getVersion()).thenReturn(767);
+        when(connection.isOnlineMode()).thenReturn(true);
+
+        listener.onPlayerJoin(new PostLoginEvent(player, null, mock(Callback.class)));
+
+        PlayerLogin expected = new PlayerLogin(playerId, "Player", "Display", "proxy-1",
+                String.valueOf(address.hashCode()), "en_US", 767, true, null);
+        verify(sessionReporter).reportLogin(expected);
     }
 
     @Test
     @SuppressWarnings("unchecked")
     void loginSendsClientSettingsAlreadyReportedByTheClient() {
         UUID playerId = UUID.randomUUID();
-        PlayerIntegration integration = mock(PlayerIntegration.class);
-        when(integration.login(anyString(), anyString(), anyString(), anyString(), anyString(),
-                anyString(), anyInt(), anyBoolean(), nullable(String.class)))
+        PlayerSessionReporter sessionReporter = mock(PlayerSessionReporter.class);
+        when(sessionReporter.reportLogin(any(PlayerLogin.class)))
                 .thenReturn(CompletableFuture.completedFuture(LoginResult.success("session-1")));
-        when(integration.updateClientSettings(anyString(), any())).thenReturn(CompletableFuture.completedFuture(null));
+        when(sessionReporter.reportClientSettings(anyString(), any())).thenReturn(CompletableFuture.completedFuture(null));
         PlayerConnectionListener listener = new PlayerConnectionListener(
-                mock(Plugin.class), mock(PlayerSynchronizer.class), integration, mock(ProxyPresenceTracker.class), "proxy-1", ignored -> {}, ignored -> {});
+                mock(Plugin.class), mock(PlayerSynchronizer.class), sessionReporter, mock(ProxyPresenceTracker.class), "proxy-1", LuckPermsSynchronizer.DISABLED);
         ProxiedPlayer player = playerWithSettings(playerId);
         PendingConnection connection = mock(PendingConnection.class);
         when(player.getName()).thenReturn("Player");
@@ -97,33 +139,33 @@ class PlayerConnectionListenerTest {
         listener.onPlayerJoin(event);
         event.postCall();
 
-        verify(integration).updateClientSettings(eq("session-1"), any(PlayerClientSettings.class));
+        verify(sessionReporter).reportClientSettings(eq("session-1"), any(PlayerClientSettings.class));
     }
 
     @Test
     void settingsChangeIsIgnoredUntilTheSessionIsKnown() {
-        PlayerIntegration integration = mock(PlayerIntegration.class);
+        PlayerSessionReporter sessionReporter = mock(PlayerSessionReporter.class);
         PlayerConnectionListener listener = new PlayerConnectionListener(
-                mock(Plugin.class), mock(PlayerSynchronizer.class), integration, mock(ProxyPresenceTracker.class), "proxy-1", ignored -> {}, ignored -> {});
+                mock(Plugin.class), mock(PlayerSynchronizer.class), sessionReporter, mock(ProxyPresenceTracker.class), "proxy-1", LuckPermsSynchronizer.DISABLED);
 
         listener.onSettingsChanged(new SettingsChangedEvent(playerWithSettings(UUID.randomUUID())));
 
-        verify(integration, never()).updateClientSettings(anyString(), any());
+        verify(sessionReporter, never()).reportClientSettings(anyString(), any());
     }
 
     @Test
     void settingsChangeIsForwardedWithTheSession() {
         UUID playerId = UUID.randomUUID();
-        PlayerIntegration integration = mock(PlayerIntegration.class);
-        when(integration.updateClientSettings(anyString(), any())).thenReturn(CompletableFuture.completedFuture(null));
+        PlayerSessionReporter sessionReporter = mock(PlayerSessionReporter.class);
+        when(sessionReporter.reportClientSettings(anyString(), any())).thenReturn(CompletableFuture.completedFuture(null));
         ProxyPresenceTracker presence = mock(ProxyPresenceTracker.class);
         when(presence.getSessionId(playerId.toString())).thenReturn("session-1");
         PlayerConnectionListener listener = new PlayerConnectionListener(
-                mock(Plugin.class), mock(PlayerSynchronizer.class), integration, presence, "proxy-1", ignored -> {}, ignored -> {});
+                mock(Plugin.class), mock(PlayerSynchronizer.class), sessionReporter, presence, "proxy-1", LuckPermsSynchronizer.DISABLED);
 
         listener.onSettingsChanged(new SettingsChangedEvent(playerWithSettings(playerId)));
 
-        verify(integration).updateClientSettings(eq("session-1"), any(PlayerClientSettings.class));
+        verify(sessionReporter).reportClientSettings(eq("session-1"), any(PlayerClientSettings.class));
     }
 
     @Test

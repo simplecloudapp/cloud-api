@@ -2,15 +2,15 @@ package app.simplecloud.api.platform.velocity;
 
 import app.simplecloud.api.CloudApi;
 import app.simplecloud.api.internal.CloudApiImpl;
-import app.simplecloud.api.internal.integration.player.ConnectTarget;
-import app.simplecloud.api.internal.integration.player.PlayerIntegration;
+import app.simplecloud.api.internal.integration.player.PlayerCommandHandler;
+import app.simplecloud.api.internal.integration.player.PlayerSessionReporter;
 import app.simplecloud.api.internal.integration.presence.ProxyPresenceResponder;
 import app.simplecloud.api.internal.integration.presence.ProxyPresenceTracker;
 import app.simplecloud.api.presence.ProxyPresencePlayer;
 import app.simplecloud.api.presence.ProxyPresencePlayerProvider;
-import app.simplecloud.api.player.CloudPlayer;
 import app.simplecloud.api.runtime.SimpleCloudRuntime;
-import app.simplecloud.api.platform.shared.LuckPermsPlayerPropertySynchronizer;
+import app.simplecloud.api.platform.shared.LuckPermsPrimaryGroupSynchronizer;
+import app.simplecloud.api.platform.shared.LuckPermsSynchronizer;
 import app.simplecloud.api.platform.shared.PlayerSynchronizer;
 import com.google.inject.Inject;
 import com.velocitypowered.api.event.Subscribe;
@@ -18,20 +18,13 @@ import com.velocitypowered.api.event.proxy.ProxyInitializeEvent;
 import com.velocitypowered.api.event.proxy.ProxyShutdownEvent;
 import com.velocitypowered.api.plugin.Dependency;
 import com.velocitypowered.api.plugin.Plugin;
-import com.velocitypowered.api.proxy.ConnectionRequestBuilder;
 import com.velocitypowered.api.proxy.Player;
 import com.velocitypowered.api.proxy.ProxyServer;
-import com.velocitypowered.api.proxy.server.RegisteredServer;
-import net.kyori.adventure.text.Component;
-import net.kyori.adventure.text.serializer.gson.GsonComponentSerializer;
 import net.luckperms.api.LuckPermsProvider;
 import org.slf4j.Logger;
 
 import java.util.List;
 import java.util.Locale;
-import java.util.Optional;
-import java.util.UUID;
-import java.util.concurrent.CompletableFuture;
 
 @Plugin(
         id = "simplecloud-api",
@@ -47,12 +40,12 @@ public class CloudApiVelocityPlugin implements ProxyPresencePlayerProvider {
     private final CloudApiImpl cloudApi;
     private final String proxyName;
     private final PlayerSynchronizer playerSynchronizer;
-    private final PlayerIntegration playerIntegration;
+    private final PlayerSessionReporter playerSessionReporter;
+    private final PlayerCommandHandler playerCommandHandler;
     private final ProxyPresenceTracker proxyPresenceTracker;
     private final ProxyPresenceResponder proxyPresenceResponder;
-    private LuckPermsPlayerPropertySynchronizer luckPermsSynchronizer;
-
-    private final GsonComponentSerializer gsonComponentSerializer = GsonComponentSerializer.gson();
+    // Replaced while the proxy initializes, because LuckPerms only provides its API then.
+    private LuckPermsSynchronizer luckPermsSynchronizer = LuckPermsSynchronizer.DISABLED;
 
     @Inject
     public CloudApiVelocityPlugin(
@@ -63,11 +56,9 @@ public class CloudApiVelocityPlugin implements ProxyPresencePlayerProvider {
         this.proxyServer = proxyServer;
         this.cloudApi = (CloudApiImpl) CloudApi.create();
         this.proxyName = SimpleCloudRuntime.serverName();
-        this.playerSynchronizer = new PlayerSynchronizer(
-            cloudApi,
-            () -> (long) proxyServer.getPlayerCount()
-        );
-        this.playerIntegration = new PlayerIntegration(cloudApi);
+        this.playerSynchronizer = new PlayerSynchronizer(cloudApi, proxyServer::getPlayerCount);
+        this.playerSessionReporter = new PlayerSessionReporter(cloudApi);
+        this.playerCommandHandler = new PlayerCommandHandler(cloudApi, new VelocityPlayers(proxyServer));
         this.proxyPresenceTracker = new ProxyPresenceTracker(proxyName);
         this.proxyPresenceResponder = new ProxyPresenceResponder(
                 cloudApi.getNatsConnection(),
@@ -75,70 +66,53 @@ public class CloudApiVelocityPlugin implements ProxyPresencePlayerProvider {
                 SimpleCloudRuntime.serverId(),
                 this
         );
-
-        playerIntegration.onKick(this::handleKickRequest);
-        playerIntegration.onConnect(this::handleConnectRequest);
     }
 
     @Subscribe
     public void onProxyInitialize(ProxyInitializeEvent event) {
         logger.info("SimpleCloud v3 API provider initialized!");
-        initializeLuckPermsIntegration();
+        this.luckPermsSynchronizer = startLuckPermsSynchronizer();
         proxyServer.getEventManager().register(this, new PlayerConnectionListener(
                 playerSynchronizer,
-                playerIntegration,
+                playerSessionReporter,
                 proxyPresenceTracker,
                 proxyName,
-                this::synchronizeLuckPermsProperties,
-                this::forgetLuckPermsProperties
+                luckPermsSynchronizer
         ));
 
         playerSynchronizer.start();
-        playerIntegration.start();
+        playerCommandHandler.start();
         proxyPresenceResponder.start();
     }
 
     @Subscribe
     public void onProxyShutdown(ProxyShutdownEvent event) {
         logger.info("SimpleCloud v3 API provider uninitialized!");
+        luckPermsSynchronizer.stop();
         proxyPresenceResponder.stop();
-        if (luckPermsSynchronizer != null) {
-            luckPermsSynchronizer.stop();
-        }
         playerSynchronizer.stop();
-        playerIntegration.stop();
+        playerCommandHandler.stop();
         cloudApi.close();
     }
 
-    private void initializeLuckPermsIntegration() {
+    private LuckPermsSynchronizer startLuckPermsSynchronizer() {
         if (!proxyServer.getPluginManager().isLoaded("luckperms")) {
-            return;
+            return LuckPermsSynchronizer.DISABLED;
         }
         try {
-            luckPermsSynchronizer = new LuckPermsPlayerPropertySynchronizer(
+            LuckPermsPrimaryGroupSynchronizer primaryGroupSynchronizer = new LuckPermsPrimaryGroupSynchronizer(
                     cloudApi,
                     LuckPermsProvider.get(),
                     this,
-                    uniqueId -> proxyServer.getPlayer(uniqueId).isPresent(),
-                    (message, throwable) -> logger.error(message, throwable)
+                    playerId -> proxyServer.getPlayer(playerId).isPresent(),
+                    logger::error
             );
-            luckPermsSynchronizer.start();
-            logger.info("LuckPerms player property synchronization enabled");
+            primaryGroupSynchronizer.start();
+            logger.info("LuckPerms primary group synchronization enabled");
+            return primaryGroupSynchronizer;
         } catch (IllegalStateException exception) {
-            luckPermsSynchronizer = null;
             logger.warn("LuckPerms is present but its API is not available", exception);
-        }
-    }
-
-    private void synchronizeLuckPermsProperties(UUID uniqueId) {
-        if (luckPermsSynchronizer != null) {
-            luckPermsSynchronizer.synchronize(uniqueId);
-        }
-    }
-
-    private void forgetLuckPermsProperties(UUID uniqueId) {
-        if (luckPermsSynchronizer != null) {
-            luckPermsSynchronizer.forget(uniqueId);
+            return LuckPermsSynchronizer.DISABLED;
         }
     }
 
@@ -164,49 +138,5 @@ public class CloudApiVelocityPlugin implements ProxyPresencePlayerProvider {
                 player.getProtocolVersion().getProtocol(),
                 player.isOnlineMode()
         );
-    }
-
-    private CompletableFuture<Boolean> handleKickRequest(String playerUniqueId, String reason) {
-        return CompletableFuture.supplyAsync(() -> {
-            Player player = proxyServer.getPlayer(UUID.fromString(playerUniqueId)).orElse(null);
-            if (player == null) {
-                // Don't respond - another proxy might have the player
-                // Returning null signals to not send a response
-                return null;
-            }
-            player.disconnect(reason != null ? gsonComponentSerializer.deserialize(reason) : Component.empty());
-            return true;
-        });
-    }
-
-    private CompletableFuture<CloudPlayer.ConnectResult> handleConnectRequest(String playerUniqueId, ConnectTarget target) {
-        Player player = proxyServer.getPlayer(UUID.fromString(playerUniqueId)).orElse(null);
-        if (player == null) {
-            return CompletableFuture.completedFuture(null);
-        }
-        return target.resolve(proxyServer::getServer, this::findServerByAddress)
-                .thenCompose(registeredServer -> registeredServer
-                        .map(server -> connect(player, server))
-                        .orElseGet(() -> CompletableFuture.completedFuture(CloudPlayer.ConnectResult.SERVER_NOT_FOUND)));
-    }
-
-    private Optional<RegisteredServer> findServerByAddress(String ip, int port) {
-        return proxyServer.getAllServers().stream()
-                .filter(server -> ConnectTarget.hasAddress(server.getServerInfo().getAddress(), ip, port))
-                .findFirst();
-    }
-
-    private CompletableFuture<CloudPlayer.ConnectResult> connect(Player player, RegisteredServer registeredServer) {
-        return player.createConnectionRequest(registeredServer).connect()
-                .thenApply(result -> {
-                    ConnectionRequestBuilder.Status status = result.getStatus();
-                    if (status == ConnectionRequestBuilder.Status.SUCCESS) {
-                        return CloudPlayer.ConnectResult.SUCCESS;
-                    } else if (status == ConnectionRequestBuilder.Status.ALREADY_CONNECTED) {
-                        return CloudPlayer.ConnectResult.ALREADY_CONNECTED;
-                    } else {
-                        return CloudPlayer.ConnectResult.CONNECTION_FAILED;
-                    }
-                });
     }
 }
