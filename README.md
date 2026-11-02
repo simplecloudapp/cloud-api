@@ -113,7 +113,7 @@ This repository is licensed under [Apache 2.0][license].
 
 <!-- ✅ PLEASE EDIT -->
 
-[banner]: https://simplecloud.app/api/banner/Cloud%20API
+[banner]: https://raw.githubusercontent.com/simplecloudapp/branding/main/readme/banner/cloud-api.png
 
 [issue-bug-report]: https://github.com/simplecloudapp/cloud-api/issues/new?labels=bug&projects=template=01_BUG-REPORT.yml&title=%5BBUG%5D+%3Ctitle%3E
 
