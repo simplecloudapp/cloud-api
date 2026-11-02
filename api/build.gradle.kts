@@ -3,68 +3,40 @@ import app.simplecloud.gradle.FixOpenApiGeneratedCode
 import com.github.jengelman.gradle.plugins.shadow.tasks.ShadowJar
 
 plugins {
-    id("java")
-
-    `maven-publish`
+    id("cloud-api.shadow-conventions")
     alias(libs.plugins.openapi.generator)
 }
 
 java {
-    toolchain.languageVersion.set(JavaLanguageVersion.of(21))
     withJavadocJar()
     withSourcesJar()
 }
 
 dependencies {
-    implementation(rootProject.libs.jnats)
-    implementation(rootProject.libs.controller.proto)
-    implementation(rootProject.libs.player.proto)
-    implementation(rootProject.libs.adventure.proto)
-    implementation(rootProject.libs.okhttp)
-    implementation(rootProject.libs.okhttp.logging)
-    implementation(rootProject.libs.gson)
-    implementation(rootProject.libs.gson.fire)
-    implementation(rootProject.libs.jakarta.annotation)
-    implementation(rootProject.libs.javax.annotation)
+    implementation(libs.jnats)
+    implementation(libs.controller.proto)
+    implementation(libs.player.proto)
+    implementation(libs.adventure.proto)
+    implementation(libs.okhttp)
+    implementation(libs.okhttp.logging)
+    implementation(libs.gson)
+    implementation(libs.gson.fire)
+    implementation(libs.jakarta.annotation)
 
-    implementation(rootProject.libs.adventure.api)
-    implementation(rootProject.libs.adventure.gson)
-    implementation(rootProject.libs.caffeine)
+    implementation(libs.adventure.api)
+    implementation(libs.adventure.gson)
+    implementation(libs.caffeine)
 
-    testImplementation(rootProject.libs.junit.jupiter)
-    testImplementation(rootProject.libs.okhttp.mockwebserver)
-    testImplementation(rootProject.libs.okhttp.tls)
-    testRuntimeOnly("org.junit.platform:junit-platform-launcher")
-}
-
-tasks.named<Test>("test") {
-    useJUnitPlatform()
+    testImplementation(libs.okhttp.mockwebserver)
+    testImplementation(libs.okhttp.tls)
 }
 
 tasks.named<ShadowJar>("shadowJar") {
-    mergeServiceFiles()
-
-    relocate("io.nats", "app.simplecloud.api.shaded.nats")
-    relocate("com.google", "app.simplecloud.api.shaded.google")
-    relocate("build.buf", "app.simplecloud.api.shaded.buf")
-    relocate("okhttp3", "app.simplecloud.api.shaded.okhttp3")
-    relocate("okio", "app.simplecloud.api.shaded.okio")
-    relocate("io.gsonfire", "app.simplecloud.api.shaded.gsonfire")
-    relocate("org.bouncycastle", "app.simplecloud.api.shaded.bouncycastle")
-    relocate("org.intellij", "app.simplecloud.api.shaded.intellij")
-    relocate("org.jetbrains", "app.simplecloud.api.shaded.jetbrains")
-    relocate("kotlin", "app.simplecloud.api.shaded.kotlin")
-    relocate("com.github.benmanes.caffeine", "app.simplecloud.api.shaded.caffeine")
-
-    relocate("google", "app.simplecloud.api.shaded.google")
-    relocate("native", "app.simplecloud.api.shaded.native")
-    relocate("core", "app.simplecloud.api.shaded.core")
-
-    archiveClassifier.set("")
+    archiveClassifier = ""
 }
 
 tasks.named<Jar>("jar") {
-    archiveClassifier.set("thin")
+    archiveClassifier = "thin"
 }
 
 sourceSets {
@@ -76,28 +48,25 @@ sourceSets {
 }
 
 openApiGenerate {
-    generatorName.set("java")
-    remoteInputSpec.set("https://controller.simplecloud.app/swagger/doc.json")
+    generatorName = "java"
+    remoteInputSpec = "https://controller.simplecloud.app/swagger/doc.json"
 
-    outputDir.set(layout.buildDirectory.dir("generated"))
+    outputDir = layout.buildDirectory.dir("generated")
 
-//    generateSupportingFiles.set(false)
-    generateApiDocumentation.set(false)
-    generateModelDocumentation.set(false)
-    generateApiTests.set(false)
-    generateModelTests.set(false)
+    generateApiDocumentation = false
+    generateModelDocumentation = false
+    generateApiTests = false
+    generateModelTests = false
 
-    apiPackage.set("app.simplecloud.api.web.apis")
-    modelPackage.set("app.simplecloud.api.web.models")
-    packageName.set("app.simplecloud.api.web")
+    apiPackage = "app.simplecloud.api.web.apis"
+    modelPackage = "app.simplecloud.api.web.models"
+    packageName = "app.simplecloud.api.web"
 
-    configOptions.set(
-        mapOf(
-            "library" to "okhttp-gson",
-            "serializationLibrary" to "gson",
-            "useJakartaEe" to "true",
-            "disallowAdditionalPropertiesIfNotPresent" to "false"
-        )
+    configOptions = mapOf(
+        "library" to "okhttp-gson",
+        "serializationLibrary" to "gson",
+        "useJakartaEe" to "true",
+        "disallowAdditionalPropertiesIfNotPresent" to "false"
     )
 }
 
@@ -106,30 +75,28 @@ tasks.register<org.openapitools.generator.gradle.plugin.tasks.GenerateTask>("gen
     description = "Generates the standalone Go client from the controller OpenAPI document."
     dependsOn("openApiGenerate")
 
-    generatorName.set("go")
-    inputSpec.set(layout.buildDirectory.file("generated/api/openapi.yaml"))
-    outputDir.set(rootProject.layout.projectDirectory.dir("go/generated"))
-    packageName.set("generated")
+    generatorName = "go"
+    inputSpec = layout.buildDirectory.file("generated/api/openapi.yaml")
+    outputDir = isolated.rootProject.projectDirectory.dir("go/generated")
+    packageName = "generated"
 
-    generateApiDocumentation.set(false)
-    generateModelDocumentation.set(false)
-    generateApiTests.set(false)
-    generateModelTests.set(false)
+    generateApiDocumentation = false
+    generateModelDocumentation = false
+    generateApiTests = false
+    generateModelTests = false
 
-    configOptions.set(
-        mapOf(
-            "enumClassPrefix" to "true",
-            "generateInterfaces" to "true",
-            "packageVersion" to rootProject.version.toString(),
-            "withGoMod" to "false"
-        )
+    configOptions = mapOf(
+        "enumClassPrefix" to "true",
+        "generateInterfaces" to "true",
+        "packageVersion" to version.toString(),
+        "withGoMod" to "false"
     )
 }
 
 val fixOpenApiGeneratedCode = tasks.register<FixOpenApiGeneratedCode>("fixOpenApiGeneratedCode") {
     dependsOn("openApiGenerate")
-    modelsDir.set(layout.buildDirectory.dir("generated/src/main/java/app/simplecloud/api/web/models"))
-    markerFile.set(layout.buildDirectory.file("generated/.fixOpenApiGeneratedCode"))
+    modelsDir = layout.buildDirectory.dir("generated/src/main/java/app/simplecloud/api/web/models")
+    markerFile = layout.buildDirectory.file("generated/.fixOpenApiGeneratedCode")
 }
 
 val prepareGeneratedSources = tasks.register("prepareGeneratedSources") {
@@ -159,41 +126,39 @@ tasks.named<Jar>("sourcesJar") {
     dependsOn(prepareGeneratedSources)
 }
 
-val controllerProtoDependencyVersion = rootProject.libs.controller.proto.get().version.toString()
+val controllerProtoDependencyVersion = libs.controller.proto.get().version.toString()
 
 publishing {
     publications {
         create<MavenPublication>("maven") {
-            artifact(tasks.named<ShadowJar>("shadowJar")) {
-                classifier = ""
-            }
+            artifact(tasks.named<ShadowJar>("shadowJar"))
 
             artifact(tasks.named<Jar>("javadocJar"))
             artifact(tasks.named<Jar>("sourcesJar"))
 
             pom {
-                name.set("SimpleCloud API")
-                description.set("Cloud API for SimpleCloud")
-                url.set("https://github.com/simplecloudapp/cloud-api")
+                name = "SimpleCloud API"
+                description = "Cloud API for SimpleCloud"
+                url = "https://github.com/simplecloudapp/cloud-api"
 
                 licenses {
                     license {
-                        name.set("The Apache License, Version 2.0")
-                        url.set("http://www.apache.org/licenses/LICENSE-2.0.txt")
+                        name = "The Apache License, Version 2.0"
+                        url = "http://www.apache.org/licenses/LICENSE-2.0.txt"
                     }
                 }
 
                 developers {
                     developer {
-                        id.set("simplecloud")
-                        name.set("SimpleCloud Team")
+                        id = "simplecloud"
+                        name = "SimpleCloud Team"
                     }
                 }
 
                 scm {
-                    connection.set("scm:git:git://github.com/simplecloudapp/cloud-api.git")
-                    developerConnection.set("scm:git:ssh://github.com/simplecloudapp/cloud-api.git")
-                    url.set("https://github.com/simplecloudapp/cloud-api")
+                    connection = "scm:git:git://github.com/simplecloudapp/cloud-api.git"
+                    developerConnection = "scm:git:ssh://github.com/simplecloudapp/cloud-api.git"
+                    url = "https://github.com/simplecloudapp/cloud-api"
                 }
 
                 // Note: io.nats, okhttp3, gson, and gsonfire are not added because they're shaded.
@@ -201,32 +166,4 @@ publishing {
             }
         }
     }
-}
-
-//signing {
-//    val isSnapshot = project.version.toString().contains("dev")
-//    if (!isSnapshot) {
-//        sign(publishing.publications["maven"])
-//        useGpgCmd()
-//    }
-//}
-
-tasks.register<Javadoc>("generateJavadocSite") {
-    dependsOn("compileJava")
-    source = sourceSets["main"].allJava
-    classpath = configurations["compileClasspath"]
-    setDestinationDir(file("$projectDir/docs/javadoc"))
-    isFailOnError = false
-
-    options {
-        (this as StandardJavadocDocletOptions).apply {
-            links("https://docs.oracle.com/en/java/javase/21/docs/api/")
-            addBooleanOption("html5", true)
-            addStringOption("Xmaxerrs", "10000")
-            addStringOption("Xmaxwarns", "10000")
-        }
-    }
-}
-repositories {
-    mavenCentral()
 }

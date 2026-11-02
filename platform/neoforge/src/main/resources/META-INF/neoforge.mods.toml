@@ -24,6 +24,6 @@ side="SERVER"
 [[dependencies.simplecloud_api]]
 modId="minecraft"
 type="required"
-versionRange="[${minecraftVersion}]"
+versionRange="${minecraftVersionRange}"
 ordering="NONE"
 side="SERVER"

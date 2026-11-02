@@ -1,16 +1,14 @@
-dependencies {
-    compileOnly(project(":api"))
-    compileOnly(rootProject.libs.adventure.api)
-    compileOnly(rootProject.libs.luckperms)
-
-    testImplementation(project(":api"))
-    testImplementation(rootProject.libs.junit.jupiter)
-    testImplementation(rootProject.libs.mockito.core)
-    testRuntimeOnly("org.junit.platform:junit-platform-launcher")
-    testImplementation(rootProject.libs.luckperms)
-    testImplementation(rootProject.libs.adventure.api)
+plugins {
+    id("cloud-api.base-conventions")
 }
 
-tasks.named<Test>("test") {
-    useJUnitPlatform()
+dependencies {
+    compileOnly(project(":api"))
+    compileOnly(libs.adventure.api)
+    compileOnly(libs.luckperms)
+
+    testImplementation(project(":api"))
+    testImplementation(libs.mockito.core)
+    testImplementation(libs.luckperms)
+    testImplementation(libs.adventure.api)
 }

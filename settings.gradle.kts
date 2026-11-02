@@ -1,30 +1,22 @@
 pluginManagement {
+    includeBuild("build-logic")
+
     repositories {
         gradlePluginPortal()
         maven("https://maven.fabricmc.net/")
         maven("https://maven.neoforged.net/releases/")
     }
-
-    plugins {
-        kotlin("jvm") version "2.4.21"
-    }
 }
+
 plugins {
     id("org.gradle.toolchains.foojay-resolver-convention") version "1.0.0"
 }
-//pluginManagement {
-//    plugins {
-//        kotlin("jvm") version "2.2.20"
-//    }
-//}
+
 rootProject.name = "cloud-api"
 
 include(
     "api",
     "local-dev",
-//    "api-kotlin",
-//    "api-kotlin-codegen",
-//    "api-annotations",
     "platform:shared",
     "platform:spigot",
     "platform:spigot-legacy",

@@ -1,17 +1,18 @@
 import com.github.jengelman.gradle.plugins.shadow.tasks.ShadowJar
 
 plugins {
+    id("cloud-api.platform-conventions")
     alias(libs.plugins.fabric.loom)
-    alias(libs.plugins.minotaur)
 }
 
 val shade = configurations.create("shade")
+val minecraftVersions = listOf(libs.versions.fabric.minecraft.get(), "26.3")
 
 dependencies {
-    minecraft("com.mojang:minecraft:${rootProject.libs.versions.fabric.minecraft.get()}")
+    minecraft("com.mojang:minecraft:${libs.versions.fabric.minecraft.get()}")
 
-    implementation(rootProject.libs.fabric.loader)
-    implementation(rootProject.libs.fabric.api)
+    implementation(libs.fabric.loader)
+    implementation(libs.fabric.api)
 
     implementation(project(":platform:shared"))
     implementation(project(":api"))
@@ -24,35 +25,26 @@ tasks.named<ShadowJar>("shadowJar") {
     configurations = listOf(shade)
 }
 
-tasks.named("assemble") {
-    dependsOn(tasks.shadowJar)
-}
-
 tasks.processResources {
-    val modVersion = project.version.toString()
-    inputs.property("version", modVersion)
+    val properties = mapOf(
+        "version" to project.version.toString(),
+        "minecraftVersionRange" to ">=${minecraftVersions.first()} <=${minecraftVersions.last()}"
+    )
+    inputs.properties(properties)
     filesMatching("fabric.mod.json") {
-        expand("version" to modVersion)
+        expand(properties)
     }
 }
 
 modrinth {
-    token.set(project.findProperty("modrinthToken") as String? ?: System.getenv("MODRINTH_TOKEN"))
-    projectId.set("JCJKZvY2")
-    versionNumber.set(rootProject.extra["modrinthVersion"] as String)
-    versionType.set("release")
-    uploadFile.set(tasks.shadowJar)
-    gameVersions.add("26.2")
-    loaders.add("fabric")
-    loaders.add("quilt")
-    changelog.set("https://docs.simplecloud.app/changelog")
-    syncBodyFrom.set(rootProject.file("README.md").readText())
+    gameVersions = minecraftVersions
+    loaders.addAll("fabric", "quilt")
 }
 
 java {
-    toolchain.languageVersion.set(JavaLanguageVersion.of(25))
+    toolchain.languageVersion = JavaLanguageVersion.of(25)
 }
 
 tasks.withType<JavaCompile>().configureEach {
-    options.release.set(25)
+    options.release = 25
 }
