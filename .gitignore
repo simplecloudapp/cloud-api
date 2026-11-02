@@ -1,20 +1,24 @@
+# OS
+.DS_Store
+
+# Gradle
 .gradle/
-.kotlin/
 build/
 
-### IntelliJ IDEA ###
+# IDE
 .idea/
 
-### Mac OS ###
-.DS_Store
+# API
 /api-annotations/
 /api-annotations/api-kotlin/
 /api-kotlin-codegen/
 /api/docs/
 
+# Minecraft
 /run/
 /runs/
 
+# Local Development
 /local-dev/src/**
 !/local-dev/src/main/
 !/local-dev/src/main/java/
@@ -28,3 +32,6 @@ build/
 !/local-dev/src/test/resources/.gitkeep
 /local-dev/.env
 /local-dev/*.local
+
+# Kotlin
+.kotlin/

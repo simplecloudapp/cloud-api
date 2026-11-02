@@ -19,15 +19,10 @@ class AddProtoDependencyToPom(
             dependencies[0] as Node
         }
 
-        dependenciesNode.appendNode("dependency").apply {
-            appendNode("groupId", "build.buf.gen")
-            appendNode("artifactId", "simplecloud_controller_protocolbuffers_java_lite")
-            appendNode("version", controllerProtoDependencyVersion)
-            appendNode("scope", "compile")
-        }
-    }
-
-    private companion object {
-        private const val serialVersionUID = 1L
+        val dependency = dependenciesNode.appendNode("dependency")
+        dependency.appendNode("groupId", "build.buf.gen")
+        dependency.appendNode("artifactId", "simplecloud_controller_protocolbuffers_java_lite")
+        dependency.appendNode("version", controllerProtoDependencyVersion)
+        dependency.appendNode("scope", "compile")
     }
 }

@@ -8,6 +8,7 @@ dependencies {
     implementation(plugin(libs.plugins.minotaur))
 }
 
-fun plugin(plugin: Provider<PluginDependency>): String = plugin.get().run {
-    "$pluginId:$pluginId.gradle.plugin:${version.requiredVersion}"
+fun plugin(plugin: Provider<PluginDependency>): String {
+    val dependency = plugin.get()
+    return "${dependency.pluginId}:${dependency.pluginId}.gradle.plugin:${dependency.version.requiredVersion}"
 }

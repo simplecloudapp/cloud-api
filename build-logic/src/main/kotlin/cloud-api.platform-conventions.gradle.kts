@@ -25,7 +25,7 @@ modrinth {
     projectId = "JCJKZvY2"
     versionNumber = modrinthVersion
     versionType = "release"
-    uploadFile = shadowJar
+    uploadFile.set(shadowJar)
     changelog = "https://docs.simplecloud.app/changelog"
     syncBodyFrom = providers.fileContents(isolated.rootProject.projectDirectory.file("README.md")).asText
     gameVersions.addAll(

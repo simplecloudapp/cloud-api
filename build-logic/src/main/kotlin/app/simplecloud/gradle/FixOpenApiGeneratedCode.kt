@@ -25,28 +25,27 @@ abstract class FixOpenApiGeneratedCode : DefaultTask() {
             ?.filter { it.isFile && it.name.startsWith("V0") && it.name.endsWith(".java") }
             ?.forEach { file ->
                 val content = file.readText()
-                val fixed = WRITE_METHOD_PATTERN.matcher(content).replaceAll("\$2\n                    \$1")
-                    .let { SET_INSTANCE_PATTERN.matcher(it).replaceAll("\$1\$3") }
+                val reordered = WRITE_METHOD_PATTERN.matcher(content).replaceAll("$2\n                    $1")
+                val fixed = SET_INSTANCE_PATTERN.matcher(reordered).replaceAll("$1$3")
 
                 if (fixed != content) {
                     file.writeText(fixed)
                 }
             }
 
-        markerFile.get().asFile.apply {
-            parentFile.mkdirs()
-            writeText("fixed\n")
-        }
+        val marker = markerFile.get().asFile
+        marker.parentFile.mkdirs()
+        marker.writeText("fixed\n")
     }
 
     private companion object {
         private val WRITE_METHOD_PATTERN: Pattern = Pattern.compile(
-            """(// check if the actual instance is of the type `Object`\s+if \(value\.getActualInstance\(\) instanceof Object\) \{[^}]+\}\s+)(// check if the actual instance is of the type `(\w+)`\s+if \(value\.getActualInstance\(\) instanceof \3\) \{[^}]+\})""",
+            """(// check if the actual instance is of the type `Object`\s+if \(value\.getActualInstance\(\) instanceof Object\) \{[^}]+}\s+)(// check if the actual instance is of the type `(\w+)`\s+if \(value\.getActualInstance\(\) instanceof \3\) \{[^}]+})""",
             Pattern.DOTALL
         )
 
         private val SET_INSTANCE_PATTERN: Pattern = Pattern.compile(
-            """(public void setActualInstance\(Object instance\) \{\s+)(if \(instance instanceof Object\) \{\s+super\.setActualInstance\(instance\);\s+return;\s+\}\s+)(if \(instance instanceof (\w+)\) \{)""",
+            """(public void setActualInstance\(Object instance\) \{\s+)(if \(instance instanceof Object\) \{\s+super\.setActualInstance\(instance\);\s+return;\s+}\s+)(if \(instance instanceof (\w+)\) \{)""",
             Pattern.DOTALL
         )
     }

@@ -19,6 +19,8 @@ val generateArtifactsClass = tasks.register("generateArtifactsClass") {
     val controllerProtoVersion = libs.versions.controller.proto.get()
     val adventureProtoVersion = libs.versions.adventure.proto.get()
 
+    inputs.property("controllerProtoVersion", controllerProtoVersion)
+    inputs.property("adventureProtoVersion", adventureProtoVersion)
     outputs.dir(outputDir)
 
     doLast {

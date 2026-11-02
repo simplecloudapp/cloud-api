@@ -112,14 +112,11 @@ tasks.compileJava {
 tasks.named<Javadoc>("javadoc") {
     dependsOn(prepareGeneratedSources)
     isFailOnError = false
-    options {
-        (this as StandardJavadocDocletOptions).apply {
-            addBooleanOption("Xdoclint:none", true)
-            addBooleanOption("quiet", true)
-            addStringOption("Xmaxerrs", "10000")
-            addStringOption("Xmaxwarns", "10000")
-        }
-    }
+    val javadocOptions = options as StandardJavadocDocletOptions
+    javadocOptions.addBooleanOption("Xdoclint:none", true)
+    javadocOptions.addBooleanOption("quiet", true)
+    javadocOptions.addStringOption("Xmaxerrs", "10000")
+    javadocOptions.addStringOption("Xmaxwarns", "10000")
 }
 
 tasks.named<Jar>("sourcesJar") {
