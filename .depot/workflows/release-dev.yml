@@ -1,15 +1,11 @@
-# Depot CI Migration
-# Source: .github/workflows/release-dev.yml.disabled
-#
-# Changes made:
-# - Changed runs-on from "blacksmith-4vcpu-ubuntu-2404" to "depot-ubuntu-latest" throughout
-
 name: Release and Publish
+
 on:
   push:
     branches:
       - main
   workflow_dispatch:
+
 env:
   APP_SLUG: cloud-api-plugin
   REGISTRY_URL: https://registry.simplecloud.app
@@ -37,28 +33,34 @@ env:
     26.1.1
     26.1.2
     26.2
+
 jobs:
   build-and-publish:
-    runs-on: depot-ubuntu-latest # was: blacksmith-4vcpu-ubuntu-2404. Nonstandard GitHub runner label detected, changed to default Depot runner.
+    runs-on: depot-ubuntu-latest
     outputs:
       gradle_version: ${{ steps.versions.outputs.gradle_version }}
       commit_hash: ${{ steps.versions.outputs.commit_hash }}
+
     steps:
       - name: Checkout repository
         uses: actions/checkout@v7
         with:
           ref: main
+
       - name: Set up JDK 25
-        uses: actions/setup-java@v5
+        uses: actions/setup-java@v6
         with:
           distribution: 'temurin'
           java-version: '25'
+
       - name: Setup Gradle
         uses: gradle/actions/setup-gradle@v6
         with:
           cache-read-only: false
+
       - name: Make gradlew executable
         run: chmod +x ./gradlew
+
       - name: Get Versions
         id: versions
         run: |
@@ -77,7 +79,11 @@ jobs:
           echo "COMMIT_HASH=$COMMIT_HASH" >> "$GITHUB_ENV"
           echo "gradle_version=$GRADLE_VERSION" >> "$GITHUB_OUTPUT"
           echo "commit_hash=$COMMIT_HASH" >> "$GITHUB_OUTPUT"
+
       - name: Verify SimpleCloud Repository Credentials
+        env:
+          SIMPLECLOUD_USERNAME: ${{ secrets.SIMPLECLOUD_USERNAME }}
+          SIMPLECLOUD_PASSWORD: ${{ secrets.SIMPLECLOUD_PASSWORD }}
         run: |
           if [ -z "${SIMPLECLOUD_USERNAME:-}" ] || [ -z "${SIMPLECLOUD_PASSWORD:-}" ]; then
             echo "::error::SimpleCloud repository credentials are not configured"
@@ -110,10 +116,11 @@ jobs:
           echo "Reposilite authenticated session:"
           jq . "$RESPONSE_FILE"
           echo "Repository credential check passed"
+
+      - name: Build and Publish Artifacts
         env:
           SIMPLECLOUD_USERNAME: ${{ secrets.SIMPLECLOUD_USERNAME }}
           SIMPLECLOUD_PASSWORD: ${{ secrets.SIMPLECLOUD_PASSWORD }}
-      - name: Build and Publish Artifacts
         run: |
           ./gradlew :api:prepareGeneratedSources \
             :api:check \
@@ -140,14 +147,14 @@ jobs:
           cp platform/velocity/build/libs/cloud-api-velocity.jar artifacts/velocity.jar
           cp platform/fabric/build/libs/cloud-api-fabric.jar artifacts/fabric.jar
           cp platform/neoforge/build/libs/cloud-api-neoforge.jar artifacts/neoforge.jar
-          # Add spigot-legacy if it exists
+
           if [ -f platform/spigot-legacy/build/libs/cloud-api-spigot-legacy.jar ]; then
             cp platform/spigot-legacy/build/libs/cloud-api-spigot-legacy.jar artifacts/spigot-legacy.jar
           fi
-        env:
-          SIMPLECLOUD_USERNAME: ${{ secrets.SIMPLECLOUD_USERNAME }}
-          SIMPLECLOUD_PASSWORD: ${{ secrets.SIMPLECLOUD_PASSWORD }}
+
       - name: Publish to Modrinth (with retries)
+        env:
+          MODRINTH_TOKEN: ${{ secrets.MODRINTH_TOKEN }}
         run: |
           MAX_ATTEMPTS=3
           ATTEMPT=1
@@ -173,23 +180,25 @@ jobs:
               ATTEMPT=$((ATTEMPT + 1))
             fi
           done
-        env:
-          MODRINTH_TOKEN: ${{ secrets.MODRINTH_TOKEN }}
+
       - name: Upload artifacts
         uses: actions/upload-artifact@v7
         with:
           name: build-artifacts
           path: artifacts/*.jar
           compression-level: 0
+
   publish-registry:
     needs: build-and-publish
-    runs-on: depot-ubuntu-latest # was: blacksmith-4vcpu-ubuntu-2404. Nonstandard GitHub runner label detected, changed to default Depot runner.
+    runs-on: depot-ubuntu-latest
+
     steps:
       - name: Download artifacts
         uses: actions/download-artifact@v8
         with:
           name: build-artifacts
           path: artifacts
+
       - name: Create Registry Release
         id: create_registry_release
         run: |
@@ -216,6 +225,7 @@ jobs:
           APP_ID=$(echo "$body" | jq -r '.release.application_id')
           echo "APP_ID=$APP_ID" >> $GITHUB_ENV
           echo "Release created with APP_ID: $APP_ID"
+
       - name: Upload to Registry (Parallel)
         run: |
           PLATFORM_VERSIONS=$(echo "$MINECRAFT_VERSIONS" | jq -R -s 'split("\n") | map(select(length > 0))')
@@ -228,7 +238,6 @@ jobs:
 
             echo "Uploading $ARCH..."
 
-            # Retry logic for each upload
             MAX_ATTEMPTS=3
             ATTEMPT=1
 
@@ -263,7 +272,6 @@ jobs:
             done
           }
 
-          # Upload all platforms in parallel
           upload_file "artifacts/spigot.jar" "spigot" &
           PID_SPIGOT=$!
 
@@ -285,7 +293,6 @@ jobs:
           upload_file "artifacts/neoforge.jar" "neoforge" '["26.2"]' &
           PID_NEOFORGE=$!
 
-          # Wait for all uploads and check exit codes
           FAILED=0
           wait $PID_SPIGOT || FAILED=1
           wait $PID_PAPER || FAILED=1
@@ -301,9 +308,11 @@ jobs:
           fi
 
           echo "All uploads completed successfully"
+
   create-github-release:
     needs: [build-and-publish, publish-registry]
-    runs-on: depot-ubuntu-latest # was: blacksmith-4vcpu-ubuntu-2404. Nonstandard GitHub runner label detected, changed to default Depot runner.
+    runs-on: depot-ubuntu-latest
+
     steps:
       - name: Checkout repository
         uses: actions/checkout@v7
@@ -311,13 +320,17 @@ jobs:
           ref: main
           sparse-checkout: |
             .github
+
       - name: Download artifacts
         uses: actions/download-artifact@v8
         with:
           name: build-artifacts
           path: artifacts
+
       - name: Create GitHub Release
         id: create_release
+        env:
+          GITHUB_TOKEN: ${{ secrets.GH_TOKEN }}
         run: |
           RELEASE_TAG="v${{ needs.build-and-publish.outputs.gradle_version }}"
           RELEASE_NAME="v${{ needs.build-and-publish.outputs.gradle_version }}"
@@ -329,9 +342,10 @@ jobs:
             --target main
 
           echo "RELEASE_TAG=$RELEASE_TAG" >> $GITHUB_ENV
-        env:
-          GITHUB_TOKEN: ${{ secrets.GH_TOKEN }}
+
       - name: Upload JARs to GitHub Release
+        env:
+          GITHUB_TOKEN: ${{ secrets.GITHUB_TOKEN }}
         run: |
           for jar in $(find ./artifacts -type f -name "*.jar"); do
             if [[ $(basename "$jar") =~ -[0-9]+\.[0-9]+ ]]; then
@@ -341,5 +355,3 @@ jobs:
               gh release upload "$RELEASE_TAG" "$jar" --clobber
             fi
           done
-        env:
-          GITHUB_TOKEN: ${{ secrets.GITHUB_TOKEN }}

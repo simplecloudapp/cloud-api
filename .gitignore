@@ -15,8 +15,8 @@ build/
 /api/docs/
 
 # Minecraft
-/run/
-/runs/
+run/
+runs/
 
 # Local Development
 /local-dev/src/**
