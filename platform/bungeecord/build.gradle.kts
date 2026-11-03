@@ -5,6 +5,7 @@ plugins {
 dependencies {
     compileOnly(libs.bungeecord)
     compileOnly(libs.luckperms)
+    compileOnly(libs.jnats)
     compileOnly(libs.adventure.api)
     implementation(libs.adventure.bungeecord)
     implementation(project(":platform:shared"))

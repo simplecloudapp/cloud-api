@@ -33,6 +33,7 @@ env:
     26.1.1
     26.1.2
     26.2
+    26.3
 
 jobs:
   build-and-publish:
@@ -287,10 +288,10 @@ jobs:
           upload_file "artifacts/velocity.jar" "velocity" &
           PID_VELOCITY=$!
 
-          upload_file "artifacts/fabric.jar" "fabric" '["26.2"]' &
+          upload_file "artifacts/fabric.jar" "fabric" '["26.2","26.3"]' &
           PID_FABRIC=$!
 
-          upload_file "artifacts/neoforge.jar" "neoforge" '["26.2"]' &
+          upload_file "artifacts/neoforge.jar" "neoforge" '["26.2","26.3"]' &
           PID_NEOFORGE=$!
 
           FAILED=0

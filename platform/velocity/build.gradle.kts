@@ -6,6 +6,7 @@ dependencies {
     implementation(project(":platform:shared"))
     compileOnly(libs.velocity)
     compileOnly(libs.luckperms)
+    compileOnly(libs.jnats)
     annotationProcessor(libs.velocity)
     compileOnly(libs.adventure.api)
     implementation(project(":api")) {

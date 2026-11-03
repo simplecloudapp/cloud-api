@@ -12,3 +12,11 @@ dependencies {
 application {
     mainClass = providers.gradleProperty("localDevMainClass").orElse("app.simplecloud.api.Test")
 }
+
+distributions {
+    main {
+        contents {
+            duplicatesStrategy = DuplicatesStrategy.EXCLUDE
+        }
+    }
+}

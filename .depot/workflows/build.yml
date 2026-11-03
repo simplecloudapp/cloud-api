@@ -38,4 +38,15 @@ jobs:
         run: chmod +x ./gradlew
 
       - name: Build and Test
-        run: ./gradlew build --parallel --build-cache
+        run: |
+          ./gradlew :api:check \
+            :platform:shared:check \
+            :platform:spigot:check \
+            :platform:spigot-legacy:check \
+            :platform:paper:check \
+            :platform:folia:check \
+            :platform:bungeecord:check \
+            :platform:velocity:check \
+            --configure-on-demand \
+            --parallel \
+            --build-cache
