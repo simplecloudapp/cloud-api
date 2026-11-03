@@ -1,62 +1,22 @@
 plugins {
-    alias(libs.plugins.minotaur)
+    id("cloud-api.platform-conventions")
 }
 
 dependencies {
-    compileOnly(rootProject.libs.bungeecord)
-    compileOnly(rootProject.libs.luckperms)
-    compileOnly(rootProject.libs.adventure.api)
-    implementation(rootProject.libs.adventure.bungeecord)
+    compileOnly(libs.bungeecord)
+    compileOnly(libs.luckperms)
+    compileOnly(libs.jnats)
+    compileOnly(libs.adventure.api)
+    implementation(libs.adventure.bungeecord)
     implementation(project(":platform:shared"))
     implementation(project(":api")) {
         exclude(group = "net.kyori")
     }
-    implementation(rootProject.libs.jnats)
 
-    testImplementation(rootProject.libs.junit.jupiter)
-    testImplementation(rootProject.libs.mockito.core)
-    testRuntimeOnly("org.junit.platform:junit-platform-launcher")
-    testImplementation(rootProject.libs.bungeecord)
+    testImplementation(libs.mockito.core)
+    testImplementation(libs.bungeecord)
 }
 
 modrinth {
-    token.set(project.findProperty("modrinthToken") as String? ?: System.getenv("MODRINTH_TOKEN"))
-    projectId.set("JCJKZvY2")
-    versionNumber.set(rootProject.extra["modrinthVersion"] as String)
-    versionType.set("release")
-    uploadFile.set(tasks.shadowJar)
-    gameVersions.addAll(
-        "1.20",
-        "1.20.1",
-        "1.20.2",
-        "1.20.3",
-        "1.20.4",
-        "1.20.5",
-        "1.20.6",
-        "1.21",
-        "1.21.1",
-        "1.21.2",
-        "1.21.3",
-        "1.21.4",
-        "1.21.5",
-        "1.21.6",
-        "1.21.7",
-        "1.21.8",
-        "1.21.9",
-        "1.21.10",
-        "1.21.11",
-        "26.1",
-        "26.1.1",
-        "26.1.2",
-        "26.2",
-        "26.3",
-    )
-    loaders.add("bungeecord")
-    loaders.add("waterfall")
-    changelog.set("https://docs.simplecloud.app/changelog")
-    syncBodyFrom.set(rootProject.file("README.md").readText())
-}
-
-tasks.named<Test>("test") {
-    useJUnitPlatform()
+    loaders.addAll("bungeecord", "waterfall")
 }

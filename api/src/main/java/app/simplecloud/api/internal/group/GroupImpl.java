@@ -295,7 +295,7 @@ public class GroupImpl implements app.simplecloud.api.group.Group {
             result.setPlayerThreshold(config.getPlayerThreshold().doubleValue());
         }
         if (config.getScalingMode() != null) {
-            ScalingMode scalingMode = convertScalingMode(config.getScalingMode());
+            ScalingMode scalingMode = convertScalingMode(config.getScalingMode().getValue());
             if (scalingMode != null) {
                 result.setScalingMode(scalingMode);
             }

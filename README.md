@@ -5,7 +5,6 @@
 <div align="center">
 
 [![Modrinth][badge-modrinth]][modrinth]
-[![Dev][badge-dev]][dev]
 [![License][badge-license]][license]
 <br>
 
@@ -26,46 +25,26 @@
 
 > All information about this project can be found in our detailed [documentation][docs-thisproject].
 
-This Project aims to provide very easy API access. This project fixes all dependency issues that were present before.
-Install the platform JAR on the server and use the dependency as described below.
-
-> [!CAUTION]
-> Paper specific API is very experimental and unstable. Use Spigot API if you are running paper!
+The official SDK for the SimpleCloud controller. Manage groups, servers, persistent servers and players and listen to events.
 
 ## Features
 
 - [x] **Easy API Use**: Just add the plugin to your server and include the api as a provided artifact.
-- [x] **Supported Server Software**: Supports Spigot and forks, Paper, Folia, BungeeCord, Velocity, Fabric, Quilt, and NeoForge.
-- [ ] **Easy API access**: Use every api method we provide, just from one interface.
+- [x] **Supported Server Software**: Supports every major platform.
+- [x] **Easy API access**: Use every api method we provide, just from one interface.
+- [x] **Go SDK**: A standalone Go SDK for use outside of Minecraft servers.
 
 ## Server Installation
 
 - Put the Spigot, Paper, Folia, BungeeCord, and Velocity JAR in the server's `plugins` directory.
 - Put the Fabric/Quilt or NeoForge JAR in the server's `mods` directory.
 - The shared Fabric/Quilt build requires Fabric API.
-- Fabric, Quilt, and NeoForge support is server-side only, targets Minecraft 26.2, and does not require clients to install the mod.
+- Fabric, Quilt, and NeoForge support is server-side only, targets Minecraft 26.2 to 26.3, and does not require clients to install the mod.
 
 ## Usage
 
-### Go
+### Java & Kotlin
 
-The standalone Go SDK lives in [`go/`](go/README.md). It includes the complete Controller REST API plus typed NATS events and does not require a Minecraft plugin runtime.
-
-```go
-client, err := simplecloud.NewClientFromEnv()
-if err != nil {
-    log.Fatal(err)
-}
-defer client.Close()
-
-groups, _, err := client.Groups.List(context.Background(), nil)
-```
-
-See the [Go API README](go/README.md) for installation, configuration, events, and raw endpoint access.
-
-### 1. Depend on `simplecloud-api`
-
-### 2. Use APIs 
 > For always up-to-date artifacts visit [dev artifacts][dev-artifacts] or [artifacts][artifacts].
 
 > Note: If you want to use the dev version, you have to use the [snapshot repository][snapshots].
@@ -95,14 +74,14 @@ compileOnly 'app.simplecloud.api:api:VERSION'
 </dependencies>
 ```
 
+### Go
+
+The standalone Go SDK lives in [`go/`](go/README.md). See the [Go SDK README](go/README.md) for installation and usage.
+
 ## Contributing
 
 Contributions to SimpleCloud are welcome and highly appreciated. However, before you jump right into it, we would like
 you to read our [Contribution Guide][docs-contribute].
-
-## NATS integration tests
-
-With an isolated NATS broker running, use `NATS_TEST_URL=nats://127.0.0.1:4222 ./gradlew :api:test --rerun-tasks` to test request inboxes before and after reconnecting. The broker test is skipped when the variable is unset. The [Go SDK README](go/README.md) describes the equivalent Go tests.
 
 ## License
 
@@ -113,15 +92,15 @@ This repository is licensed under [Apache 2.0][license].
 
 <!-- ✅ PLEASE EDIT -->
 
-[banner]: https://simplecloud.app/api/banner/Cloud%20API
+[banner]: https://raw.githubusercontent.com/simplecloudapp/branding/main/readme/banner/cloud-api.png
 
 [issue-bug-report]: https://github.com/simplecloudapp/cloud-api/issues/new?labels=bug&projects=template=01_BUG-REPORT.yml&title=%5BBUG%5D+%3Ctitle%3E
 
 [issue-feature-request]: https://github.com/simplecloudapp/cloud-api/discussions/new?category=ideas
 
-[docs-thisproject]: https://docs.simplecloud.app/api
+[docs-thisproject]: https://simplecloud.app/docs/en/developer/overview
 
-[docs-contribute]: https://docs.simplecloud.app/contribute
+[docs-contribute]: https://simplecloud.app/docs/contribute
 
 [modrinth]: https://modrinth.com/organization/simplecloud
 

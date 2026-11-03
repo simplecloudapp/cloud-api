@@ -1,14 +1,15 @@
 import com.github.jengelman.gradle.plugins.shadow.tasks.ShadowJar
 
 plugins {
+    id("cloud-api.platform-conventions")
     alias(libs.plugins.neoforge.userdev)
-    alias(libs.plugins.minotaur)
 }
 
 val shade = configurations.create("shade")
+val minecraftVersions = listOf("26.2", "26.3")
 
 dependencies {
-    implementation(rootProject.libs.neoforge)
+    implementation(libs.neoforge)
     implementation(project(":platform:shared"))
     implementation(project(":api"))
 
@@ -29,10 +30,6 @@ tasks.named<ShadowJar>("shadowJar") {
     configurations = listOf(shade)
 }
 
-tasks.named("assemble") {
-    dependsOn(tasks.shadowJar)
-}
-
 tasks.withType<JavaExec>().configureEach {
     if (name == "runServer") {
         standardInput = System.`in`
@@ -42,8 +39,8 @@ tasks.withType<JavaExec>().configureEach {
 tasks.processResources {
     val properties = mapOf(
         "version" to project.version.toString(),
-        "minecraftVersion" to "26.2",
-        "neoForgeVersion" to rootProject.libs.versions.neoforge.get()
+        "minecraftVersionRange" to "[${minecraftVersions.first()},${minecraftVersions.last()}]",
+        "neoForgeVersion" to libs.versions.neoforge.get()
     )
     inputs.properties(properties)
     filesMatching("META-INF/neoforge.mods.toml") {
@@ -52,21 +49,14 @@ tasks.processResources {
 }
 
 modrinth {
-    token.set(project.findProperty("modrinthToken") as String? ?: System.getenv("MODRINTH_TOKEN"))
-    projectId.set("JCJKZvY2")
-    versionNumber.set(rootProject.extra["modrinthVersion"] as String)
-    versionType.set("release")
-    uploadFile.set(tasks.shadowJar)
-    gameVersions.add("26.2")
+    gameVersions = minecraftVersions
     loaders.add("neoforge")
-    changelog.set("https://docs.simplecloud.app/changelog")
-    syncBodyFrom.set(rootProject.file("README.md").readText())
 }
 
 java {
-    toolchain.languageVersion.set(JavaLanguageVersion.of(25))
+    toolchain.languageVersion = JavaLanguageVersion.of(25)
 }
 
 tasks.withType<JavaCompile>().configureEach {
-    options.release.set(25)
+    options.release = 25
 }

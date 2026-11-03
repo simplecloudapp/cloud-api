@@ -22,6 +22,7 @@ import app.simplecloud.api.web.models.ModelsCreateServerGroupRequest;
 import app.simplecloud.api.web.models.ModelsCreateServerGroupResponse;
 import app.simplecloud.api.web.models.ModelsListServerGroupsResponse;
 import app.simplecloud.api.web.models.ModelsPatchServerGroupRequest;
+import app.simplecloud.api.web.models.ModelsScalingMode;
 import app.simplecloud.api.web.models.ModelsServerGroupSummary;
 import app.simplecloud.api.web.models.ModelsSourceConfig;
 import app.simplecloud.api.web.models.ModelsUpdateServerGroupRequest;
@@ -140,7 +141,7 @@ class GroupApiImplTest {
 
         assertNotNull(serverGroupsApi.lastCreateRequest.getScaling());
         assertNotNull(serverGroupsApi.lastCreateRequest.getScaling().getScalingMode());
-        assertEquals("SLOTS", serverGroupsApi.lastCreateRequest.getScaling().getScalingMode());
+        assertEquals(ModelsScalingMode.ScalingModeSlots, serverGroupsApi.lastCreateRequest.getScaling().getScalingMode());
         assertNotNull(group.getScaling());
         assertEquals(ScalingMode.SLOTS, group.getScaling().getScalingMode());
     }
@@ -176,7 +177,7 @@ class GroupApiImplTest {
         assertEquals(Map.of(), serverGroupsApi.lastCreateRequest.getProperties());
         assertEquals("blacklist", serverGroupsApi.lastCreateRequest.getDeployment().getStrategy());
         assertEquals(BigDecimal.valueOf(0.75), serverGroupsApi.lastCreateRequest.getScaling().getPlayerThreshold());
-        assertEquals("SLOTS", serverGroupsApi.lastCreateRequest.getScaling().getScalingMode());
+        assertEquals(ModelsScalingMode.ScalingModeSlots, serverGroupsApi.lastCreateRequest.getScaling().getScalingMode());
         assertEquals("3m", serverGroupsApi.lastCreateRequest.getScaling().getScaleDown().getIdleTime());
         assertEquals(Boolean.TRUE, serverGroupsApi.lastCreateRequest.getScaling().getScaleDown().getIgnorePlayers());
         assertEquals(List.of("internal/setup"), serverGroupsApi.lastCreateRequest.getWorkflows().getWhen().getStart());

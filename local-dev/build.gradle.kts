@@ -1,31 +1,22 @@
 plugins {
-    application
+    id("cloud-api.base-conventions")
+    id("application")
 }
 
 description = "Local-only scratch module for manual API testing"
 
 dependencies {
     implementation(project(":api"))
-
-    testImplementation(platform("org.junit:junit-bom:6.1.3"))
-    testImplementation("org.junit.jupiter:junit-jupiter")
 }
 
 application {
-    mainClass.set(
-        providers.gradleProperty("localDevMainClass")
-            .orElse("app.simplecloud.api.Test")
-    )
+    mainClass = providers.gradleProperty("localDevMainClass").orElse("app.simplecloud.api.Test")
 }
 
-tasks.test {
-    useJUnitPlatform()
-}
-
-tasks.withType<PublishToMavenLocal>().configureEach {
-    enabled = false
-}
-
-tasks.withType<PublishToMavenRepository>().configureEach {
-    enabled = false
+distributions {
+    main {
+        contents {
+            duplicatesStrategy = DuplicatesStrategy.EXCLUDE
+        }
+    }
 }

@@ -503,7 +503,7 @@ public class GroupApiImpl implements GroupApi {
         result.setMinServers(config.getMinServers());
         result.setPlayerThreshold(java.math.BigDecimal.valueOf(config.getPlayerThreshold()));
         if (config.getScalingMode() != null) {
-            result.setScalingMode(convertScalingMode(config.getScalingMode()));
+            result.setScalingMode(ModelsScalingMode.fromValue(convertScalingMode(config.getScalingMode())));
         }
 
         if (config.getScaleDown() != null) {

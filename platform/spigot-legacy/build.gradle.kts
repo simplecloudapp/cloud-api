@@ -1,20 +1,15 @@
 plugins {
-    alias(libs.plugins.minotaur)
+    id("cloud-api.platform-conventions")
 }
 
 dependencies {
     api(project(":platform:shared"))
-    compileOnly(rootProject.libs.paper.api)
+    compileOnly(libs.paper.api)
     implementation(project(":api"))
 }
 
 modrinth {
-    token.set(project.findProperty("modrinthToken") as String? ?: System.getenv("MODRINTH_TOKEN"))
-    projectId.set("JCJKZvY2")
-    versionNumber.set(rootProject.extra["modrinthVersion"] as String)
-    versionType.set("release")
-    uploadFile.set(tasks.shadowJar)
-    gameVersions.addAll(
+    gameVersions = listOf(
         "1.8.8",
         "1.8.9",
         "1.9",
@@ -59,8 +54,5 @@ modrinth {
         "1.19.3",
         "1.19.4"
     )
-    loaders.add("spigot")
-    loaders.add("paper")
-    changelog.set("https://docs.simplecloud.app/changelog")
-    syncBodyFrom.set(rootProject.file("README.md").readText())
+    loaders.addAll("spigot", "paper")
 }
