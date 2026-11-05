@@ -84,6 +84,8 @@ public interface ServerApi {
      */
     CompletableFuture<Void> stopServer(String id);
 
+    CompletableFuture<Void> sendCommand(String id, String command);
+
     /**
      * Updates an existing server instance.
      *

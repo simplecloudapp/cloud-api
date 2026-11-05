@@ -21,6 +21,7 @@ import app.simplecloud.api.web.models.ModelsPatchPropertiesRequest;
 import app.simplecloud.api.web.models.ModelsPatchPropertiesResponse;
 import app.simplecloud.api.web.models.ModelsPatchServerRequest;
 import app.simplecloud.api.web.models.ModelsPatchServerResponse;
+import app.simplecloud.api.web.models.ModelsSendCommandRequest;
 import app.simplecloud.api.web.models.ModelsServerSummary;
 import org.jetbrains.annotations.NotNull;
 import org.jetbrains.annotations.Nullable;
@@ -389,6 +390,31 @@ public class ServerApiImpl implements ServerApi {
                 cache.invalidate(QueryKey.of("server", id));
                 cache.invalidateAll(QueryKey.of("servers"));
                 cache.invalidateAll(QueryKey.of("server", "numerical"));
+            } catch (ApiException e) {
+                throw ApiErrors.from(e);
+            }
+        }, executor);
+    }
+
+    @Override
+    public CompletableFuture<Void> sendCommand(String id, String command) {
+        return CompletableFuture.runAsync(() -> {
+            if (id == null || id.isBlank()) {
+                throw new IllegalArgumentException("id must not be blank");
+            }
+            if (command == null || command.isBlank()) {
+                throw new IllegalArgumentException("command must not be blank");
+            }
+
+            try {
+                ModelsSendCommandRequest request = new ModelsSendCommandRequest();
+                request.setCommand(command);
+
+                serversApi.sendCommand(
+                        this.options.getNetworkId(),
+                        id,
+                        request
+                );
             } catch (ApiException e) {
                 throw ApiErrors.from(e);
             }
