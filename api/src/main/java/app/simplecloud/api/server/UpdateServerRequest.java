@@ -9,8 +9,6 @@ import java.util.Map;
  */
 public class UpdateServerRequest {
     @Nullable
-    private Integer playerCount;
-    @Nullable
     private ServerState state;
     @Nullable
     private Map<String, Object> properties;
@@ -26,15 +24,6 @@ public class UpdateServerRequest {
 
     public static Builder builder() {
         return new Builder();
-    }
-
-    @Nullable
-    public Integer getPlayerCount() {
-        return playerCount;
-    }
-
-    public void setPlayerCount(@Nullable Integer playerCount) {
-        this.playerCount = playerCount;
     }
 
     @Nullable
@@ -83,17 +72,11 @@ public class UpdateServerRequest {
     }
 
     public static class Builder {
-        private Integer playerCount;
         private ServerState state;
         private Map<String, Object> properties;
         private Integer minMemory;
         private Integer maxMemory;
         private Integer maxPlayers;
-
-        public Builder playerCount(Integer playerCount) {
-            this.playerCount = playerCount;
-            return this;
-        }
 
         public Builder state(ServerState state) {
             this.state = state;
@@ -122,7 +105,6 @@ public class UpdateServerRequest {
 
         public UpdateServerRequest build() {
             UpdateServerRequest request = new UpdateServerRequest();
-            request.setPlayerCount(playerCount);
             request.setState(state);
             request.setProperties(properties);
             request.setMinMemory(minMemory);
