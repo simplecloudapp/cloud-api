@@ -490,9 +490,6 @@ public class GroupApiImpl implements GroupApi {
         return switch (strategy) {
             case WHITELIST -> "whitelist";
             case BLACKLIST -> "blacklist";
-            case RANDOM, PRIORITY, ROUND_ROBIN -> throw new IllegalArgumentException(
-                    "DeploymentStrategy." + strategy.name() + " is not supported by the controller REST API. Supported strategies are WHITELIST and BLACKLIST."
-            );
         };
     }
 
