@@ -252,8 +252,8 @@ class GroupApiImplTest {
         GroupApiImpl api = new GroupApiImpl(options(), new NoOpQueryCache(), serverGroupsApi, blueprintsApi);
 
         RuntimeConfig runtimeConfig = RuntimeConfig.builder()
-                .type(RuntimeType.NODE)
-                .with(Map.of("entrypoint", "server.js"))
+                .type(RuntimeType.BINARY)
+                .with(Map.of("entrypoint", "server"))
                 .build();
 
         CreateGroupRequest request = CreateGroupRequest.builder()
@@ -265,8 +265,8 @@ class GroupApiImplTest {
 
         api.createGroup(request).join();
 
-        assertEquals("node", blueprintsApi.lastCreateRequest.getRuntimeConfig().getType());
-        assertEquals(Map.of("entrypoint", "server.js"), blueprintsApi.lastCreateRequest.getRuntimeConfig().getWith());
+        assertEquals("binary", blueprintsApi.lastCreateRequest.getRuntimeConfig().getType());
+        assertEquals(Map.of("entrypoint", "server"), blueprintsApi.lastCreateRequest.getRuntimeConfig().getWith());
         assertFalse(blueprintsApi.lastCreateRequest.getRuntimeConfig().getWith().containsKey("version"));
         assertFalse(blueprintsApi.lastCreateRequest.getRuntimeConfig().getWith().containsKey("options"));
         assertFalse(blueprintsApi.lastCreateRequest.getRuntimeConfig().getWith().containsKey("args"));
