@@ -59,6 +59,30 @@ public interface GroupApi {
         return clearServerStartQueue(group.getServerGroupId());
     }
 
+    CompletableFuture<Integer> stopAllServers(String serverGroupId);
+
+    default CompletableFuture<Integer> stopAllServers(Group group) {
+        return stopAllServers(group.getServerGroupId());
+    }
+
+    CompletableFuture<Void> startRollingRestart(String serverGroupId);
+
+    default CompletableFuture<Void> startRollingRestart(Group group) {
+        return startRollingRestart(group.getServerGroupId());
+    }
+
+    CompletableFuture<RollingRestartStatus> getRollingRestartStatus(String serverGroupId);
+
+    default CompletableFuture<RollingRestartStatus> getRollingRestartStatus(Group group) {
+        return getRollingRestartStatus(group.getServerGroupId());
+    }
+
+    CompletableFuture<Void> cancelRollingRestart(String serverGroupId);
+
+    default CompletableFuture<Void> cancelRollingRestart(Group group) {
+        return cancelRollingRestart(group.getServerGroupId());
+    }
+
     /**
      * Retrieves a server group by its name.
      *

@@ -7,6 +7,7 @@ import app.simplecloud.api.blueprint.RuntimeType;
 import app.simplecloud.api.group.CreateGroupRequest;
 import app.simplecloud.api.group.Group;
 import app.simplecloud.api.group.GroupServerType;
+import app.simplecloud.api.group.RollingRestartStatus;
 import app.simplecloud.api.group.ScaleDownConfig;
 import app.simplecloud.api.group.ScalingConfig;
 import app.simplecloud.api.group.ScalingMode;
@@ -16,15 +17,20 @@ import app.simplecloud.api.internal.cache.NoOpQueryCache;
 import app.simplecloud.api.web.ApiException;
 import app.simplecloud.api.web.apis.BlueprintsApi;
 import app.simplecloud.api.web.apis.ServerGroupsApi;
+import app.simplecloud.api.web.models.ModelsCancelRollingRestartResponse;
 import app.simplecloud.api.web.models.ModelsCreateBlueprintRequest;
 import app.simplecloud.api.web.models.ModelsCreateBlueprintResponse;
 import app.simplecloud.api.web.models.ModelsCreateServerGroupRequest;
 import app.simplecloud.api.web.models.ModelsCreateServerGroupResponse;
 import app.simplecloud.api.web.models.ModelsListServerGroupsResponse;
 import app.simplecloud.api.web.models.ModelsPatchServerGroupRequest;
+import app.simplecloud.api.web.models.ModelsRollingRestartRequest;
+import app.simplecloud.api.web.models.ModelsRollingRestartResponse;
+import app.simplecloud.api.web.models.ModelsRollingRestartStatusResponse;
 import app.simplecloud.api.web.models.ModelsScalingMode;
 import app.simplecloud.api.web.models.ModelsServerGroupSummary;
 import app.simplecloud.api.web.models.ModelsSourceConfig;
+import app.simplecloud.api.web.models.ModelsStopAllServersResponse;
 import app.simplecloud.api.web.models.ModelsUpdateServerGroupRequest;
 import app.simplecloud.api.web.models.ModelsUpdateServerGroupResponse;
 import org.junit.jupiter.api.Test;
@@ -480,6 +486,63 @@ class GroupApiImplTest {
         assertEquals(GROUP_ID, group.getServerGroupId());
     }
 
+    @Test
+    void stopAllServers_returnsStoppedServerCount() {
+        AtomicInteger order = new AtomicInteger();
+        FakeServerGroupsApi serverGroupsApi = new FakeServerGroupsApi(order);
+        GroupApiImpl api = new GroupApiImpl(options(), new NoOpQueryCache(), serverGroupsApi, new FakeBlueprintsApi(order));
+
+        int stopped = api.stopAllServers(GROUP_ID).join();
+
+        assertEquals(3, stopped);
+        assertEquals(GROUP_ID, serverGroupsApi.lastServerGroupId);
+    }
+
+    @Test
+    void startRollingRestart_sendsServerGroupId() {
+        AtomicInteger order = new AtomicInteger();
+        FakeServerGroupsApi serverGroupsApi = new FakeServerGroupsApi(order);
+        GroupApiImpl api = new GroupApiImpl(options(), new NoOpQueryCache(), serverGroupsApi, new FakeBlueprintsApi(order));
+
+        api.startRollingRestart(GROUP_ID).join();
+
+        assertEquals(GROUP_ID, serverGroupsApi.lastServerGroupId);
+    }
+
+    @Test
+    void getRollingRestartStatus_mapsResponse() {
+        AtomicInteger order = new AtomicInteger();
+        FakeServerGroupsApi serverGroupsApi = new FakeServerGroupsApi(order);
+        GroupApiImpl api = new GroupApiImpl(options(), new NoOpQueryCache(), serverGroupsApi, new FakeBlueprintsApi(order));
+
+        RollingRestartStatus status = api.getRollingRestartStatus(GROUP_ID).join();
+
+        assertEquals(GROUP_ID, status.getServerGroupId());
+        assertTrue(status.isActive());
+        assertEquals("2026-04-22T00:00:00Z", status.getStartedAt());
+    }
+
+    @Test
+    void cancelRollingRestart_sendsServerGroupId() {
+        AtomicInteger order = new AtomicInteger();
+        FakeServerGroupsApi serverGroupsApi = new FakeServerGroupsApi(order);
+        GroupApiImpl api = new GroupApiImpl(options(), new NoOpQueryCache(), serverGroupsApi, new FakeBlueprintsApi(order));
+
+        api.cancelRollingRestart(GROUP_ID).join();
+
+        assertEquals(GROUP_ID, serverGroupsApi.lastServerGroupId);
+    }
+
+    @Test
+    void stopAllServers_rejectsBlankServerGroupId() {
+        AtomicInteger order = new AtomicInteger();
+        GroupApiImpl api = new GroupApiImpl(options(), new NoOpQueryCache(), new FakeServerGroupsApi(order), new FakeBlueprintsApi(order));
+
+        CompletionException exception = assertThrows(CompletionException.class, () -> api.stopAllServers(" ").join());
+
+        assertInstanceOf(IllegalArgumentException.class, exception.getCause());
+    }
+
     private static CloudApiOptions options() {
         return CloudApiOptions.builder()
                 .controllerUrl("http://localhost")
@@ -657,6 +720,40 @@ class GroupApiImplTest {
                 throw listFailure;
             }
             return listResponse;
+        }
+
+        @Override
+        public ModelsStopAllServersResponse stopAllServers(String xNetworkID,
+                                                           String serverGroupId,
+                                                           Object body) {
+            lastServerGroupId = serverGroupId;
+            ModelsStopAllServersResponse response = new ModelsStopAllServersResponse();
+            response.setServerGroupId(serverGroupId);
+            response.setServersStopped(3);
+            return response;
+        }
+
+        @Override
+        public ModelsRollingRestartResponse startRollingRestart(String xNetworkID,
+                                                                ModelsRollingRestartRequest request) {
+            lastServerGroupId = request.getServerGroupId();
+            return new ModelsRollingRestartResponse();
+        }
+
+        @Override
+        public ModelsRollingRestartStatusResponse getRollingRestartStatus(String xNetworkID, String groupId) {
+            lastServerGroupId = groupId;
+            ModelsRollingRestartStatusResponse response = new ModelsRollingRestartStatusResponse();
+            response.setGroupId(groupId);
+            response.setActive(true);
+            response.setTimestamp("2026-04-22T00:00:00Z");
+            return response;
+        }
+
+        @Override
+        public ModelsCancelRollingRestartResponse cancelRollingRestart(String xNetworkID, String groupId) {
+            lastServerGroupId = groupId;
+            return new ModelsCancelRollingRestartResponse();
         }
     }
 }

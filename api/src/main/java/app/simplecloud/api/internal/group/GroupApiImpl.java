@@ -159,6 +159,88 @@ public class GroupApiImpl implements GroupApi {
     }
 
     @Override
+    public CompletableFuture<Integer> stopAllServers(String serverGroupId) {
+        return CompletableFuture.supplyAsync(() -> {
+            String normalizedServerGroupId = requireServerGroupId(serverGroupId);
+
+            try {
+                ModelsStopAllServersResponse response = serverGroupsApi.stopAllServers(
+                        options.getNetworkId(),
+                        normalizedServerGroupId,
+                        null
+                );
+                return intValue(response.getServersStopped());
+            } catch (ApiException e) {
+                throw ApiErrors.from(e);
+            }
+        }, executor);
+    }
+
+    @Override
+    public CompletableFuture<Void> startRollingRestart(String serverGroupId) {
+        return CompletableFuture.runAsync(() -> {
+            String normalizedServerGroupId = requireServerGroupId(serverGroupId);
+
+            try {
+                ModelsRollingRestartRequest request = new ModelsRollingRestartRequest();
+                request.setServerGroupId(normalizedServerGroupId);
+
+                serverGroupsApi.startRollingRestart(
+                        options.getNetworkId(),
+                        request
+                );
+            } catch (ApiException e) {
+                throw ApiErrors.from(e);
+            }
+        }, executor);
+    }
+
+    @Override
+    public CompletableFuture<RollingRestartStatus> getRollingRestartStatus(String serverGroupId) {
+        return CompletableFuture.supplyAsync(() -> {
+            String normalizedServerGroupId = requireServerGroupId(serverGroupId);
+
+            try {
+                ModelsRollingRestartStatusResponse response = serverGroupsApi.getRollingRestartStatus(
+                        options.getNetworkId(),
+                        normalizedServerGroupId
+                );
+                return new RollingRestartStatus(
+                        normalizedServerGroupId,
+                        Boolean.TRUE.equals(response.getActive()),
+                        normalize(response.getTimestamp())
+                );
+            } catch (ApiException e) {
+                throw ApiErrors.from(e);
+            }
+        }, executor);
+    }
+
+    @Override
+    public CompletableFuture<Void> cancelRollingRestart(String serverGroupId) {
+        return CompletableFuture.runAsync(() -> {
+            String normalizedServerGroupId = requireServerGroupId(serverGroupId);
+
+            try {
+                serverGroupsApi.cancelRollingRestart(
+                        options.getNetworkId(),
+                        normalizedServerGroupId
+                );
+            } catch (ApiException e) {
+                throw ApiErrors.from(e);
+            }
+        }, executor);
+    }
+
+    private String requireServerGroupId(String serverGroupId) {
+        String normalizedServerGroupId = normalize(serverGroupId);
+        if (normalizedServerGroupId == null) {
+            throw new IllegalArgumentException("serverGroupId must not be blank");
+        }
+        return normalizedServerGroupId;
+    }
+
+    @Override
     public CompletableFuture<Group> getGroupByName(String name) {
         return findGroupByName(name).thenApply(group -> group.orElseThrow(
                 () -> ApiErrors.notFound("Group '" + name + "' not found")
