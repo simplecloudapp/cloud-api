@@ -33,6 +33,6 @@ class GroupImplTest {
         Group group = new GroupImpl(summary);
 
         assertNotNull(group.getScaling());
-        assertEquals(ScalingMode.PLAYERS, group.getScaling().getScalingMode());
+        assertEquals(ScalingMode.SERVERS, group.getScaling().getScalingMode());
     }
 }

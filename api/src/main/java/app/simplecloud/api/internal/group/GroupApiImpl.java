@@ -519,10 +519,7 @@ public class GroupApiImpl implements GroupApi {
     private String convertScalingMode(ScalingMode scalingMode) {
         return switch (scalingMode) {
             case SLOTS -> "SLOTS";
-            case PLAYERS -> "SERVERS";
-            case MANUAL -> throw new IllegalArgumentException(
-                    "ScalingMode.MANUAL is not supported by the controller REST API. Supported modes are SLOTS and PLAYERS."
-            );
+            case SERVERS -> "SERVERS";
         };
     }
 

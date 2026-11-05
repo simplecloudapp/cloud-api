@@ -315,7 +315,7 @@ public class GroupImpl implements app.simplecloud.api.group.Group {
     private ScalingMode convertScalingMode(String scalingMode) {
         return switch (scalingMode) {
             case "SLOTS" -> ScalingMode.SLOTS;
-            case "SERVERS" -> ScalingMode.PLAYERS;
+            case "SERVERS" -> ScalingMode.SERVERS;
             default -> null;
         };
     }
