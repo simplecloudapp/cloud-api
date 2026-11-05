@@ -1,6 +1,7 @@
 package app.simplecloud.api.server;
 
 import app.simplecloud.api.CloudApiException;
+import app.simplecloud.api.workflow.WorkflowExecutionResult;
 import org.jetbrains.annotations.Nullable;
 
 import java.util.List;
@@ -85,6 +86,8 @@ public interface ServerApi {
     CompletableFuture<Void> stopServer(String id);
 
     CompletableFuture<Void> sendCommand(String id, String command);
+
+    CompletableFuture<WorkflowExecutionResult> executeWorkflow(String id, String workflowId);
 
     /**
      * Updates an existing server instance.

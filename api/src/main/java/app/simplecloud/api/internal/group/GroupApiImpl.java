@@ -10,11 +10,13 @@ import app.simplecloud.api.internal.create.CreateRequestDefaults;
 import app.simplecloud.api.internal.web.ApiClients;
 import app.simplecloud.api.internal.web.ApiErrors;
 import app.simplecloud.api.internal.web.Identifiers;
+import app.simplecloud.api.internal.workflow.WorkflowResults;
 import app.simplecloud.api.web.ApiException;
 import app.simplecloud.api.web.ApiClient;
 import app.simplecloud.api.web.apis.BlueprintsApi;
 import app.simplecloud.api.web.apis.ServerGroupsApi;
 import app.simplecloud.api.web.models.*;
+import app.simplecloud.api.workflow.WorkflowExecutionResult;
 import org.jetbrains.annotations.Nullable;
 
 import java.time.Duration;
@@ -226,6 +228,24 @@ public class GroupApiImpl implements GroupApi {
                         options.getNetworkId(),
                         normalizedServerGroupId
                 );
+            } catch (ApiException e) {
+                throw ApiErrors.from(e);
+            }
+        }, executor);
+    }
+
+    @Override
+    public CompletableFuture<WorkflowExecutionResult> executeWorkflow(String serverGroupId, String workflowId) {
+        return CompletableFuture.supplyAsync(() -> {
+            String normalizedServerGroupId = requireServerGroupId(serverGroupId);
+
+            try {
+                ModelsExecuteServerGroupWorkflowResponse response = serverGroupsApi.executeServerGroupWorkflow(
+                        options.getNetworkId(),
+                        normalizedServerGroupId,
+                        WorkflowResults.request(workflowId)
+                );
+                return WorkflowResults.fromServerGroup(workflowId, response);
             } catch (ApiException e) {
                 throw ApiErrors.from(e);
             }

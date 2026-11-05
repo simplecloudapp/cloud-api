@@ -7,6 +7,7 @@ import app.simplecloud.api.cache.QueryKey;
 import app.simplecloud.api.internal.web.ApiClients;
 import app.simplecloud.api.internal.web.ApiErrors;
 import app.simplecloud.api.internal.web.Identifiers;
+import app.simplecloud.api.internal.workflow.WorkflowResults;
 import app.simplecloud.api.server.Server;
 import app.simplecloud.api.server.ServerApi;
 import app.simplecloud.api.server.ServerQuery;
@@ -16,6 +17,7 @@ import app.simplecloud.api.web.ApiClient;
 import app.simplecloud.api.web.apis.ServersApi;
 import app.simplecloud.api.web.models.ModelsDeletePropertiesRequest;
 import app.simplecloud.api.web.models.ModelsDeletePropertiesResponse;
+import app.simplecloud.api.web.models.ModelsExecuteServerWorkflowResponse;
 import app.simplecloud.api.web.models.ModelsListServersResponse;
 import app.simplecloud.api.web.models.ModelsPatchPropertiesRequest;
 import app.simplecloud.api.web.models.ModelsPatchPropertiesResponse;
@@ -23,6 +25,7 @@ import app.simplecloud.api.web.models.ModelsPatchServerRequest;
 import app.simplecloud.api.web.models.ModelsPatchServerResponse;
 import app.simplecloud.api.web.models.ModelsSendCommandRequest;
 import app.simplecloud.api.web.models.ModelsServerSummary;
+import app.simplecloud.api.workflow.WorkflowExecutionResult;
 import org.jetbrains.annotations.NotNull;
 import org.jetbrains.annotations.Nullable;
 
@@ -415,6 +418,26 @@ public class ServerApiImpl implements ServerApi {
                         id,
                         request
                 );
+            } catch (ApiException e) {
+                throw ApiErrors.from(e);
+            }
+        }, executor);
+    }
+
+    @Override
+    public CompletableFuture<WorkflowExecutionResult> executeWorkflow(String id, String workflowId) {
+        return CompletableFuture.supplyAsync(() -> {
+            if (id == null || id.isBlank()) {
+                throw new IllegalArgumentException("id must not be blank");
+            }
+
+            try {
+                ModelsExecuteServerWorkflowResponse response = serversApi.executeServerWorkflow(
+                        this.options.getNetworkId(),
+                        id,
+                        WorkflowResults.request(workflowId)
+                );
+                return WorkflowResults.fromServer(id, workflowId, response);
             } catch (ApiException e) {
                 throw ApiErrors.from(e);
             }

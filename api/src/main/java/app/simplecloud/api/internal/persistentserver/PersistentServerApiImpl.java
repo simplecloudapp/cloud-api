@@ -12,12 +12,14 @@ import app.simplecloud.api.internal.create.CreateRequestDefaults;
 import app.simplecloud.api.internal.web.ApiClients;
 import app.simplecloud.api.internal.web.ApiErrors;
 import app.simplecloud.api.internal.web.Identifiers;
+import app.simplecloud.api.internal.workflow.WorkflowResults;
 import app.simplecloud.api.persistentserver.*;
 import app.simplecloud.api.web.ApiException;
 import app.simplecloud.api.web.ApiClient;
 import app.simplecloud.api.web.apis.BlueprintsApi;
 import app.simplecloud.api.web.apis.PersistentServersApi;
 import app.simplecloud.api.web.models.*;
+import app.simplecloud.api.workflow.WorkflowExecutionResult;
 import org.jetbrains.annotations.Nullable;
 
 import java.time.Duration;
@@ -376,6 +378,26 @@ public class PersistentServerApiImpl implements PersistentServerApi {
                 cache.invalidateAll(QueryKey.of("persistentServer", "name"));
 
                 inlineBlueprintSupport.deleteBlueprint(blueprintId);
+            } catch (ApiException e) {
+                throw ApiErrors.from(e);
+            }
+        }, executor);
+    }
+
+    @Override
+    public CompletableFuture<WorkflowExecutionResult> executeWorkflow(String id, String workflowId) {
+        return CompletableFuture.supplyAsync(() -> {
+            if (id == null || id.isBlank()) {
+                throw new IllegalArgumentException("id must not be blank");
+            }
+
+            try {
+                ModelsExecutePersistentServerWorkflowResponse response = persistentServersApi.executePersistentServerWorkflow(
+                        options.getNetworkId(),
+                        id,
+                        WorkflowResults.request(workflowId)
+                );
+                return WorkflowResults.fromPersistentServer(workflowId, response);
             } catch (ApiException e) {
                 throw ApiErrors.from(e);
             }

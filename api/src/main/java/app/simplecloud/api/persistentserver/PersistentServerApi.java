@@ -1,6 +1,7 @@
 package app.simplecloud.api.persistentserver;
 
 import app.simplecloud.api.CloudApiException;
+import app.simplecloud.api.workflow.WorkflowExecutionResult;
 import org.jetbrains.annotations.Nullable;
 
 import java.util.List;
@@ -92,6 +93,8 @@ public interface PersistentServerApi {
      * @return a CompletableFuture that completes when the persistent server and its referenced blueprint are deleted
      */
     CompletableFuture<Void> deletePersistentServer(String id);
+
+    CompletableFuture<WorkflowExecutionResult> executeWorkflow(String id, String workflowId);
 
     /**
      * Updates persistent server properties by merging with existing properties (deep merge).

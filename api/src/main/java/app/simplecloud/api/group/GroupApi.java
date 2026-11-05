@@ -1,6 +1,7 @@
 package app.simplecloud.api.group;
 
 import app.simplecloud.api.CloudApiException;
+import app.simplecloud.api.workflow.WorkflowExecutionResult;
 import org.jetbrains.annotations.Nullable;
 
 import java.util.List;
@@ -81,6 +82,12 @@ public interface GroupApi {
 
     default CompletableFuture<Void> cancelRollingRestart(Group group) {
         return cancelRollingRestart(group.getServerGroupId());
+    }
+
+    CompletableFuture<WorkflowExecutionResult> executeWorkflow(String serverGroupId, String workflowId);
+
+    default CompletableFuture<WorkflowExecutionResult> executeWorkflow(Group group, String workflowId) {
+        return executeWorkflow(group.getServerGroupId(), workflowId);
     }
 
     /**
