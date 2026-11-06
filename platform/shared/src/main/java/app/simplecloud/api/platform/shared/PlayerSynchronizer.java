@@ -1,6 +1,7 @@
 package app.simplecloud.api.platform.shared;
 
 import app.simplecloud.api.CloudApi;
+import app.simplecloud.api.platform.shared.player.OnlinePlayerCount;
 import app.simplecloud.api.runtime.SimpleCloudRuntime;
 
 import java.util.HashMap;

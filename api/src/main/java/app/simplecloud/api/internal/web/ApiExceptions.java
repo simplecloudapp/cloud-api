@@ -11,9 +11,9 @@ import java.io.IOException;
 /**
  * Converts generated client failures into {@link CloudApiException}s.
  */
-public final class ApiErrors {
+public final class ApiExceptions {
 
-    private ApiErrors() {
+    private ApiExceptions() {
     }
 
     public static CloudApiException from(ApiException exception) {

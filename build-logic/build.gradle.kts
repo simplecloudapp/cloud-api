@@ -8,6 +8,7 @@ dependencies {
     implementation(plugin(libs.plugins.shadow))
     implementation(plugin(libs.plugins.minotaur))
     implementation(plugin(libs.plugins.spotless))
+    implementation(plugin(libs.plugins.blossom))
 }
 
 spotless {

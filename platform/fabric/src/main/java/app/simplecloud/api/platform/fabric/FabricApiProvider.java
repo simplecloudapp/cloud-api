@@ -26,8 +26,8 @@ public final class FabricApiProvider implements DedicatedServerModInitializer {
     public void onInitializeServer() {
         ServerLifecycleEvents.SERVER_STARTED.register(this::onServerStarted);
         ServerLifecycleEvents.SERVER_STOPPING.register(this::onServerStopping);
-        ServerPlayConnectionEvents.JOIN.register((handler, sender, server) -> refreshPlayerCount(server));
-        ServerPlayConnectionEvents.DISCONNECT.register((handler, server) -> refreshPlayerCount(server));
+        ServerPlayConnectionEvents.JOIN.register((_, _, server) -> refreshPlayerCount(server));
+        ServerPlayConnectionEvents.DISCONNECT.register((_, server) -> refreshPlayerCount(server));
     }
 
     private void onServerStarted(MinecraftServer server) {

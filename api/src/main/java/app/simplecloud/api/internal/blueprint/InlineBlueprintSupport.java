@@ -6,7 +6,7 @@ import app.simplecloud.api.blueprint.CreateBlueprintRequest;
 import app.simplecloud.api.blueprint.RuntimeConfig;
 import app.simplecloud.api.group.SourceConfig;
 import app.simplecloud.api.group.SourceType;
-import app.simplecloud.api.internal.web.ApiErrors;
+import app.simplecloud.api.internal.web.ApiExceptions;
 import app.simplecloud.api.web.ApiException;
 import app.simplecloud.api.web.apis.BlueprintsApi;
 import app.simplecloud.api.web.models.ModelsCreateBlueprintRequest;
@@ -140,26 +140,26 @@ public final class InlineBlueprintSupport {
                                                         ApiException createFailure,
                                                         CreatedResourceCheck createdResource) {
         if (blueprintId == null) {
-            return ApiErrors.from(createFailure);
+            return ApiExceptions.from(createFailure);
         }
 
         if (failureMayHaveCreatedResource(createFailure)) {
             try {
                 if (resourceExistsAfterReconciliation(createdResource)) {
-                    return ApiErrors.from(createFailure);
+                    return ApiExceptions.from(createFailure);
                 }
             } catch (RuntimeException reconcileFailure) {
                 createFailure.addSuppressed(reconcileFailure);
-                return ApiErrors.from(createFailure);
+                return ApiExceptions.from(createFailure);
             }
         }
 
         try {
             deleteBlueprint(blueprintId);
-            return ApiErrors.from(createFailure);
+            return ApiExceptions.from(createFailure);
         } catch (ApiException deleteFailure) {
             createFailure.addSuppressed(deleteFailure);
-            CloudApiException rollbackFailure = ApiErrors.from(
+            CloudApiException rollbackFailure = ApiExceptions.from(
                     "Failed to create " + resourceKind + " and rollback inline blueprint " + blueprintId,
                     createFailure
             );

@@ -1,6 +1,6 @@
 name: simplecloud-api
 main: app.simplecloud.api.platform.bungeecord.BungeeCordApiProvider
-version: "${version}"
+version: "{{ version }}"
 author: Fllip
 softDepends:
   - LuckPerms

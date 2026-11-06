@@ -9,9 +9,9 @@ import app.simplecloud.api.group.SourceConfig;
 import app.simplecloud.api.group.WorkflowsConfig;
 import app.simplecloud.api.internal.blueprint.InlineBlueprintSupport;
 import app.simplecloud.api.internal.create.CreateRequestDefaults;
-import app.simplecloud.api.internal.web.ApiClients;
-import app.simplecloud.api.internal.web.ApiErrors;
-import app.simplecloud.api.internal.web.Identifiers;
+import app.simplecloud.api.internal.util.ValidationUtil;
+import app.simplecloud.api.internal.web.ApiClientFactory;
+import app.simplecloud.api.internal.web.ApiExceptions;
 import app.simplecloud.api.internal.workflow.WorkflowResults;
 import app.simplecloud.api.persistentserver.*;
 import app.simplecloud.api.web.ApiException;
@@ -44,7 +44,7 @@ public class PersistentServerApiImpl implements PersistentServerApi {
     private final Executor executor;
 
     public PersistentServerApiImpl(CloudApiOptions options, QueryCache cache) {
-        this(options, cache, ApiClients.create(options));
+        this(options, cache, ApiClientFactory.create(options));
     }
 
     public PersistentServerApiImpl(CloudApiOptions options, QueryCache cache, ApiClient httpClient) {
@@ -98,13 +98,13 @@ public class PersistentServerApiImpl implements PersistentServerApi {
     @Override
     public CompletableFuture<PersistentServer> getPersistentServerById(String id) {
         return findPersistentServerById(id).thenApply(persistentServer -> persistentServer.orElseThrow(
-                () -> ApiErrors.notFound("Persistent server with ID '" + id + "' not found")
+                () -> ApiExceptions.notFound("Persistent server with ID '" + id + "' not found")
         ));
     }
 
     @Override
     public CompletableFuture<Optional<PersistentServer>> findPersistentServerById(String id) {
-        if (!Identifiers.isUuid(id)) {
+        if (!ValidationUtil.isUuid(id)) {
             return CompletableFuture.completedFuture(Optional.empty());
         }
         QueryKey key = QueryKey.of("persistentServer", id);
@@ -121,7 +121,7 @@ public class PersistentServerApiImpl implements PersistentServerApi {
     @Override
     public CompletableFuture<PersistentServer> getPersistentServerByName(String name) {
         return findPersistentServerByName(name).thenApply(persistentServer -> persistentServer.orElseThrow(
-                () -> ApiErrors.notFound("Persistent server '" + name + "' not found")
+                () -> ApiExceptions.notFound("Persistent server '" + name + "' not found")
         ));
     }
 
@@ -154,7 +154,7 @@ public class PersistentServerApiImpl implements PersistentServerApi {
                         .<PersistentServer>map(PersistentServerImpl::new)
                         .toList();
             } catch (ApiException e) {
-                throw ApiErrors.from(e);
+                throw ApiExceptions.from(e);
             }
         }, executor));
     }
@@ -186,7 +186,7 @@ public class PersistentServerApiImpl implements PersistentServerApi {
             return servers.stream()
                     .anyMatch(summary -> name.equals(summary.getName()) && sourceReferencesBlueprint(summary.getSource(), blueprintId));
         } catch (ApiException e) {
-            throw ApiErrors.from(e);
+            throw ApiExceptions.from(e);
         }
     }
 
@@ -205,7 +205,7 @@ public class PersistentServerApiImpl implements PersistentServerApi {
                         .<PersistentServer>map(PersistentServerImpl::new)
                         .orElse(null);
             } catch (ApiException e) {
-                throw ApiErrors.from(e);
+                throw ApiExceptions.from(e);
             }
         }, executor);
     }
@@ -225,7 +225,7 @@ public class PersistentServerApiImpl implements PersistentServerApi {
                         .<PersistentServer>map(PersistentServerImpl::new)
                         .orElse(null);
             } catch (ApiException e) {
-                throw ApiErrors.from(e);
+                throw ApiExceptions.from(e);
             }
         }, executor);
     }
@@ -312,7 +312,7 @@ public class PersistentServerApiImpl implements PersistentServerApi {
 
                 return new PersistentServerImpl(toSummary(response));
             } catch (ApiException e) {
-                throw ApiErrors.from(e);
+                throw ApiExceptions.from(e);
             }
         }, executor);
     }
@@ -356,7 +356,7 @@ public class PersistentServerApiImpl implements PersistentServerApi {
                 // Re-fetch to get the updated object
                 return getPersistentServerById(id).join();
             } catch (ApiException e) {
-                throw ApiErrors.from(e);
+                throw ApiExceptions.from(e);
             }
         }, executor);
     }
@@ -379,7 +379,7 @@ public class PersistentServerApiImpl implements PersistentServerApi {
 
                 inlineBlueprintSupport.deleteBlueprint(blueprintId);
             } catch (ApiException e) {
-                throw ApiErrors.from(e);
+                throw ApiExceptions.from(e);
             }
         }, executor);
     }
@@ -399,7 +399,7 @@ public class PersistentServerApiImpl implements PersistentServerApi {
                 );
                 return WorkflowResults.fromPersistentServer(workflowId, response);
             } catch (ApiException e) {
-                throw ApiErrors.from(e);
+                throw ApiExceptions.from(e);
             }
         }, executor);
     }
@@ -425,7 +425,7 @@ public class PersistentServerApiImpl implements PersistentServerApi {
                 Map<String, Object> result = response.getProperties();
                 return result != null ? result : new HashMap<>();
             } catch (ApiException e) {
-                throw ApiErrors.from(e);
+                throw ApiExceptions.from(e);
             }
         }, executor);
     }
@@ -451,7 +451,7 @@ public class PersistentServerApiImpl implements PersistentServerApi {
                 Map<String, Object> result = response.getProperties();
                 return result != null ? result : new HashMap<>();
             } catch (ApiException e) {
-                throw ApiErrors.from(e);
+                throw ApiExceptions.from(e);
             }
         }, executor);
     }

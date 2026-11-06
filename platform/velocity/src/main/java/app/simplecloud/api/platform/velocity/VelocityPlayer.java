@@ -29,10 +29,7 @@ final class VelocityPlayer implements ProxyPlayer {
     @Override
     public CompletableFuture<CloudPlayer.ConnectResult> connect(String proxyServerName) {
         Optional<RegisteredServer> registeredServer = proxyServer.getServer(proxyServerName);
-        if (registeredServer.isEmpty()) {
-            return CompletableFuture.completedFuture(CloudPlayer.ConnectResult.SERVER_NOT_FOUND);
-        }
-        return connectTo(registeredServer.get());
+        return registeredServer.map(this::connectTo).orElseGet(() -> CompletableFuture.completedFuture(CloudPlayer.ConnectResult.SERVER_NOT_FOUND));
     }
 
     private CompletableFuture<CloudPlayer.ConnectResult> connectTo(RegisteredServer registeredServer) {

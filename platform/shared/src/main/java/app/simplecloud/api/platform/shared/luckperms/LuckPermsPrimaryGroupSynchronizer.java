@@ -1,6 +1,8 @@
-package app.simplecloud.api.platform.shared;
+package app.simplecloud.api.platform.shared.luckperms;
 
 import app.simplecloud.api.CloudApi;
+import app.simplecloud.api.platform.shared.FailureLog;
+import app.simplecloud.api.platform.shared.player.OnlinePlayers;
 import app.simplecloud.api.player.CloudPlayer;
 import net.luckperms.api.LuckPerms;
 import net.luckperms.api.event.EventSubscription;
@@ -15,8 +17,7 @@ import java.util.concurrent.CompletableFuture;
 import java.util.concurrent.ConcurrentHashMap;
 
 /**
- * Stores each player's LuckPerms primary group in their {@value #PRIMARY_GROUP_PROPERTY} cloud property
- * and keeps it current while they are on this proxy.
+ * Stores each player's LuckPerms primary group in their {@value #PRIMARY_GROUP_PROPERTY} cloud property.
  */
 public final class LuckPermsPrimaryGroupSynchronizer implements LuckPermsSynchronizer {
 
@@ -27,15 +28,10 @@ public final class LuckPermsPrimaryGroupSynchronizer implements LuckPermsSynchro
     private final Object eventSubscriber;
     private final OnlinePlayers onlinePlayers;
     private final FailureLog failureLog;
-    // Players whose login the controller accepted; only their primary groups are stored.
     private final Set<UUID> registeredPlayers = ConcurrentHashMap.newKeySet();
-    // The primary group LuckPerms last reported for each player.
     private final Map<UUID, String> desiredPrimaryGroups = new ConcurrentHashMap<>();
-    // The primary group last stored in each player's cloud properties.
     private final Map<UUID, String> storedPrimaryGroups = new ConcurrentHashMap<>();
-    // Players with a store in flight. Stores for one player never overlap.
     private final Set<UUID> storesInFlight = ConcurrentHashMap.newKeySet();
-    // Players whose group changed while a store was in flight, so another store follows it.
     private final Set<UUID> storeAgainRequested = ConcurrentHashMap.newKeySet();
 
     private EventSubscription<UserDataRecalculateEvent> subscription;
@@ -103,7 +99,7 @@ public final class LuckPermsPrimaryGroupSynchronizer implements LuckPermsSynchro
 
     private void synchronize(User user) {
         UUID playerId = user.getUniqueId();
-        if (!shouldSynchronize(playerId)) {
+        if (shouldSynchronize(playerId)) {
             return;
         }
 
@@ -116,10 +112,6 @@ public final class LuckPermsPrimaryGroupSynchronizer implements LuckPermsSynchro
         storeDesiredPrimaryGroup(playerId);
     }
 
-    /**
-     * Stores the player's desired primary group in their cloud properties. If a store for the player is
-     * already in flight, it only asks for another one to follow it.
-     */
     private void storeDesiredPrimaryGroup(UUID playerId) {
         boolean storeStarted = storesInFlight.add(playerId);
         if (!storeStarted) {
@@ -132,10 +124,6 @@ public final class LuckPermsPrimaryGroupSynchronizer implements LuckPermsSynchro
         store.whenComplete((stored, failure) -> finishStore(playerId, primaryGroup, stored, failure));
     }
 
-    /**
-     * Stores the primary group in the player's cloud properties unless it is already there.
-     * Completes with {@code false} if the cloud doesn't know the player.
-     */
     private CompletableFuture<Boolean> storePrimaryGroup(UUID playerId, String primaryGroup) {
         CompletableFuture<Optional<CloudPlayer>> lookup = cloudApi.player().find(playerId);
         return lookup.thenCompose(cloudPlayer -> {
@@ -156,11 +144,6 @@ public final class LuckPermsPrimaryGroupSynchronizer implements LuckPermsSynchro
         return update.thenApply(updatedProperties -> true);
     }
 
-    /**
-     * Records the result of a store, then forgets the player, stores again or stops.
-     *
-     * @param stored whether the group is now stored; {@code null} if the store failed
-     */
     private void finishStore(UUID playerId, String primaryGroup, Boolean stored, Throwable failure) {
         boolean storedSuccessfully = failure == null && stored;
         if (failure != null) {
@@ -170,17 +153,14 @@ public final class LuckPermsPrimaryGroupSynchronizer implements LuckPermsSynchro
             storedPrimaryGroups.put(playerId, primaryGroup);
         }
 
-        // Clear the in-flight mark before taking the request for another store. A group change that
-        // arrives in between then starts its own store instead of leaving a request nobody takes.
         storesInFlight.remove(playerId);
         boolean storeAgain = storeAgainRequested.remove(playerId);
 
-        if (!shouldSynchronize(playerId)) {
+        if (shouldSynchronize(playerId)) {
             forget(playerId);
             return;
         }
-        // Store again if a change arrived during this store, or if the group changed back to the one stored
-        // before: synchronize(User) skips such a change because it matches the old stored group.
+
         String desiredPrimaryGroup = desiredPrimaryGroups.get(playerId);
         boolean desiredGroupChanged = storedSuccessfully && !primaryGroup.equals(desiredPrimaryGroup);
         if (storeAgain || desiredGroupChanged) {
@@ -188,11 +168,7 @@ public final class LuckPermsPrimaryGroupSynchronizer implements LuckPermsSynchro
         }
     }
 
-    /**
-     * Whether the player's primary group is still synchronized: the synchronizer runs, the controller
-     * accepted the player's login, and the player is still on this server.
-     */
     private boolean shouldSynchronize(UUID playerId) {
-        return running && registeredPlayers.contains(playerId) && onlinePlayers.isOnline(playerId);
+        return !running || !registeredPlayers.contains(playerId) || !onlinePlayers.isOnline(playerId);
     }
 }

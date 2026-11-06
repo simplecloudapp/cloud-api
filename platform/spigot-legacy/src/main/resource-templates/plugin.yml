@@ -1,5 +1,5 @@
 name: simplecloud-api
-version: "${version}"
+version: "{{ version }}"
 main: app.simplecloud.api.platform.spigot.legacy.LegacySpigotApiProvider
 api-version: "1.8"
 author: Fllip

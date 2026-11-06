@@ -4,7 +4,7 @@ import app.simplecloud.api.internal.integration.player.LoginResult;
 import app.simplecloud.api.internal.integration.player.PlayerLogin;
 import app.simplecloud.api.internal.integration.player.PlayerSessionReporter;
 import app.simplecloud.api.internal.integration.presence.ProxyPresenceTracker;
-import app.simplecloud.api.platform.shared.LuckPermsSynchronizer;
+import app.simplecloud.api.platform.shared.luckperms.LuckPermsSynchronizer;
 import app.simplecloud.api.platform.shared.PlayerSynchronizer;
 import app.simplecloud.api.player.PlayerClientSettings;
 import net.md_5.bungee.api.SkinConfiguration;
@@ -78,7 +78,6 @@ public class PlayerConnectionListener implements Listener {
         );
 
         CompletableFuture<LoginResult> loginReport = playerSessionReporter.reportLogin(login);
-        // Keep the initial backend connection behind controller registration.
         event.registerIntent(plugin);
         CompletableFuture<Void> loginApplied = loginReport.thenAccept(result -> applyLoginResult(player, result));
         CompletableFuture<Void> registration = loginApplied.exceptionally(failure -> {
@@ -89,7 +88,7 @@ public class PlayerConnectionListener implements Listener {
                 registration.copy().completeOnTimeout(null, LOGIN_WAIT_SECONDS, TimeUnit.SECONDS);
         registrationOrTimeout.whenComplete((ignored, failure) -> event.completeIntent(plugin));
 
-        CompletableFuture.runAsync(() -> playerSynchronizer.updatePlayerCount());
+        CompletableFuture.runAsync(playerSynchronizer::updatePlayerCount);
     }
 
     private void applyLoginResult(ProxiedPlayer player, LoginResult result) {
@@ -119,14 +118,13 @@ public class PlayerConnectionListener implements Listener {
         proxyPresenceTracker.remove(playerId.toString());
         luckPermsSynchronizer.forget(playerId);
 
-        CompletableFuture.runAsync(() -> playerSynchronizer.updatePlayerCount());
+        CompletableFuture.runAsync(playerSynchronizer::updatePlayerCount);
     }
 
     @EventHandler
     public void onSettingsChanged(SettingsChangedEvent event) {
         ProxiedPlayer player = event.getPlayer();
         String sessionId = proxyPresenceTracker.getSessionId(player.getUniqueId().toString());
-        // Settings sent before the login completed are picked up once the session exists.
         if (sessionId == null) {
             return;
         }

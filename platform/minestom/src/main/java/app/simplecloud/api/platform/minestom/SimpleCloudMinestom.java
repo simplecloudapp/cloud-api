@@ -3,7 +3,7 @@ package app.simplecloud.api.platform.minestom;
 import app.simplecloud.api.CloudApi;
 import app.simplecloud.api.internal.CloudApiImpl;
 import app.simplecloud.api.internal.integration.adventure.AdventureIntegration;
-import app.simplecloud.api.platform.shared.OnlinePlayerTracker;
+import app.simplecloud.api.platform.shared.player.OnlinePlayerTracker;
 import app.simplecloud.api.platform.shared.PlayerSynchronizer;
 import app.simplecloud.api.runtime.SimpleCloudRuntime;
 import net.minestom.server.MinecraftServer;

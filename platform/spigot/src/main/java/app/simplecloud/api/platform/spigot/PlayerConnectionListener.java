@@ -1,6 +1,6 @@
 package app.simplecloud.api.platform.spigot;
 
-import app.simplecloud.api.platform.shared.OnlinePlayerTracker;
+import app.simplecloud.api.platform.shared.player.OnlinePlayerTracker;
 import app.simplecloud.api.platform.shared.PlayerSynchronizer;
 import org.bukkit.event.EventHandler;
 import org.bukkit.event.Listener;
@@ -25,7 +25,6 @@ public class PlayerConnectionListener implements Listener {
 
     @EventHandler
     public void onPlayerQuit(PlayerQuitEvent event) {
-        // The quitting player is still in Bukkit.getOnlinePlayers() at this point, so track removal explicitly.
         onlinePlayerTracker.remove(event.getPlayer().getUniqueId());
         playerSynchronizer.updatePlayerCount();
     }

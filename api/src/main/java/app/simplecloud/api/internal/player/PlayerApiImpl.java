@@ -2,9 +2,9 @@ package app.simplecloud.api.internal.player;
 
 import app.simplecloud.api.CloudApiException;
 import app.simplecloud.api.CloudApiOptions;
-import app.simplecloud.api.internal.web.ApiClients;
-import app.simplecloud.api.internal.web.ApiErrors;
-import app.simplecloud.api.internal.web.Identifiers;
+import app.simplecloud.api.internal.util.ValidationUtil;
+import app.simplecloud.api.internal.web.ApiClientFactory;
+import app.simplecloud.api.internal.web.ApiExceptions;
 import app.simplecloud.api.player.CloudPlayer;
 import app.simplecloud.api.player.PlayerApi;
 import app.simplecloud.api.player.PlayerClientSettings;
@@ -72,7 +72,7 @@ public class PlayerApiImpl implements PlayerApi {
     private final Executor executor;
 
     public PlayerApiImpl(CloudApiOptions options, Connection natsConnection) {
-        this(options, natsConnection, ApiClients.create(options));
+        this(options, natsConnection, ApiClientFactory.create(options));
     }
 
     public PlayerApiImpl(CloudApiOptions options, Connection natsConnection, ApiClient httpClient) {
@@ -98,14 +98,14 @@ public class PlayerApiImpl implements PlayerApi {
     @Override
     public CompletableFuture<CloudPlayer> get(UUID uniqueId) {
         return find(uniqueId).thenApply(player -> player.orElseThrow(
-                () -> ApiErrors.notFound("Player '" + uniqueId + "' not found")
+                () -> ApiExceptions.notFound("Player '" + uniqueId + "' not found")
         ));
     }
 
     @Override
     public CompletableFuture<CloudPlayer> get(String name) {
         return find(name).thenApply(player -> player.orElseThrow(
-                () -> ApiErrors.notFound("Player '" + name + "' not found")
+                () -> ApiExceptions.notFound("Player '" + name + "' not found")
         ));
     }
 
@@ -119,7 +119,7 @@ public class PlayerApiImpl implements PlayerApi {
 
     @Override
     public CompletableFuture<Optional<CloudPlayer>> find(String name) {
-        if (!Identifiers.isPlayerName(name)) {
+        if (!ValidationUtil.isPlayerName(name)) {
             return CompletableFuture.completedFuture(Optional.empty());
         }
         return callOrEmptyIfNotFound(() -> {
@@ -314,7 +314,7 @@ public class PlayerApiImpl implements PlayerApi {
     @Override
     public CompletableFuture<PlayerProfile> getLatestProfile(UUID uniqueId) {
         return findLatestProfile(uniqueId).thenApply(profile -> profile.orElseThrow(
-                () -> ApiErrors.notFound("No profile recorded for player '" + uniqueId + "'")
+                () -> ApiExceptions.notFound("No profile recorded for player '" + uniqueId + "'")
         ));
     }
 
@@ -353,7 +353,7 @@ public class PlayerApiImpl implements PlayerApi {
     @Override
     public CompletableFuture<PlayerSession> getCurrentSession(UUID uniqueId) {
         return findCurrentSession(uniqueId).thenApply(session -> session.orElseThrow(
-                () -> ApiErrors.notFound("Player '" + uniqueId + "' has no active session")
+                () -> ApiExceptions.notFound("Player '" + uniqueId + "' has no active session")
         ));
     }
 
@@ -374,7 +374,7 @@ public class PlayerApiImpl implements PlayerApi {
     @Override
     public CompletableFuture<PlayerClientSettings> getClientSettings(UUID uniqueId) {
         return findClientSettings(uniqueId).thenApply(settings -> settings.orElseThrow(
-                () -> ApiErrors.notFound("No client settings for player '" + uniqueId + "'")
+                () -> ApiExceptions.notFound("No client settings for player '" + uniqueId + "'")
         ));
     }
 
@@ -516,7 +516,7 @@ public class PlayerApiImpl implements PlayerApi {
                             ? CloudPlayer.ConnectResult.PLAYER_NOT_FOUND
                             : CloudPlayer.ConnectResult.SERVER_NOT_FOUND;
                 }
-                throw ApiErrors.from(e);
+                throw ApiExceptions.from(e);
             }
         }, executor);
     }
@@ -647,7 +647,7 @@ public class PlayerApiImpl implements PlayerApi {
             try {
                 return call.execute();
             } catch (ApiException e) {
-                throw ApiErrors.from(e);
+                throw ApiExceptions.from(e);
             }
         }, executor);
     }
@@ -660,7 +660,7 @@ public class PlayerApiImpl implements PlayerApi {
                 if (e.getCode() == 404) {
                     return Optional.empty();
                 }
-                throw ApiErrors.from(e);
+                throw ApiExceptions.from(e);
             }
         }, executor);
     }

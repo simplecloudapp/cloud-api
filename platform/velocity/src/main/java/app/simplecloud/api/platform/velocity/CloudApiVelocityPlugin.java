@@ -9,8 +9,8 @@ import app.simplecloud.api.internal.integration.presence.ProxyPresenceTracker;
 import app.simplecloud.api.presence.ProxyPresencePlayer;
 import app.simplecloud.api.presence.ProxyPresencePlayerProvider;
 import app.simplecloud.api.runtime.SimpleCloudRuntime;
-import app.simplecloud.api.platform.shared.LuckPermsPrimaryGroupSynchronizer;
-import app.simplecloud.api.platform.shared.LuckPermsSynchronizer;
+import app.simplecloud.api.platform.shared.luckperms.LuckPermsPrimaryGroupSynchronizer;
+import app.simplecloud.api.platform.shared.luckperms.LuckPermsSynchronizer;
 import app.simplecloud.api.platform.shared.PlayerSynchronizer;
 import com.google.inject.Inject;
 import com.velocitypowered.api.event.Subscribe;
@@ -44,7 +44,6 @@ public class CloudApiVelocityPlugin implements ProxyPresencePlayerProvider {
     private final PlayerCommandHandler playerCommandHandler;
     private final ProxyPresenceTracker proxyPresenceTracker;
     private final ProxyPresenceResponder proxyPresenceResponder;
-    // Replaced while the proxy initializes, because LuckPerms only provides its API then.
     private LuckPermsSynchronizer luckPermsSynchronizer = LuckPermsSynchronizer.DISABLED;
 
     @Inject

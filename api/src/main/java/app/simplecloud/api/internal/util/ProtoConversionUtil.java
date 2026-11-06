@@ -1,4 +1,4 @@
-package app.simplecloud.api.internal;
+package app.simplecloud.api.internal.util;
 
 import app.simplecloud.api.server.ServerState;
 

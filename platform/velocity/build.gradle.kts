@@ -1,6 +1,5 @@
 plugins {
     id("cloud-api.platform-conventions")
-    alias(libs.plugins.blossom)
 }
 
 sourceSets {

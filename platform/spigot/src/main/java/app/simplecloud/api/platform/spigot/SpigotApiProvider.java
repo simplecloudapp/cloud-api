@@ -1,7 +1,7 @@
 package app.simplecloud.api.platform.spigot;
 
 import app.simplecloud.api.CloudApi;
-import app.simplecloud.api.platform.shared.OnlinePlayerTracker;
+import app.simplecloud.api.platform.shared.player.OnlinePlayerTracker;
 import app.simplecloud.api.platform.shared.PlayerSynchronizer;
 import org.bukkit.Bukkit;
 import org.bukkit.entity.Player;

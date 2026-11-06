@@ -3,13 +3,16 @@ import com.github.jengelman.gradle.plugins.shadow.tasks.ShadowJar
 plugins {
     id("cloud-api.shadow-conventions")
     id("com.modrinth.minotaur")
+    id("net.kyori.blossom")
 }
 
-tasks.processResources {
-    val properties = mapOf("version" to project.version.toString())
-    inputs.properties(properties)
-    filesMatching(listOf("plugin.yml", "paper-plugin.yml")) {
-        expand(properties)
+sourceSets {
+    main {
+        blossom {
+            resources {
+                property("version", project.version.toString())
+            }
+        }
     }
 }
 

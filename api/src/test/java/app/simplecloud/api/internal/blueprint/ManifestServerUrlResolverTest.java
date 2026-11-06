@@ -3,7 +3,7 @@ package app.simplecloud.api.internal.blueprint;
 import app.simplecloud.api.CloudApiException;
 import app.simplecloud.api.CloudApiOptions;
 import app.simplecloud.api.blueprint.CreateBlueprintRequest;
-import app.simplecloud.api.internal.web.ApiClients;
+import app.simplecloud.api.internal.web.ApiClientFactory;
 import app.simplecloud.api.web.apis.BlueprintsApi;
 import com.google.gson.Gson;
 import okhttp3.Dns;
@@ -139,7 +139,7 @@ class ManifestServerUrlResolverTest {
         CloudApiOptions options = CloudApiOptions.builder()
                 .serverVersionManifestUrl("https://localhost:" + server.getPort() + "/server_versions.json")
                 .build();
-        InlineBlueprintSupport support = new InlineBlueprintSupport(options, new BlueprintsApi(ApiClients.create(options)));
+        InlineBlueprintSupport support = new InlineBlueprintSupport(options, new BlueprintsApi(ApiClientFactory.create(options)));
 
         CloudApiException failure = assertThrows(CloudApiException.class, () -> support.createBlueprint("paper", paper("1.21.11")));
 

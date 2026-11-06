@@ -13,9 +13,9 @@ import java.time.Duration;
 /**
  * Helpers for configuring the generated {@link ApiClient}.
  */
-public final class ApiClients {
+public final class ApiClientFactory {
 
-    private ApiClients() {
+    private ApiClientFactory() {
     }
 
     /**

@@ -4,9 +4,9 @@ import app.simplecloud.api.CloudApiException;
 import app.simplecloud.api.CloudApiOptions;
 import app.simplecloud.api.cache.QueryCache;
 import app.simplecloud.api.cache.QueryKey;
-import app.simplecloud.api.internal.web.ApiClients;
-import app.simplecloud.api.internal.web.ApiErrors;
-import app.simplecloud.api.internal.web.Identifiers;
+import app.simplecloud.api.internal.util.ValidationUtil;
+import app.simplecloud.api.internal.web.ApiClientFactory;
+import app.simplecloud.api.internal.web.ApiExceptions;
 import app.simplecloud.api.internal.workflow.WorkflowResults;
 import app.simplecloud.api.server.Server;
 import app.simplecloud.api.server.ServerApi;
@@ -47,7 +47,7 @@ public class ServerApiImpl implements ServerApi {
     private final Executor executor;
 
     public ServerApiImpl(CloudApiOptions options, QueryCache cache) {
-        this(options, cache, ApiClients.create(options));
+        this(options, cache, ApiClientFactory.create(options));
     }
 
     public ServerApiImpl(CloudApiOptions options, QueryCache cache, ApiClient httpClient) {
@@ -68,13 +68,13 @@ public class ServerApiImpl implements ServerApi {
     @Override
     public CompletableFuture<Server> getServerById(String id) {
         return findServerById(id).thenApply(server -> server.orElseThrow(
-                () -> ApiErrors.notFound("Server with ID '" + id + "' not found")
+                () -> ApiExceptions.notFound("Server with ID '" + id + "' not found")
         ));
     }
 
     @Override
     public CompletableFuture<Optional<Server>> findServerById(String id) {
-        if (!Identifiers.isUuid(id)) {
+        if (!ValidationUtil.isUuid(id)) {
             return CompletableFuture.completedFuture(Optional.empty());
         }
         QueryKey key = QueryKey.of("server", id);
@@ -91,7 +91,7 @@ public class ServerApiImpl implements ServerApi {
     @Override
     public CompletableFuture<Server> getServerByNumericalId(String groupName, int numericalId) {
         return findServerByNumericalId(groupName, numericalId).thenApply(server -> server.orElseThrow(
-                () -> ApiErrors.notFound("Server '" + groupName + "-" + numericalId + "' not found")
+                () -> ApiExceptions.notFound("Server '" + groupName + "-" + numericalId + "' not found")
         ));
     }
 
@@ -127,7 +127,7 @@ public class ServerApiImpl implements ServerApi {
                         .<Server>map(ServerImpl::new)
                         .toList();
             } catch (ApiException e) {
-                throw ApiErrors.from(e);
+                throw ApiExceptions.from(e);
             }
         }, executor));
     }
@@ -171,7 +171,7 @@ public class ServerApiImpl implements ServerApi {
                         .<Server>map(ServerImpl::new)
                         .toList();
             } catch (ApiException e) {
-                throw ApiErrors.from(e);
+                throw ApiExceptions.from(e);
             }
         }, executor);
     }
@@ -190,7 +190,7 @@ public class ServerApiImpl implements ServerApi {
                         .<Server>map(ServerImpl::new)
                         .orElse(null);
             } catch (ApiException e) {
-                throw ApiErrors.from(e);
+                throw ApiExceptions.from(e);
             }
         }, executor);
     }
@@ -394,7 +394,7 @@ public class ServerApiImpl implements ServerApi {
                 cache.invalidateAll(QueryKey.of("servers"));
                 cache.invalidateAll(QueryKey.of("server", "numerical"));
             } catch (ApiException e) {
-                throw ApiErrors.from(e);
+                throw ApiExceptions.from(e);
             }
         }, executor);
     }
@@ -419,7 +419,7 @@ public class ServerApiImpl implements ServerApi {
                         request
                 );
             } catch (ApiException e) {
-                throw ApiErrors.from(e);
+                throw ApiExceptions.from(e);
             }
         }, executor);
     }
@@ -439,7 +439,7 @@ public class ServerApiImpl implements ServerApi {
                 );
                 return WorkflowResults.fromServer(id, workflowId, response);
             } catch (ApiException e) {
-                throw ApiErrors.from(e);
+                throw ApiExceptions.from(e);
             }
         }, executor);
     }
@@ -472,7 +472,7 @@ public class ServerApiImpl implements ServerApi {
 
                 return server;
             } catch (ApiException e) {
-                throw ApiErrors.from(e);
+                throw ApiExceptions.from(e);
             }
         }, executor);
     }
@@ -522,7 +522,7 @@ public class ServerApiImpl implements ServerApi {
                 Map<String, Object> result = response.getProperties();
                 return result != null ? result : new HashMap<>();
             } catch (ApiException e) {
-                throw ApiErrors.from(e);
+                throw ApiExceptions.from(e);
             }
         }, executor);
     }
@@ -548,7 +548,7 @@ public class ServerApiImpl implements ServerApi {
                 Map<String, Object> result = response.getProperties();
                 return result != null ? result : new HashMap<>();
             } catch (ApiException e) {
-                throw ApiErrors.from(e);
+                throw ApiExceptions.from(e);
             }
         }, executor);
     }

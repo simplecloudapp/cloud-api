@@ -9,8 +9,8 @@ import app.simplecloud.api.internal.integration.presence.ProxyPresenceTracker;
 import app.simplecloud.api.presence.ProxyPresencePlayer;
 import app.simplecloud.api.presence.ProxyPresencePlayerProvider;
 import app.simplecloud.api.runtime.SimpleCloudRuntime;
-import app.simplecloud.api.platform.shared.LuckPermsPrimaryGroupSynchronizer;
-import app.simplecloud.api.platform.shared.LuckPermsSynchronizer;
+import app.simplecloud.api.platform.shared.luckperms.LuckPermsPrimaryGroupSynchronizer;
+import app.simplecloud.api.platform.shared.luckperms.LuckPermsSynchronizer;
 import app.simplecloud.api.platform.shared.PlayerSynchronizer;
 import net.kyori.adventure.platform.bungeecord.BungeeAudiences;
 import net.md_5.bungee.api.connection.ProxiedPlayer;
@@ -23,9 +23,7 @@ import java.util.Locale;
 public class BungeeCordApiProvider extends Plugin implements ProxyPresencePlayerProvider {
 
     private CloudApiImpl cloudApi;
-    private String proxyName;
     private PlayerSynchronizer playerSynchronizer;
-    private PlayerSessionReporter playerSessionReporter;
     private PlayerCommandHandler playerCommandHandler;
     private ProxyPresenceTracker proxyPresenceTracker;
     private ProxyPresenceResponder proxyPresenceResponder;
@@ -36,12 +34,10 @@ public class BungeeCordApiProvider extends Plugin implements ProxyPresencePlayer
     @Override
     public void onEnable() {
         this.cloudApi = (CloudApiImpl) CloudApi.create();
-        // Started right after the CloudApi and stopped first in onDisable, so onDisable stops it
-        // even if a later step of onEnable fails.
         this.luckPermsSynchronizer = startLuckPermsSynchronizer();
-        this.proxyName = SimpleCloudRuntime.serverName();
+        String proxyName = SimpleCloudRuntime.serverName();
         this.playerSynchronizer = new PlayerSynchronizer(cloudApi, getProxy()::getOnlineCount);
-        this.playerSessionReporter = new PlayerSessionReporter(cloudApi);
+        PlayerSessionReporter playerSessionReporter = new PlayerSessionReporter(cloudApi);
         this.playerCommandHandler = new PlayerCommandHandler(cloudApi, new BungeeCordPlayers(getProxy()));
         this.proxyPresenceTracker = new ProxyPresenceTracker(proxyName);
         this.proxyPresenceResponder = new ProxyPresenceResponder(

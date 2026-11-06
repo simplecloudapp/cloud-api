@@ -1,6 +1,6 @@
 package app.simplecloud.api.internal.event.server;
 
-import app.simplecloud.api.internal.ProtoConversionUtil;
+import app.simplecloud.api.internal.util.ProtoConversionUtil;
 import app.simplecloud.api.internal.persistentserver.PersistentServerImpl;
 import app.simplecloud.api.internal.server.ServerImpl;
 import app.simplecloud.api.server.Server;
