@@ -122,7 +122,6 @@ jobs:
             :platform:spigot:shadowJar \
             :platform:spigot-legacy:shadowJar \
             :platform:paper:shadowJar \
-            :platform:folia:shadowJar \
             :platform:bungeecord:shadowJar \
             :platform:velocity:shadowJar \
             :platform:fabric:shadowJar \
@@ -136,7 +135,6 @@ jobs:
           mkdir -p artifacts
           cp platform/spigot/build/libs/cloud-api-spigot.jar artifacts/spigot.jar
           cp platform/paper/build/libs/cloud-api-paper.jar artifacts/paper.jar
-          cp platform/folia/build/libs/cloud-api-folia.jar artifacts/folia.jar
           cp platform/bungeecord/build/libs/cloud-api-bungeecord.jar artifacts/bungeecord.jar
           cp platform/velocity/build/libs/cloud-api-velocity.jar artifacts/velocity.jar
           cp platform/fabric/build/libs/cloud-api-fabric.jar artifacts/fabric.jar
@@ -272,7 +270,7 @@ jobs:
           upload_file "artifacts/paper.jar" "paper" &
           PID_PAPER=$!
 
-          upload_file "artifacts/folia.jar" "folia" &
+          upload_file "artifacts/paper.jar" "folia" &
           PID_FOLIA=$!
 
           upload_file "artifacts/bungeecord.jar" "bungeecord" &

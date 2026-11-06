@@ -44,7 +44,6 @@ jobs:
             :platform:spigot:check \
             :platform:spigot-legacy:check \
             :platform:paper:check \
-            :platform:folia:check \
             :platform:bungeecord:check \
             :platform:velocity:check \
             :platform:minestom:check \

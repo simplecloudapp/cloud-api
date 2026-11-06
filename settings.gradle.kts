@@ -21,7 +21,6 @@ include(
     "platform:spigot",
     "platform:spigot-legacy",
     "platform:paper",
-    "platform:folia",
     "platform:bungeecord",
     "platform:velocity",
     "platform:fabric",

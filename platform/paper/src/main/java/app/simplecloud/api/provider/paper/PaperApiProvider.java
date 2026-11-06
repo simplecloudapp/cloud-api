@@ -25,7 +25,7 @@ public class PaperApiProvider extends JavaPlugin {
 
         this.adventureIntegration = new AdventureIntegration(
                 cloudApi,
-                new PaperPlayerAudiences(),
+                new PaperPlayerAudiences(this),
                 serverId,
                 groupName != null ? groupName : serverId
         );
