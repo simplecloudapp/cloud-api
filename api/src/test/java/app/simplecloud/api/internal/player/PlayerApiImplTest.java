@@ -140,14 +140,14 @@ class PlayerApiImplTest {
     }
 
     @Test
-    void connectDirect_withoutReply_failsConnection() {
+    void connectDirect_withoutReply_reportsPlayerNotFound() {
         FakeNatsConnection nats = FakeNatsConnection.answering((subject, data, timeout) -> null);
         PlayerApiImpl api = new PlayerApiImpl(options(), nats.connection(), new FakePlayersApi());
 
         CloudPlayer.ConnectResult result =
                 api.connectDirect(PLAYER_ID, "lobby-1").join();
 
-        assertEquals(CloudPlayer.ConnectResult.CONNECTION_FAILED, result);
+        assertEquals(CloudPlayer.ConnectResult.PLAYER_NOT_FOUND, result);
     }
 
     @Test

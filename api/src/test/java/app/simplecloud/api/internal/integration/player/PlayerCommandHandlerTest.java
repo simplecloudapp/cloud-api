@@ -19,6 +19,7 @@ import org.junit.jupiter.api.Timeout;
 import org.junit.jupiter.params.ParameterizedTest;
 import org.junit.jupiter.params.provider.ValueSource;
 
+import java.time.Duration;
 import java.util.ArrayList;
 import java.util.List;
 import java.util.Optional;
@@ -339,6 +340,21 @@ class PlayerCommandHandlerTest {
         assertEquals(List.of(ConnectResult.CONNECT_RESULT_FAILED), publishedConnectResults(nats));
     }
 
+    @Test
+    void connectRequestThatNeverCompletes_answersConnectionFailedAfterTheTimeout() throws Exception {
+        FakeNatsConnection nats = FakeNatsConnection.withoutRequests();
+        FakeProxyPlayers proxyPlayers = FakeProxyPlayers.connected(PLAYER_UUID).withPendingConnects();
+        new PlayerCommandHandler(nats.connection(), NETWORK_ID, Runnable::run, proxyPlayers, Duration.ofMillis(50))
+                .start();
+
+        nats.deliver(CONNECT_SUBSCRIPTION, connectMessage(PLAYER_ID, connectByName("lobby-1")));
+
+        while (nats.published().isEmpty()) {
+            Thread.sleep(10);
+        }
+        assertEquals(List.of(ConnectResult.CONNECT_RESULT_FAILED), publishedConnectResults(nats));
+    }
+
     private static void startCommandHandler(FakeNatsConnection nats, FakeProxyPlayers proxyPlayers) {
         // Runs the kick on the calling thread, so the reply is published before deliver returns.
         PlayerCommandHandler commandHandler =
@@ -412,9 +428,15 @@ class PlayerCommandHandlerTest {
         private final Set<UUID> players;
         private final List<Kick> kicks = new ArrayList<>();
         private final List<Connect> connects = new ArrayList<>();
+        private boolean pendingConnects;
 
         private FakeProxyPlayers(Set<UUID> players) {
             this.players = players;
+        }
+
+        FakeProxyPlayers withPendingConnects() {
+            this.pendingConnects = true;
+            return this;
         }
 
         static FakeProxyPlayers withoutPlayers() {
@@ -449,6 +471,9 @@ class PlayerCommandHandlerTest {
             @Override
             public CompletableFuture<CloudPlayer.ConnectResult> connect(String proxyServerName) {
                 connects.add(new Connect(playerId, proxyServerName));
+                if (pendingConnects) {
+                    return new CompletableFuture<>();
+                }
                 return CompletableFuture.completedFuture(CloudPlayer.ConnectResult.SUCCESS);
             }
         }

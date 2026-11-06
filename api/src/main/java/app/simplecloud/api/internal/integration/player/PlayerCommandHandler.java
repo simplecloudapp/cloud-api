@@ -14,10 +14,12 @@ import io.nats.client.Message;
 import net.kyori.adventure.text.Component;
 import net.kyori.adventure.text.serializer.gson.GsonComponentSerializer;
 
+import java.time.Duration;
 import java.util.Optional;
 import java.util.UUID;
 import java.util.concurrent.CompletableFuture;
 import java.util.concurrent.Executor;
+import java.util.concurrent.TimeUnit;
 import java.util.concurrent.atomic.AtomicBoolean;
 
 /**
@@ -26,10 +28,13 @@ import java.util.concurrent.atomic.AtomicBoolean;
  */
 public class PlayerCommandHandler {
 
+    private static final Duration CONNECT_TIMEOUT = Duration.ofSeconds(8);
+
     private final Connection natsConnection;
     private final String networkId;
     private final Executor executor;
     private final ProxyPlayers proxyPlayers;
+    private final Duration connectTimeout;
     private final AtomicBoolean running = new AtomicBoolean(false);
 
     private Dispatcher requestDispatcher;
@@ -39,10 +44,20 @@ public class PlayerCommandHandler {
     }
 
     PlayerCommandHandler(Connection natsConnection, String networkId, Executor executor, ProxyPlayers proxyPlayers) {
+        this(natsConnection, networkId, executor, proxyPlayers, CONNECT_TIMEOUT);
+    }
+
+    PlayerCommandHandler(
+            Connection natsConnection,
+            String networkId,
+            Executor executor,
+            ProxyPlayers proxyPlayers,
+            Duration connectTimeout) {
         this.natsConnection = natsConnection;
         this.networkId = networkId;
         this.executor = executor;
         this.proxyPlayers = proxyPlayers;
+        this.connectTimeout = connectTimeout;
     }
 
     /**
@@ -118,7 +133,10 @@ public class PlayerCommandHandler {
                 return;
             }
 
-            CompletableFuture<CloudPlayer.ConnectResult> connect = player.get().connect(proxyServerName.get());
+            CompletableFuture<CloudPlayer.ConnectResult> connect = player.get()
+                    .connect(proxyServerName.get())
+                    .copy()
+                    .orTimeout(connectTimeout.toMillis(), TimeUnit.MILLISECONDS);
             connect.whenComplete((result, failure) -> {
                 CloudPlayer.ConnectResult reply =
                         failure == null ? result : CloudPlayer.ConnectResult.CONNECTION_FAILED;

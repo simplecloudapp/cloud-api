@@ -398,6 +398,9 @@ public interface PlayerApi {
      * <p>The request goes straight to the player's proxy, without the controller. It works for any server
      * the proxy knows, including servers that are not managed by the cloud.
      *
+     * <p>If no proxy answers because none holds the player, the result is
+     * {@link CloudPlayer.ConnectResult#PLAYER_NOT_FOUND} once the request timed out.
+     *
      * @param uniqueId the player's UUID
      * @param serverName the name of the target server on the proxy
      * @return a future containing the connection result
@@ -406,6 +409,9 @@ public interface PlayerApi {
 
     /**
      * Connects a player to a server of the given server group.
+     *
+     * <p>The request is routed through the controller. If the controller rejects it, the future
+     * completes exceptionally with a {@link app.simplecloud.api.CloudApiException}.
      *
      * @param uniqueId the player's UUID
      * @param groupName the name of the target server group
@@ -428,6 +434,10 @@ public interface PlayerApi {
 
     /**
      * Connects a player to a persistent server.
+     *
+     * <p>The request is routed through the controller. If the controller rejects it, for example
+     * because the ID is not a valid UUID, the future completes exceptionally with a
+     * {@link app.simplecloud.api.CloudApiException}.
      *
      * @param uniqueId the player's UUID
      * @param persistentServerId the ID of the target persistent server

@@ -60,9 +60,12 @@ import java.util.UUID;
 import java.util.concurrent.CompletableFuture;
 import java.util.concurrent.Executor;
 import java.util.concurrent.ForkJoinPool;
+import java.util.logging.Level;
+import java.util.logging.Logger;
 
 public class PlayerApiImpl implements PlayerApi {
 
+    private static final Logger LOGGER = Logger.getLogger(PlayerApiImpl.class.getName());
     private static final Duration REQUEST_TIMEOUT = Duration.ofSeconds(30);
     private static final int MAX_PAGE_SIZE = 100;
 
@@ -433,7 +436,7 @@ public class PlayerApiImpl implements PlayerApi {
                         Message response = natsConnection.request(subject, request.toByteArray(), REQUEST_TIMEOUT);
 
                         if (response == null) {
-                            return CloudPlayer.ConnectResult.CONNECTION_FAILED;
+                            return CloudPlayer.ConnectResult.PLAYER_NOT_FOUND;
                         }
 
                         ConnectPlayerResponse protoResponse = ConnectPlayerResponse.parseFrom(response.getData());
@@ -443,7 +446,11 @@ public class PlayerApiImpl implements PlayerApi {
                             case CONNECT_RESULT_ALREADY_CONNECTED -> CloudPlayer.ConnectResult.ALREADY_CONNECTED;
                             default -> CloudPlayer.ConnectResult.CONNECTION_FAILED;
                         };
+                    } catch (InterruptedException e) {
+                        Thread.currentThread().interrupt();
+                        return CloudPlayer.ConnectResult.CONNECTION_FAILED;
                     } catch (Exception e) {
+                        LOGGER.log(Level.WARNING, "Failed to connect player " + uniqueId + " to " + serverName, e);
                         return CloudPlayer.ConnectResult.CONNECTION_FAILED;
                     }
                 },
