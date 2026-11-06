@@ -49,14 +49,16 @@ public interface ServerStoppedEvent {
      *
      * @return the exit code, or null if not available
      */
-    @Nullable Integer getExitCode();
+    @Nullable
+    Integer getExitCode();
 
     /**
      * Returns the reason why the server stopped.
      *
      * @return the stop reason, or null if not available
      */
-    @Nullable String getReason();
+    @Nullable
+    String getReason();
 
     /**
      * Returns the timestamp when this event occurred (ISO 8601 format).
@@ -65,4 +67,3 @@ public interface ServerStoppedEvent {
      */
     String getTimestamp();
 }
-

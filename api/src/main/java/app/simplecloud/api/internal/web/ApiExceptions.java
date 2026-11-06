@@ -13,8 +13,7 @@ import java.io.IOException;
  */
 public final class ApiExceptions {
 
-    private ApiExceptions() {
-    }
+    private ApiExceptions() {}
 
     public static CloudApiException from(ApiException exception) {
         return from(message(exception), exception);
@@ -31,7 +30,9 @@ public final class ApiExceptions {
     private static CloudApiException.Reason reason(ApiException exception) {
         int statusCode = exception.getCode();
         if (statusCode <= 0) {
-            return isTransportFailure(exception) ? CloudApiException.Reason.UNAVAILABLE : CloudApiException.Reason.UNKNOWN;
+            return isTransportFailure(exception)
+                    ? CloudApiException.Reason.UNAVAILABLE
+                    : CloudApiException.Reason.UNKNOWN;
         }
         return switch (statusCode) {
             case 400, 422 -> CloudApiException.Reason.INVALID_REQUEST;
@@ -74,7 +75,9 @@ public final class ApiExceptions {
                 if (json.isJsonObject()) {
                     JsonObject object = json.getAsJsonObject();
                     JsonElement error = object.get("error");
-                    if (error != null && error.isJsonPrimitive() && !error.getAsString().isBlank()) {
+                    if (error != null
+                            && error.isJsonPrimitive()
+                            && !error.getAsString().isBlank()) {
                         return error.getAsString();
                     }
                 }

@@ -43,9 +43,8 @@ class ManifestServerUrlResolverTest {
             ]
             """;
 
-    private static final HeldCertificate CERTIFICATE = new HeldCertificate.Builder()
-            .addSubjectAlternativeName(HOST)
-            .build();
+    private static final HeldCertificate CERTIFICATE =
+            new HeldCertificate.Builder().addSubjectAlternativeName(HOST).build();
     private static final Dns LOOPBACK_DNS = hostname -> List.of(InetAddress.getLoopbackAddress());
 
     private MockWebServer server;
@@ -53,10 +52,12 @@ class ManifestServerUrlResolverTest {
     @BeforeEach
     void startServer() throws IOException {
         server = new MockWebServer();
-        server.useHttps(new HandshakeCertificates.Builder()
-                .heldCertificate(CERTIFICATE)
-                .build()
-                .sslSocketFactory(), false);
+        server.useHttps(
+                new HandshakeCertificates.Builder()
+                        .heldCertificate(CERTIFICATE)
+                        .build()
+                        .sslSocketFactory(),
+                false);
         server.start();
     }
 
@@ -69,7 +70,8 @@ class ManifestServerUrlResolverTest {
     void resolve_returnsDownloadLinkForMinecraftVersion() {
         server.enqueue(new MockResponse().setBody(MANIFEST));
 
-        assertEquals("https://example.com/paper-1.21.11.jar", resolver(manifestUrl()).resolve(paper("1.21.11")));
+        assertEquals(
+                "https://example.com/paper-1.21.11.jar", resolver(manifestUrl()).resolve(paper("1.21.11")));
     }
 
     @Test
@@ -81,18 +83,23 @@ class ManifestServerUrlResolverTest {
 
     @Test
     void resolve_doesNotTouchManifestWithoutSoftwareOrVersion() {
-        assertNull(resolver(manifestUrl()).resolve(CreateBlueprintRequest.builder().serverSoftware("paper").build()));
+        assertNull(resolver(manifestUrl())
+                .resolve(
+                        CreateBlueprintRequest.builder().serverSoftware("paper").build()));
         assertEquals(0, server.getRequestCount());
     }
 
     @Test
     void resolve_rejectsHttpManifestUrl() {
-        String httpUrl = server.url("/server_versions.json").newBuilder().scheme("http").host(HOST).build().toString();
+        String httpUrl = server.url("/server_versions.json")
+                .newBuilder()
+                .scheme("http")
+                .host(HOST)
+                .build()
+                .toString();
 
-        CloudApiException failure = assertThrows(
-                CloudApiException.class,
-                () -> resolver(httpUrl).resolve(paper("1.21.11"))
-        );
+        CloudApiException failure =
+                assertThrows(CloudApiException.class, () -> resolver(httpUrl).resolve(paper("1.21.11")));
 
         assertTrue(failure.getMessage().contains("non-HTTPS"), failure.getMessage());
         assertEquals(0, server.getRequestCount());
@@ -102,8 +109,8 @@ class ManifestServerUrlResolverTest {
     void resolve_rejectsPrivateIpLiteralManifestUrl() {
         CloudApiException failure = assertThrows(
                 CloudApiException.class,
-                () -> resolver("https://127.0.0.1:" + server.getPort() + "/server_versions.json").resolve(paper("1.21.11"))
-        );
+                () -> resolver("https://127.0.0.1:" + server.getPort() + "/server_versions.json")
+                        .resolve(paper("1.21.11")));
 
         assertInstanceOf(UnknownHostException.class, failure.getCause());
         assertEquals(0, server.getRequestCount());
@@ -112,10 +119,8 @@ class ManifestServerUrlResolverTest {
     @Test
     void resolve_rejectsHostResolvingToPrivateAddress() throws UnknownHostException {
         InetAddress privateAddress = InetAddress.getByName("10.0.0.5");
-        ManifestServerUrlResolver resolver = resolver(
-                manifestUrl(),
-                new PublicAddressDns(hostname -> List.of(privateAddress))
-        );
+        ManifestServerUrlResolver resolver =
+                resolver(manifestUrl(), new PublicAddressDns(hostname -> List.of(privateAddress)));
 
         CloudApiException failure = assertThrows(CloudApiException.class, () -> resolver.resolve(paper("1.21.11")));
 
@@ -139,9 +144,11 @@ class ManifestServerUrlResolverTest {
         CloudApiOptions options = CloudApiOptions.builder()
                 .serverVersionManifestUrl("https://localhost:" + server.getPort() + "/server_versions.json")
                 .build();
-        InlineBlueprintSupport support = new InlineBlueprintSupport(options, new BlueprintsApi(ApiClientFactory.create(options)));
+        InlineBlueprintSupport support =
+                new InlineBlueprintSupport(options, new BlueprintsApi(ApiClientFactory.create(options)));
 
-        CloudApiException failure = assertThrows(CloudApiException.class, () -> support.createBlueprint("paper", paper("1.21.11")));
+        CloudApiException failure =
+                assertThrows(CloudApiException.class, () -> support.createBlueprint("paper", paper("1.21.11")));
 
         assertInstanceOf(UnknownHostException.class, failure.getCause());
         assertEquals(0, server.getRequestCount());
@@ -152,7 +159,8 @@ class ManifestServerUrlResolverTest {
         server.enqueue(redirectTo("/moved.json"));
         server.enqueue(new MockResponse().setBody(MANIFEST));
 
-        assertEquals("https://example.com/paper-1.21.11.jar", resolver(manifestUrl()).resolve(paper("1.21.11")));
+        assertEquals(
+                "https://example.com/paper-1.21.11.jar", resolver(manifestUrl()).resolve(paper("1.21.11")));
         assertEquals(2, server.getRequestCount());
     }
 
@@ -161,9 +169,7 @@ class ManifestServerUrlResolverTest {
         server.enqueue(redirectTo("http://" + HOST + ":" + server.getPort() + "/server_versions.json"));
 
         CloudApiException failure = assertThrows(
-                CloudApiException.class,
-                () -> resolver(manifestUrl()).resolve(paper("1.21.11"))
-        );
+                CloudApiException.class, () -> resolver(manifestUrl()).resolve(paper("1.21.11")));
 
         assertTrue(failure.getMessage().contains("non-HTTPS"), failure.getMessage());
         assertEquals(1, server.getRequestCount());
@@ -174,9 +180,7 @@ class ManifestServerUrlResolverTest {
         server.enqueue(redirectTo("https://169.254.169.254/latest/meta-data/"));
 
         CloudApiException failure = assertThrows(
-                CloudApiException.class,
-                () -> resolver(manifestUrl()).resolve(paper("1.21.11"))
-        );
+                CloudApiException.class, () -> resolver(manifestUrl()).resolve(paper("1.21.11")));
 
         assertInstanceOf(UnknownHostException.class, failure.getCause());
     }
@@ -186,9 +190,7 @@ class ManifestServerUrlResolverTest {
         server.enqueue(new MockResponse().setResponseCode(302));
 
         CloudApiException failure = assertThrows(
-                CloudApiException.class,
-                () -> resolver(manifestUrl()).resolve(paper("1.21.11"))
-        );
+                CloudApiException.class, () -> resolver(manifestUrl()).resolve(paper("1.21.11")));
 
         assertTrue(failure.getMessage().contains("without Location"), failure.getMessage());
     }
@@ -219,10 +221,8 @@ class ManifestServerUrlResolverTest {
 
     @Test
     void resolve_rejectsChunkedManifestOverSizeLimit() {
-        server.enqueue(new MockResponse().setChunkedBody(
-                paddedManifest(ManifestServerUrlResolver.MAX_MANIFEST_BYTES + 1),
-                64 * 1024
-        ));
+        server.enqueue(new MockResponse()
+                .setChunkedBody(paddedManifest(ManifestServerUrlResolver.MAX_MANIFEST_BYTES + 1), 64 * 1024));
 
         assertThrows(CloudApiException.class, () -> resolver(manifestUrl()).resolve(paper("1.21.11")));
     }
@@ -234,14 +234,15 @@ class ManifestServerUrlResolverTest {
 
         assertThrows(
                 CloudApiException.class,
-                () -> resolver(manifestUrl(), LOOPBACK_DNS, Duration.ofMillis(300)).resolve(paper("1.21.11"))
-        );
+                () -> resolver(manifestUrl(), LOOPBACK_DNS, Duration.ofMillis(300))
+                        .resolve(paper("1.21.11")));
     }
 
     @Test
     void resolve_keepsCredentialsOutOfErrors() {
         server.enqueue(new MockResponse().setResponseCode(500));
-        String url = server.url("/server_versions.json").newBuilder()
+        String url = server.url("/server_versions.json")
+                .newBuilder()
                 .host(HOST)
                 .username("user")
                 .password("hunter2")
@@ -249,7 +250,8 @@ class ManifestServerUrlResolverTest {
                 .build()
                 .toString();
 
-        CloudApiException failure = assertThrows(CloudApiException.class, () -> resolver(url).resolve(paper("1.21.11")));
+        CloudApiException failure =
+                assertThrows(CloudApiException.class, () -> resolver(url).resolve(paper("1.21.11")));
 
         assertFalse(failure.getMessage().contains("hunter2"), failure.getMessage());
         assertFalse(failure.getMessage().contains("s3cret"), failure.getMessage());
@@ -282,7 +284,11 @@ class ManifestServerUrlResolverTest {
     }
 
     private String manifestUrl() {
-        return server.url("/server_versions.json").newBuilder().host(HOST).build().toString();
+        return server.url("/server_versions.json")
+                .newBuilder()
+                .host(HOST)
+                .build()
+                .toString();
     }
 
     private MockResponse redirectTo(String location) {

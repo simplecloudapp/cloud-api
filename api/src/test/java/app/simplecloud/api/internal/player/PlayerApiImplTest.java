@@ -108,8 +108,13 @@ class PlayerApiImplTest {
     void setOnlineTimeSeconds_rejectsValuesControllerCannotStore() {
         PlayerApiImpl api = new PlayerApiImpl(options(), null, new FakePlayersApi());
 
-        CompletionException negative = assertThrows(CompletionException.class, () -> api.setOnlineTimeSeconds(PLAYER_ID, -1).join());
-        CompletionException tooLarge = assertThrows(CompletionException.class, () -> api.setOnlineTimeSeconds(PLAYER_ID, (long) Integer.MAX_VALUE + 1L).join());
+        CompletionException negative = assertThrows(
+                CompletionException.class,
+                () -> api.setOnlineTimeSeconds(PLAYER_ID, -1).join());
+        CompletionException tooLarge = assertThrows(
+                CompletionException.class,
+                () -> api.setOnlineTimeSeconds(PLAYER_ID, (long) Integer.MAX_VALUE + 1L)
+                        .join());
 
         assertInstanceOf(IllegalArgumentException.class, negative.getCause());
         assertInstanceOf(IllegalArgumentException.class, tooLarge.getCause());
@@ -126,7 +131,8 @@ class PlayerApiImplTest {
         });
         PlayerApiImpl api = new PlayerApiImpl(options(), nats.connection(), new FakePlayersApi());
 
-        CloudPlayer.ConnectResult result = api.connectDirect(PLAYER_ID, "lobby-1").join();
+        CloudPlayer.ConnectResult result =
+                api.connectDirect(PLAYER_ID, "lobby-1").join();
 
         assertEquals(CloudPlayer.ConnectResult.SUCCESS, result);
         assertEquals(List.of(CONNECT_SUBJECT), subjects);
@@ -138,7 +144,8 @@ class PlayerApiImplTest {
         FakeNatsConnection nats = FakeNatsConnection.answering((subject, data, timeout) -> null);
         PlayerApiImpl api = new PlayerApiImpl(options(), nats.connection(), new FakePlayersApi());
 
-        CloudPlayer.ConnectResult result = api.connectDirect(PLAYER_ID, "lobby-1").join();
+        CloudPlayer.ConnectResult result =
+                api.connectDirect(PLAYER_ID, "lobby-1").join();
 
         assertEquals(CloudPlayer.ConnectResult.CONNECTION_FAILED, result);
     }
@@ -169,7 +176,8 @@ class PlayerApiImplTest {
     }
 
     private static Message connectResponse(ConnectResult result) {
-        ConnectPlayerResponse response = ConnectPlayerResponse.newBuilder().setResult(result).build();
+        ConnectPlayerResponse response =
+                ConnectPlayerResponse.newBuilder().setResult(result).build();
         return FakeNatsConnection.reply(response.toByteArray());
     }
 
@@ -213,10 +221,7 @@ class PlayerApiImplTest {
 
         @Override
         public ModelsPlayerResponse patchPlayer(
-                String xNetworkID,
-                String playerId,
-                ModelsPatchPlayerRequest modelsPatchPlayerRequest
-        ) {
+                String xNetworkID, String playerId, ModelsPatchPlayerRequest modelsPatchPlayerRequest) {
             patchCalls++;
             lastPatchPlayerId = playerId;
             lastPatchRequest = modelsPatchPlayerRequest;

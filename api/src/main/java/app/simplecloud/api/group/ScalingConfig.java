@@ -8,13 +8,14 @@ public class ScalingConfig {
     private int minServers;
     private double playerThreshold;
     private boolean playerThresholdSet;
+
     @Nullable
     private ScaleDownConfig scaleDown;
+
     @Nullable
     private ScalingMode scalingMode;
 
-    public ScalingConfig() {
-    }
+    public ScalingConfig() {}
 
     public static Builder builder() {
         return new Builder();

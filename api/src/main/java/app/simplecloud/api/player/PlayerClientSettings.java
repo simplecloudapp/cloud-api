@@ -6,16 +6,17 @@ import java.util.List;
 
 public class PlayerClientSettings {
     private ChatMode chatMode = ChatMode.UNKNOWN;
+
     @Nullable
     private String locale;
+
     private MainHand mainHand = MainHand.UNKNOWN;
     private int viewDistance;
     private boolean chatColors;
     private boolean clientListingAllowed;
     private List<String> skinParts = List.of();
 
-    public PlayerClientSettings() {
-    }
+    public PlayerClientSettings() {}
 
     public ChatMode getChatMode() {
         return chatMode;

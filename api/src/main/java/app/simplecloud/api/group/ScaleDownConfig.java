@@ -5,11 +5,11 @@ import org.jetbrains.annotations.Nullable;
 public class ScaleDownConfig {
     @Nullable
     private String idleTime;
+
     private boolean ignorePlayers;
     private boolean ignorePlayersSet;
 
-    public ScaleDownConfig() {
-    }
+    public ScaleDownConfig() {}
 
     public static Builder builder() {
         return new Builder();

@@ -32,7 +32,8 @@ class PlayerSessionReporterTest {
     private static final UUID PLAYER_UUID = UUID.fromString(PLAYER_ID);
 
     enum Operation {
-        DISCONNECT("disconnect"), SERVER_SWITCH("switch");
+        DISCONNECT("disconnect"),
+        SERVER_SWITCH("switch");
 
         final String subjectSuffix;
 
@@ -48,9 +49,15 @@ class PlayerSessionReporterTest {
 
         byte[] response(boolean success) {
             return this == DISCONNECT
-                    ? PlayerDisconnectResponse.newBuilder().setSuccess(success)
-                            .setSessionDurationSeconds(success ? 42 : 0).build().toByteArray()
-                    : PlayerServerSwitchResponse.newBuilder().setSuccess(success).build().toByteArray();
+                    ? PlayerDisconnectResponse.newBuilder()
+                            .setSuccess(success)
+                            .setSessionDurationSeconds(success ? 42 : 0)
+                            .build()
+                            .toByteArray()
+                    : PlayerServerSwitchResponse.newBuilder()
+                            .setSuccess(success)
+                            .build()
+                            .toByteArray();
         }
     }
 
@@ -80,8 +87,7 @@ class PlayerSessionReporterTest {
     void alreadyOfflineDisconnectCompletesNormally() {
         // Controller's idempotent reply has success=true and no session duration.
         PlayerSessionReporter reporter = reporterAnswering((subject, data, timeout) -> FakeNatsConnection.reply(
-                PlayerDisconnectResponse.newBuilder().setSuccess(true).build().toByteArray()
-        ));
+                PlayerDisconnectResponse.newBuilder().setSuccess(true).build().toByteArray()));
 
         assertNull(reporter.reportDisconnect(PLAYER_UUID).join());
     }
@@ -99,9 +105,10 @@ class PlayerSessionReporterTest {
 
         // Both proxy listeners attach this callback to the returned future.
         future.exceptionally(error -> {
-            reportedFailure.set(error);
-            return null;
-        }).join();
+                    reportedFailure.set(error);
+                    return null;
+                })
+                .join();
 
         assertNotNull(reportedFailure.get());
         CompletionException failure = assertFailure(operation, future);
@@ -123,7 +130,8 @@ class PlayerSessionReporterTest {
     @ParameterizedTest
     @EnumSource(Operation.class)
     void malformedReplyPreservesDecodeFailure(Operation operation) {
-        PlayerSessionReporter reporter = reporterAnswering((subject, data, timeout) -> FakeNatsConnection.reply(new byte[]{(byte) 0xff}));
+        PlayerSessionReporter reporter =
+                reporterAnswering((subject, data, timeout) -> FakeNatsConnection.reply(new byte[] {(byte) 0xff}));
 
         CompletionException failure = assertFailure(operation, operation.invoke(reporter));
 
@@ -158,9 +166,12 @@ class PlayerSessionReporterTest {
 
     @Test
     void loginStillReturnsControllerFailureAsLoginResult() {
-        PlayerSessionReporter reporter = reporterAnswering((subject, data, timeout) -> FakeNatsConnection.reply(
-                PlayerLoginResponse.newBuilder().setSuccess(false).setErrorMessage("login rejected").build().toByteArray()
-        ));
+        PlayerSessionReporter reporter =
+                reporterAnswering((subject, data, timeout) -> FakeNatsConnection.reply(PlayerLoginResponse.newBuilder()
+                        .setSuccess(false)
+                        .setErrorMessage("login rejected")
+                        .build()
+                        .toByteArray()));
 
         PlayerLogin login = new PlayerLogin(PLAYER_UUID, "Player", "Player", "proxy-1", "hash", "en_US", 1, true, null);
 
@@ -176,10 +187,14 @@ class PlayerSessionReporterTest {
         PlayerSessionReporter reporter = reporterAnswering((subject, data, timeout) -> {
             assertEquals(NETWORK_ID + ".player.login", subject);
             sentRequest.set(PlayerLoginRequest.parseFrom(data));
-            PlayerLoginResponse accepted = PlayerLoginResponse.newBuilder().setSuccess(true).setSessionId("session-1").build();
+            PlayerLoginResponse accepted = PlayerLoginResponse.newBuilder()
+                    .setSuccess(true)
+                    .setSessionId("session-1")
+                    .build();
             return FakeNatsConnection.reply(accepted.toByteArray());
         });
-        PlayerLogin login = new PlayerLogin(PLAYER_UUID, "Player", "Display", "proxy-1", "hash", "de_DE", 767, true, "skin");
+        PlayerLogin login =
+                new PlayerLogin(PLAYER_UUID, "Player", "Display", "proxy-1", "hash", "de_DE", 767, true, "skin");
 
         LoginResult result = reporter.reportLogin(login).join();
 
@@ -201,10 +216,12 @@ class PlayerSessionReporterTest {
         AtomicReference<PlayerLoginRequest> sentRequest = new AtomicReference<>();
         PlayerSessionReporter reporter = reporterAnswering((subject, data, timeout) -> {
             sentRequest.set(PlayerLoginRequest.parseFrom(data));
-            PlayerLoginResponse accepted = PlayerLoginResponse.newBuilder().setSuccess(true).build();
+            PlayerLoginResponse accepted =
+                    PlayerLoginResponse.newBuilder().setSuccess(true).build();
             return FakeNatsConnection.reply(accepted.toByteArray());
         });
-        PlayerLogin login = new PlayerLogin(PLAYER_UUID, "Player", "Player", "proxy-1", "hash", "en_US", 767, false, null);
+        PlayerLogin login =
+                new PlayerLogin(PLAYER_UUID, "Player", "Player", "proxy-1", "hash", "en_US", 767, false, null);
 
         reporter.reportLogin(login).join();
 

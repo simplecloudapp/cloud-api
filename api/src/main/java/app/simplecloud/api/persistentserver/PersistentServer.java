@@ -30,14 +30,16 @@ public interface PersistentServer extends ServerBase {
      *
      * @return true if active, false otherwise, or null if not set
      */
-    @Nullable Boolean isActive();
+    @Nullable
+    Boolean isActive();
 
     /**
      * Returns the priority of this persistent server.
      *
      * @return the priority, or null if not set
      */
-    @Nullable Integer getPriority();
+    @Nullable
+    Integer getPriority();
 
     /**
      * Returns the current player count of the running instance.
@@ -53,5 +55,6 @@ public interface PersistentServer extends ServerBase {
      *
      * @return the serverhost ID, or null if not set
      */
-    @Nullable String getServerhostId();
+    @Nullable
+    String getServerhostId();
 }

@@ -10,10 +10,13 @@ import java.util.List;
 public final class GroupStartQueueEntry {
     private final int failedStarts;
     private final int queuedStarts;
+
     @Nullable
     private final String serverGroupId;
+
     @Nullable
     private final String serverGroupName;
+
     private final List<GroupStartQueueItem> starts;
     private final int totalStarts;
 
@@ -23,8 +26,7 @@ public final class GroupStartQueueEntry {
             @Nullable String serverGroupId,
             @Nullable String serverGroupName,
             List<GroupStartQueueItem> starts,
-            int totalStarts
-    ) {
+            int totalStarts) {
         this.failedStarts = failedStarts;
         this.queuedStarts = queuedStarts;
         this.serverGroupId = serverGroupId;

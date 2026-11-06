@@ -137,21 +137,25 @@ public class CacheConfig {
         private static Map<EntityType, EntityCacheConfig> createDefaultEntityConfigs() {
             Map<EntityType, EntityCacheConfig> configs = new HashMap<>();
             // Servers: 3 seconds - metrics (CPU, memory, player count) may update without events
-            configs.put(EntityType.SERVER, EntityCacheConfig.builder()
-                    .staleTime(Duration.ofSeconds(3))
-                    .build());
+            configs.put(
+                    EntityType.SERVER,
+                    EntityCacheConfig.builder().staleTime(Duration.ofSeconds(3)).build());
             // Groups: 10 seconds - configuration rarely changes, events handle actual updates
-            configs.put(EntityType.GROUP, EntityCacheConfig.builder()
-                    .staleTime(Duration.ofSeconds(10))
-                    .build());
+            configs.put(
+                    EntityType.GROUP,
+                    EntityCacheConfig.builder()
+                            .staleTime(Duration.ofSeconds(10))
+                            .build());
             // Persistent servers: 10 seconds - similar to groups
-            configs.put(EntityType.PERSISTENT_SERVER, EntityCacheConfig.builder()
-                    .staleTime(Duration.ofSeconds(10))
-                    .build());
+            configs.put(
+                    EntityType.PERSISTENT_SERVER,
+                    EntityCacheConfig.builder()
+                            .staleTime(Duration.ofSeconds(10))
+                            .build());
             // Players: 5 seconds - balance between freshness and reducing load
-            configs.put(EntityType.PLAYER, EntityCacheConfig.builder()
-                    .staleTime(Duration.ofSeconds(5))
-                    .build());
+            configs.put(
+                    EntityType.PLAYER,
+                    EntityCacheConfig.builder().staleTime(Duration.ofSeconds(5)).build());
             return configs;
         }
 

@@ -81,9 +81,8 @@ class AdventureIntegrationTest {
                         .setTitle(AdventureComponent.newBuilder().setJson("{\"text\":\"Event\"}"))
                         .setProgress(1f))
                 .build();
-        SendBossBarRemoveRequest removeBossBar = SendBossBarRemoveRequest.newBuilder()
-                .setBossBarId("event")
-                .build();
+        SendBossBarRemoveRequest removeBossBar =
+                SendBossBarRemoveRequest.newBuilder().setBossBarId("event").build();
 
         nats.deliver(PLAYER_BOSS_BAR_SUBSCRIPTION, action(playerBossBarSubject, showBossBar.toByteArray()));
         nats.deliver(serverRemoveSubject, action(serverRemoveSubject, removeBossBar.toByteArray()));
@@ -94,8 +93,8 @@ class AdventureIntegrationTest {
 
     private void startIntegration() {
         PlayerAudiences playerAudiences = new FakePlayerAudiences(Map.of(PLAYER_ID, player), allPlayers);
-        AdventureIntegration integration = new AdventureIntegration(
-                nats.connection(), NETWORK_ID, playerAudiences, SERVER_ID, GROUP_NAME);
+        AdventureIntegration integration =
+                new AdventureIntegration(nats.connection(), NETWORK_ID, playerAudiences, SERVER_ID, GROUP_NAME);
         integration.start();
     }
 
@@ -107,10 +106,7 @@ class AdventureIntegrationTest {
     }
 
     private static Message action(String subject, byte[] data) {
-        return NatsMessage.builder()
-                .subject(subject)
-                .data(data)
-                .build();
+        return NatsMessage.builder().subject(subject).data(data).build();
     }
 
     private static final class RecordingAudience implements Audience {

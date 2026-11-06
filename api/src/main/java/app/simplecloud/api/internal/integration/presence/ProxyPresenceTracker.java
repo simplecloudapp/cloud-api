@@ -47,8 +47,7 @@ public final class ProxyPresenceTracker {
             String connectedServerName,
             String clientLanguage,
             int clientVersion,
-            boolean onlineMode
-    ) {
+            boolean onlineMode) {
         String normalizedPlayerId = normalize(playerId);
         TrackedPlayerMetadata metadata = players.get(normalizedPlayerId);
 
@@ -62,8 +61,7 @@ public final class ProxyPresenceTracker {
                 clientLanguage,
                 clientVersion,
                 onlineMode,
-                metadata != null ? metadata.getSessionId() : ""
-        );
+                metadata != null ? metadata.getSessionId() : "");
     }
 
     private static String normalize(String value) {

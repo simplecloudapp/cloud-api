@@ -15,8 +15,7 @@ public final class WorkflowExecutionResult {
             int totalServers,
             List<String> succeededServerIds,
             List<String> skippedServerIds,
-            Map<String, String> failedServers
-    ) {
+            Map<String, String> failedServers) {
         this.workflowId = workflowId;
         this.totalServers = totalServers;
         this.succeededServerIds = List.copyOf(succeededServerIds);

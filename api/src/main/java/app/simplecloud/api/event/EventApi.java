@@ -49,6 +49,4 @@ public interface EventApi {
      * @return the player event API
      */
     PlayerEventApi player();
-
 }
-

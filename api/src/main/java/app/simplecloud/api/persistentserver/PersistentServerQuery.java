@@ -15,8 +15,7 @@ public class PersistentServerQuery {
     private String serverhostId;
     private Integer limit;
 
-    public PersistentServerQuery() {
-    }
+    public PersistentServerQuery() {}
 
     @Nullable
     public List<String> getTags() {

@@ -43,6 +43,3 @@ public interface ServerUpdatedEvent {
      */
     String getTimestamp();
 }
-
-
-

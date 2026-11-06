@@ -43,8 +43,7 @@ final class PublicAddressDns implements Dns {
         for (InetAddress address : addresses) {
             if (!isPublic(address)) {
                 throw new UnknownHostException(
-                        hostname + " resolves to non-public address " + address.getHostAddress()
-                );
+                        hostname + " resolves to non-public address " + address.getHostAddress());
             }
         }
         return addresses;
@@ -83,13 +82,15 @@ final class PublicAddressDns implements Dns {
         int first = bytes[0] & 0xFF;
         int second = bytes[1] & 0xFF;
         int third = bytes[2] & 0xFF;
-        return first != 0                                                 // 0.0.0.0/8 "this network"
-                && !(first == 100 && (second & 0xC0) == 64)               // 100.64.0.0/10 carrier-grade NAT
-                && !(first == 192 && second == 0 && (third == 0 || third == 2)) // 192.0.0.0/24 IETF, 192.0.2.0/24 TEST-NET-1
-                && !(first == 198 && (second & 0xFE) == 18)               // 198.18.0.0/15 benchmarking
-                && !(first == 198 && second == 51 && third == 100)        // 198.51.100.0/24 TEST-NET-2
-                && !(first == 203 && second == 0 && third == 113)         // 203.0.113.0/24 TEST-NET-3
-                && first < 240;                                           // 240.0.0.0/4 reserved, incl. broadcast
+        return first != 0 // 0.0.0.0/8 "this network"
+                && !(first == 100 && (second & 0xC0) == 64) // 100.64.0.0/10 carrier-grade NAT
+                && !(first == 192
+                        && second == 0
+                        && (third == 0 || third == 2)) // 192.0.0.0/24 IETF, 192.0.2.0/24 TEST-NET-1
+                && !(first == 198 && (second & 0xFE) == 18) // 198.18.0.0/15 benchmarking
+                && !(first == 198 && second == 51 && third == 100) // 198.51.100.0/24 TEST-NET-2
+                && !(first == 203 && second == 0 && third == 113) // 203.0.113.0/24 TEST-NET-3
+                && first < 240; // 240.0.0.0/4 reserved, incl. broadcast
     }
 
     private static boolean isPublicIpv6(byte[] bytes) {

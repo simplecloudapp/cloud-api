@@ -34,22 +34,22 @@ public final class InlineBlueprintSupport {
         this(options, blueprintsApi, new ManifestServerUrlResolver(options));
     }
 
-    public InlineBlueprintSupport(CloudApiOptions options,
-                                  BlueprintsApi blueprintsApi,
-                                  ServerUrlResolver serverUrlResolver) {
+    public InlineBlueprintSupport(
+            CloudApiOptions options, BlueprintsApi blueprintsApi, ServerUrlResolver serverUrlResolver) {
         this.options = options;
         this.blueprintsApi = blueprintsApi;
         this.serverUrlResolver = serverUrlResolver;
     }
 
-    public void validateInlineBlueprintSource(@Nullable CreateBlueprintRequest createBlueprint,
-                                              @Nullable SourceConfig requestedSource) {
+    public void validateInlineBlueprintSource(
+            @Nullable CreateBlueprintRequest createBlueprint, @Nullable SourceConfig requestedSource) {
         if (createBlueprint == null || requestedSource == null) {
             return;
         }
 
         if (requestedSource.getType() != null && requestedSource.getType() != SourceType.BLUEPRINT) {
-            throw new IllegalArgumentException("createBlueprint requires source.type to be BLUEPRINT when source is provided");
+            throw new IllegalArgumentException(
+                    "createBlueprint requires source.type to be BLUEPRINT when source is provided");
         }
         if (hasText(requestedSource.getBlueprint())) {
             throw new IllegalArgumentException("createBlueprint cannot be combined with source.blueprint");
@@ -66,14 +66,12 @@ public final class InlineBlueprintSupport {
         }
 
         ModelsCreateBlueprintRequest apiRequest = convertCreateBlueprintRequest(blueprintName, request);
-        ModelsCreateBlueprintResponse response = blueprintsApi.createBlueprint(
-                options.getNetworkId(),
-                apiRequest
-        );
+        ModelsCreateBlueprintResponse response = blueprintsApi.createBlueprint(options.getNetworkId(), apiRequest);
 
         String blueprintId = response.getBlueprintId();
         if (blueprintId == null || blueprintId.isBlank()) {
-            throw new CloudApiException(CloudApiException.Reason.UNKNOWN, "Controller returned blueprint without a blueprint ID");
+            throw new CloudApiException(
+                    CloudApiException.Reason.UNKNOWN, "Controller returned blueprint without a blueprint ID");
         }
         return blueprintId;
     }
@@ -103,10 +101,7 @@ public final class InlineBlueprintSupport {
         ApiException lastDeleteFailure = null;
         for (int attempt = 1; attempt <= DELETE_MAX_ATTEMPTS; attempt++) {
             try {
-                blueprintsApi.deleteBlueprint(
-                        options.getNetworkId(),
-                        normalizedBlueprintId
-                );
+                blueprintsApi.deleteBlueprint(options.getNetworkId(), normalizedBlueprintId);
                 return;
             } catch (ApiException deleteFailure) {
                 int statusCode = deleteFailure.getCode();
@@ -135,10 +130,11 @@ public final class InlineBlueprintSupport {
      * @return the create failure converted to a {@link CloudApiException}, or a rollback failure wrapping it if
      * the blueprint could not be deleted
      */
-    public CloudApiException rollBackAfterCreateFailure(String resourceKind,
-                                                        @Nullable String blueprintId,
-                                                        ApiException createFailure,
-                                                        CreatedResourceCheck createdResource) {
+    public CloudApiException rollBackAfterCreateFailure(
+            String resourceKind,
+            @Nullable String blueprintId,
+            ApiException createFailure,
+            CreatedResourceCheck createdResource) {
         if (blueprintId == null) {
             return ApiExceptions.from(createFailure);
         }
@@ -161,8 +157,7 @@ public final class InlineBlueprintSupport {
             createFailure.addSuppressed(deleteFailure);
             CloudApiException rollbackFailure = ApiExceptions.from(
                     "Failed to create " + resourceKind + " and rollback inline blueprint " + blueprintId,
-                    createFailure
-            );
+                    createFailure);
             rollbackFailure.addSuppressed(deleteFailure);
             return rollbackFailure;
         }
@@ -189,7 +184,8 @@ public final class InlineBlueprintSupport {
         return false;
     }
 
-    private ModelsCreateBlueprintRequest convertCreateBlueprintRequest(String blueprintName, CreateBlueprintRequest request) {
+    private ModelsCreateBlueprintRequest convertCreateBlueprintRequest(
+            String blueprintName, CreateBlueprintRequest request) {
         ModelsCreateBlueprintRequest apiRequest = new ModelsCreateBlueprintRequest();
         apiRequest.setName(blueprintName);
         apiRequest.setConfigurator(request.getConfigurator());
@@ -227,8 +223,7 @@ public final class InlineBlueprintSupport {
         String resolvedServerUrl = normalize(serverUrlResolver.resolve(request));
         if (resolvedServerUrl == null) {
             throw new IllegalArgumentException(
-                    "No manifest download link found for software '" + software + "' and version '" + version + "'"
-            );
+                    "No manifest download link found for software '" + software + "' and version '" + version + "'");
         }
         return resolvedServerUrl;
     }
@@ -262,7 +257,8 @@ public final class InlineBlueprintSupport {
 
     @FunctionalInterface
     public interface ServerUrlResolver {
-        @Nullable String resolve(CreateBlueprintRequest request);
+        @Nullable
+        String resolve(CreateBlueprintRequest request);
     }
 
     /**

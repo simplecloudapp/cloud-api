@@ -43,10 +43,8 @@ final class SimpleCloudNatsListener extends ErrorListenerLoggerImpl implements C
     }
 
     static boolean isRoutineChannelClosure(Exception exception) {
-        return exception instanceof IOException && (
-                READ_CHANNEL_CLOSED.equals(exception.getMessage())
-                        || exception instanceof SocketException
-                        && CONNECTION_RESET.equals(exception.getMessage())
-        );
+        return exception instanceof IOException
+                && (READ_CHANNEL_CLOSED.equals(exception.getMessage())
+                        || exception instanceof SocketException && CONNECTION_RESET.equals(exception.getMessage()));
     }
 }

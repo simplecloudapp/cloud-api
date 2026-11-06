@@ -42,8 +42,7 @@ public final class LuckPermsPrimaryGroupSynchronizer implements LuckPermsSynchro
             LuckPerms luckPerms,
             Object eventSubscriber,
             OnlinePlayers onlinePlayers,
-            FailureLog failureLog
-    ) {
+            FailureLog failureLog) {
         this.cloudApi = cloudApi;
         this.luckPerms = luckPerms;
         this.eventSubscriber = eventSubscriber;
@@ -55,11 +54,9 @@ public final class LuckPermsPrimaryGroupSynchronizer implements LuckPermsSynchro
         if (subscription != null) {
             return;
         }
-        subscription = luckPerms.getEventBus().subscribe(
-                eventSubscriber,
-                UserDataRecalculateEvent.class,
-                event -> synchronize(event.getUser())
-        );
+        subscription = luckPerms
+                .getEventBus()
+                .subscribe(eventSubscriber, UserDataRecalculateEvent.class, event -> synchronize(event.getUser()));
         running = true;
     }
 
@@ -134,7 +131,8 @@ public final class LuckPermsPrimaryGroupSynchronizer implements LuckPermsSynchro
         });
     }
 
-    private CompletableFuture<Boolean> storePrimaryGroupIfChanged(UUID playerId, CloudPlayer cloudPlayer, String primaryGroup) {
+    private CompletableFuture<Boolean> storePrimaryGroupIfChanged(
+            UUID playerId, CloudPlayer cloudPlayer, String primaryGroup) {
         String propertyValue = cloudPlayer.getProperties().get(PRIMARY_GROUP_PROPERTY);
         if (primaryGroup.equals(propertyValue)) {
             return CompletableFuture.completedFuture(true);

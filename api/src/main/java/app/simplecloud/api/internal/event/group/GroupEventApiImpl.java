@@ -73,5 +73,4 @@ public class GroupEventApiImpl implements GroupEventApi {
         });
         return new SubscriptionImpl(natsSub);
     }
-
 }

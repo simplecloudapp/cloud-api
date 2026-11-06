@@ -8,13 +8,14 @@ public class PlayerProfile {
     private String id;
     private UUID playerId;
     private String name;
+
     @Nullable
     private String texture;
+
     @Nullable
     private String createdAt;
 
-    public PlayerProfile() {
-    }
+    public PlayerProfile() {}
 
     public String getId() {
         return id;

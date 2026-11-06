@@ -34,4 +34,3 @@ class BlueprintDeletedEventImpl implements BlueprintDeletedEvent {
         return Instant.ofEpochSecond(delegate.getTimestamp()).toString();
     }
 }
-

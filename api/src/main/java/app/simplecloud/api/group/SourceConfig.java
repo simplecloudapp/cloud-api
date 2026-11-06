@@ -5,13 +5,14 @@ import org.jetbrains.annotations.Nullable;
 public class SourceConfig {
     @Nullable
     private SourceType type;
+
     @Nullable
     private String blueprint;
+
     @Nullable
     private String image;
 
-    public SourceConfig() {
-    }
+    public SourceConfig() {}
 
     public static Builder builder() {
         return new Builder();

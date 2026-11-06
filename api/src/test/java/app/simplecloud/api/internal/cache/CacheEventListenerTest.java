@@ -22,8 +22,7 @@ import static org.junit.jupiter.api.Assertions.assertTrue;
 
 class CacheEventListenerTest {
 
-    private static final Subscription NO_OP_SUBSCRIPTION = () -> {
-    };
+    private static final Subscription NO_OP_SUBSCRIPTION = () -> {};
 
     @Test
     void shutdown_ignoresEventCallbackAlreadyQueuedByDispatcher() {
@@ -102,11 +101,9 @@ class CacheEventListenerTest {
                 serverUpdated = cast(handler);
             }
         });
-        private final GroupEventApi groupEventApi = eventProxy(GroupEventApi.class, (methodName, handler) -> {
-        });
+        private final GroupEventApi groupEventApi = eventProxy(GroupEventApi.class, (methodName, handler) -> {});
         private final PersistentServerEventApi persistentServerEventApi =
-                eventProxy(PersistentServerEventApi.class, (methodName, handler) -> {
-                });
+                eventProxy(PersistentServerEventApi.class, (methodName, handler) -> {});
 
         @Override
         public GroupEventApi group() {
@@ -137,13 +134,10 @@ class CacheEventListenerTest {
     @SuppressWarnings("unchecked")
     private static <T> T eventProxy(Class<T> eventApiType, HandlerRecorder recorder) {
         return (T) Proxy.newProxyInstance(
-                eventApiType.getClassLoader(),
-                new Class<?>[]{eventApiType},
-                (proxy, method, args) -> {
+                eventApiType.getClassLoader(), new Class<?>[] {eventApiType}, (proxy, method, args) -> {
                     recorder.record(method.getName(), args[0]);
                     return NO_OP_SUBSCRIPTION;
-                }
-        );
+                });
     }
 
     @SuppressWarnings("unchecked")

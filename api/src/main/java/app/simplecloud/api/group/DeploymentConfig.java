@@ -4,6 +4,7 @@ import org.jetbrains.annotations.Nullable;
 
 public class DeploymentConfig {
     private DeploymentHost[] hosts;
+
     @Nullable
     private DeploymentStrategy strategy;
 
@@ -58,4 +59,3 @@ public class DeploymentConfig {
         }
     }
 }
-

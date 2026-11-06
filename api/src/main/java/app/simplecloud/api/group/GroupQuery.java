@@ -5,13 +5,13 @@ import org.jetbrains.annotations.Nullable;
 public class GroupQuery {
     @Nullable
     private GroupServerType type;
+
     private String tag;
     private String sortBy;
     private String sortOrder;
     private Integer limit;
 
-    public GroupQuery() {
-    }
+    public GroupQuery() {}
 
     @Nullable
     public GroupServerType getType() {

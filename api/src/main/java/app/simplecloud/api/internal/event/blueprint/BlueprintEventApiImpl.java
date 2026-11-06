@@ -32,7 +32,8 @@ public class BlueprintEventApiImpl implements BlueprintEventApi {
         io.nats.client.Subscription natsSub = dispatcher.subscribe(subject, (Message msg) -> {
             try {
                 BlueprintCreatedEvent protoEvent = BlueprintCreatedEvent.parseFrom(msg.getData());
-                app.simplecloud.api.event.blueprint.BlueprintCreatedEvent event = new BlueprintCreatedEventImpl(protoEvent);
+                app.simplecloud.api.event.blueprint.BlueprintCreatedEvent event =
+                        new BlueprintCreatedEventImpl(protoEvent);
                 handler.accept(event);
             } catch (Exception e) {
                 LOGGER.log(Level.SEVERE, "Error handling BlueprintCreatedEvent", e);
@@ -47,7 +48,8 @@ public class BlueprintEventApiImpl implements BlueprintEventApi {
         io.nats.client.Subscription natsSub = dispatcher.subscribe(subject, (Message msg) -> {
             try {
                 BlueprintUpdatedEvent protoEvent = BlueprintUpdatedEvent.parseFrom(msg.getData());
-                app.simplecloud.api.event.blueprint.BlueprintUpdatedEvent event = new BlueprintUpdatedEventImpl(protoEvent);
+                app.simplecloud.api.event.blueprint.BlueprintUpdatedEvent event =
+                        new BlueprintUpdatedEventImpl(protoEvent);
                 handler.accept(event);
             } catch (Exception e) {
                 LOGGER.log(Level.SEVERE, "Error handling BlueprintUpdatedEvent", e);
@@ -62,7 +64,8 @@ public class BlueprintEventApiImpl implements BlueprintEventApi {
         io.nats.client.Subscription natsSub = dispatcher.subscribe(subject, (Message msg) -> {
             try {
                 BlueprintDeletedEvent protoEvent = BlueprintDeletedEvent.parseFrom(msg.getData());
-                app.simplecloud.api.event.blueprint.BlueprintDeletedEvent event = new BlueprintDeletedEventImpl(protoEvent);
+                app.simplecloud.api.event.blueprint.BlueprintDeletedEvent event =
+                        new BlueprintDeletedEventImpl(protoEvent);
                 handler.accept(event);
             } catch (Exception e) {
                 LOGGER.log(Level.SEVERE, "Error handling BlueprintDeletedEvent", e);
@@ -70,5 +73,4 @@ public class BlueprintEventApiImpl implements BlueprintEventApi {
         });
         return new SubscriptionImpl(natsSub);
     }
-
 }

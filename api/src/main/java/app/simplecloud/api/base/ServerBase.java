@@ -32,21 +32,24 @@ public interface ServerBase {
      *
      * @return the minimum memory, or null if not set
      */
-    @Nullable Integer getMinMemory();
+    @Nullable
+    Integer getMinMemory();
 
     /**
      * Returns the maximum memory allocation (in MB).
      *
      * @return the maximum memory, or null if not set
      */
-    @Nullable Integer getMaxMemory();
+    @Nullable
+    Integer getMaxMemory();
 
     /**
      * Returns the maximum number of players.
      *
      * @return the max players, or null if not set
      */
-    @Nullable Integer getMaxPlayers();
+    @Nullable
+    Integer getMaxPlayers();
 
     /**
      * Returns the source configuration.
@@ -55,7 +58,8 @@ public interface ServerBase {
      *
      * @return the source config, or null if not set
      */
-    @Nullable SourceConfig getSource();
+    @Nullable
+    SourceConfig getSource();
 
     /**
      * Returns the workflows configuration.
@@ -64,21 +68,24 @@ public interface ServerBase {
      *
      * @return the workflows config, or null if not set
      */
-    @Nullable WorkflowsConfig getWorkflows();
+    @Nullable
+    WorkflowsConfig getWorkflows();
 
     /**
      * Returns custom properties.
      *
      * @return the properties map, or null if none set
      */
-    @Nullable Map<String, Object> getProperties();
+    @Nullable
+    Map<String, Object> getProperties();
 
     /**
      * Returns tags for organization and filtering.
      *
      * @return the list of tags, or null if none set
      */
-    @Nullable List<String> getTags();
+    @Nullable
+    List<String> getTags();
 
     /**
      * Returns the type (SERVER or PROXY).
@@ -119,4 +126,3 @@ public interface ServerBase {
         return this instanceof app.simplecloud.api.persistentserver.PersistentServer;
     }
 }
-

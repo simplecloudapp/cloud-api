@@ -8,20 +8,24 @@ public class PlayerSession {
     private String id;
     private String networkId;
     private UUID playerId;
+
     @Nullable
     private String addressHash;
+
     private int clientVersion;
     private boolean onlineMode;
     private String loginTime;
+
     @Nullable
     private String logoutTime;
+
     @Nullable
     private Long durationSeconds;
+
     @Nullable
     private PlayerClientSettings clientSettings;
 
-    public PlayerSession() {
-    }
+    public PlayerSession() {}
 
     public String getId() {
         return id;

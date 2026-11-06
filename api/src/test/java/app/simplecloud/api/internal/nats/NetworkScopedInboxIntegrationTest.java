@@ -24,14 +24,14 @@ class NetworkScopedInboxIntegrationTest {
 
         String subject = "network-1.test." + UUID.randomUUID();
         try (Connection responder = Nats.connect(url)) {
-            responder.createDispatcher(message -> responder.publish(
-                    message.getReplyTo(), message.getReplyTo().getBytes(StandardCharsets.UTF_8)
-            )).subscribe(subject);
+            responder
+                    .createDispatcher(message -> responder.publish(
+                            message.getReplyTo(), message.getReplyTo().getBytes(StandardCharsets.UTF_8)))
+                    .subscribe(subject);
             responder.flush(Duration.ofSeconds(5));
 
-            NatsFailoverConnectionManager manager = new NatsFailoverConnectionManager(
-                    url, "network-1", "secret", Duration.ofSeconds(30)
-            );
+            NatsFailoverConnectionManager manager =
+                    new NatsFailoverConnectionManager(url, "network-1", "secret", Duration.ofSeconds(30));
             try {
                 Connection connection = manager.getConnection();
                 awaitConnected(connection);

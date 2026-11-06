@@ -34,4 +34,3 @@ class PersistentServerStoppedEventImpl implements PersistentServerStoppedEvent {
         return Instant.ofEpochSecond(delegate.getTimestamp()).toString();
     }
 }
-

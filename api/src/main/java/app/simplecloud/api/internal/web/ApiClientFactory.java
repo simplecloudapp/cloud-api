@@ -15,8 +15,7 @@ import java.time.Duration;
  */
 public final class ApiClientFactory {
 
-    private ApiClientFactory() {
-    }
+    private ApiClientFactory() {}
 
     /**
      * Creates an isolated client. Generated API no-arg constructors use a global
@@ -75,8 +74,7 @@ public final class ApiClientFactory {
                         "Invalid controller response: " + e.getMessage(),
                         e,
                         response.code(),
-                        response.headers().toMultimap()
-                );
+                        response.headers().toMultimap());
             }
         }
     }

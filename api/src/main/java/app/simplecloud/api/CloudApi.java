@@ -143,7 +143,5 @@ public interface CloudApi extends AutoCloseable {
     QueryCache cache();
 
     @Override
-    default void close() {
-    }
-
+    default void close() {}
 }

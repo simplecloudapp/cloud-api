@@ -64,16 +64,17 @@ class ComponentHeaderIsolationTest {
     @Test
     void requestsKeepTheirOwnComponentRegardlessOfConstructionOrder() {
         try (CloudApi untaggedBefore = CloudApi.create(options(null));
-             CloudApi essentials = CloudApi.create(options("proxy-essentials"));
-             CloudApi anotherPlugin = CloudApi.create(options("another-plugin"));
-             CloudApi untaggedAfter = CloudApi.create(options(null));
-             CloudApi blank = CloudApi.create(options("  "))) {
+                CloudApi essentials = CloudApi.create(options("proxy-essentials"));
+                CloudApi anotherPlugin = CloudApi.create(options("another-plugin"));
+                CloudApi untaggedAfter = CloudApi.create(options(null));
+                CloudApi blank = CloudApi.create(options("  "))) {
             for (CloudApi api : List.of(untaggedBefore, essentials, anotherPlugin, untaggedAfter, blank, essentials)) {
                 assertEquals(0, api.player().getOnlinePlayerCount().join());
             }
         }
 
-        assertEquals(Arrays.asList(null, "proxy-essentials", "another-plugin", null, null, "proxy-essentials"), components);
+        assertEquals(
+                Arrays.asList(null, "proxy-essentials", "another-plugin", null, null, "proxy-essentials"), components);
     }
 
     @Test
@@ -95,7 +96,7 @@ class ComponentHeaderIsolationTest {
     @Test
     void createSharesOneHttpClientAcrossAllApisButNotBetweenInstances() throws Exception {
         try (CloudApi first = CloudApi.create(options("proxy-essentials"));
-             CloudApi second = CloudApi.create(options("another-plugin"))) {
+                CloudApi second = CloudApi.create(options("another-plugin"))) {
             ApiClient firstClient = httpClient(first.player(), "playersApi");
             ApiClient secondClient = httpClient(second.player(), "playersApi");
             assertNotSame(firstClient, secondClient);
@@ -123,8 +124,7 @@ class ComponentHeaderIsolationTest {
                 options -> new ServerApiImpl(options, new NoOpQueryCache()),
                 options -> new GroupApiImpl(options, new NoOpQueryCache()),
                 options -> new PersistentServerApiImpl(options, new NoOpQueryCache()),
-                options -> new PlayerApiImpl(options, null)
-        );
+                options -> new PlayerApiImpl(options, null));
 
         for (Consumer<CloudApiOptions> constructor : constructors) {
             constructor.accept(options("proxy-essentials"));

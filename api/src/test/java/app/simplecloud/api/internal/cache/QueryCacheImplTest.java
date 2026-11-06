@@ -58,14 +58,16 @@ class QueryCacheImplTest {
         AtomicInteger calls = new AtomicInteger();
 
         cache.fetch(key, () -> {
-            calls.incrementAndGet();
-            return CompletableFuture.completedFuture("v1");
-        }).get(1, TimeUnit.SECONDS);
+                    calls.incrementAndGet();
+                    return CompletableFuture.completedFuture("v1");
+                })
+                .get(1, TimeUnit.SECONDS);
 
         String result = cache.fetch(key, () -> {
-            calls.incrementAndGet();
-            return CompletableFuture.completedFuture("v2");
-        }).get(1, TimeUnit.SECONDS);
+                    calls.incrementAndGet();
+                    return CompletableFuture.completedFuture("v2");
+                })
+                .get(1, TimeUnit.SECONDS);
 
         assertEquals("v1", result);
         assertEquals(1, calls.get(), "second call must be served from cache");
@@ -110,12 +112,8 @@ class QueryCacheImplTest {
 
         CompletableFuture<String> result = cache.fetch(key, () -> neverCompletes);
 
-        ExecutionException ex = assertThrows(
-                ExecutionException.class,
-                () -> result.get(1, TimeUnit.SECONDS)
-        );
-        assertUnavailable(ex.getCause(),
-                "hanging fetcher must time out via in-flight timeout");
+        ExecutionException ex = assertThrows(ExecutionException.class, () -> result.get(1, TimeUnit.SECONDS));
+        assertUnavailable(ex.getCause(), "hanging fetcher must time out via in-flight timeout");
     }
 
     /**
@@ -133,9 +131,10 @@ class QueryCacheImplTest {
 
         AtomicInteger calls = new AtomicInteger();
         String recovered = cache.fetch(key, () -> {
-            calls.incrementAndGet();
-            return CompletableFuture.completedFuture("fresh");
-        }).get(1, TimeUnit.SECONDS);
+                    calls.incrementAndGet();
+                    return CompletableFuture.completedFuture("fresh");
+                })
+                .get(1, TimeUnit.SECONDS);
 
         assertEquals("fresh", recovered);
         assertEquals(1, calls.get(), "fetcher must be invoked fresh; zombie future must not be reused");
@@ -160,8 +159,7 @@ class QueryCacheImplTest {
         lateCompletion.complete("late-data");
         Thread.sleep(100);
 
-        assertNull(cache.get(key),
-                "cache must not be populated by a fetcher that completed after the timeout");
+        assertNull(cache.get(key), "cache must not be populated by a fetcher that completed after the timeout");
     }
 
     @Test
@@ -175,8 +173,8 @@ class QueryCacheImplTest {
         CompletableFuture<String> firstCall = cache.fetch(key, () -> failing);
         assertThrows(ExecutionException.class, () -> firstCall.get(1, TimeUnit.SECONDS));
 
-        String recovered = cache.fetch(key, () -> CompletableFuture.completedFuture("ok"))
-                .get(1, TimeUnit.SECONDS);
+        String recovered =
+                cache.fetch(key, () -> CompletableFuture.completedFuture("ok")).get(1, TimeUnit.SECONDS);
         assertEquals("ok", recovered, "failed attempt must not leave a zombie in-flight entry");
     }
 
@@ -187,8 +185,7 @@ class QueryCacheImplTest {
      * and subsequent callers are not trapped in the zombie dedup slot.
      */
     @Test
-    void fetchWithDeduplication_supplierReturnsNeverCompletingFuture_returnedFutureStillCompletes()
-            throws Exception {
+    void fetchWithDeduplication_supplierReturnsNeverCompletingFuture_returnedFutureStillCompletes() throws Exception {
         QueryCacheImpl cache = new QueryCacheImpl(baseConfig(), SHORT_TIMEOUT);
         QueryKey key = QueryKey.of("test", "never-completes");
         CompletableFuture<String> neverCompletes = new CompletableFuture<>();
@@ -199,10 +196,9 @@ class QueryCacheImplTest {
         ExecutionException ex = assertThrows(
                 ExecutionException.class,
                 () -> returned.get(1, TimeUnit.SECONDS),
-                "fetchWithDeduplication must return a future that eventually completes"
-        );
-        assertUnavailable(ex.getCause(),
-                "in-flight timeout must complete the future exceptionally with CloudApiException");
+                "fetchWithDeduplication must return a future that eventually completes");
+        assertUnavailable(
+                ex.getCause(), "in-flight timeout must complete the future exceptionally with CloudApiException");
         assertTrue(returned.isDone(), "returned future must be marked done after timeout");
     }
 

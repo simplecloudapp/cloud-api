@@ -28,8 +28,7 @@ public class PlayerQuery {
     private Integer limit;
     private Integer offset;
 
-    public PlayerQuery() {
-    }
+    public PlayerQuery() {}
 
     public static PlayerQuery create() {
         return new PlayerQuery();

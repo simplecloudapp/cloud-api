@@ -29,21 +29,24 @@ public interface Group extends ServerBase {
      *
      * @return the deployment config, or null if not set
      */
-    @Nullable DeploymentConfig getDeployment();
+    @Nullable
+    DeploymentConfig getDeployment();
 
     /**
      * Returns whether this group is active.
      *
      * @return active flag, or null if not available
      */
-    @Nullable Boolean isActive();
+    @Nullable
+    Boolean isActive();
 
     /**
      * Returns the priority for this group.
      *
      * @return priority, or null if not available
      */
-    @Nullable Integer getPriority();
+    @Nullable
+    Integer getPriority();
 
     /**
      * Returns the scaling configuration for this group.
@@ -52,5 +55,6 @@ public interface Group extends ServerBase {
      *
      * @return the scaling config, or null if not set
      */
-    @Nullable ScalingConfig getScaling();
+    @Nullable
+    ScalingConfig getScaling();
 }

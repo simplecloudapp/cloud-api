@@ -73,9 +73,10 @@ public final class CreateRequestDefaults {
 
     public DeploymentConfig defaultDeployment(@Nullable DeploymentConfig deployment) {
         return DeploymentConfig.builder()
-                .strategy(deployment != null && deployment.getStrategy() != null
-                        ? deployment.getStrategy()
-                        : DeploymentStrategy.BLACKLIST)
+                .strategy(
+                        deployment != null && deployment.getStrategy() != null
+                                ? deployment.getStrategy()
+                                : DeploymentStrategy.BLACKLIST)
                 .hosts(copyHosts(deployment != null ? deployment.getHosts() : null))
                 .build();
     }
@@ -91,9 +92,7 @@ public final class CreateRequestDefaults {
                     .build();
         }
 
-        double playerThreshold = scaling.hasPlayerThreshold()
-                ? scaling.getPlayerThreshold()
-                : DEFAULT_PLAYER_THRESHOLD;
+        double playerThreshold = scaling.hasPlayerThreshold() ? scaling.getPlayerThreshold() : DEFAULT_PLAYER_THRESHOLD;
         if (scaling.hasPlayerThreshold() && (playerThreshold < 0 || playerThreshold > 1)) {
             throw new IllegalArgumentException("playerThreshold must be between 0 and 1");
         }
@@ -109,8 +108,8 @@ public final class CreateRequestDefaults {
     }
 
     @Nullable
-    public CreateBlueprintRequest defaultInlineBlueprint(@Nullable CreateBlueprintRequest createBlueprint,
-                                                         WorkflowsConfig workflows) {
+    public CreateBlueprintRequest defaultInlineBlueprint(
+            @Nullable CreateBlueprintRequest createBlueprint, WorkflowsConfig workflows) {
         if (createBlueprint == null) {
             return null;
         }
@@ -122,25 +121,27 @@ public final class CreateRequestDefaults {
                 .serverSoftware(createBlueprint.getServerSoftware())
                 .serverUrl(createBlueprint.getServerUrl())
                 .softwareVersion(createBlueprint.getSoftwareVersion())
-                .workflowSteps(createBlueprint.getWorkflowSteps() != null
-                        ? List.copyOf(createBlueprint.getWorkflowSteps())
-                        : List.copyOf(Objects.requireNonNull(Objects.requireNonNull(workflows.getWhen()).getStart())))
+                .workflowSteps(
+                        createBlueprint.getWorkflowSteps() != null
+                                ? List.copyOf(createBlueprint.getWorkflowSteps())
+                                : List.copyOf(Objects.requireNonNull(Objects.requireNonNull(workflows.getWhen())
+                                        .getStart())))
                 .build();
     }
 
     private ScaleDownConfig defaultScaleDown(@Nullable ScaleDownConfig scaleDown) {
         return ScaleDownConfig.builder()
-                .idleTime(scaleDown != null && scaleDown.getIdleTime() != null
-                        ? scaleDown.getIdleTime()
-                        : DEFAULT_SCALE_DOWN_IDLE_TIME)
+                .idleTime(
+                        scaleDown != null && scaleDown.getIdleTime() != null
+                                ? scaleDown.getIdleTime()
+                                : DEFAULT_SCALE_DOWN_IDLE_TIME)
                 .ignorePlayers(scaleDown == null || !scaleDown.hasIgnorePlayers() || scaleDown.isIgnorePlayers())
                 .build();
     }
 
     private RuntimeConfig defaultRuntimeConfig(@Nullable RuntimeConfig runtimeConfig) {
-        RuntimeType effectiveType = runtimeConfig != null && runtimeConfig.getType() != null
-                ? runtimeConfig.getType()
-                : RuntimeType.JAVA;
+        RuntimeType effectiveType =
+                runtimeConfig != null && runtimeConfig.getType() != null ? runtimeConfig.getType() : RuntimeType.JAVA;
 
         Map<String, Object> runtimeWith = new LinkedHashMap<>();
         if (effectiveType == RuntimeType.JAVA) {

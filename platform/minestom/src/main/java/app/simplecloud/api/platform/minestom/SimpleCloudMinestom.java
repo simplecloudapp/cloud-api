@@ -3,8 +3,8 @@ package app.simplecloud.api.platform.minestom;
 import app.simplecloud.api.CloudApi;
 import app.simplecloud.api.internal.CloudApiImpl;
 import app.simplecloud.api.internal.integration.adventure.AdventureIntegration;
-import app.simplecloud.api.platform.shared.player.OnlinePlayerTracker;
 import app.simplecloud.api.platform.shared.PlayerSynchronizer;
+import app.simplecloud.api.platform.shared.player.OnlinePlayerTracker;
 import app.simplecloud.api.runtime.SimpleCloudRuntime;
 import net.minestom.server.MinecraftServer;
 import net.minestom.server.entity.Player;
@@ -33,11 +33,7 @@ public final class SimpleCloudMinestom {
         String serverId = SimpleCloudRuntime.serverId();
         String groupName = SimpleCloudRuntime.groupName();
         this.adventureIntegration = new AdventureIntegration(
-                cloudApi,
-                new MinestomPlayerAudiences(),
-                serverId,
-                groupName.isBlank() ? serverId : groupName
-        );
+                cloudApi, new MinestomPlayerAudiences(), serverId, groupName.isBlank() ? serverId : groupName);
         this.playerSynchronizer = new PlayerSynchronizer(cloudApi, onlinePlayerTracker);
     }
 

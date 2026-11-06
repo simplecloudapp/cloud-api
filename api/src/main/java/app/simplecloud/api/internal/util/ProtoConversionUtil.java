@@ -7,8 +7,7 @@ import app.simplecloud.api.server.ServerState;
  */
 public final class ProtoConversionUtil {
 
-    private ProtoConversionUtil() {
-    }
+    private ProtoConversionUtil() {}
 
     public static String convertServerStateToString(build.buf.gen.simplecloud.controller.v2.ServerState protoState) {
         if (protoState == null) {
@@ -89,5 +88,4 @@ public final class ProtoConversionUtil {
 
         return name;
     }
-
 }

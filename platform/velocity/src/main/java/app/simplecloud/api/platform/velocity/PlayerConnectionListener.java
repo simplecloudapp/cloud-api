@@ -4,8 +4,8 @@ import app.simplecloud.api.internal.integration.player.LoginResult;
 import app.simplecloud.api.internal.integration.player.PlayerLogin;
 import app.simplecloud.api.internal.integration.player.PlayerSessionReporter;
 import app.simplecloud.api.internal.integration.presence.ProxyPresenceTracker;
-import app.simplecloud.api.platform.shared.luckperms.LuckPermsSynchronizer;
 import app.simplecloud.api.platform.shared.PlayerSynchronizer;
+import app.simplecloud.api.platform.shared.luckperms.LuckPermsSynchronizer;
 import app.simplecloud.api.player.PlayerClientSettings;
 import com.velocitypowered.api.event.EventTask;
 import com.velocitypowered.api.event.Subscribe;
@@ -27,7 +27,7 @@ import java.util.concurrent.TimeUnit;
 
 public class PlayerConnectionListener {
 
-    private static final Logger logger = LoggerFactory.getLogger(PlayerConnectionListener.class);
+    private static final Logger LOGGER = LoggerFactory.getLogger(PlayerConnectionListener.class);
     private static final long LOGIN_WAIT_SECONDS = 5;
 
     private final PlayerSynchronizer playerSynchronizer;
@@ -41,8 +41,7 @@ public class PlayerConnectionListener {
             PlayerSessionReporter playerSessionReporter,
             ProxyPresenceTracker proxyPresenceTracker,
             String proxyName,
-            LuckPermsSynchronizer luckPermsSynchronizer
-    ) {
+            LuckPermsSynchronizer luckPermsSynchronizer) {
         this.playerSynchronizer = playerSynchronizer;
         this.playerSessionReporter = playerSessionReporter;
         this.proxyPresenceTracker = proxyPresenceTracker;
@@ -66,7 +65,9 @@ public class PlayerConnectionListener {
 
         String connectedProxyName = proxyName != null && !proxyName.isBlank() ? proxyName : "unknown";
         String addressHash = String.valueOf(player.getRemoteAddress().hashCode());
-        String clientLanguage = player.getEffectiveLocale() != null ? player.getEffectiveLocale().toString() : "en_US";
+        String clientLanguage = player.getEffectiveLocale() != null
+                ? player.getEffectiveLocale().toString()
+                : "en_US";
         PlayerLogin login = new PlayerLogin(
                 playerId,
                 player.getUsername(),
@@ -76,13 +77,12 @@ public class PlayerConnectionListener {
                 clientLanguage,
                 player.getProtocolVersion().getProtocol(),
                 player.isOnlineMode(),
-                texture
-        );
+                texture);
 
         CompletableFuture<LoginResult> loginReport = playerSessionReporter.reportLogin(login);
         CompletableFuture<Void> loginApplied = loginReport.thenAccept(result -> applyLoginResult(player, result));
         CompletableFuture<Void> registration = loginApplied.exceptionally(failure -> {
-            logger.error("Failed to send login event for {}: {}", player.getUsername(), failure.getMessage());
+            LOGGER.error("Failed to send login event for {}: {}", player.getUsername(), failure.getMessage());
             return null;
         });
 
@@ -94,7 +94,7 @@ public class PlayerConnectionListener {
 
     private void applyLoginResult(Player player, LoginResult result) {
         if (!result.isSuccess()) {
-            logger.warn("Login failed for {}: {}", player.getUsername(), result.getErrorMessage());
+            LOGGER.warn("Login failed for {}: {}", player.getUsername(), result.getErrorMessage());
             return;
         }
         UUID playerId = player.getUniqueId();
@@ -111,11 +111,10 @@ public class PlayerConnectionListener {
         Player player = event.getPlayer();
         UUID playerId = player.getUniqueId();
 
-        playerSessionReporter.reportDisconnect(playerId)
-                .exceptionally(e -> {
-                    logger.error("Failed to send disconnect event for {}: {}", player.getUsername(), e.getMessage());
-                    return null;
-                });
+        playerSessionReporter.reportDisconnect(playerId).exceptionally(e -> {
+            LOGGER.error("Failed to send disconnect event for {}: {}", player.getUsername(), e.getMessage());
+            return null;
+        });
         proxyPresenceTracker.remove(playerId.toString());
         luckPermsSynchronizer.forget(playerId);
 
@@ -125,7 +124,8 @@ public class PlayerConnectionListener {
     @Subscribe
     public void onPlayerSettingsChanged(PlayerSettingsChangedEvent event) {
         Player player = event.getPlayer();
-        String sessionId = proxyPresenceTracker.getSessionId(player.getUniqueId().toString());
+        String sessionId =
+                proxyPresenceTracker.getSessionId(player.getUniqueId().toString());
         // Settings sent before the login completed are picked up once the session exists.
         if (sessionId == null) {
             return;
@@ -139,32 +139,36 @@ public class PlayerConnectionListener {
         Player player = event.getPlayer();
         String newServer = event.getServer().getServerInfo().getName();
 
-        playerSessionReporter.reportServerSwitch(player.getUniqueId(), newServer)
+        playerSessionReporter
+                .reportServerSwitch(player.getUniqueId(), newServer)
                 .exceptionally(e -> {
-                    logger.error("Failed to send server switch event for {}: {}", player.getUsername(), e.getMessage());
+                    LOGGER.error("Failed to send server switch event for {}: {}", player.getUsername(), e.getMessage());
                     return null;
                 });
     }
 
     private void sendClientSettings(Player player, String sessionId, PlayerSettings settings) {
-        playerSessionReporter.reportClientSettings(sessionId, toClientSettings(settings))
+        playerSessionReporter
+                .reportClientSettings(sessionId, toClientSettings(settings))
                 .exceptionally(e -> {
-                    logger.error("Failed to send client settings for {}: {}", player.getUsername(), e.getMessage());
+                    LOGGER.error("Failed to send client settings for {}: {}", player.getUsername(), e.getMessage());
                     return null;
                 });
     }
 
     static PlayerClientSettings toClientSettings(PlayerSettings settings) {
         PlayerClientSettings result = new PlayerClientSettings();
-        result.setChatMode(switch (settings.getChatMode()) {
-            case SHOWN -> PlayerClientSettings.ChatMode.ENABLED;
-            case COMMANDS_ONLY -> PlayerClientSettings.ChatMode.COMMANDS_ONLY;
-            case HIDDEN -> PlayerClientSettings.ChatMode.HIDDEN;
-        });
+        result.setChatMode(
+                switch (settings.getChatMode()) {
+                    case SHOWN -> PlayerClientSettings.ChatMode.ENABLED;
+                    case COMMANDS_ONLY -> PlayerClientSettings.ChatMode.COMMANDS_ONLY;
+                    case HIDDEN -> PlayerClientSettings.ChatMode.HIDDEN;
+                });
         result.setLocale(settings.getLocale() != null ? settings.getLocale().toString() : null);
-        result.setMainHand(settings.getMainHand() == PlayerSettings.MainHand.LEFT
-                ? PlayerClientSettings.MainHand.LEFT
-                : PlayerClientSettings.MainHand.RIGHT);
+        result.setMainHand(
+                settings.getMainHand() == PlayerSettings.MainHand.LEFT
+                        ? PlayerClientSettings.MainHand.LEFT
+                        : PlayerClientSettings.MainHand.RIGHT);
         result.setViewDistance(settings.getViewDistance());
         result.setChatColors(settings.hasChatColors());
         result.setClientListingAllowed(settings.isClientListingAllowed());

@@ -34,4 +34,3 @@ class PersistentServerStartedEventImpl implements PersistentServerStartedEvent {
         return Instant.ofEpochSecond(delegate.getTimestamp()).toString();
     }
 }
-

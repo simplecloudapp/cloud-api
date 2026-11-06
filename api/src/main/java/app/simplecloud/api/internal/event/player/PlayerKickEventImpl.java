@@ -16,7 +16,10 @@ class PlayerKickEventImpl implements PlayerKickEvent {
     private final Connection natsConnection;
     private CloudPlayer player;
 
-    PlayerKickEventImpl(build.buf.gen.simplecloud.player.v2.PlayerKickEvent delegate, PlayerApi playerApi, Connection natsConnection) {
+    PlayerKickEventImpl(
+            build.buf.gen.simplecloud.player.v2.PlayerKickEvent delegate,
+            PlayerApi playerApi,
+            Connection natsConnection) {
         this.delegate = delegate;
         this.playerApi = playerApi;
         this.natsConnection = natsConnection;
@@ -47,13 +50,15 @@ class PlayerKickEventImpl implements PlayerKickEvent {
         if (!delegate.hasKickReason() || delegate.getKickReason().getJson().isEmpty()) {
             return null;
         }
-        return GsonComponentSerializer.gson().deserialize(delegate.getKickReason().getJson());
+        return GsonComponentSerializer.gson()
+                .deserialize(delegate.getKickReason().getJson());
     }
 
     @Override
     public CloudPlayer getPlayer() {
         if (player == null && delegate.hasConfig()) {
-            player = PlayerEventModelMapper.mapPlayer(playerApi, natsConnection, delegate.getNetworkId(), delegate.getConfig(), false);
+            player = PlayerEventModelMapper.mapPlayer(
+                    playerApi, natsConnection, delegate.getNetworkId(), delegate.getConfig(), false);
         }
         return player;
     }

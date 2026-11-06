@@ -46,7 +46,8 @@ class PlayerCommandHandlerTest {
         FakeNatsConnection nats = FakeNatsConnection.withoutRequests();
         FakeProxyPlayers proxyPlayers = FakeProxyPlayers.withoutPlayers();
         startCommandHandler(nats, proxyPlayers);
-        KickPlayerRequest request = KickPlayerRequest.newBuilder().setPlayerId(PLAYER_ID).build();
+        KickPlayerRequest request =
+                KickPlayerRequest.newBuilder().setPlayerId(PLAYER_ID).build();
 
         nats.deliver(KICK_SUBSCRIPTION, kickMessage(PLAYER_ID, request));
 
@@ -123,7 +124,8 @@ class PlayerCommandHandlerTest {
         FakeNatsConnection nats = FakeNatsConnection.withoutRequests();
         FakeProxyPlayers proxyPlayers = FakeProxyPlayers.connected(PLAYER_UUID, OTHER_PLAYER_UUID);
         startCommandHandler(nats, proxyPlayers);
-        KickPlayerRequest request = KickPlayerRequest.newBuilder().setPlayerId(PLAYER_ID).build();
+        KickPlayerRequest request =
+                KickPlayerRequest.newBuilder().setPlayerId(PLAYER_ID).build();
 
         nats.deliver(KICK_SUBSCRIPTION, kickMessage(OTHER_PLAYER_ID, request));
 
@@ -151,7 +153,8 @@ class PlayerCommandHandlerTest {
         FakeNatsConnection nats = FakeNatsConnection.withoutRequests();
         FakeProxyPlayers proxyPlayers = FakeProxyPlayers.connected(PLAYER_UUID);
         startCommandHandler(nats, proxyPlayers);
-        KickPlayerRequest request = KickPlayerRequest.newBuilder().setPlayerId(playerId).build();
+        KickPlayerRequest request =
+                KickPlayerRequest.newBuilder().setPlayerId(playerId).build();
 
         nats.deliver(KICK_SUBSCRIPTION, kickMessage(PLAYER_ID, request));
 
@@ -193,7 +196,8 @@ class PlayerCommandHandlerTest {
         FakeProxyPlayers proxyPlayers = FakeProxyPlayers.connected(PLAYER_UUID);
         startCommandHandler(nats, proxyPlayers);
 
-        try (ProxyServerNames.Registration ignored = ProxyServerNames.register(PlayerCommandHandlerTest::proxyNameOfServer)) {
+        try (ProxyServerNames.Registration ignored =
+                ProxyServerNames.register(PlayerCommandHandlerTest::proxyNameOfServer)) {
             nats.deliver(CONNECT_SUBSCRIPTION, connectMessage(PLAYER_ID, connectById(SERVER_ID)));
         }
 
@@ -207,7 +211,8 @@ class PlayerCommandHandlerTest {
         FakeProxyPlayers proxyPlayers = FakeProxyPlayers.connected(PLAYER_UUID);
         startCommandHandler(nats, proxyPlayers);
 
-        try (ProxyServerNames.Registration ignored = ProxyServerNames.register(PlayerCommandHandlerTest::proxyNameOfServer)) {
+        try (ProxyServerNames.Registration ignored =
+                ProxyServerNames.register(PlayerCommandHandlerTest::proxyNameOfServer)) {
             nats.deliver(CONNECT_SUBSCRIPTION, connectMessage(PLAYER_ID, connectById(UNKNOWN_SERVER_ID)));
         }
 
@@ -238,7 +243,8 @@ class PlayerCommandHandlerTest {
                 .setServerName("lobby-2")
                 .build();
 
-        try (ProxyServerNames.Registration ignored = ProxyServerNames.register(PlayerCommandHandlerTest::proxyNameOfServer)) {
+        try (ProxyServerNames.Registration ignored =
+                ProxyServerNames.register(PlayerCommandHandlerTest::proxyNameOfServer)) {
             nats.deliver(CONNECT_SUBSCRIPTION, connectMessage(PLAYER_ID, request));
         }
 
@@ -256,7 +262,8 @@ class PlayerCommandHandlerTest {
                 .setServerName("lobby-2")
                 .build();
 
-        try (ProxyServerNames.Registration ignored = ProxyServerNames.register(PlayerCommandHandlerTest::proxyNameOfServer)) {
+        try (ProxyServerNames.Registration ignored =
+                ProxyServerNames.register(PlayerCommandHandlerTest::proxyNameOfServer)) {
             nats.deliver(CONNECT_SUBSCRIPTION, connectMessage(PLAYER_ID, request));
         }
 
@@ -270,7 +277,8 @@ class PlayerCommandHandlerTest {
         FakeProxyPlayers proxyPlayers = FakeProxyPlayers.connected(PLAYER_UUID);
         startCommandHandler(nats, proxyPlayers);
 
-        try (ProxyServerNames.Registration ignored = ProxyServerNames.register(PlayerCommandHandlerTest::proxyNameOfServer)) {
+        try (ProxyServerNames.Registration ignored =
+                ProxyServerNames.register(PlayerCommandHandlerTest::proxyNameOfServer)) {
             nats.deliver(CONNECT_SUBSCRIPTION, connectMessage(PLAYER_ID, connectByName(SERVER_ID)));
         }
 
@@ -333,7 +341,8 @@ class PlayerCommandHandlerTest {
 
     private static void startCommandHandler(FakeNatsConnection nats, FakeProxyPlayers proxyPlayers) {
         // Runs the kick on the calling thread, so the reply is published before deliver returns.
-        PlayerCommandHandler commandHandler = new PlayerCommandHandler(nats.connection(), NETWORK_ID, Runnable::run, proxyPlayers);
+        PlayerCommandHandler commandHandler =
+                new PlayerCommandHandler(nats.connection(), NETWORK_ID, Runnable::run, proxyPlayers);
         commandHandler.start();
     }
 
@@ -394,11 +403,9 @@ class PlayerCommandHandlerTest {
         return results;
     }
 
-    private record Kick(UUID playerId, Component reason) {
-    }
+    private record Kick(UUID playerId, Component reason) {}
 
-    private record Connect(UUID playerId, String proxyServerName) {
-    }
+    private record Connect(UUID playerId, String proxyServerName) {}
 
     private static final class FakeProxyPlayers implements ProxyPlayers {
 

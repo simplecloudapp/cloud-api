@@ -7,11 +7,11 @@ import java.util.Map;
 public class RuntimeConfig {
     @Nullable
     private RuntimeType type;
+
     @Nullable
     private Map<String, Object> with;
 
-    public RuntimeConfig() {
-    }
+    public RuntimeConfig() {}
 
     public static Builder builder() {
         return new Builder();

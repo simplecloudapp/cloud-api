@@ -62,12 +62,13 @@ openApiGenerate {
     modelPackage = "app.simplecloud.api.web.models"
     packageName = "app.simplecloud.api.web"
 
-    configOptions = mapOf(
-        "library" to "okhttp-gson",
-        "serializationLibrary" to "gson",
-        "useJakartaEe" to "true",
-        "disallowAdditionalPropertiesIfNotPresent" to "false"
-    )
+    configOptions =
+        mapOf(
+            "library" to "okhttp-gson",
+            "serializationLibrary" to "gson",
+            "useJakartaEe" to "true",
+            "disallowAdditionalPropertiesIfNotPresent" to "false",
+        )
 }
 
 tasks.register<org.openapitools.generator.gradle.plugin.tasks.GenerateTask>("generateGoClient") {
@@ -85,25 +86,28 @@ tasks.register<org.openapitools.generator.gradle.plugin.tasks.GenerateTask>("gen
     generateApiTests = false
     generateModelTests = false
 
-    configOptions = mapOf(
-        "enumClassPrefix" to "true",
-        "generateInterfaces" to "true",
-        "packageVersion" to version.toString(),
-        "withGoMod" to "false"
-    )
+    configOptions =
+        mapOf(
+            "enumClassPrefix" to "true",
+            "generateInterfaces" to "true",
+            "packageVersion" to version.toString(),
+            "withGoMod" to "false",
+        )
 }
 
-val fixOpenApiGeneratedCode = tasks.register<FixOpenApiGeneratedCode>("fixOpenApiGeneratedCode") {
-    dependsOn("openApiGenerate")
-    modelsDir = layout.buildDirectory.dir("generated/src/main/java/app/simplecloud/api/web/models")
-    markerFile = layout.buildDirectory.file("generated/.fixOpenApiGeneratedCode")
-}
+val fixOpenApiGeneratedCode =
+    tasks.register<FixOpenApiGeneratedCode>("fixOpenApiGeneratedCode") {
+        dependsOn("openApiGenerate")
+        modelsDir = layout.buildDirectory.dir("generated/src/main/java/app/simplecloud/api/web/models")
+        markerFile = layout.buildDirectory.file("generated/.fixOpenApiGeneratedCode")
+    }
 
-val prepareGeneratedSources = tasks.register("prepareGeneratedSources") {
-    group = "build"
-    description = "Generates and patches OpenAPI sources used by the API module."
-    dependsOn(fixOpenApiGeneratedCode)
-}
+val prepareGeneratedSources =
+    tasks.register("prepareGeneratedSources") {
+        group = "build"
+        description = "Generates and patches OpenAPI sources used by the API module."
+        dependsOn(fixOpenApiGeneratedCode)
+    }
 
 tasks.compileJava {
     dependsOn(prepareGeneratedSources)
@@ -123,7 +127,11 @@ tasks.named<Jar>("sourcesJar") {
     dependsOn(prepareGeneratedSources)
 }
 
-val controllerProtoDependencyVersion = libs.controller.proto.get().version.toString()
+val controllerProtoDependencyVersion =
+    libs.controller.proto
+        .get()
+        .version
+        .toString()
 
 publishing {
     publications {

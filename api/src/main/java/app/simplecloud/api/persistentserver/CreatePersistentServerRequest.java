@@ -1,9 +1,9 @@
 package app.simplecloud.api.persistentserver;
 
 import app.simplecloud.api.blueprint.CreateBlueprintRequest;
+import app.simplecloud.api.group.GroupServerType;
 import app.simplecloud.api.group.SourceConfig;
 import app.simplecloud.api.group.WorkflowsConfig;
-import app.simplecloud.api.group.GroupServerType;
 import org.jetbrains.annotations.Nullable;
 
 import java.util.List;

@@ -25,5 +25,5 @@ include(
     "platform:velocity",
     "platform:fabric",
     "platform:neoforge",
-    "platform:minestom"
+    "platform:minestom",
 )

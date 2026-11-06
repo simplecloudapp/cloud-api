@@ -47,8 +47,7 @@ public class CloudPlayerImpl implements CloudPlayer, ForwardingAudience.Single {
             String sessionId,
             String firstSeen,
             String lastSeen,
-            Map<String, String> properties
-    ) {
+            Map<String, String> properties) {
         this.playerApi = playerApi;
         this.audience = RemoteAudience.builder(natsConnection, networkId).forPlayer(uniqueId);
         this.uniqueId = uniqueId;
@@ -133,9 +132,7 @@ public class CloudPlayerImpl implements CloudPlayer, ForwardingAudience.Single {
         return playerApi.kick(uniqueId, reason).thenApply(success -> {
             if (!Boolean.TRUE.equals(success)) {
                 throw new CloudApiException(
-                        CloudApiException.Reason.UNKNOWN,
-                        "Player '" + uniqueId + "' could not be kicked"
-                );
+                        CloudApiException.Reason.UNKNOWN, "Player '" + uniqueId + "' could not be kicked");
             }
             return null;
         });

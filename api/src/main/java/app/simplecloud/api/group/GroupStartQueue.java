@@ -15,12 +15,7 @@ public final class GroupStartQueue {
     private final int totalStarts;
 
     public GroupStartQueue(
-            int count,
-            int failedStarts,
-            List<GroupStartQueueEntry> items,
-            int queuedStarts,
-            int totalStarts
-    ) {
+            int count, int failedStarts, List<GroupStartQueueEntry> items, int queuedStarts, int totalStarts) {
         this.count = count;
         this.failedStarts = failedStarts;
         this.items = List.copyOf(items);

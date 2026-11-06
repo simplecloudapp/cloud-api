@@ -3,7 +3,11 @@ package app.simplecloud.api.internal.integration.player;
 import app.simplecloud.api.internal.CloudApiImpl;
 import app.simplecloud.api.player.CloudPlayer;
 import app.simplecloud.api.proxy.ProxyServerNames;
-import build.buf.gen.simplecloud.player.v2.*;
+import build.buf.gen.simplecloud.player.v2.ConnectPlayerRequest;
+import build.buf.gen.simplecloud.player.v2.ConnectPlayerResponse;
+import build.buf.gen.simplecloud.player.v2.ConnectResult;
+import build.buf.gen.simplecloud.player.v2.KickPlayerRequest;
+import build.buf.gen.simplecloud.player.v2.KickPlayerResponse;
 import io.nats.client.Connection;
 import io.nats.client.Dispatcher;
 import io.nats.client.Message;
@@ -73,7 +77,8 @@ public class PlayerCommandHandler {
             if (player.isEmpty()) return;
 
             Component reason = parseKickReason(request);
-            CompletableFuture<Void> kick = CompletableFuture.runAsync(() -> player.get().kick(reason), executor);
+            CompletableFuture<Void> kick =
+                    CompletableFuture.runAsync(() -> player.get().kick(reason), executor);
             kick.whenComplete((ignored, failure) -> sendKickResponse(msg, failure == null));
         } catch (Exception e) {
             sendKickResponse(msg, false);
@@ -91,7 +96,8 @@ public class PlayerCommandHandler {
     private void sendKickResponse(Message msg, boolean success) {
         if (msg.getReplyTo() != null) {
             try {
-                KickPlayerResponse response = KickPlayerResponse.newBuilder().setSuccess(success).build();
+                KickPlayerResponse response =
+                        KickPlayerResponse.newBuilder().setSuccess(success).build();
                 natsConnection.publish(msg.getReplyTo(), response.toByteArray());
             } catch (Exception ignored) {
             }
@@ -114,7 +120,8 @@ public class PlayerCommandHandler {
 
             CompletableFuture<CloudPlayer.ConnectResult> connect = player.get().connect(proxyServerName.get());
             connect.whenComplete((result, failure) -> {
-                CloudPlayer.ConnectResult reply = failure == null ? result : CloudPlayer.ConnectResult.CONNECTION_FAILED;
+                CloudPlayer.ConnectResult reply =
+                        failure == null ? result : CloudPlayer.ConnectResult.CONNECTION_FAILED;
                 sendConnectResponse(msg, reply);
             });
         } catch (Exception e) {

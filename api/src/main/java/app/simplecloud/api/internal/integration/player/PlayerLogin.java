@@ -23,6 +23,4 @@ public record PlayerLogin(
         String clientLanguage,
         int clientVersion,
         boolean onlineMode,
-        @Nullable String texture
-) {
-}
+        @Nullable String texture) {}

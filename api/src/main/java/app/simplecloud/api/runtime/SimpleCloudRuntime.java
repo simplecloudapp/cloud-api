@@ -5,8 +5,7 @@ package app.simplecloud.api.runtime;
  */
 public final class SimpleCloudRuntime {
 
-    private SimpleCloudRuntime() {
-    }
+    private SimpleCloudRuntime() {}
 
     public static String serverId() {
         return value("SIMPLECLOUD_UNIQUE_ID");

@@ -32,9 +32,8 @@ public final class FakeNatsConnection {
         this.requestHandler = requestHandler;
         this.connection = (Connection) Proxy.newProxyInstance(
                 Connection.class.getClassLoader(),
-                new Class<?>[]{Connection.class},
-                (proxy, method, args) -> handleConnectionCall(method.getName(), args)
-        );
+                new Class<?>[] {Connection.class},
+                (proxy, method, args) -> handleConnectionCall(method.getName(), args));
     }
 
     public static FakeNatsConnection answering(RequestHandler requestHandler) {
@@ -75,7 +74,8 @@ public final class FakeNatsConnection {
             return requestHandler.request((String) args[0], (byte[]) args[1], timeout);
         }
         if (methodName.equals("publish") && args.length == 2 && args[1] instanceof byte[] data) {
-            Message message = NatsMessage.builder().subject((String) args[0]).data(data).build();
+            Message message =
+                    NatsMessage.builder().subject((String) args[0]).data(data).build();
             published.add(message);
             return null;
         }
@@ -88,9 +88,8 @@ public final class FakeNatsConnection {
     private Dispatcher createDispatcher() {
         return (Dispatcher) Proxy.newProxyInstance(
                 Dispatcher.class.getClassLoader(),
-                new Class<?>[]{Dispatcher.class},
-                (dispatcher, method, args) -> handleDispatcherCall(dispatcher, method.getName(), args)
-        );
+                new Class<?>[] {Dispatcher.class},
+                (dispatcher, method, args) -> handleDispatcherCall(dispatcher, method.getName(), args));
     }
 
     private Object handleDispatcherCall(Object dispatcher, String methodName, Object[] args) {

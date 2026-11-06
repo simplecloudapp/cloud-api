@@ -5,6 +5,7 @@ import org.jetbrains.annotations.Nullable;
 public final class RollingRestartStatus {
     private final String serverGroupId;
     private final boolean active;
+
     @Nullable
     private final String startedAt;
 

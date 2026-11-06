@@ -13,8 +13,7 @@ import java.util.Map;
 
 public final class WorkflowResults {
 
-    private WorkflowResults() {
-    }
+    private WorkflowResults() {}
 
     public static ModelsExecuteManualWorkflowRequest request(String workflowId) {
         if (workflowId == null || workflowId.isBlank()) {
@@ -25,34 +24,36 @@ public final class WorkflowResults {
         return request;
     }
 
-    public static WorkflowExecutionResult fromServer(String serverId, String workflowId, ModelsExecuteServerWorkflowResponse response) {
+    public static WorkflowExecutionResult fromServer(
+            String serverId, String workflowId, ModelsExecuteServerWorkflowResponse response) {
         if (Boolean.TRUE.equals(response.getSuccess())) {
             return new WorkflowExecutionResult(workflowId, 1, List.of(serverId), List.of(), Map.of());
         }
         if (response.getErrorMessage() != null) {
-            return new WorkflowExecutionResult(workflowId, 1, List.of(), List.of(), Map.of(serverId, response.getErrorMessage()));
+            return new WorkflowExecutionResult(
+                    workflowId, 1, List.of(), List.of(), Map.of(serverId, response.getErrorMessage()));
         }
         return new WorkflowExecutionResult(workflowId, 1, List.of(), List.of(serverId), Map.of());
     }
 
-    public static WorkflowExecutionResult fromServerGroup(String workflowId, ModelsExecuteServerGroupWorkflowResponse response) {
+    public static WorkflowExecutionResult fromServerGroup(
+            String workflowId, ModelsExecuteServerGroupWorkflowResponse response) {
         return create(
                 workflowId,
                 response.getTotalServers(),
                 response.getSucceededServerIds(),
                 response.getSkippedServerIds(),
-                response.getFailedServers()
-        );
+                response.getFailedServers());
     }
 
-    public static WorkflowExecutionResult fromPersistentServer(String workflowId, ModelsExecutePersistentServerWorkflowResponse response) {
+    public static WorkflowExecutionResult fromPersistentServer(
+            String workflowId, ModelsExecutePersistentServerWorkflowResponse response) {
         return create(
                 workflowId,
                 response.getTotalServers(),
                 response.getSucceededServerIds(),
                 response.getSkippedServerIds(),
-                response.getFailedServers()
-        );
+                response.getFailedServers());
     }
 
     private static WorkflowExecutionResult create(
@@ -60,13 +61,13 @@ public final class WorkflowResults {
             Integer totalServers,
             List<String> succeededServerIds,
             List<String> skippedServerIds,
-            List<ModelsExecuteManualWorkflowFailure> failures
-    ) {
+            List<ModelsExecuteManualWorkflowFailure> failures) {
         Map<String, String> failedServers = new LinkedHashMap<>();
         if (failures != null) {
             for (ModelsExecuteManualWorkflowFailure failure : failures) {
                 if (failure.getServerId() != null) {
-                    failedServers.put(failure.getServerId(), failure.getErrorMessage() != null ? failure.getErrorMessage() : "");
+                    failedServers.put(
+                            failure.getServerId(), failure.getErrorMessage() != null ? failure.getErrorMessage() : "");
                 }
             }
         }
@@ -75,7 +76,6 @@ public final class WorkflowResults {
                 totalServers != null ? totalServers : 0,
                 succeededServerIds != null ? succeededServerIds : List.of(),
                 skippedServerIds != null ? skippedServerIds : List.of(),
-                failedServers
-        );
+                failedServers);
     }
 }

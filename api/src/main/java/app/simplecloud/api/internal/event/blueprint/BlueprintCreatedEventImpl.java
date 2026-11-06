@@ -24,7 +24,8 @@ class BlueprintCreatedEventImpl implements BlueprintCreatedEvent {
 
     @Override
     public Blueprint getBlueprint() {
-        throw new IllegalStateException("Blueprint data is not available in BlueprintCreatedEvent. Use CloudApi to fetch the blueprint.");
+        throw new IllegalStateException(
+                "Blueprint data is not available in BlueprintCreatedEvent. Use CloudApi to fetch the blueprint.");
     }
 
     @Override
@@ -32,4 +33,3 @@ class BlueprintCreatedEventImpl implements BlueprintCreatedEvent {
         return Instant.ofEpochSecond(delegate.getTimestamp()).toString();
     }
 }
-

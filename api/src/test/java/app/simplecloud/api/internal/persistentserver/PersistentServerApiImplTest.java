@@ -45,7 +45,8 @@ class PersistentServerApiImplTest {
     void getPersistentServerById_usesControllerIdFilter() {
         AtomicInteger order = new AtomicInteger();
         FakePersistentServersApi persistentServersApi = new FakePersistentServersApi(order);
-        PersistentServerApiImpl api = new PersistentServerApiImpl(options(), new NoOpQueryCache(), persistentServersApi, new FakeBlueprintsApi(order));
+        PersistentServerApiImpl api = new PersistentServerApiImpl(
+                options(), new NoOpQueryCache(), persistentServersApi, new FakeBlueprintsApi(order));
 
         api.getPersistentServerById(PERSISTENT_SERVER_ID).join();
 
@@ -57,7 +58,8 @@ class PersistentServerApiImplTest {
     void getPersistentServerByName_usesControllerNameFilter() {
         AtomicInteger order = new AtomicInteger();
         FakePersistentServersApi persistentServersApi = new FakePersistentServersApi(order);
-        PersistentServerApiImpl api = new PersistentServerApiImpl(options(), new NoOpQueryCache(), persistentServersApi, new FakeBlueprintsApi(order));
+        PersistentServerApiImpl api = new PersistentServerApiImpl(
+                options(), new NoOpQueryCache(), persistentServersApi, new FakeBlueprintsApi(order));
 
         api.getPersistentServerByName("Lobby-1").join();
 
@@ -70,7 +72,8 @@ class PersistentServerApiImplTest {
         AtomicInteger order = new AtomicInteger();
         FakeBlueprintsApi blueprintsApi = new FakeBlueprintsApi(order);
         FakePersistentServersApi persistentServersApi = new FakePersistentServersApi(order);
-        PersistentServerApiImpl api = new PersistentServerApiImpl(options(), new NoOpQueryCache(), persistentServersApi, blueprintsApi);
+        PersistentServerApiImpl api =
+                new PersistentServerApiImpl(options(), new NoOpQueryCache(), persistentServersApi, blueprintsApi);
 
         CreatePersistentServerRequest request = CreatePersistentServerRequest.builder()
                 .name("Lobby-1")
@@ -87,7 +90,9 @@ class PersistentServerApiImplTest {
         assertEquals(0, persistentServersApi.getCalls, "successful create should not do a follow-up GET");
         assertEquals("Lobby-1", blueprintsApi.lastCreateRequest.getName());
         assertEquals("bp-1", persistentServersApi.lastCreateRequest.getSource().getBlueprint());
-        assertEquals(ModelsSourceConfig.TypeEnum.BLUEPRINT, persistentServersApi.lastCreateRequest.getSource().getType());
+        assertEquals(
+                ModelsSourceConfig.TypeEnum.BLUEPRINT,
+                persistentServersApi.lastCreateRequest.getSource().getType());
         assertNotNull(persistentServer.getSource());
         assertEquals("bp-1", persistentServer.getSource().getBlueprint());
     }
@@ -97,7 +102,8 @@ class PersistentServerApiImplTest {
         AtomicInteger order = new AtomicInteger();
         FakeBlueprintsApi blueprintsApi = new FakeBlueprintsApi(order);
         FakePersistentServersApi persistentServersApi = new FakePersistentServersApi(order);
-        PersistentServerApiImpl api = new PersistentServerApiImpl(options(), new NoOpQueryCache(), persistentServersApi, blueprintsApi);
+        PersistentServerApiImpl api =
+                new PersistentServerApiImpl(options(), new NoOpQueryCache(), persistentServersApi, blueprintsApi);
 
         CreatePersistentServerRequest request = CreatePersistentServerRequest.builder()
                 .name("Proxy-1")
@@ -112,15 +118,24 @@ class PersistentServerApiImplTest {
         assertEquals("Proxy-1", blueprintsApi.lastCreateRequest.getName());
         assertEquals(List.of("internal/setup"), blueprintsApi.lastCreateRequest.getWorkflowSteps());
         assertEquals("java", blueprintsApi.lastCreateRequest.getRuntimeConfig().getType());
-        assertEquals("21", blueprintsApi.lastCreateRequest.getRuntimeConfig().getWith().get("version"));
-        assertEquals(ModelsCreatePersistentServerRequest.TypeEnum.SERVER, persistentServersApi.lastCreateRequest.getType());
+        assertEquals(
+                "21",
+                blueprintsApi.lastCreateRequest.getRuntimeConfig().getWith().get("version"));
+        assertEquals(
+                ModelsCreatePersistentServerRequest.TypeEnum.SERVER, persistentServersApi.lastCreateRequest.getType());
         assertEquals(Integer.valueOf(50), persistentServersApi.lastCreateRequest.getMaxPlayers());
         assertEquals(Boolean.TRUE, persistentServersApi.lastCreateRequest.getActive());
         assertEquals(List.of("Proxy-1"), persistentServersApi.lastCreateRequest.getTags());
         assertEquals(Map.of(), persistentServersApi.lastCreateRequest.getProperties());
-        assertEquals(List.of("internal/setup"), persistentServersApi.lastCreateRequest.getWorkflows().getWhen().getStart());
-        assertEquals(List.of("internal/cleanup"), persistentServersApi.lastCreateRequest.getWorkflows().getWhen().getStop());
-        assertEquals(List.of("default/backup", "default/copy-to-template"), persistentServersApi.lastCreateRequest.getWorkflows().getManual());
+        assertEquals(
+                List.of("internal/setup"),
+                persistentServersApi.lastCreateRequest.getWorkflows().getWhen().getStart());
+        assertEquals(
+                List.of("internal/cleanup"),
+                persistentServersApi.lastCreateRequest.getWorkflows().getWhen().getStop());
+        assertEquals(
+                List.of("default/backup", "default/copy-to-template"),
+                persistentServersApi.lastCreateRequest.getWorkflows().getManual());
     }
 
     @Test
@@ -129,17 +144,13 @@ class PersistentServerApiImplTest {
         FakeBlueprintsApi blueprintsApi = new FakeBlueprintsApi(order);
         FakePersistentServersApi persistentServersApi = new FakePersistentServersApi(order);
         PersistentServerApiImpl api = new PersistentServerApiImpl(
-                options(),
-                new NoOpQueryCache(),
-                persistentServersApi,
-                blueprintsApi,
-                request -> {
-                    if ("velocity".equals(request.getServerSoftware()) && "3.4.0-SNAPSHOT".equals(request.getSoftwareVersion())) {
+                options(), new NoOpQueryCache(), persistentServersApi, blueprintsApi, request -> {
+                    if ("velocity".equals(request.getServerSoftware())
+                            && "3.4.0-SNAPSHOT".equals(request.getSoftwareVersion())) {
                         return "https://example.com/velocity-3.4.0-SNAPSHOT.jar";
                     }
                     return null;
-                }
-        );
+                });
 
         CreatePersistentServerRequest request = CreatePersistentServerRequest.builder()
                 .name("Proxy-1")
@@ -161,17 +172,21 @@ class PersistentServerApiImplTest {
         FakePersistentServersApi persistentServersApi = new FakePersistentServersApi(order);
         persistentServersApi.postFailure = new ApiException(400, "bad request");
 
-        PersistentServerApiImpl api = new PersistentServerApiImpl(options(), new NoOpQueryCache(), persistentServersApi, blueprintsApi);
+        PersistentServerApiImpl api =
+                new PersistentServerApiImpl(options(), new NoOpQueryCache(), persistentServersApi, blueprintsApi);
         CreatePersistentServerRequest request = CreatePersistentServerRequest.builder()
                 .name("Lobby-1")
                 .createBlueprint(CreateBlueprintRequest.builder().build())
                 .build();
 
-        CompletionException failure = assertThrows(CompletionException.class, () -> api.createPersistentServer(request).join());
+        CompletionException failure = assertThrows(
+                CompletionException.class,
+                () -> api.createPersistentServer(request).join());
 
         assertInstanceOf(RuntimeException.class, failure.getCause());
         assertEquals(List.of("bp-1"), blueprintsApi.deletedBlueprintIds);
-        assertEquals(0, persistentServersApi.getCalls, "HTTP failures should roll back directly without reconciliation");
+        assertEquals(
+                0, persistentServersApi.getCalls, "HTTP failures should roll back directly without reconciliation");
     }
 
     @Test
@@ -182,18 +197,26 @@ class PersistentServerApiImplTest {
         persistentServersApi.postFailure = new ApiException(400, "bad request");
         blueprintsApi.deleteFailure = new ApiException(403, "delete forbidden");
 
-        PersistentServerApiImpl api = new PersistentServerApiImpl(options(), new NoOpQueryCache(), persistentServersApi, blueprintsApi);
+        PersistentServerApiImpl api =
+                new PersistentServerApiImpl(options(), new NoOpQueryCache(), persistentServersApi, blueprintsApi);
         CreatePersistentServerRequest request = CreatePersistentServerRequest.builder()
                 .name("Lobby-1")
                 .createBlueprint(CreateBlueprintRequest.builder().build())
                 .build();
 
-        CompletionException failure = assertThrows(CompletionException.class, () -> api.createPersistentServer(request).join());
+        CompletionException failure = assertThrows(
+                CompletionException.class,
+                () -> api.createPersistentServer(request).join());
 
-        assertEquals("Failed to create persistent server and rollback inline blueprint bp-1", failure.getCause().getMessage());
+        assertEquals(
+                "Failed to create persistent server and rollback inline blueprint bp-1",
+                failure.getCause().getMessage());
         assertSame(persistentServersApi.postFailure, failure.getCause().getCause());
-        assertArrayEquals(new Throwable[]{blueprintsApi.deleteFailure}, failure.getCause().getSuppressed());
-        assertArrayEquals(new Throwable[]{blueprintsApi.deleteFailure}, persistentServersApi.postFailure.getSuppressed());
+        assertArrayEquals(
+                new Throwable[] {blueprintsApi.deleteFailure},
+                failure.getCause().getSuppressed());
+        assertArrayEquals(
+                new Throwable[] {blueprintsApi.deleteFailure}, persistentServersApi.postFailure.getSuppressed());
     }
 
     @Test
@@ -203,13 +226,16 @@ class PersistentServerApiImplTest {
         FakePersistentServersApi persistentServersApi = new FakePersistentServersApi(order);
         persistentServersApi.postFailure = new ApiException(500, "controller unavailable");
 
-        PersistentServerApiImpl api = new PersistentServerApiImpl(options(), new NoOpQueryCache(), persistentServersApi, blueprintsApi);
+        PersistentServerApiImpl api =
+                new PersistentServerApiImpl(options(), new NoOpQueryCache(), persistentServersApi, blueprintsApi);
         CreatePersistentServerRequest request = CreatePersistentServerRequest.builder()
                 .name("Lobby-1")
                 .createBlueprint(CreateBlueprintRequest.builder().build())
                 .build();
 
-        CompletionException failure = assertThrows(CompletionException.class, () -> api.createPersistentServer(request).join());
+        CompletionException failure = assertThrows(
+                CompletionException.class,
+                () -> api.createPersistentServer(request).join());
 
         assertInstanceOf(RuntimeException.class, failure.getCause());
         assertEquals(3, persistentServersApi.getCalls);
@@ -220,14 +246,13 @@ class PersistentServerApiImplTest {
     void updatePersistentServer_partialRequest_usesPatch() {
         AtomicInteger order = new AtomicInteger();
         FakePersistentServersApi persistentServersApi = new FakePersistentServersApi(order);
-        PersistentServerApiImpl api = new PersistentServerApiImpl(options(), new NoOpQueryCache(), persistentServersApi, new FakeBlueprintsApi(order));
+        PersistentServerApiImpl api = new PersistentServerApiImpl(
+                options(), new NoOpQueryCache(), persistentServersApi, new FakeBlueprintsApi(order));
 
         PersistentServer persistentServer = api.updatePersistentServer(
-                PERSISTENT_SERVER_ID,
-                UpdatePersistentServerRequest.builder()
-                        .active(true)
-                        .build()
-        ).join();
+                        PERSISTENT_SERVER_ID,
+                        UpdatePersistentServerRequest.builder().active(true).build())
+                .join();
 
         assertEquals(1, persistentServersApi.patchCalls);
         assertEquals(0, persistentServersApi.putCalls);
@@ -243,7 +268,8 @@ class PersistentServerApiImplTest {
         FakeBlueprintsApi blueprintsApi = new FakeBlueprintsApi(order);
         FakePersistentServersApi persistentServersApi = new FakePersistentServersApi(order);
         persistentServersApi.listResponse = listResponseWithPersistentServer("bp-1");
-        PersistentServerApiImpl api = new PersistentServerApiImpl(options(), new NoOpQueryCache(), persistentServersApi, blueprintsApi);
+        PersistentServerApiImpl api =
+                new PersistentServerApiImpl(options(), new NoOpQueryCache(), persistentServersApi, blueprintsApi);
 
         api.deletePersistentServer(PERSISTENT_SERVER_ID).join();
 
@@ -257,7 +283,8 @@ class PersistentServerApiImplTest {
         AtomicInteger order = new AtomicInteger();
         FakeBlueprintsApi blueprintsApi = new FakeBlueprintsApi(order);
         FakePersistentServersApi persistentServersApi = new FakePersistentServersApi(order);
-        PersistentServerApiImpl api = new PersistentServerApiImpl(options(), new NoOpQueryCache(), persistentServersApi, blueprintsApi);
+        PersistentServerApiImpl api =
+                new PersistentServerApiImpl(options(), new NoOpQueryCache(), persistentServersApi, blueprintsApi);
 
         api.deletePersistentServer(PERSISTENT_SERVER_ID).join();
 
@@ -303,8 +330,7 @@ class PersistentServerApiImplTest {
         }
 
         @Override
-        public ModelsCreateBlueprintResponse createBlueprint(String xNetworkID,
-                                                              ModelsCreateBlueprintRequest request) {
+        public ModelsCreateBlueprintResponse createBlueprint(String xNetworkID, ModelsCreateBlueprintRequest request) {
             postCalls++;
             postOrder = order.incrementAndGet();
             lastCreateRequest = request;
@@ -318,8 +344,8 @@ class PersistentServerApiImplTest {
         }
 
         @Override
-        public app.simplecloud.api.web.models.ModelsDeleteBlueprintResponse deleteBlueprint(String xNetworkID,
-                                                                                                String blueprintId) throws ApiException {
+        public app.simplecloud.api.web.models.ModelsDeleteBlueprintResponse deleteBlueprint(
+                String xNetworkID, String blueprintId) throws ApiException {
             deleteOrder = order.incrementAndGet();
             deletedBlueprintIds.add(blueprintId);
             if (deleteFailure != null) {
@@ -350,16 +376,16 @@ class PersistentServerApiImplTest {
         }
 
         @Override
-        public app.simplecloud.api.web.models.ModelsDeletePersistentServerResponse deletePersistentServer(String xNetworkID,
-                                                                                                               String persistentServerId) {
+        public app.simplecloud.api.web.models.ModelsDeletePersistentServerResponse deletePersistentServer(
+                String xNetworkID, String persistentServerId) {
             deleteCalls++;
             deleteOrder = order.incrementAndGet();
             return new app.simplecloud.api.web.models.ModelsDeletePersistentServerResponse();
         }
 
         @Override
-        public ModelsCreatePersistentServerResponse createPersistentServer(String xNetworkID,
-                                                                            ModelsCreatePersistentServerRequest request) throws ApiException {
+        public ModelsCreatePersistentServerResponse createPersistentServer(
+                String xNetworkID, ModelsCreatePersistentServerRequest request) throws ApiException {
             postCalls++;
             postOrder = order.incrementAndGet();
             lastCreateRequest = request;
@@ -388,34 +414,33 @@ class PersistentServerApiImplTest {
         }
 
         @Override
-        public ModelsUpdatePersistentServerResponse patchPersistentServer(String xNetworkID,
-                                                                              String persistentServerId,
-                                                                              ModelsPatchPersistentServerRequest request) {
+        public ModelsUpdatePersistentServerResponse patchPersistentServer(
+                String xNetworkID, String persistentServerId, ModelsPatchPersistentServerRequest request) {
             patchCalls++;
             lastPatchRequest = request;
             return new ModelsUpdatePersistentServerResponse();
         }
 
         @Override
-        public ModelsUpdatePersistentServerResponse updatePersistentServer(String xNetworkID,
-                                                                            String persistentServerId,
-                                                                            ModelsUpdatePersistentServerRequest request) {
+        public ModelsUpdatePersistentServerResponse updatePersistentServer(
+                String xNetworkID, String persistentServerId, ModelsUpdatePersistentServerRequest request) {
             putCalls++;
             return new ModelsUpdatePersistentServerResponse();
         }
 
         @Override
-        public ModelsListPersistentServersResponse listPersistentServers(String xNetworkID,
-                                                                          String persistentServerId,
-                                                                          String name,
-                                                                          String type,
-                                                                          String tags,
-                                                                          Boolean active,
-                                                                          String sourceType,
-                                                                          String blueprintId,
-                                                                          String serverhostId,
-                                                                          Integer limit,
-                                                                          Integer offset) {
+        public ModelsListPersistentServersResponse listPersistentServers(
+                String xNetworkID,
+                String persistentServerId,
+                String name,
+                String type,
+                String tags,
+                Boolean active,
+                String sourceType,
+                String blueprintId,
+                String serverhostId,
+                Integer limit,
+                Integer offset) {
             getCalls++;
             lastPersistentServerId = persistentServerId;
             lastName = name;

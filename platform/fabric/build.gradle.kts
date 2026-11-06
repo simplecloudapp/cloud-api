@@ -6,7 +6,12 @@ plugins {
 }
 
 val shade = configurations.create("shade")
-val minecraftVersions = listOf(libs.versions.fabric.minecraft.get(), "26.3")
+val minecraftVersions =
+    listOf(
+        libs.versions.fabric.minecraft
+            .get(),
+        "26.3",
+    )
 
 dependencies {
     minecraft("com.mojang:minecraft:${libs.versions.fabric.minecraft.get()}")

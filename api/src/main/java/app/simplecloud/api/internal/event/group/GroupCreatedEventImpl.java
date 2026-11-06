@@ -25,7 +25,8 @@ class GroupCreatedEventImpl implements GroupCreatedEvent {
 
     @Override
     public Group getGroup() {
-        throw new IllegalStateException("Group data is not available in GroupCreatedEvent. Use CloudApi.group().getGroup(serverGroupId) to fetch the group.");
+        throw new IllegalStateException(
+                "Group data is not available in GroupCreatedEvent. Use CloudApi.group().getGroup(serverGroupId) to fetch the group.");
     }
 
     @Override
@@ -33,4 +34,3 @@ class GroupCreatedEventImpl implements GroupCreatedEvent {
         return Instant.ofEpochSecond(delegate.getTimestamp()).toString();
     }
 }
-

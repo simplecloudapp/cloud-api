@@ -8,10 +8,21 @@
 
     <module name="SuppressWarningsFilter"/>
 
+    <module name="SuppressionSingleFilter">
+        <property name="id" value="mainMethodName"/>
+        <property name="files" value="[\\/]src[\\/]test[\\/]"/>
+    </module>
+    <module name="SuppressionSingleFilter">
+        <property name="id" value="testMethodName"/>
+        <property name="files" value="[\\/]src[\\/]main[\\/]"/>
+    </module>
+
     <module name="TreeWalker">
         <module name="SuppressWarningsHolder"/>
 
-        <module name="AvoidStarImport"/>
+        <module name="AvoidStarImport">
+            <property name="excludes" value="org.junit.jupiter.api.Assertions,org.mockito.ArgumentMatchers,org.mockito.Mockito"/>
+        </module>
         <module name="RedundantImport"/>
         <module name="UnusedImports"/>
         <module name="IllegalImport"/>
@@ -24,7 +35,13 @@
 
         <module name="PackageName"/>
         <module name="TypeName"/>
-        <module name="MethodName"/>
+        <module name="MethodName">
+            <property name="id" value="mainMethodName"/>
+        </module>
+        <module name="MethodName">
+            <property name="id" value="testMethodName"/>
+            <property name="format" value="^[a-z][a-zA-Z0-9]*(_[a-zA-Z0-9]+)*$"/>
+        </module>
         <module name="MemberName"/>
         <module name="ParameterName"/>
         <module name="LocalVariableName"/>

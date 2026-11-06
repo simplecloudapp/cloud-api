@@ -56,8 +56,8 @@ class LuckPermsPrimaryGroupSynchronizerTest {
         FailureLog failOnFailure = (message, cause) -> {
             throw new AssertionError(message, cause);
         };
-        LuckPermsPrimaryGroupSynchronizer synchronizer = new LuckPermsPrimaryGroupSynchronizer(
-                cloudApi, luckPerms, this, everyoneOnline, failOnFailure);
+        LuckPermsPrimaryGroupSynchronizer synchronizer =
+                new LuckPermsPrimaryGroupSynchronizer(cloudApi, luckPerms, this, everyoneOnline, failOnFailure);
         synchronizer.start();
         ArgumentCaptor<Consumer<UserDataRecalculateEvent>> callback = ArgumentCaptor.forClass(Consumer.class);
         verify(eventBus).subscribe(eq(this), eq(UserDataRecalculateEvent.class), callback.capture());
@@ -95,8 +95,8 @@ class LuckPermsPrimaryGroupSynchronizerTest {
         LuckPerms luckPerms = mock(LuckPerms.class);
         when(luckPerms.getEventBus()).thenReturn(mock(EventBus.class));
         OnlinePlayers nobodyOnline = ignored -> false;
-        LuckPermsPrimaryGroupSynchronizer synchronizer = new LuckPermsPrimaryGroupSynchronizer(
-                cloudApi, luckPerms, this, nobodyOnline, (message, cause) -> {});
+        LuckPermsPrimaryGroupSynchronizer synchronizer =
+                new LuckPermsPrimaryGroupSynchronizer(cloudApi, luckPerms, this, nobodyOnline, (message, cause) -> {});
         synchronizer.start();
 
         synchronizer.synchronize(playerId);
@@ -127,8 +127,8 @@ class LuckPermsPrimaryGroupSynchronizerTest {
             loggedMessages.add(message);
             loggedCauses.add(cause);
         };
-        LuckPermsPrimaryGroupSynchronizer synchronizer = new LuckPermsPrimaryGroupSynchronizer(
-                cloudApi, luckPerms, this, ignored -> true, failureLog);
+        LuckPermsPrimaryGroupSynchronizer synchronizer =
+                new LuckPermsPrimaryGroupSynchronizer(cloudApi, luckPerms, this, ignored -> true, failureLog);
         synchronizer.start();
 
         synchronizer.synchronize(playerId);
@@ -160,7 +160,8 @@ class LuckPermsPrimaryGroupSynchronizerTest {
         when(event.getUser()).thenReturn(user);
         when(cloudPlayer.getProperties()).thenReturn(Map.of());
         when(playerApi.find(playerId)).thenReturn(CompletableFuture.completedFuture(Optional.of(cloudPlayer)));
-        when(playerApi.updatePlayerProperty(playerId, PRIMARY_GROUP_PROPERTY, "default")).thenReturn(failingStore);
+        when(playerApi.updatePlayerProperty(playerId, PRIMARY_GROUP_PROPERTY, "default"))
+                .thenReturn(failingStore);
         when(playerApi.updatePlayerProperty(playerId, PRIMARY_GROUP_PROPERTY, "admin"))
                 .thenReturn(CompletableFuture.completedFuture(Map.of()));
         LuckPermsPrimaryGroupSynchronizer synchronizer = new LuckPermsPrimaryGroupSynchronizer(
@@ -202,7 +203,8 @@ class LuckPermsPrimaryGroupSynchronizerTest {
         when(playerApi.find(playerId)).thenReturn(CompletableFuture.completedFuture(Optional.of(cloudPlayer)));
         when(playerApi.updatePlayerProperty(playerId, PRIMARY_GROUP_PROPERTY, "admin"))
                 .thenReturn(CompletableFuture.completedFuture(Map.of()));
-        when(playerApi.updatePlayerProperty(playerId, PRIMARY_GROUP_PROPERTY, "default")).thenReturn(slowStore);
+        when(playerApi.updatePlayerProperty(playerId, PRIMARY_GROUP_PROPERTY, "default"))
+                .thenReturn(slowStore);
         LuckPermsPrimaryGroupSynchronizer synchronizer = new LuckPermsPrimaryGroupSynchronizer(
                 cloudApi, luckPerms, this, ignored -> true, (message, cause) -> {});
         synchronizer.start();

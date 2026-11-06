@@ -61,10 +61,12 @@ class BungeeCordPlayersTest {
         when(proxy.getPlayer(playerId)).thenReturn(player);
         when(proxy.getServerInfo("lobby-1")).thenReturn(lobby);
         doAnswer(invocation -> {
-            Callback<Boolean> callback = invocation.getArgument(1);
-            callback.done(true, null);
-            return null;
-        }).when(player).connect(eq(lobby), ArgumentMatchers.<Callback<Boolean>>any());
+                    Callback<Boolean> callback = invocation.getArgument(1);
+                    callback.done(true, null);
+                    return null;
+                })
+                .when(player)
+                .connect(eq(lobby), ArgumentMatchers.<Callback<Boolean>>any());
 
         ProxyPlayer proxyPlayer = players.findPlayer(playerId).orElseThrow();
         CloudPlayer.ConnectResult result = proxyPlayer.connect("lobby-1").join();

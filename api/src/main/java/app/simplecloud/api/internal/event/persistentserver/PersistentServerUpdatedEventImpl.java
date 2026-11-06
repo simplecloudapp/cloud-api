@@ -37,4 +37,3 @@ class PersistentServerUpdatedEventImpl implements PersistentServerUpdatedEvent {
         return Instant.ofEpochSecond(delegate.getTimestamp()).toString();
     }
 }
-

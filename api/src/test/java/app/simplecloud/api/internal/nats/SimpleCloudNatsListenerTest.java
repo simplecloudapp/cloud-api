@@ -22,47 +22,33 @@ class SimpleCloudNatsListenerTest {
 
     @Test
     void recognizesRoutineReadChannelClosure() {
-        assertTrue(SimpleCloudNatsListener.isRoutineChannelClosure(
-                new IOException("Read channel closed.")
-        ));
+        assertTrue(SimpleCloudNatsListener.isRoutineChannelClosure(new IOException("Read channel closed.")));
     }
 
     @Test
     void recognizesRoutineConnectionReset() {
-        assertTrue(SimpleCloudNatsListener.isRoutineChannelClosure(
-                new SocketException("Connection reset")
-        ));
+        assertTrue(SimpleCloudNatsListener.isRoutineChannelClosure(new SocketException("Connection reset")));
     }
 
     @Test
     void doesNotHideOtherIoFailures() {
-        assertFalse(SimpleCloudNatsListener.isRoutineChannelClosure(
-                new IOException("Connection reset")
-        ));
+        assertFalse(SimpleCloudNatsListener.isRoutineChannelClosure(new IOException("Connection reset")));
     }
 
     @Test
     void doesNotHideOtherSocketFailures() {
-        assertFalse(SimpleCloudNatsListener.isRoutineChannelClosure(
-                new SocketException("Network is unreachable")
-        ));
+        assertFalse(SimpleCloudNatsListener.isRoutineChannelClosure(new SocketException("Network is unreachable")));
     }
 
     @Test
     void doesNotHideUnrelatedExceptionsWithSameMessage() {
-        assertFalse(SimpleCloudNatsListener.isRoutineChannelClosure(
-                new IllegalStateException("Read channel closed.")
-        ));
+        assertFalse(SimpleCloudNatsListener.isRoutineChannelClosure(new IllegalStateException("Read channel closed.")));
     }
 
     @Test
     void suppressesRoutineReadChannelClosureInsteadOfUsingDefaultErrorLogger() {
-        List<LogRecord> records = captureDefaultErrorLogger(() ->
-                new SimpleCloudNatsListener().exceptionOccurred(
-                        null,
-                        new IOException("Read channel closed.")
-                )
-        );
+        List<LogRecord> records = captureDefaultErrorLogger(
+                () -> new SimpleCloudNatsListener().exceptionOccurred(null, new IOException("Read channel closed.")));
 
         assertTrue(records.isEmpty());
     }
@@ -70,27 +56,18 @@ class SimpleCloudNatsListenerTest {
     @Test
     void retainsDefaultLoggingForUnexpectedExceptions() {
         List<LogRecord> records = captureDefaultErrorLogger(() ->
-                new SimpleCloudNatsListener().exceptionOccurred(
-                        null,
-                        new IOException("Unexpected transport failure")
-                )
-        );
+                new SimpleCloudNatsListener().exceptionOccurred(null, new IOException("Unexpected transport failure")));
 
-        assertTrue(records.stream().anyMatch(record ->
-                record.getLevel() == Level.SEVERE
-                        && record.getMessage().contains("Unexpected transport failure")
-        ));
+        assertTrue(records.stream()
+                .anyMatch(record -> record.getLevel() == Level.SEVERE
+                        && record.getMessage().contains("Unexpected transport failure")));
     }
 
     @Test
     void failoverConnectionsUseNetworkInboxesAndSimpleCloudListeners() {
         SimpleCloudNatsListener listener = new SimpleCloudNatsListener();
-        Options options = NatsFailoverConnectionManager.createOptions(
-                "nats://localhost:4222",
-                "network",
-                "secret",
-                listener
-        );
+        Options options =
+                NatsFailoverConnectionManager.createOptions("nats://localhost:4222", "network", "secret", listener);
 
         assertSame(listener, options.getErrorListener());
         assertSame(listener, options.getConnectionListener());
@@ -107,12 +84,10 @@ class SimpleCloudNatsListenerTest {
             }
 
             @Override
-            public void flush() {
-            }
+            public void flush() {}
 
             @Override
-            public void close() {
-            }
+            public void close() {}
         };
 
         Level previousLevel = logger.getLevel();

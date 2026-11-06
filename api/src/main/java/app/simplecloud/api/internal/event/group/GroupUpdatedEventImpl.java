@@ -25,7 +25,8 @@ class GroupUpdatedEventImpl implements GroupUpdatedEvent {
 
     @Override
     public Group getGroup() {
-        throw new IllegalStateException("Group data is not available in GroupUpdatedEvent. Use CloudApi.group().getGroup(serverGroupId) to fetch the group.");
+        throw new IllegalStateException(
+                "Group data is not available in GroupUpdatedEvent. Use CloudApi.group().getGroup(serverGroupId) to fetch the group.");
     }
 
     @Override
@@ -33,4 +34,3 @@ class GroupUpdatedEventImpl implements GroupUpdatedEvent {
         return Instant.ofEpochSecond(delegate.getTimestamp()).toString();
     }
 }
-

@@ -34,4 +34,3 @@ class PersistentServerDeletedEventImpl implements PersistentServerDeletedEvent {
         return Instant.ofEpochSecond(delegate.getTimestamp()).toString();
     }
 }
-

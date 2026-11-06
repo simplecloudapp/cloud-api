@@ -10,17 +10,20 @@ import java.util.Map;
 public class UpdateServerRequest {
     @Nullable
     private ServerState state;
+
     @Nullable
     private Map<String, Object> properties;
+
     @Nullable
     private Integer minMemory;
+
     @Nullable
     private Integer maxMemory;
+
     @Nullable
     private Integer maxPlayers;
 
-    public UpdateServerRequest() {
-    }
+    public UpdateServerRequest() {}
 
     public static Builder builder() {
         return new Builder();
@@ -114,4 +117,3 @@ public class UpdateServerRequest {
         }
     }
 }
-

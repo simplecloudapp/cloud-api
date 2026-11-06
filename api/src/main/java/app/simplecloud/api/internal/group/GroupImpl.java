@@ -1,6 +1,16 @@
 package app.simplecloud.api.internal.group;
 
-import app.simplecloud.api.group.*;
+import app.simplecloud.api.group.DeploymentConfig;
+import app.simplecloud.api.group.DeploymentHost;
+import app.simplecloud.api.group.DeploymentStrategy;
+import app.simplecloud.api.group.GroupServerType;
+import app.simplecloud.api.group.ScaleDownConfig;
+import app.simplecloud.api.group.ScalingConfig;
+import app.simplecloud.api.group.ScalingMode;
+import app.simplecloud.api.group.SourceConfig;
+import app.simplecloud.api.group.SourceType;
+import app.simplecloud.api.group.WorkflowWhen;
+import app.simplecloud.api.group.WorkflowsConfig;
 import app.simplecloud.api.web.models.ModelsServerGroupInfo;
 import app.simplecloud.api.web.models.ModelsServerGroupSummary;
 import com.google.gson.Gson;
@@ -164,7 +174,8 @@ public class GroupImpl implements app.simplecloud.api.group.Group {
                 app.simplecloud.api.web.models.ModelsSourceInfo sourceInfo = infoDelegate.getSource();
                 if (sourceInfo != null) {
                     config = new app.simplecloud.api.web.models.ModelsSourceConfig();
-                    config.setType(app.simplecloud.api.web.models.ModelsSourceConfig.TypeEnum.fromValue(sourceInfo.getType()));
+                    config.setType(
+                            app.simplecloud.api.web.models.ModelsSourceConfig.TypeEnum.fromValue(sourceInfo.getType()));
                     app.simplecloud.api.web.models.ModelsBlueprintInfo blueprintInfo = sourceInfo.getBlueprint();
                     if (blueprintInfo != null) {
                         config.setBlueprint(blueprintInfo.getId());

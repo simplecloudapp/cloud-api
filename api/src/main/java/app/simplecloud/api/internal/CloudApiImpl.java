@@ -13,13 +13,13 @@ import app.simplecloud.api.internal.event.EventApiImpl;
 import app.simplecloud.api.internal.group.GroupApiImpl;
 import app.simplecloud.api.internal.nats.NatsFailoverConnectionManager;
 import app.simplecloud.api.internal.persistentserver.PersistentServerApiImpl;
-import app.simplecloud.api.internal.server.ServerApiImpl;
 import app.simplecloud.api.internal.player.PlayerApiImpl;
+import app.simplecloud.api.internal.server.ServerApiImpl;
 import app.simplecloud.api.internal.web.ApiClientFactory;
-import app.simplecloud.api.web.ApiClient;
 import app.simplecloud.api.persistentserver.PersistentServerApi;
 import app.simplecloud.api.player.PlayerApi;
 import app.simplecloud.api.server.ServerApi;
+import app.simplecloud.api.web.ApiClient;
 import io.nats.client.Connection;
 
 import java.util.concurrent.Executor;
@@ -55,8 +55,7 @@ public class CloudApiImpl implements CloudApi {
                 options.getNatsUrl(),
                 options.getNetworkId(),
                 options.getNetworkSecret(),
-                options.getNatsFailoverReconnectAfter()
-        );
+                options.getNatsFailoverReconnectAfter());
         this.natsClient = natsConnectionManager.getConnection();
 
         // Initialize cache
@@ -82,7 +81,6 @@ public class CloudApiImpl implements CloudApi {
         } else {
             this.cacheEventListener = null;
         }
-
     }
 
     @Override
@@ -163,5 +161,4 @@ public class CloudApiImpl implements CloudApi {
         httpClient.getHttpClient().connectionPool().evictAll();
         executor.shutdown();
     }
-
 }

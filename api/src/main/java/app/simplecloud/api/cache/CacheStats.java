@@ -19,8 +19,8 @@ public final class CacheStats {
     private final long entryCount;
     private final double hitRate;
 
-    public CacheStats(long hitCount, long missCount, long staleHitCount,
-                      long evictionCount, long entryCount, double hitRate) {
+    public CacheStats(
+            long hitCount, long missCount, long staleHitCount, long evictionCount, long entryCount, double hitRate) {
         this.hitCount = hitCount;
         this.missCount = missCount;
         this.staleHitCount = staleHitCount;
@@ -75,7 +75,6 @@ public final class CacheStats {
     public String toString() {
         return String.format(
                 "CacheStats[hits=%d, misses=%d, staleHits=%d, evictions=%d, entries=%d, hitRate=%.2f%%]",
-                hitCount, missCount, staleHitCount, evictionCount, entryCount, hitRate * 100
-        );
+                hitCount, missCount, staleHitCount, evictionCount, entryCount, hitRate * 100);
     }
 }

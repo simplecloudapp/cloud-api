@@ -7,21 +7,26 @@ import java.util.List;
 public class UpdateClientSettingsRequest {
     @Nullable
     private PlayerClientSettings.ChatMode chatMode;
+
     @Nullable
     private String locale;
+
     @Nullable
     private PlayerClientSettings.MainHand mainHand;
+
     @Nullable
     private Integer viewDistance;
+
     @Nullable
     private Boolean chatColors;
+
     @Nullable
     private Boolean clientListingAllowed;
+
     @Nullable
     private List<String> skinParts;
 
-    public UpdateClientSettingsRequest() {
-    }
+    public UpdateClientSettingsRequest() {}
 
     public static Builder builder() {
         return new Builder();

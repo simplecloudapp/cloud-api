@@ -16,8 +16,7 @@ public class CreateBlueprintRequest {
     private String softwareVersion;
     private List<String> workflowSteps;
 
-    public CreateBlueprintRequest() {
-    }
+    public CreateBlueprintRequest() {}
 
     public static Builder builder() {
         return new Builder();

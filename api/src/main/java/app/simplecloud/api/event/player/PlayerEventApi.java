@@ -56,5 +56,4 @@ public interface PlayerEventApi {
      * @return a subscription that can be closed to stop receiving events
      */
     Subscription onClientSettingsUpdated(Consumer<PlayerClientSettingsUpdatedEvent> handler);
-
 }

@@ -7,11 +7,11 @@ import java.util.List;
 public class WorkflowWhen {
     @Nullable
     private List<String> start;
+
     @Nullable
     private List<String> stop;
 
-    public WorkflowWhen() {
-    }
+    public WorkflowWhen() {}
 
     public static Builder builder() {
         return new Builder();

@@ -3,7 +3,11 @@ package app.simplecloud.api.internal.event.persistentserver;
 import app.simplecloud.api.event.Subscription;
 import app.simplecloud.api.event.persistentserver.PersistentServerEventApi;
 import app.simplecloud.api.internal.event.SubscriptionImpl;
-import build.buf.gen.simplecloud.controller.v2.*;
+import build.buf.gen.simplecloud.controller.v2.PersistentServerCreatedEvent;
+import build.buf.gen.simplecloud.controller.v2.PersistentServerDeletedEvent;
+import build.buf.gen.simplecloud.controller.v2.PersistentServerStartedEvent;
+import build.buf.gen.simplecloud.controller.v2.PersistentServerStoppedEvent;
+import build.buf.gen.simplecloud.controller.v2.PersistentServerUpdatedEvent;
 import io.nats.client.Connection;
 import io.nats.client.Dispatcher;
 import io.nats.client.Message;
@@ -25,12 +29,14 @@ public class PersistentServerEventApiImpl implements PersistentServerEventApi {
     }
 
     @Override
-    public Subscription onCreated(Consumer<app.simplecloud.api.event.persistentserver.PersistentServerCreatedEvent> handler) {
+    public Subscription onCreated(
+            Consumer<app.simplecloud.api.event.persistentserver.PersistentServerCreatedEvent> handler) {
         String subject = networkId + ".event.persistent-server.created";
         io.nats.client.Subscription natsSub = dispatcher.subscribe(subject, (Message msg) -> {
             try {
                 PersistentServerCreatedEvent protoEvent = PersistentServerCreatedEvent.parseFrom(msg.getData());
-                app.simplecloud.api.event.persistentserver.PersistentServerCreatedEvent event = new PersistentServerCreatedEventImpl(protoEvent);
+                app.simplecloud.api.event.persistentserver.PersistentServerCreatedEvent event =
+                        new PersistentServerCreatedEventImpl(protoEvent);
                 handler.accept(event);
             } catch (Exception e) {
                 LOGGER.log(Level.SEVERE, "Error handling PersistentServerCreatedEvent", e);
@@ -40,12 +46,14 @@ public class PersistentServerEventApiImpl implements PersistentServerEventApi {
     }
 
     @Override
-    public Subscription onStarted(Consumer<app.simplecloud.api.event.persistentserver.PersistentServerStartedEvent> handler) {
+    public Subscription onStarted(
+            Consumer<app.simplecloud.api.event.persistentserver.PersistentServerStartedEvent> handler) {
         String subject = networkId + ".event.persistent-server.started";
         io.nats.client.Subscription natsSub = dispatcher.subscribe(subject, (Message msg) -> {
             try {
                 PersistentServerStartedEvent protoEvent = PersistentServerStartedEvent.parseFrom(msg.getData());
-                app.simplecloud.api.event.persistentserver.PersistentServerStartedEvent event = new PersistentServerStartedEventImpl(protoEvent);
+                app.simplecloud.api.event.persistentserver.PersistentServerStartedEvent event =
+                        new PersistentServerStartedEventImpl(protoEvent);
                 handler.accept(event);
             } catch (Exception e) {
                 LOGGER.log(Level.SEVERE, "Error handling PersistentServerStartedEvent", e);
@@ -55,12 +63,14 @@ public class PersistentServerEventApiImpl implements PersistentServerEventApi {
     }
 
     @Override
-    public Subscription onStopped(Consumer<app.simplecloud.api.event.persistentserver.PersistentServerStoppedEvent> handler) {
+    public Subscription onStopped(
+            Consumer<app.simplecloud.api.event.persistentserver.PersistentServerStoppedEvent> handler) {
         String subject = networkId + ".event.persistent-server.stopped";
         io.nats.client.Subscription natsSub = dispatcher.subscribe(subject, (Message msg) -> {
             try {
                 PersistentServerStoppedEvent protoEvent = PersistentServerStoppedEvent.parseFrom(msg.getData());
-                app.simplecloud.api.event.persistentserver.PersistentServerStoppedEvent event = new PersistentServerStoppedEventImpl(protoEvent);
+                app.simplecloud.api.event.persistentserver.PersistentServerStoppedEvent event =
+                        new PersistentServerStoppedEventImpl(protoEvent);
                 handler.accept(event);
             } catch (Exception e) {
                 LOGGER.log(Level.SEVERE, "Error handling PersistentServerStoppedEvent", e);
@@ -70,12 +80,14 @@ public class PersistentServerEventApiImpl implements PersistentServerEventApi {
     }
 
     @Override
-    public Subscription onUpdated(Consumer<app.simplecloud.api.event.persistentserver.PersistentServerUpdatedEvent> handler) {
+    public Subscription onUpdated(
+            Consumer<app.simplecloud.api.event.persistentserver.PersistentServerUpdatedEvent> handler) {
         String subject = networkId + ".event.persistent-server.updated";
         io.nats.client.Subscription natsSub = dispatcher.subscribe(subject, (Message msg) -> {
             try {
                 PersistentServerUpdatedEvent protoEvent = PersistentServerUpdatedEvent.parseFrom(msg.getData());
-                app.simplecloud.api.event.persistentserver.PersistentServerUpdatedEvent event = new PersistentServerUpdatedEventImpl(protoEvent);
+                app.simplecloud.api.event.persistentserver.PersistentServerUpdatedEvent event =
+                        new PersistentServerUpdatedEventImpl(protoEvent);
                 handler.accept(event);
             } catch (Exception e) {
                 LOGGER.log(Level.SEVERE, "Error handling PersistentServerUpdatedEvent", e);
@@ -85,12 +97,14 @@ public class PersistentServerEventApiImpl implements PersistentServerEventApi {
     }
 
     @Override
-    public Subscription onDeleted(Consumer<app.simplecloud.api.event.persistentserver.PersistentServerDeletedEvent> handler) {
+    public Subscription onDeleted(
+            Consumer<app.simplecloud.api.event.persistentserver.PersistentServerDeletedEvent> handler) {
         String subject = networkId + ".event.persistent-server.deleted";
         io.nats.client.Subscription natsSub = dispatcher.subscribe(subject, (Message msg) -> {
             try {
                 PersistentServerDeletedEvent protoEvent = PersistentServerDeletedEvent.parseFrom(msg.getData());
-                app.simplecloud.api.event.persistentserver.PersistentServerDeletedEvent event = new PersistentServerDeletedEventImpl(protoEvent);
+                app.simplecloud.api.event.persistentserver.PersistentServerDeletedEvent event =
+                        new PersistentServerDeletedEventImpl(protoEvent);
                 handler.accept(event);
             } catch (Exception e) {
                 LOGGER.log(Level.SEVERE, "Error handling PersistentServerDeletedEvent", e);
@@ -98,5 +112,4 @@ public class PersistentServerEventApiImpl implements PersistentServerEventApi {
         });
         return new SubscriptionImpl(natsSub);
     }
-
 }

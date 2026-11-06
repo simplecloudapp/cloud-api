@@ -35,4 +35,3 @@ class GroupDeletedEventImpl implements GroupDeletedEvent {
         return Instant.ofEpochSecond(delegate.getTimestamp()).toString();
     }
 }
-

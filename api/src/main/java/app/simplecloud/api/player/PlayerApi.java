@@ -151,7 +151,8 @@ public interface PlayerApi {
         if (updater == null) {
             return CompletableFuture.failedFuture(new IllegalArgumentException("updater must not be null"));
         }
-        return getOnlineTimeSeconds(uniqueId).thenCompose(current -> setOnlineTimeSeconds(uniqueId, updater.applyAsLong(current)));
+        return getOnlineTimeSeconds(uniqueId)
+                .thenCompose(current -> setOnlineTimeSeconds(uniqueId, updater.applyAsLong(current)));
     }
 
     /**
@@ -411,7 +412,8 @@ public interface PlayerApi {
      * @param selectionMode how the target server is chosen
      * @return a future containing the connection result
      */
-    CompletableFuture<CloudPlayer.ConnectResult> connectToGroup(UUID uniqueId, String groupName, ServerSelectionMode selectionMode);
+    CompletableFuture<CloudPlayer.ConnectResult> connectToGroup(
+            UUID uniqueId, String groupName, ServerSelectionMode selectionMode);
 
     /**
      * Connects a player to a random server of the given server group.

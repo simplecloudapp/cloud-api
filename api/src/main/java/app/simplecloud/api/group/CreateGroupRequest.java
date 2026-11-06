@@ -11,8 +11,10 @@ import java.util.Map;
  */
 public class CreateGroupRequest {
     private final String name;
+
     @Nullable
     private GroupServerType type;
+
     private Integer minMemory;
     private Integer maxMemory;
     private Integer maxPlayers;

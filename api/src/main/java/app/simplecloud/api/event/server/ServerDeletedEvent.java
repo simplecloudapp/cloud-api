@@ -43,4 +43,3 @@ public interface ServerDeletedEvent {
      */
     String getTimestamp();
 }
-

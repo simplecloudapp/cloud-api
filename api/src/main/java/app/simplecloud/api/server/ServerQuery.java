@@ -32,8 +32,7 @@ public class ServerQuery {
     private String sortBy;
     private String sortOrder;
 
-    public ServerQuery() {
-    }
+    public ServerQuery() {}
 
     @Nullable
     public List<String> getServerGroupIds() {

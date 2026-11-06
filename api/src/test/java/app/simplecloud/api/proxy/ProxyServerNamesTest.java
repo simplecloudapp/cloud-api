@@ -27,7 +27,7 @@ class ProxyServerNamesTest {
     @Test
     void register_replacesPreviousRegistration() {
         try (ProxyServerNames.Registration first = ProxyServerNames.register(id -> Optional.of("lobby-1"));
-             ProxyServerNames.Registration second = ProxyServerNames.register(id -> Optional.of("lobby-2"))) {
+                ProxyServerNames.Registration second = ProxyServerNames.register(id -> Optional.of("lobby-2"))) {
             assertEquals(Optional.of("lobby-2"), ProxyServerNames.proxyNameOf(SERVER_ID));
         }
     }

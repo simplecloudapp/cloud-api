@@ -43,4 +43,3 @@ public interface ServerStartedEvent {
      */
     String getTimestamp();
 }
-

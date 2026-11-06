@@ -59,8 +59,7 @@ class ServerStateChangedEventImpl implements ServerStateChangedEvent {
                     delegate.getNewState(),
                     delegate.hasGroupConfig() ? delegate.getGroupConfig() : null,
                     delegate.hasPersistentServerConfig() ? delegate.getPersistentServerConfig() : null,
-                    delegate.getTimestamp()
-            );
+                    delegate.getTimestamp());
         }
         return server;
     }

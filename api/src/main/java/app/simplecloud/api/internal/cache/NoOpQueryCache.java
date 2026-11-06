@@ -1,6 +1,10 @@
 package app.simplecloud.api.internal.cache;
 
-import app.simplecloud.api.cache.*;
+import app.simplecloud.api.cache.CacheEntry;
+import app.simplecloud.api.cache.CacheStats;
+import app.simplecloud.api.cache.EntityType;
+import app.simplecloud.api.cache.QueryCache;
+import app.simplecloud.api.cache.QueryKey;
 
 import java.util.Collections;
 import java.util.Set;

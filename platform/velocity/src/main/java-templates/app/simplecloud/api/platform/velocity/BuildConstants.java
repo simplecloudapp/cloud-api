@@ -4,6 +4,5 @@ final class BuildConstants {
 
     static final String VERSION = "{{ version }}";
 
-    private BuildConstants() {
-    }
+    private BuildConstants() {}
 }

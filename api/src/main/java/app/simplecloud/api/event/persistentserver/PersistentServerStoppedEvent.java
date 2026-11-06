@@ -26,7 +26,8 @@ public interface PersistentServerStoppedEvent {
      *
      * @return the server ID, or null if not available
      */
-    @Nullable String getServerId();
+    @Nullable
+    String getServerId();
 
     /**
      * Returns the timestamp when this event occurred (ISO 8601 format).
@@ -35,4 +36,3 @@ public interface PersistentServerStoppedEvent {
      */
     String getTimestamp();
 }
-

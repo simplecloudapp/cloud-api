@@ -37,8 +37,7 @@ final class ManifestServerUrlResolver implements InlineBlueprintSupport.ServerUr
 
     private static final Duration FETCH_TIMEOUT = Duration.ofSeconds(30);
     private static final Duration CACHE_TTL = Duration.ofMinutes(5);
-    private static final Type MANIFEST_TYPE = new TypeToken<List<ManifestEntry>>() {
-    }.getType();
+    private static final Type MANIFEST_TYPE = new TypeToken<List<ManifestEntry>>() {}.getType();
 
     private final @Nullable HttpUrl manifestUrl;
     private final String manifestUrlForErrors;
@@ -58,8 +57,7 @@ final class ManifestServerUrlResolver implements InlineBlueprintSupport.ServerUr
                         .dns(new PublicAddressDns(Dns.SYSTEM))
                         .build(),
                 FETCH_TIMEOUT,
-                new Gson()
-        );
+                new Gson());
     }
 
     /**
@@ -68,9 +66,11 @@ final class ManifestServerUrlResolver implements InlineBlueprintSupport.ServerUr
      * An invalid URL only fails once the manifest is needed, so unrelated SDK features keep working.
      */
     ManifestServerUrlResolver(String manifestUrl, OkHttpClient httpClient, Duration fetchTimeout, Gson gson) {
-        this.manifestUrl = HttpUrl.parse(Objects.requireNonNull(manifestUrl, "manifestUrl").trim());
+        this.manifestUrl =
+                HttpUrl.parse(Objects.requireNonNull(manifestUrl, "manifestUrl").trim());
         this.manifestUrlForErrors = this.manifestUrl != null ? withoutSecrets(this.manifestUrl) : "an invalid URL";
-        this.httpClient = Objects.requireNonNull(httpClient, "httpClient").newBuilder()
+        this.httpClient = Objects.requireNonNull(httpClient, "httpClient")
+                .newBuilder()
                 .followRedirects(false)
                 .followSslRedirects(false)
                 .build();
@@ -133,10 +133,7 @@ final class ManifestServerUrlResolver implements InlineBlueprintSupport.ServerUr
                 if (remainingMillis <= 0) {
                     throw fetchFailure("timed out after " + fetchTimeout.toMillis() + " ms");
                 }
-                Request request = new Request.Builder()
-                        .url(url)
-                        .get()
-                        .build();
+                Request request = new Request.Builder().url(url).get().build();
                 Call call = httpClient.newCall(request);
                 call.timeout().timeout(remainingMillis, TimeUnit.MILLISECONDS);
                 try (Response response = call.execute()) {
@@ -154,8 +151,7 @@ final class ManifestServerUrlResolver implements InlineBlueprintSupport.ServerUr
                     CloudApiException.Reason.UNAVAILABLE,
                     0,
                     "Failed to fetch server version manifest from " + manifestUrlForErrors,
-                    e
-            );
+                    e);
         }
     }
 
@@ -195,16 +191,14 @@ final class ManifestServerUrlResolver implements InlineBlueprintSupport.ServerUr
                     CloudApiException.Reason.UNAVAILABLE,
                     0,
                     "Failed to parse server version manifest from " + manifestUrlForErrors,
-                    e
-            );
+                    e);
         }
     }
 
     private CloudApiException fetchFailure(String reason) {
         return new CloudApiException(
                 CloudApiException.Reason.UNAVAILABLE,
-                "Failed to fetch server version manifest from " + manifestUrlForErrors + ": " + reason
-        );
+                "Failed to fetch server version manifest from " + manifestUrlForErrors + ": " + reason);
     }
 
     private static String withoutSecrets(HttpUrl url) {

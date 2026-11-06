@@ -8,18 +8,20 @@ import org.jetbrains.annotations.Nullable;
 public final class GroupStartQueueItem {
     @Nullable
     private final String createdAt;
+
     @Nullable
     private final String failureReason;
+
     @Nullable
     private final String id;
+
     private final GroupStartQueueItemStatus status;
 
     public GroupStartQueueItem(
             @Nullable String createdAt,
             @Nullable String failureReason,
             @Nullable String id,
-            GroupStartQueueItemStatus status
-    ) {
+            GroupStartQueueItemStatus status) {
         this.createdAt = createdAt;
         this.failureReason = failureReason;
         this.id = id;

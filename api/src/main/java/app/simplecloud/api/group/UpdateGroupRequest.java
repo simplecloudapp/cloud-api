@@ -7,8 +7,10 @@ import java.util.Map;
 
 public class UpdateGroupRequest {
     private String name;
+
     @Nullable
     private GroupServerType type;
+
     private Integer minMemory;
     private Integer maxMemory;
     private Integer maxPlayers;
@@ -21,8 +23,7 @@ public class UpdateGroupRequest {
     private Map<String, Object> properties;
     private List<String> tags;
 
-    public UpdateGroupRequest() {
-    }
+    public UpdateGroupRequest() {}
 
     public static Builder builder() {
         return new Builder();

@@ -8,7 +8,7 @@ import java.util.regex.Pattern;
 
 public class CloudApiOptions {
 
-    public final static CloudApiOptions DEFAULT = new Builder().build();
+    public static final CloudApiOptions DEFAULT = new Builder().build();
     private static final Pattern DURATION_PATTERN = Pattern.compile("^(\\d+)(ms|s|m|h)$");
 
     private final String natsUrl;
@@ -119,17 +119,16 @@ public class CloudApiOptions {
 
         public Builder() {
             this.natsUrl = System.getenv().getOrDefault("SIMPLECLOUD_NATS_URL", "wss://nats.simplecloud.app:443");
-            this.natsFailoverReconnectAfter = parseDuration(
-                    System.getenv("SIMPLECLOUD_NATS_FAILOVER_RECONNECT_AFTER"),
-                    Duration.ofSeconds(30)
-            );
-            this.controllerUrl = System.getenv().getOrDefault("SIMPLECLOUD_CONTROLLER_URL", "https://controller.simplecloud.app");
+            this.natsFailoverReconnectAfter =
+                    parseDuration(System.getenv("SIMPLECLOUD_NATS_FAILOVER_RECONNECT_AFTER"), Duration.ofSeconds(30));
+            this.controllerUrl =
+                    System.getenv().getOrDefault("SIMPLECLOUD_CONTROLLER_URL", "https://controller.simplecloud.app");
             this.networkId = System.getenv().getOrDefault("SIMPLECLOUD_NETWORK_ID", "default");
             this.networkSecret = System.getenv().getOrDefault("SIMPLECLOUD_NETWORK_SECRET", "");
-            this.serverVersionManifestUrl = System.getenv().getOrDefault(
-                    "SIMPLECLOUD_SERVER_VERSION_MANIFEST_URL",
-                    "https://raw.githubusercontent.com/theSimpleCloud/simplecloud-manifest/refs/heads/main/server_versions.json"
-            );
+            this.serverVersionManifestUrl = System.getenv()
+                    .getOrDefault(
+                            "SIMPLECLOUD_SERVER_VERSION_MANIFEST_URL",
+                            "https://raw.githubusercontent.com/theSimpleCloud/simplecloud-manifest/refs/heads/main/server_versions.json");
         }
 
         public Builder natsUrl(String natsUrl) {
@@ -289,10 +288,9 @@ public class CloudApiOptions {
                 return duration;
             } catch (Exception e) {
                 throw new IllegalArgumentException(
-                        "Invalid SIMPLECLOUD_NATS_FAILOVER_RECONNECT_AFTER value '" + raw +
-                                "'. Use values like 30s, 2m, 1h, 500ms, or ISO-8601 (e.g. PT30S).",
-                        e
-                );
+                        "Invalid SIMPLECLOUD_NATS_FAILOVER_RECONNECT_AFTER value '" + raw
+                                + "'. Use values like 30s, 2m, 1h, 500ms, or ISO-8601 (e.g. PT30S).",
+                        e);
             }
         }
     }

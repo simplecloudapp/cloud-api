@@ -5,10 +5,10 @@ import org.jetbrains.annotations.Nullable;
 public class DeploymentHost {
     @Nullable
     private String name;
+
     private int priority;
 
-    public DeploymentHost() {
-    }
+    public DeploymentHost() {}
 
     public static Builder builder() {
         return new Builder();

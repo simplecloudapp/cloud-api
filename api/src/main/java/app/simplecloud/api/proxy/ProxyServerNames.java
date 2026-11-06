@@ -20,8 +20,7 @@ public final class ProxyServerNames {
 
     private static final AtomicReference<Registration> CURRENT_REGISTRATION = new AtomicReference<>();
 
-    private ProxyServerNames() {
-    }
+    private ProxyServerNames() {}
 
     /**
      * Registers the lookup, replacing any previously registered one.

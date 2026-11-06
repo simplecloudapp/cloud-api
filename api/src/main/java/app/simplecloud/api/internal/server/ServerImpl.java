@@ -1,5 +1,6 @@
 package app.simplecloud.api.internal.server;
 
+import app.simplecloud.api.base.ServerBase;
 import app.simplecloud.api.blueprint.Blueprint;
 import app.simplecloud.api.group.Group;
 import app.simplecloud.api.internal.group.GroupImpl;
@@ -7,7 +8,6 @@ import app.simplecloud.api.internal.persistentserver.PersistentServerImpl;
 import app.simplecloud.api.persistentserver.PersistentServer;
 import app.simplecloud.api.server.Server;
 import app.simplecloud.api.server.ServerState;
-import app.simplecloud.api.base.ServerBase;
 import app.simplecloud.api.web.models.ModelsServerSummary;
 import org.jetbrains.annotations.Nullable;
 
@@ -215,7 +215,7 @@ public class ServerImpl implements Server {
     @Override
     @Nullable
     public PersistentServer getPersistentServer() {
-        if  (persistentServer == null && delegate.getPersistentServer() != null) {
+        if (persistentServer == null && delegate.getPersistentServer() != null) {
             persistentServer = new PersistentServerImpl(delegate.getPersistentServer());
         }
 
