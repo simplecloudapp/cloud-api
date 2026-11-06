@@ -5,9 +5,12 @@ plugins {
     id("com.modrinth.minotaur")
 }
 
-val modrinthVersion = version.toString().substringBefore("-dev.")
-require(modrinthVersion.length <= 32) {
-    "Modrinth version '$modrinthVersion' exceeds the 32-character limit"
+tasks.processResources {
+    val properties = mapOf("version" to project.version.toString())
+    inputs.properties(properties)
+    filesMatching(listOf("plugin.yml", "paper-plugin.yml")) {
+        expand(properties)
+    }
 }
 
 val shadowJar = tasks.named<ShadowJar>("shadowJar") {
@@ -23,7 +26,7 @@ val shadowJar = tasks.named<ShadowJar>("shadowJar") {
 modrinth {
     token = providers.gradleProperty("modrinthToken").orElse(providers.environmentVariable("MODRINTH_TOKEN"))
     projectId = "JCJKZvY2"
-    versionNumber = modrinthVersion
+    versionNumber = version.toString()
     versionType = "release"
     uploadFile.set(shadowJar)
     changelog = "https://docs.simplecloud.app/changelog"

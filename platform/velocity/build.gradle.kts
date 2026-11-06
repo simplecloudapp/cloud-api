@@ -1,5 +1,16 @@
 plugins {
     id("cloud-api.platform-conventions")
+    alias(libs.plugins.blossom)
+}
+
+sourceSets {
+    main {
+        blossom {
+            javaSources {
+                property("version", project.version.toString())
+            }
+        }
+    }
 }
 
 dependencies {

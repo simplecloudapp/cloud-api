@@ -29,6 +29,7 @@ adventure = "5.2.0"
 adventure-platform = "4.4.1"
 
 minotaur = "2.10.0"
+blossom = "2.2.0"
 
 [libraries]
 controller-proto = { module = "build.buf.gen:simplecloud_controller_protocolbuffers_java_lite", version.ref = "controller-proto" }
@@ -63,6 +64,7 @@ adventure-bungeecord = { module = "net.kyori:adventure-platform-bungeecord", ver
 [plugins]
 shadow = { id = "com.gradleup.shadow", version.ref = "shadow" }
 minotaur = { id = "com.modrinth.minotaur", version.ref = "minotaur" }
+blossom = { id = "net.kyori.blossom", version.ref = "blossom" }
 openapi-generator = { id = "org.openapi.generator", version.ref = "openapi-generator" }
 fabric-loom = { id = "net.fabricmc.fabric-loom", version = "1.19.3" }
 neoforge-userdev = { id = "net.neoforged.gradle.userdev", version = "7.1.39" }

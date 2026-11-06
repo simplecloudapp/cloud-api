@@ -40,7 +40,6 @@ jobs:
     runs-on: depot-ubuntu-latest
     outputs:
       gradle_version: ${{ steps.versions.outputs.gradle_version }}
-      commit_hash: ${{ steps.versions.outputs.commit_hash }}
 
     steps:
       - name: Checkout repository
@@ -65,21 +64,13 @@ jobs:
       - name: Get Versions
         id: versions
         run: |
-          BASE_VERSION=$(sed -nE 's/^val baseVersion = "([^"]+)"/\1/p' build.gradle.kts)
-          if [ -z "$BASE_VERSION" ]; then
-            echo "Unable to read baseVersion from build.gradle.kts" >&2
+          GRADLE_VERSION=$(sed -nE 's/^[[:space:]]*version = "([^"]+)"/\1/p' build.gradle.kts)
+          if [ -z "$GRADLE_VERSION" ]; then
+            echo "Unable to read version from build.gradle.kts" >&2
             exit 1
           fi
 
-          COMMIT_HASH=$(git rev-parse --short HEAD)
-          # Mirrors the dev version built in build.gradle.kts (baseVersion-dev.<devBuildId>-<commitHash>)
-          DEV_BUILD_ID="${GITHUB_RUN_NUMBER}${GITHUB_RUN_ATTEMPT:+.$GITHUB_RUN_ATTEMPT}"
-          GRADLE_VERSION="${BASE_VERSION}-dev.${DEV_BUILD_ID}-${COMMIT_HASH}"
-
-          # Exported so every Gradle invocation in this job builds the same dev version
-          echo "COMMIT_HASH=$COMMIT_HASH" >> "$GITHUB_ENV"
           echo "gradle_version=$GRADLE_VERSION" >> "$GITHUB_OUTPUT"
-          echo "commit_hash=$COMMIT_HASH" >> "$GITHUB_OUTPUT"
 
       - name: Verify SimpleCloud Repository Credentials
         env:

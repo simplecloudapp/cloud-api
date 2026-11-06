@@ -29,7 +29,7 @@ import java.util.Locale;
 @Plugin(
         id = "simplecloud-api",
         name = "SimpleCloud API",
-        version = "1.0",
+        version = BuildConstants.VERSION,
         authors = {"Fllip"},
         dependencies = {@Dependency(id = "luckperms", optional = true)}
 )

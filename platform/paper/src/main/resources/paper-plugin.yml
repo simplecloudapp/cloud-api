@@ -1,5 +1,5 @@
 name: simplecloud-api
-version: "1.0"
+version: "${version}"
 main: app.simplecloud.api.provider.paper.PaperApiProvider
 loader: app.simplecloud.api.provider.paper.PaperLoader
 bootstrapper: app.simplecloud.api.provider.paper.PaperBootstrap
