@@ -51,7 +51,7 @@ class ServerStoppedEventImpl implements ServerStoppedEvent {
     }
 
     @Override
-    public boolean getCrashed() {
+    public boolean isCrashed() {
         return delegate.getCrashed();
     }
 

@@ -11,10 +11,6 @@ import app.simplecloud.api.event.server.ServerEventApi;
  *
  * <p>All event subscriptions return a {@link Subscription} that must be
  * closed when no longer needed to prevent resource leaks.
- *
- * <p>Handlers are called on a background thread that is shared with other subscriptions, so move
- * long-running work to your own executor. Exceptions thrown by a handler are logged and don't end
- * the subscription.
  */
 public interface EventApi {
 

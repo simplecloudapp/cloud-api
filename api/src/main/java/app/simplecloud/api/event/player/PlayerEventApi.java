@@ -36,6 +36,8 @@ public interface PlayerEventApi {
     /**
      * Subscribes to player kick events.
      *
+     * <p>Only kicks made through the cloud fire this event, see {@link PlayerKickEvent}.
+     *
      * @param handler the callback to invoke when a player is kicked
      * @return a subscription that can be closed to stop receiving events
      */

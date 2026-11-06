@@ -42,12 +42,12 @@ public interface ServerStoppedEvent {
      *
      * @return true if the server crashed, false if it stopped normally
      */
-    boolean getCrashed();
+    boolean isCrashed();
 
     /**
      * Returns the exit code of the server process.
      *
-     * @return the exit code, or null if not available
+     * @return the exit code, or null if not available (an exit code of 0 is reported as null)
      */
     @Nullable
     Integer getExitCode();

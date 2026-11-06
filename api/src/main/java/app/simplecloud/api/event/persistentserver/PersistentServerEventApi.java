@@ -6,8 +6,6 @@ import java.util.function.Consumer;
 
 /**
  * API for subscribing to persistent server events.
- *
- * <p>Persistent servers are long-lived server instances that maintain state across restarts.
  */
 public interface PersistentServerEventApi {
 
