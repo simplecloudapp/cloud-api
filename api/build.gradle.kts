@@ -49,7 +49,7 @@ sourceSets {
 
 openApiGenerate {
     generatorName = "java"
-    remoteInputSpec = "https://controller.simplecloud.app/swagger/doc.json"
+    inputSpec = isolated.rootProject.projectDirectory.file("hack/controller_spec.json").asFile.absolutePath
 
     outputDir = layout.buildDirectory.dir("generated")
 

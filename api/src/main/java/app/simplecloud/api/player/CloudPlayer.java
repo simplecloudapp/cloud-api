@@ -193,6 +193,11 @@ public interface CloudPlayer extends Audience {
         SERVER_NOT_FOUND,
 
         /**
+         * The target exists, but has no server a player can join right now.
+         */
+        NO_SERVER_AVAILABLE,
+
+        /**
          * The player is already connected to the target server.
          */
         ALREADY_CONNECTED,

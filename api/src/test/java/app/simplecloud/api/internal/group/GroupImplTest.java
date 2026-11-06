@@ -14,7 +14,7 @@ import static org.junit.jupiter.api.Assertions.assertNotNull;
 class GroupImplTest {
 
     @Test
-    void getScaling_mapsServersModeToPlayers() {
+    void getScaling_mapsServersMode() {
         ModelsScalingConfig scaling = new ModelsScalingConfig();
         scaling.setMinServers(1);
         scaling.setMaxServers(2);

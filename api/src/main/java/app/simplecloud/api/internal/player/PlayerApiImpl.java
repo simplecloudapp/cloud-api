@@ -461,7 +461,7 @@ public class PlayerApiImpl implements PlayerApi {
     public CompletableFuture<CloudPlayer.ConnectResult> connectToGroup(
             UUID uniqueId, String groupName, ServerSelectionMode selectionMode) {
         ModelsConnectPlayerRequest request = new ModelsConnectPlayerRequest();
-        request.setServerGroupId(groupName);
+        request.setServerGroupName(groupName);
         request.setSelectionMode((selectionMode != null ? selectionMode : ServerSelectionMode.RANDOM).name());
         return connectViaController(uniqueId, request);
     }
@@ -500,20 +500,16 @@ public class PlayerApiImpl implements PlayerApi {
     }
 
     static CloudPlayer.ConnectResult toConnectResult(ModelsConnectPlayerResponse response) {
-        if (response == null) {
+        if (response == null || response.getResult() == null) {
             return CloudPlayer.ConnectResult.CONNECTION_FAILED;
         }
-        if (Boolean.TRUE.equals(response.getSuccess())) {
-            return CloudPlayer.ConnectResult.SUCCESS;
-        }
-        String message = response.getMessage();
-        if ("Player is already connected to this server".equals(message)) {
-            return CloudPlayer.ConnectResult.ALREADY_CONNECTED;
-        }
-        if ("Target server not found".equals(message)) {
-            return CloudPlayer.ConnectResult.SERVER_NOT_FOUND;
-        }
-        return CloudPlayer.ConnectResult.CONNECTION_FAILED;
+        return switch (response.getResult()) {
+            case ConnectResultSuccess -> CloudPlayer.ConnectResult.SUCCESS;
+            case ConnectResultAlreadyConnected -> CloudPlayer.ConnectResult.ALREADY_CONNECTED;
+            case ConnectResultNoServerAvailable -> CloudPlayer.ConnectResult.NO_SERVER_AVAILABLE;
+            case ConnectResultServerNotFound -> CloudPlayer.ConnectResult.SERVER_NOT_FOUND;
+            default -> CloudPlayer.ConnectResult.CONNECTION_FAILED;
+        };
     }
 
     private CloudPlayer convertPlayer(ModelsOnlinePlayerResponse player) {

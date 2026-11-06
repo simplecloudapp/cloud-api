@@ -287,11 +287,11 @@ class PlayerCommandHandlerTest {
     }
 
     @Test
-    void groupRequestOnTheConnectSubject_connectsByTheGroupName() throws Exception {
+    void legacyGroupRequestOnTheConnectSubject_connectsByTheGroupName() throws Exception {
         FakeNatsConnection nats = FakeNatsConnection.withoutRequests();
         FakeProxyPlayers proxyPlayers = FakeProxyPlayers.connected(PLAYER_UUID);
         startCommandHandler(nats, proxyPlayers);
-        // Today's controller sends ConnectPlayerToGroupRequest on the connect subject for group connects.
+        // Older controllers send the deprecated ConnectPlayerToGroupRequest on the connect subject.
         // Its selection_mode is field 3 like server_id, but a varint, so it must not become an ID connect.
         ConnectPlayerToGroupRequest groupRequest = ConnectPlayerToGroupRequest.newBuilder()
                 .setPlayerId(PLAYER_ID)
