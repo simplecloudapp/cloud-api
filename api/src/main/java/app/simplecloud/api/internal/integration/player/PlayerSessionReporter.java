@@ -15,11 +15,15 @@ import io.nats.client.Connection;
 import io.nats.client.Message;
 
 import java.time.Duration;
+import java.util.Map;
 import java.util.UUID;
 import java.util.concurrent.CompletableFuture;
 import java.util.concurrent.CompletionException;
+import java.util.concurrent.ConcurrentHashMap;
 import java.util.concurrent.Executor;
 import java.util.concurrent.TimeoutException;
+import java.util.concurrent.atomic.AtomicReference;
+import java.util.function.Supplier;
 
 /**
  * Reports player sessions on this proxy to the controller: logins, disconnects, server switches and client settings.
@@ -31,6 +35,7 @@ public class PlayerSessionReporter {
     private final Connection natsConnection;
     private final String networkId;
     private final Executor executor;
+    private final Map<UUID, CompletableFuture<?>> lastReports = new ConcurrentHashMap<>();
 
     public PlayerSessionReporter(CloudApiImpl cloudApi) {
         this(cloudApi.getNatsConnection(), cloudApi.getNetworkId(), cloudApi.getExecutor());
@@ -46,7 +51,8 @@ public class PlayerSessionReporter {
      * Notifies the controller that a player logged in.
      */
     public CompletableFuture<LoginResult> reportLogin(PlayerLogin login) {
-        return CompletableFuture.supplyAsync(
+        return inPlayerOrder(
+                login.playerId(),
                 () -> {
                     try {
                         PlayerLoginRequest.Builder builder = PlayerLoginRequest.newBuilder()
@@ -78,8 +84,7 @@ public class PlayerSessionReporter {
                     } catch (Exception e) {
                         return LoginResult.failure(e.getMessage());
                     }
-                },
-                executor);
+                });
     }
 
     /**
@@ -87,7 +92,8 @@ public class PlayerSessionReporter {
      * Completes exceptionally if the controller rejects the request or no valid reply is received.
      */
     public CompletableFuture<Void> reportDisconnect(UUID playerId) {
-        return CompletableFuture.runAsync(
+        return inPlayerOrder(
+                playerId,
                 () -> {
                     try {
                         PlayerDisconnectRequest request = PlayerDisconnectRequest.newBuilder()
@@ -104,6 +110,7 @@ public class PlayerSessionReporter {
                                 .getSuccess()) {
                             throw new IllegalStateException("Controller rejected the disconnect request");
                         }
+                        return null;
                     } catch (Exception e) {
                         if (e instanceof InterruptedException) {
                             Thread.currentThread().interrupt();
@@ -111,8 +118,7 @@ public class PlayerSessionReporter {
                         throw new CompletionException(
                                 "Failed to disconnect player " + playerId + ": " + e.getMessage(), e);
                     }
-                },
-                executor);
+                });
     }
 
     /**
@@ -120,7 +126,8 @@ public class PlayerSessionReporter {
      * Completes exceptionally if the controller rejects the request or no valid reply is received.
      */
     public CompletableFuture<Void> reportServerSwitch(UUID playerId, String newServerName) {
-        return CompletableFuture.runAsync(
+        return inPlayerOrder(
+                playerId,
                 () -> {
                     try {
                         PlayerServerSwitchRequest request = PlayerServerSwitchRequest.newBuilder()
@@ -138,6 +145,7 @@ public class PlayerSessionReporter {
                                 .getSuccess()) {
                             throw new IllegalStateException("Controller rejected the server-switch request");
                         }
+                        return null;
                     } catch (Exception e) {
                         if (e instanceof InterruptedException) {
                             Thread.currentThread().interrupt();
@@ -147,8 +155,21 @@ public class PlayerSessionReporter {
                                         + e.getMessage(),
                                 e);
                     }
-                },
-                executor);
+                });
+    }
+
+    private <T> CompletableFuture<T> inPlayerOrder(UUID playerId, Supplier<T> report) {
+        AtomicReference<CompletableFuture<T>> scheduled = new AtomicReference<>();
+        lastReports.compute(playerId, (id, previous) -> {
+            CompletableFuture<?> predecessor = previous != null ? previous : CompletableFuture.completedFuture(null);
+            CompletableFuture<T> next =
+                    predecessor.handle((result, failure) -> null).thenApplyAsync(ignored -> report.get(), executor);
+            scheduled.set(next);
+            return next;
+        });
+        CompletableFuture<T> future = scheduled.get();
+        future.whenComplete((result, failure) -> lastReports.remove(playerId, future));
+        return future;
     }
 
     /**

@@ -14,9 +14,12 @@ import org.junit.jupiter.params.ParameterizedTest;
 import org.junit.jupiter.params.provider.EnumSource;
 
 import java.time.Duration;
+import java.util.List;
 import java.util.UUID;
 import java.util.concurrent.CompletableFuture;
 import java.util.concurrent.CompletionException;
+import java.util.concurrent.CopyOnWriteArrayList;
+import java.util.concurrent.CountDownLatch;
 import java.util.concurrent.ForkJoinPool;
 import java.util.concurrent.TimeoutException;
 import java.util.concurrent.atomic.AtomicInteger;
@@ -226,6 +229,48 @@ class PlayerSessionReporterTest {
         reporter.reportLogin(login).join();
 
         assertEquals("", sentRequest.get().getTexture());
+    }
+
+    @Test
+    void disconnectWaitsForTheRunningLoginOfThePlayer() throws Exception {
+        CountDownLatch loginReleased = new CountDownLatch(1);
+        List<String> subjects = new CopyOnWriteArrayList<>();
+        PlayerSessionReporter reporter = reporterAnswering((subject, data, timeout) -> {
+            subjects.add(subject);
+            if (subject.endsWith(".login")) {
+                loginReleased.await();
+                return FakeNatsConnection.reply(
+                        PlayerLoginResponse.newBuilder().setSuccess(true).build().toByteArray());
+            }
+            return FakeNatsConnection.reply(Operation.DISCONNECT.response(true));
+        });
+        PlayerLogin login =
+                new PlayerLogin(PLAYER_UUID, "Player", "Player", "proxy-1", "hash", "en_US", 767, false, null);
+
+        CompletableFuture<LoginResult> loginFuture = reporter.reportLogin(login);
+        CompletableFuture<Void> disconnectFuture = reporter.reportDisconnect(PLAYER_UUID);
+        Thread.sleep(100);
+
+        assertEquals(List.of(NETWORK_ID + ".player.login"), subjects);
+        loginReleased.countDown();
+        loginFuture.join();
+        disconnectFuture.join();
+        assertEquals(List.of(NETWORK_ID + ".player.login", NETWORK_ID + ".player.disconnect"), subjects);
+    }
+
+    @Test
+    void failedLoginDoesNotBlockTheFollowingDisconnect() {
+        PlayerSessionReporter reporter = reporterAnswering((subject, data, timeout) -> {
+            if (subject.endsWith(".login")) {
+                throw new IllegalStateException("transport down");
+            }
+            return FakeNatsConnection.reply(Operation.DISCONNECT.response(true));
+        });
+        PlayerLogin login =
+                new PlayerLogin(PLAYER_UUID, "Player", "Player", "proxy-1", "hash", "en_US", 767, false, null);
+
+        assertFalse(reporter.reportLogin(login).join().isSuccess());
+        assertNull(reporter.reportDisconnect(PLAYER_UUID).join());
     }
 
     private static CompletionException assertFailure(Operation operation, CompletableFuture<Void> future) {
