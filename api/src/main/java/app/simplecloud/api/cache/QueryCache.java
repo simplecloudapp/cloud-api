@@ -9,30 +9,13 @@ import java.util.function.Predicate;
 import java.util.function.Supplier;
 
 /**
- * Query cache interface providing TanStack Query-like caching semantics.
+ * Cache for controller queries.
  *
- * <p>Key features:
  * <ul>
  *   <li><b>Stale-while-revalidate</b>: Returns cached data immediately, refetches in background if stale</li>
  *   <li><b>Query deduplication</b>: Multiple simultaneous identical requests share one network call</li>
  *   <li><b>Automatic garbage collection</b>: Unused cache entries are evicted after cache time</li>
  * </ul>
- *
- * <p>Example usage:
- * <pre>{@code
- * // Manual cache invalidation
- * cloudApi.cache().invalidate(QueryKey.of("server", serverId));
- * cloudApi.cache().invalidateAll(QueryKey.of("servers"));
- *
- * // Check cache state
- * CacheEntry<Server> entry = cloudApi.cache().get(QueryKey.of("server", serverId));
- * if (entry != null) {
- *     System.out.println("Cached at: " + entry.getFetchedAt());
- * }
- *
- * // Get statistics
- * System.out.println(cloudApi.cache().getStats());
- * }</pre>
  */
 public interface QueryCache {
 

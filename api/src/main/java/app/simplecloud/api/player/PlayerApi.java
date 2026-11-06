@@ -11,34 +11,7 @@ import java.util.concurrent.CompletableFuture;
 import java.util.function.LongUnaryOperator;
 
 /**
- * API for querying and managing players connected to the cloud network.
- *
- * <p>Example usage:
- * <pre>{@code
- * PlayerApi players = api.player();
- *
- * // Get a specific player by UUID
- * players.find(uuid).thenAccept(player -> player.ifPresent(
- *         p -> p.sendMessage(Component.text("Hello!"))
- * ));
- *
- * // Get all online players
- * players.getOnlinePlayers().thenAccept(allPlayers -> {
- *     System.out.println("Online players: " + allPlayers.size());
- * });
- *
- * // Get players on a specific server
- * players.getOnlinePlayers("lobby-1").thenAccept(lobbyPlayers -> {
- *     lobbyPlayers.forEach(p -> p.sendMessage(Component.text("Welcome to lobby!")));
- * });
- *
- * // Top 10 players by online time
- * players.list(PlayerQuery.create()
- *         .sortBy(PlayerQuery.SortField.ONLINE_TIME)
- *         .sortOrder(PlayerQuery.SortOrder.DESC)
- *         .limit(10))
- *     .thenAccept(top -> top.forEach(p -> System.out.println(p.getName())));
- * }</pre>
+ * API for querying and managing players connected to the network.
  */
 public interface PlayerApi {
 
@@ -70,6 +43,8 @@ public interface PlayerApi {
 
     /**
      * Finds a player by their username.
+     *
+     * <p>A name that isn't a valid Minecraft username returns an empty Optional without asking the controller.
      *
      * @param name the player's username (case-insensitive)
      * @return a future containing the player, or an empty Optional if not found
@@ -120,8 +95,9 @@ public interface PlayerApi {
      * Sets the accumulated online time for a player.
      *
      * @param uniqueId the player's UUID
-     * @param seconds the new accumulated online time in seconds
-     * @return a future containing the updated player
+     * @param seconds the new accumulated online time in seconds, between 0 and {@link Integer#MAX_VALUE}
+     * @return a future containing the updated player, failed with an {@link IllegalArgumentException}
+     *         if {@code seconds} is out of range
      */
     CompletableFuture<CloudPlayer> setOnlineTimeSeconds(UUID uniqueId, long seconds);
 
@@ -138,10 +114,6 @@ public interface PlayerApi {
     /**
      * Updates the accumulated online time by reading the current value, applying
      * the updater, and writing the resulting value.
-     *
-     * <p>This is a client-side read-modify-write helper. Callers that need
-     * strict atomicity should prefer a controller-side delta endpoint when one
-     * is available.
      *
      * @param uniqueId the player's UUID
      * @param updater function receiving the current online time in seconds
@@ -357,6 +329,7 @@ public interface PlayerApi {
      * Updates the stored client settings of a player's active session.
      *
      * <p>This only changes what the cloud stores; it does not change the settings of the client itself.
+     * Fields left {@code null} in the request stay unchanged.
      *
      * @param uniqueId the player's UUID
      * @param request the fields to change
@@ -377,29 +350,18 @@ public interface PlayerApi {
     CompletableFuture<Boolean> kick(UUID uniqueId, @Nullable Component reason);
 
     /**
-     * Connects a player to a specific server.
-     *
-     * <p>Today this targets the name the proxy registered the server under, exactly like
-     * {@link #connectDirect(UUID, String)}. In a later release it will take the cloud server name
-     * ({@code <group>-<number>} or the persistent server's name) and route through the controller, so it
-     * will only reach cloud-managed servers. Server IDs are not accepted.
+     * Connects a player to a specific server by its cloud name.
      *
      * <p>To reach servers that are not managed by the cloud, use {@link #connectDirect(UUID, String)}.
      *
      * @param uniqueId the player's UUID
-     * @param serverName the name of the target server
+     * @param serverName the cloud name of the target server
      * @return a future containing the connection result
      */
     CompletableFuture<CloudPlayer.ConnectResult> connect(UUID uniqueId, String serverName);
 
     /**
      * Connects a player to a server by the name the proxy registered it under.
-     *
-     * <p>The request goes straight to the player's proxy, without the controller. It works for any server
-     * the proxy knows, including servers that are not managed by the cloud.
-     *
-     * <p>If no proxy answers because none holds the player, the result is
-     * {@link CloudPlayer.ConnectResult#PLAYER_NOT_FOUND} once the request timed out.
      *
      * @param uniqueId the player's UUID
      * @param serverName the name of the target server on the proxy
@@ -410,12 +372,9 @@ public interface PlayerApi {
     /**
      * Connects a player to a server of the given server group.
      *
-     * <p>The request is routed through the controller. If the controller rejects it, the future
-     * completes exceptionally with a {@link app.simplecloud.api.CloudApiException}.
-     *
      * @param uniqueId the player's UUID
      * @param groupName the name of the target server group
-     * @param selectionMode how the target server is chosen
+     * @param selectionMode how the target server is chosen, or null for {@link ServerSelectionMode#RANDOM}
      * @return a future containing the connection result
      */
     CompletableFuture<CloudPlayer.ConnectResult> connectToGroup(
@@ -434,10 +393,6 @@ public interface PlayerApi {
 
     /**
      * Connects a player to a persistent server.
-     *
-     * <p>The request is routed through the controller. If the controller rejects it, for example
-     * because the ID is not a valid UUID, the future completes exceptionally with a
-     * {@link app.simplecloud.api.CloudApiException}.
      *
      * @param uniqueId the player's UUID
      * @param persistentServerId the ID of the target persistent server

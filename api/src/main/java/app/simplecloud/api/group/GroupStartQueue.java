@@ -6,6 +6,9 @@ import java.util.List;
 
 /**
  * Aggregated manual server-start queue state across all server groups.
+ *
+ * <p>Starts are added with {@link GroupApi#requestServerStart(String)}. {@code totalStarts} is the sum of
+ * {@code queuedStarts} (still waiting) and {@code failedStarts}.
  */
 public final class GroupStartQueue {
     private final int count;
@@ -43,6 +46,9 @@ public final class GroupStartQueue {
         return totalStarts;
     }
 
+    /**
+     * @return the queue entry of the group with this ID, or null if the group has no queued starts
+     */
     @Nullable
     public GroupStartQueueEntry findByServerGroupId(String serverGroupId) {
         for (GroupStartQueueEntry item : items) {
@@ -53,6 +59,9 @@ public final class GroupStartQueue {
         return null;
     }
 
+    /**
+     * @return the queue entry of the group with this name, or null if the group has no queued starts
+     */
     @Nullable
     public GroupStartQueueEntry findByServerGroupName(String serverGroupName) {
         for (GroupStartQueueEntry item : items) {

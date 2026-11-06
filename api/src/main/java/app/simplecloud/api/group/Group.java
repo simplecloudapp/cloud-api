@@ -9,9 +9,6 @@ import org.jetbrains.annotations.Nullable;
  * <p>Server groups are templates that define how server instances should be
  * created, deployed, and scaled. Each group specifies memory limits, player capacity,
  * deployment strategy, scaling behavior, and source configuration.
- *
- * <p>This interface extends {@link ServerBase} to provide common configuration access
- * alongside group-specific properties like deployment and scaling configuration.
  */
 public interface Group extends ServerBase {
 

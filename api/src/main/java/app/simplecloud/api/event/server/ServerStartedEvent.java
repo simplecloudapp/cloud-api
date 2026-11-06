@@ -24,7 +24,7 @@ public interface ServerStartedEvent {
     /**
      * Returns the server group ID this server belongs to.
      *
-     * @return the server group ID
+     * @return the server group ID, or an empty string for a persistent server's server
      */
     String getServerGroupId();
 

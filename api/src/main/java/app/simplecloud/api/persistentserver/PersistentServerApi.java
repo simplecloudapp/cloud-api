@@ -15,6 +15,8 @@ import java.util.concurrent.CompletableFuture;
  * <p>Persistent servers are long-lived server instances that maintain state across restarts.
  * Unlike servers spawned from a group, persistent servers don't have scaling or deployment
  * configuration - they are single instances that run on a specific host.
+ *
+ * <p>Lookups are served from the query cache when possible, see {@link app.simplecloud.api.cache.CacheConfig}.
  */
 public interface PersistentServerApi {
 
@@ -29,6 +31,8 @@ public interface PersistentServerApi {
 
     /**
      * Finds a persistent server by its unique identifier.
+     *
+     * <p>An ID that isn't a UUID returns an empty Optional without asking the controller.
      *
      * @param id the unique ID of the persistent server
      * @return a CompletableFuture that completes with the persistent server, or an empty Optional if it does not exist
@@ -97,6 +101,13 @@ public interface PersistentServerApi {
      */
     CompletableFuture<Void> deletePersistentServer(String id);
 
+    /**
+     * Runs a manual workflow configured on the persistent server for all its eligible running servers.
+     *
+     * @param id the unique ID of the persistent server
+     * @param workflowId the ID of the manual workflow
+     * @return a CompletableFuture that completes with the result per server
+     */
     CompletableFuture<WorkflowExecutionResult> executeWorkflow(String id, String workflowId);
 
     /**

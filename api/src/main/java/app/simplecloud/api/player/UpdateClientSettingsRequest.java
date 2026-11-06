@@ -4,6 +4,19 @@ import org.jetbrains.annotations.Nullable;
 
 import java.util.List;
 
+/**
+ * Partial update for {@link PlayerApi#updateClientSettings(java.util.UUID, UpdateClientSettingsRequest)}.
+ *
+ * <p>Only fields that are set are changed; {@code null} fields keep their stored value.
+ * {@code UNKNOWN} is rejected for chat mode and main hand with an {@link IllegalArgumentException}.
+ *
+ * <pre>{@code
+ * UpdateClientSettingsRequest request = UpdateClientSettingsRequest.builder()
+ *         .locale("de_DE")
+ *         .viewDistance(8)
+ *         .build();
+ * }</pre>
+ */
 public class UpdateClientSettingsRequest {
     @Nullable
     private PlayerClientSettings.ChatMode chatMode;

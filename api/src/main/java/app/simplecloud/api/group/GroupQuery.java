@@ -2,6 +2,9 @@ package app.simplecloud.api.group;
 
 import org.jetbrains.annotations.Nullable;
 
+/**
+ * Filters for {@link GroupApi#getAllGroups(GroupQuery)}. A group has to match all filters that are set.
+ */
 public class GroupQuery {
     @Nullable
     private GroupServerType type;

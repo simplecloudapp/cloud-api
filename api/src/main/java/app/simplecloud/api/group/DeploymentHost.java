@@ -2,6 +2,9 @@ package app.simplecloud.api.group;
 
 import org.jetbrains.annotations.Nullable;
 
+/**
+ * A host listed in a {@link DeploymentConfig}, referenced by its name.
+ */
 public class DeploymentHost {
     @Nullable
     private String name;

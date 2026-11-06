@@ -9,9 +9,6 @@ import org.jetbrains.annotations.Nullable;
  * <p>Persistent servers are long-lived server instances that maintain state across restarts.
  * Unlike servers spawned from a group, persistent servers don't have scaling or deployment
  * configuration - they are single instances that run on a specific host.
- *
- * <p>This interface extends {@link ServerBase} to provide common configuration access
- * alongside persistent server-specific properties.
  */
 public interface PersistentServer extends ServerBase {
 

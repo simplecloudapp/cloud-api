@@ -4,27 +4,12 @@ import java.util.Arrays;
 import java.util.Objects;
 
 /**
- * Represents a cache key for queries, similar to TanStack Query's query keys.
+ * Identifies a cached query by a list of parts.
  *
- * <p>Query keys are arrays that uniquely identify a query. They support hierarchical
- * matching for invalidation patterns.
- *
- * <p>Example keys:
- * <pre>{@code
- * QueryKey.of("server", serverId)              // Single server by ID
- * QueryKey.of("servers", "group", groupName)   // Servers filtered by group
- * QueryKey.of("servers")                       // All servers
- * QueryKey.of("groups")                        // All groups
- * QueryKey.of("group", groupId)                // Single group by ID
- * }</pre>
- *
- * <p>Hierarchical matching for invalidation:
- * <pre>{@code
- * // Invalidating QueryKey.of("servers") will also invalidate:
- * // - QueryKey.of("servers", "group", "Lobby")
- * // - QueryKey.of("servers", "query", ...)
- * cache.invalidateAll(QueryKey.of("servers"));
- * }</pre>
+ * <p>Keys are hierarchical: a key matches every key that starts with the same parts,
+ * see {@link QueryCache#invalidateAll(QueryKey)}. The API uses {@code "server"}, {@code "group"} and
+ * {@code "persistentServer"} as first part for single entities, and their plural for lists, for example
+ * {@code QueryKey.of("server", serverId)} or {@code QueryKey.of("servers")}.
  */
 public final class QueryKey {
 
@@ -47,7 +32,10 @@ public final class QueryKey {
     }
 
     /**
-     * Returns the entity type inferred from this key, or null if unknown.
+     * Returns the entity type inferred from the first part, for example {@code "servers"} for
+     * {@link EntityType#SERVER}.
+     *
+     * @return the entity type, or null if unknown
      */
     public EntityType getEntityType() {
         if (parts.length == 0) return null;

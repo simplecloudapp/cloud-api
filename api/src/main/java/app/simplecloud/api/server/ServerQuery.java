@@ -8,17 +8,9 @@ import java.util.Arrays;
 import java.util.List;
 
 /**
- * Query parameters for filtering and sorting server lists.
+ * Filters and sorting for {@link ServerApi#getAllServers(ServerQuery)}.
  *
- * <p>Use the builder methods to construct queries. Example:
- * <pre>
- * ServerQuery query = ServerQuery.create()
- *     .filterByServerGroupId("group-123")
- *     .filterByState(ServerState.RUNNING, ServerState.STARTING)
- *     .filterByNumericalId(1, 5, 10)
- *     .sortBy("created_at")
- *     .sortOrder("desc");
- * </pre>
+ * <p>Filter methods that take several values match any of them, and repeated calls add to the earlier values.
  */
 public class ServerQuery {
     private List<String> serverGroupIds;

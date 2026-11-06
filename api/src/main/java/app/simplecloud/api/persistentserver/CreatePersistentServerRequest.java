@@ -11,6 +11,10 @@ import java.util.Map;
 
 /**
  * Request to create a new persistent server.
+ *
+ * <p>Fields that aren't set get the same defaults as {@link app.simplecloud.api.group.CreateGroupRequest}
+ * for type, max players, active state, tags and workflows. An inline blueprint set with
+ * {@code createBlueprint} works the same way as for groups.
  */
 public class CreatePersistentServerRequest {
     private final String name;

@@ -28,6 +28,9 @@ public final class GroupStartQueueItem {
         this.status = status;
     }
 
+    /**
+     * @return when the start was requested as an ISO-8601 timestamp, or null if unavailable
+     */
     @Nullable
     public String getCreatedAt() {
         return createdAt;

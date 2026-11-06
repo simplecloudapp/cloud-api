@@ -13,6 +13,7 @@ import java.util.concurrent.CompletableFuture;
  * API for managing server instances.
  *
  * <p>Provides methods to query running servers and stop/update server instances.
+ * Lookups are served from the query cache when possible, see {@link app.simplecloud.api.cache.CacheConfig}.
  */
 public interface ServerApi {
 
@@ -28,13 +29,15 @@ public interface ServerApi {
     /**
      * Finds a server by its unique identifier.
      *
+     * <p>An ID that isn't a UUID returns an empty Optional without asking the controller.
+     *
      * @param id the unique server ID
      * @return a CompletableFuture that completes with the server, or an empty Optional if it does not exist
      */
     CompletableFuture<Optional<Server>> findServerById(String id);
 
     /**
-     * Retrieves a server by its numerical ID.
+     * Retrieves a server by its numerical ID, the number in its cloud name {@code <group>-<number>}.
      *
      * @param groupName the name of the server group
      * @param numericalId the numerical server ID
@@ -85,8 +88,23 @@ public interface ServerApi {
      */
     CompletableFuture<Void> stopServer(String id);
 
+    /**
+     * Sends a console command to a server.
+     *
+     * @param id the unique ID of the server
+     * @param command the command to run
+     * @return a CompletableFuture that completes when the command was sent, failed with an
+     *         {@link IllegalArgumentException} if {@code id} or {@code command} is blank
+     */
     CompletableFuture<Void> sendCommand(String id, String command);
 
+    /**
+     * Runs a manual workflow configured for the server.
+     *
+     * @param id the unique ID of the server
+     * @param workflowId the ID of the manual workflow
+     * @return a CompletableFuture that completes with the result
+     */
     CompletableFuture<WorkflowExecutionResult> executeWorkflow(String id, String workflowId);
 
     /**
@@ -99,9 +117,11 @@ public interface ServerApi {
     CompletableFuture<Server> updateServer(String id, UpdateServerRequest request);
 
     /**
-     * Retrieves the current server instance using the SIMPLECLOUD_UNIQUE_ID environment variable.
+     * Retrieves the server this code runs on, using the SIMPLECLOUD_UNIQUE_ID environment variable.
      *
-     * @return a CompletableFuture that completes with the current server, or fails if not found
+     * @return a CompletableFuture that completes with the current server, failed with an
+     *         {@link IllegalStateException} if the variable is not set, or with {@code NOT_FOUND} if
+     *         the server doesn't exist
      */
     CompletableFuture<Server> getCurrentServer();
 

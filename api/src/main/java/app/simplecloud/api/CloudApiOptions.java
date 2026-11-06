@@ -6,8 +6,17 @@ import java.time.Duration;
 import java.util.regex.Matcher;
 import java.util.regex.Pattern;
 
+/**
+ * Connection settings for {@link CloudApi}.
+ *
+ * <p>Values that aren't set on the builder are read from environment variables,
+ * see {@link CloudApi#create()}.
+ */
 public class CloudApiOptions {
 
+    /**
+     * Options built from environment variables only, read once when this class is loaded.
+     */
     public static final CloudApiOptions DEFAULT = new Builder().build();
     private static final Pattern DURATION_PATTERN = Pattern.compile("^(\\d+)(ms|s|m|h)$");
 
@@ -136,6 +145,13 @@ public class CloudApiOptions {
             return this;
         }
 
+        /**
+         * Sets how long the NATS connection may stay disconnected before a new connection is forced.
+         * Zero disables forced reconnects. Defaults to 30 seconds.
+         *
+         * @param natsFailoverReconnectAfter the duration; must be non-null and non-negative
+         * @return this builder
+         */
         public Builder natsFailoverReconnectAfter(Duration natsFailoverReconnectAfter) {
             if (natsFailoverReconnectAfter == null) {
                 throw new IllegalArgumentException("natsFailoverReconnectAfter must not be null");
@@ -216,9 +232,10 @@ public class CloudApiOptions {
 
         /**
          * Sets the HTTP connect timeout for the controller REST client.
-         * A value of zero disables the timeout.
+         * A value of zero disables the timeout. Defaults to 5 seconds.
          *
          * @param httpConnectTimeout the connect timeout; must be non-null and non-negative
+         * @return this builder
          */
         public Builder httpConnectTimeout(Duration httpConnectTimeout) {
             if (httpConnectTimeout == null || httpConnectTimeout.isNegative()) {
@@ -230,11 +247,11 @@ public class CloudApiOptions {
 
         /**
          * Sets the HTTP read timeout for the controller REST client.
-         * A value of zero disables the timeout. Setting a bounded read timeout
-         * prevents in-flight requests from hanging indefinitely when the
-         * controller stops responding.
+         * A value of zero disables the timeout, so requests can hang forever if the
+         * controller stops responding. Defaults to 15 seconds.
          *
          * @param httpReadTimeout the read timeout; must be non-null and non-negative
+         * @return this builder
          */
         public Builder httpReadTimeout(Duration httpReadTimeout) {
             if (httpReadTimeout == null || httpReadTimeout.isNegative()) {
@@ -246,9 +263,10 @@ public class CloudApiOptions {
 
         /**
          * Sets the HTTP write timeout for the controller REST client.
-         * A value of zero disables the timeout.
+         * A value of zero disables the timeout. Defaults to 10 seconds.
          *
          * @param httpWriteTimeout the write timeout; must be non-null and non-negative
+         * @return this builder
          */
         public Builder httpWriteTimeout(Duration httpWriteTimeout) {
             if (httpWriteTimeout == null || httpWriteTimeout.isNegative()) {

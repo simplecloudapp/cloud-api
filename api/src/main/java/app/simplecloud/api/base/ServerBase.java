@@ -14,9 +14,6 @@ import java.util.Map;
  * <p>This interface represents the shared configuration between {@link app.simplecloud.api.group.Group}
  * and {@link app.simplecloud.api.persistentserver.PersistentServer}. A server can be spawned from either
  * a group (with scaling and deployment configuration) or a persistent server (a single long-lived instance).
- *
- * <p>Use this interface when you need to access common server configuration properties regardless
- * of whether the server was spawned from a group or persistent server.
  */
 public interface ServerBase {
 

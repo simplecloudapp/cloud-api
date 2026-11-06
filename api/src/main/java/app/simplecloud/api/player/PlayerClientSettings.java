@@ -4,6 +4,11 @@ import org.jetbrains.annotations.Nullable;
 
 import java.util.List;
 
+/**
+ * The client settings of a player's session as stored by the controller.
+ *
+ * @see PlayerApi#getClientSettings(java.util.UUID)
+ */
 public class PlayerClientSettings {
     private ChatMode chatMode = ChatMode.UNKNOWN;
 
@@ -75,6 +80,9 @@ public class PlayerClientSettings {
         this.skinParts = skinParts != null ? List.copyOf(skinParts) : List.of();
     }
 
+    /**
+     * Which chat messages the client shows.
+     */
     public enum ChatMode {
         ENABLED,
         COMMANDS_ONLY,

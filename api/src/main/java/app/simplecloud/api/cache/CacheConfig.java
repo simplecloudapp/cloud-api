@@ -6,7 +6,7 @@ import java.util.HashMap;
 import java.util.Map;
 
 /**
- * Configuration for the query cache, inspired by TanStack Query.
+ * Configuration for the query cache.
  *
  * <p>Key concepts:
  * <ul>
@@ -25,21 +25,6 @@ import java.util.Map;
  *   <li>PERSISTENT_SERVER: 10 seconds (similar to groups)</li>
  *   <li>PLAYER: 5 seconds (player queries are currently not cached, so this has no effect)</li>
  * </ul>
- *
- * <p>Example:
- * <pre>{@code
- * // Use defaults - recommended for most cases
- * CloudApi api = CloudApi.create();
- *
- * // Custom configuration
- * CacheConfig config = CacheConfig.builder()
- *     .defaultStaleTime(Duration.ofSeconds(10))
- *     .defaultCacheTime(Duration.ofMinutes(5))
- *     .entityConfig(EntityType.SERVER, EntityCacheConfig.builder()
- *         .staleTime(Duration.ofSeconds(1))  // Need very fresh server data
- *         .build())
- *     .build();
- * }</pre>
  */
 public class CacheConfig {
 

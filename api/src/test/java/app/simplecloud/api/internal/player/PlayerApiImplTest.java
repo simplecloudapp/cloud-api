@@ -1,352 +1,207 @@
 package app.simplecloud.api.internal.player;
 
 import app.simplecloud.api.CloudApiException;
-import app.simplecloud.api.CloudApiOptions;
-import app.simplecloud.api.internal.nats.FakeNatsConnection;
+import app.simplecloud.api.internal.ControllerServer;
 import app.simplecloud.api.player.CloudPlayer;
-import app.simplecloud.api.player.ServerSelectionMode;
-import app.simplecloud.api.web.ApiException;
-import app.simplecloud.api.web.apis.PlayersApi;
-import app.simplecloud.api.web.models.ModelsConnectPlayerRequest;
-import app.simplecloud.api.web.models.ModelsConnectPlayerResponse;
-import app.simplecloud.api.web.models.ModelsConnectResult;
-import app.simplecloud.api.web.models.ModelsPatchPlayerRequest;
-import app.simplecloud.api.web.models.ModelsPlayerOnlineTimeResponse;
-import app.simplecloud.api.web.models.ModelsPlayerResponse;
-import build.buf.gen.simplecloud.player.v2.ConnectPlayerRequest;
-import build.buf.gen.simplecloud.player.v2.ConnectPlayerResponse;
-import build.buf.gen.simplecloud.player.v2.ConnectResult;
-import io.nats.client.Message;
+import app.simplecloud.api.player.PlayerApi;
+import app.simplecloud.api.player.PlayerClientSettings;
+import app.simplecloud.api.player.PlayerQuery;
+import app.simplecloud.api.player.UpdateClientSettingsRequest;
+import com.google.gson.JsonObject;
+import okhttp3.HttpUrl;
+import okhttp3.mockwebserver.RecordedRequest;
+import org.junit.jupiter.api.AfterEach;
+import org.junit.jupiter.api.BeforeEach;
 import org.junit.jupiter.api.Test;
-import org.junit.jupiter.params.ParameterizedTest;
-import org.junit.jupiter.params.provider.CsvSource;
 
-import java.util.ArrayList;
-import java.util.List;
 import java.util.Map;
 import java.util.UUID;
+import java.util.concurrent.CompletableFuture;
 import java.util.concurrent.CompletionException;
 
 import static org.junit.jupiter.api.Assertions.assertEquals;
+import static org.junit.jupiter.api.Assertions.assertFalse;
 import static org.junit.jupiter.api.Assertions.assertInstanceOf;
-import static org.junit.jupiter.api.Assertions.assertNull;
 import static org.junit.jupiter.api.Assertions.assertThrows;
+import static org.junit.jupiter.api.Assertions.assertTrue;
 
 class PlayerApiImplTest {
 
-    private static final UUID PLAYER_ID = UUID.fromString("11111111-1111-1111-1111-111111111111");
-    private static final String CONNECT_SUBJECT = "network.player." + PLAYER_ID + ".connect";
-    private static final String PERSISTENT_SERVER_ID = "22222222-2222-2222-2222-222222222222";
+    private static final UUID PLAYER_ID = UUID.fromString("069a79f4-44e9-4726-a5be-fca90e38aaf5");
+    private static final String PLAYER_JSON =
+            """
+            {"id": "069a79f4-44e9-4726-a5be-fca90e38aaf5", "name": "Steve", "online": true,
+             "connected_server_name": "lobby-1", "online_time_seconds": 3600, "properties": {"rank": "admin"}}
+            """;
 
-    @Test
-    void getOnlineTimeSeconds_readsControllerOnlineTime() {
-        FakePlayersApi playersApi = new FakePlayersApi();
-        playersApi.onlineTimeSeconds = 123;
-        PlayerApiImpl api = new PlayerApiImpl(options(), null, playersApi);
+    private ControllerServer controller;
+    private PlayerApi api;
 
-        long onlineTime = api.getOnlineTimeSeconds(PLAYER_ID).join();
+    @BeforeEach
+    void setUp() {
+        controller = new ControllerServer();
+        api = new PlayerApiImpl(controller.options(), null, controller.apiClient(), Runnable::run);
+    }
 
-        assertEquals(123L, onlineTime);
-        assertEquals(1, playersApi.onlineTimeGetCalls);
-        assertEquals(PLAYER_ID.toString(), playersApi.lastOnlineTimePlayerId);
+    @AfterEach
+    void tearDown() {
+        controller.close();
     }
 
     @Test
-    void setOnlineTimeSeconds_patchesControllerAndReturnsUpdatedPlayer() {
-        FakePlayersApi playersApi = new FakePlayersApi();
-        PlayerApiImpl api = new PlayerApiImpl(options(), null, playersApi);
+    void findReadsPlayerFromController() {
+        controller.respond(200, PLAYER_JSON);
 
-        CloudPlayer player = api.setOnlineTimeSeconds(PLAYER_ID, 456).join();
+        CloudPlayer player = api.find(PLAYER_ID).join().orElseThrow();
 
-        assertEquals(1, playersApi.patchCalls);
-        assertEquals(PLAYER_ID.toString(), playersApi.lastPatchPlayerId);
-        assertEquals(Integer.valueOf(456), playersApi.lastPatchRequest.getOnlineTimeSeconds());
-        assertEquals(456L, player.getOnlineTimeSeconds());
+        assertEquals(PLAYER_ID, player.getUniqueId());
+        assertEquals("Steve", player.getName());
+        assertTrue(player.isOnline());
+        assertEquals("lobby-1", player.getConnectedServerName());
+        assertEquals(3600, player.getOnlineTimeSeconds());
+        assertEquals(Map.of("rank", "admin"), player.getProperties());
+
+        RecordedRequest request = controller.takeRequest();
+        assertEquals("/v0/players/id", request.getRequestUrl().encodedPath());
+        assertEquals(PLAYER_ID.toString(), request.getRequestUrl().queryParameter("player_id"));
+        assertEquals(ControllerServer.NETWORK_ID, request.getHeader("X-Network-ID"));
     }
 
     @Test
-    void resetFirstSeen_patchesOnlyTheFirstSeenReset() {
-        FakePlayersApi playersApi = new FakePlayersApi();
-        PlayerApiImpl api = new PlayerApiImpl(options(), null, playersApi);
+    void findReturnsEmptyForUnknownPlayer() {
+        controller.respond(404, "{\"error\": \"Player not found\"}");
 
-        api.resetFirstSeen(PLAYER_ID).join();
-
-        assertEquals(PLAYER_ID.toString(), playersApi.lastPatchPlayerId);
-        assertEquals(Boolean.TRUE, playersApi.lastPatchRequest.getResetFirstSeen());
-        assertNull(playersApi.lastPatchRequest.getResetLastSeen());
-        assertNull(playersApi.lastPatchRequest.getOnlineTimeSeconds());
+        assertTrue(api.find(PLAYER_ID).join().isEmpty());
     }
 
     @Test
-    void resetLastSeen_patchesOnlyTheLastSeenReset() {
-        FakePlayersApi playersApi = new FakePlayersApi();
-        PlayerApiImpl api = new PlayerApiImpl(options(), null, playersApi);
+    void getFailsWithNotFoundForUnknownPlayer() {
+        controller.respond(404, "{\"error\": \"Player not found\"}");
 
-        api.resetLastSeen(PLAYER_ID).join();
-
-        assertEquals(PLAYER_ID.toString(), playersApi.lastPatchPlayerId);
-        assertEquals(Boolean.TRUE, playersApi.lastPatchRequest.getResetLastSeen());
-        assertNull(playersApi.lastPatchRequest.getResetFirstSeen());
-        assertNull(playersApi.lastPatchRequest.getOnlineTimeSeconds());
+        assertEquals(CloudApiException.Reason.NOT_FOUND, failure(api.get(PLAYER_ID)).getReason());
     }
 
     @Test
-    void addOnlineTimeSeconds_readsCurrentValueAndPatchesSum() {
-        FakePlayersApi playersApi = new FakePlayersApi();
-        playersApi.onlineTimeSeconds = 100;
-        PlayerApiImpl api = new PlayerApiImpl(options(), null, playersApi);
+    void findByInvalidNameDoesNotAskController() {
+        assertTrue(api.find("").join().isEmpty());
+        assertTrue(api.find("a-name-longer-than-16").join().isEmpty());
 
-        CloudPlayer player = api.addOnlineTimeSeconds(PLAYER_ID, 25).join();
-
-        assertEquals(Integer.valueOf(125), playersApi.lastPatchRequest.getOnlineTimeSeconds());
-        assertEquals(125L, player.getOnlineTimeSeconds());
+        assertEquals(0, controller.requestCount());
     }
 
     @Test
-    void removeOnlineTimeSeconds_clampsAtZero() {
-        FakePlayersApi playersApi = new FakePlayersApi();
-        playersApi.onlineTimeSeconds = 100;
-        PlayerApiImpl api = new PlayerApiImpl(options(), null, playersApi);
+    void listSendsQueryAsParameters() {
+        controller.respond(200, "{\"players\": [" + PLAYER_JSON + "]}");
 
-        CloudPlayer player = api.removeOnlineTimeSeconds(PLAYER_ID, 150).join();
+        var players = api.list(PlayerQuery.create()
+                        .filterByOnline(true)
+                        .search("ste")
+                        .sortBy(PlayerQuery.SortField.ONLINE_TIME)
+                        .sortOrder(PlayerQuery.SortOrder.DESC)
+                        .limit(10))
+                .join();
 
-        assertEquals(Integer.valueOf(0), playersApi.lastPatchRequest.getOnlineTimeSeconds());
-        assertEquals(0L, player.getOnlineTimeSeconds());
+        assertEquals(1, players.size());
+        HttpUrl url = controller.takeRequest().getRequestUrl();
+        assertEquals("true", url.queryParameter("online"));
+        assertEquals("ste", url.queryParameter("search"));
+        assertEquals("online_time_seconds", url.queryParameter("sort_by"));
+        assertEquals("desc", url.queryParameter("sort_order"));
+        assertEquals("10", url.queryParameter("limit"));
     }
 
     @Test
-    void setOnlineTimeSeconds_rejectsValuesControllerCannotStore() {
-        PlayerApiImpl api = new PlayerApiImpl(options(), null, new FakePlayersApi());
+    void connectSendsServerNameAndMapsResult() {
+        controller.respond(200, "{\"success\": false, \"result\": \"ALREADY_CONNECTED\"}");
 
-        CompletionException negative = assertThrows(
-                CompletionException.class,
-                () -> api.setOnlineTimeSeconds(PLAYER_ID, -1).join());
-        CompletionException tooLarge = assertThrows(
-                CompletionException.class,
-                () -> api.setOnlineTimeSeconds(PLAYER_ID, (long) Integer.MAX_VALUE + 1L)
-                        .join());
+        assertEquals(
+                CloudPlayer.ConnectResult.ALREADY_CONNECTED,
+                api.connect(PLAYER_ID, "lobby-1").join());
 
-        assertInstanceOf(IllegalArgumentException.class, negative.getCause());
-        assertInstanceOf(IllegalArgumentException.class, tooLarge.getCause());
+        RecordedRequest request = controller.takeRequest();
+        assertEquals("/v0/players/connect", request.getRequestUrl().encodedPath());
+        assertEquals("lobby-1", ControllerServer.body(request).get("server_name").getAsString());
     }
 
     @Test
-    void connectDirect_sendsServerNameToPlayerProxy() {
-        List<String> subjects = new ArrayList<>();
-        List<ConnectPlayerRequest> requests = new ArrayList<>();
-        FakeNatsConnection nats = FakeNatsConnection.answering((subject, data, timeout) -> {
-            subjects.add(subject);
-            requests.add(ConnectPlayerRequest.parseFrom(data));
-            return connectResponse(ConnectResult.CONNECT_RESULT_SUCCESS);
-        });
-        PlayerApiImpl api = new PlayerApiImpl(options(), nats.connection(), new FakePlayersApi());
+    void connectReportsOfflinePlayerAsPlayerNotFound() {
+        controller.respond(404, "{\"error\": \"Player is not online\"}");
 
-        CloudPlayer.ConnectResult result =
-                api.connectDirect(PLAYER_ID, "lobby-1").join();
-
-        assertEquals(CloudPlayer.ConnectResult.SUCCESS, result);
-        assertEquals(List.of(CONNECT_SUBJECT), subjects);
-        assertEquals(List.of(expectedConnectRequest("lobby-1")), requests);
+        assertEquals(CloudPlayer.ConnectResult.PLAYER_NOT_FOUND, api.connect(PLAYER_ID, "lobby-1").join());
     }
 
     @Test
-    void connectDirect_withoutReply_reportsPlayerNotFound() {
-        FakeNatsConnection nats = FakeNatsConnection.answering((subject, data, timeout) -> null);
-        PlayerApiImpl api = new PlayerApiImpl(options(), nats.connection(), new FakePlayersApi());
+    void connectReportsUnknownServerAsServerNotFound() {
+        controller.respond(404, "{\"error\": \"Server not found\"}");
 
-        CloudPlayer.ConnectResult result =
-                api.connectDirect(PLAYER_ID, "lobby-1").join();
-
-        assertEquals(CloudPlayer.ConnectResult.PLAYER_NOT_FOUND, result);
+        assertEquals(CloudPlayer.ConnectResult.SERVER_NOT_FOUND, api.connect(PLAYER_ID, "lobby-9").join());
     }
 
     @Test
-    void connect_sendsTheSameRequestAsConnectDirect() {
-        List<String> subjects = new ArrayList<>();
-        List<ConnectPlayerRequest> requests = new ArrayList<>();
-        FakeNatsConnection nats = FakeNatsConnection.answering((subject, data, timeout) -> {
-            subjects.add(subject);
-            requests.add(ConnectPlayerRequest.parseFrom(data));
-            return connectResponse(ConnectResult.CONNECT_RESULT_SERVER_NOT_FOUND);
-        });
-        PlayerApiImpl api = new PlayerApiImpl(options(), nats.connection(), new FakePlayersApi());
+    void connectFailsWhenNameIsAmbiguous() {
+        controller.respond(409, "{\"error\": \"Server name is ambiguous\"}");
 
-        CloudPlayer.ConnectResult result = api.connect(PLAYER_ID, "lobby-2").join();
-
-        assertEquals(CloudPlayer.ConnectResult.SERVER_NOT_FOUND, result);
-        assertEquals(List.of(CONNECT_SUBJECT), subjects);
-        assertEquals(List.of(expectedConnectRequest("lobby-2")), requests);
+        assertEquals(CloudApiException.Reason.CONFLICT, failure(api.connect(PLAYER_ID, "lobby")).getReason());
     }
 
     @Test
-    void connectToGroup_sendsTheGroupName() {
-        FakePlayersApi playersApi = new FakePlayersApi();
-        playersApi.connectResult = ModelsConnectResult.ConnectResultSuccess;
-        PlayerApiImpl api = new PlayerApiImpl(options(), null, playersApi);
+    void kickReturnsFalseForOfflinePlayer() {
+        controller.respond(404, "{\"error\": \"Player is not online\"}");
 
-        CloudPlayer.ConnectResult result =
-                api.connectToGroup(PLAYER_ID, "lobby", ServerSelectionMode.MIN_PLAYERS).join();
-
-        assertEquals(CloudPlayer.ConnectResult.SUCCESS, result);
-        assertEquals(PLAYER_ID.toString(), playersApi.lastConnectPlayerId);
-        assertEquals("lobby", playersApi.lastConnectRequest.getServerGroupName());
-        assertNull(playersApi.lastConnectRequest.getServerGroupId());
-        assertEquals("MIN_PLAYERS", playersApi.lastConnectRequest.getSelectionMode());
+        assertFalse(api.kick(PLAYER_ID, null).join());
     }
 
     @Test
-    void connectToPersistentServer_sendsThePersistentServerId() {
-        FakePlayersApi playersApi = new FakePlayersApi();
-        playersApi.connectResult = ModelsConnectResult.ConnectResultSuccess;
-        PlayerApiImpl api = new PlayerApiImpl(options(), null, playersApi);
+    void removeOnlineTimeNeverGoesBelowZero() {
+        controller.respond(200, "{\"online_time_seconds\": 30}");
+        controller.respond(200, PLAYER_JSON);
 
-        api.connectToPersistentServer(PLAYER_ID, PERSISTENT_SERVER_ID).join();
+        api.removeOnlineTimeSeconds(PLAYER_ID, 100).join();
 
-        assertEquals(PERSISTENT_SERVER_ID, playersApi.lastConnectRequest.getPersistentServerId());
-        assertNull(playersApi.lastConnectRequest.getServerGroupName());
-    }
-
-    @ParameterizedTest
-    @CsvSource({
-        "ConnectResultSuccess, SUCCESS",
-        "ConnectResultAlreadyConnected, ALREADY_CONNECTED",
-        "ConnectResultNoServerAvailable, NO_SERVER_AVAILABLE",
-        "ConnectResultServerNotFound, SERVER_NOT_FOUND",
-        "ConnectResultFailed, CONNECTION_FAILED"
-    })
-    void connectToGroup_mapsTheControllerResult(ModelsConnectResult controllerResult, CloudPlayer.ConnectResult expected) {
-        FakePlayersApi playersApi = new FakePlayersApi();
-        playersApi.connectResult = controllerResult;
-        PlayerApiImpl api = new PlayerApiImpl(options(), null, playersApi);
-
-        assertEquals(expected, api.connectToGroup(PLAYER_ID, "lobby").join());
+        controller.takeRequest();
+        RecordedRequest patch = controller.takeRequest();
+        assertEquals("PATCH", patch.getMethod());
+        assertEquals(0, ControllerServer.body(patch).get("online_time_seconds").getAsInt());
     }
 
     @Test
-    void connectToGroup_ignoresTheMessageText() {
-        FakePlayersApi playersApi = new FakePlayersApi();
-        playersApi.connectResult = ModelsConnectResult.ConnectResultNoServerAvailable;
-        playersApi.connectMessage = "Target server not found";
-        PlayerApiImpl api = new PlayerApiImpl(options(), null, playersApi);
+    void updateClientSettingsOnlySendsFieldsThatAreSet() {
+        controller.respond(
+                200,
+                """
+                {"success": true, "settings": {"locale": "de_DE", "view_distance": 8, "chat_mode": "CHAT_MODE_ENABLED"}}
+                """);
 
-        assertEquals(CloudPlayer.ConnectResult.NO_SERVER_AVAILABLE, api.connectToGroup(PLAYER_ID, "lobby").join());
+        PlayerClientSettings settings = api.updateClientSettings(
+                        PLAYER_ID,
+                        UpdateClientSettingsRequest.builder()
+                                .locale("de_DE")
+                                .viewDistance(8)
+                                .build())
+                .join();
+
+        assertEquals("de_DE", settings.getLocale());
+        assertEquals(8, settings.getViewDistance());
+        assertEquals(PlayerClientSettings.ChatMode.ENABLED, settings.getChatMode());
+
+        JsonObject body = ControllerServer.body(controller.takeRequest());
+        assertEquals("de_DE", body.get("locale").getAsString());
+        assertEquals(8, body.get("view_distance").getAsInt());
+        assertFalse(body.has("chat_mode"));
+        assertFalse(body.has("main_hand"));
     }
 
     @Test
-    void connectToGroup_offlinePlayer_reportsPlayerNotFound() {
-        FakePlayersApi playersApi = new FakePlayersApi();
-        playersApi.connectFailure = new ApiException(404, Map.of(), "{\"error\":\"Player is not online\"}");
-        PlayerApiImpl api = new PlayerApiImpl(options(), null, playersApi);
+    void sessionPagingIsValidatedBeforeAskingController() {
+        CompletionException exception =
+                assertThrows(CompletionException.class, () -> api.getSessions(PLAYER_ID, 101, 0).join());
 
-        assertEquals(CloudPlayer.ConnectResult.PLAYER_NOT_FOUND, api.connectToGroup(PLAYER_ID, "lobby").join());
+        assertInstanceOf(IllegalArgumentException.class, exception.getCause());
+        assertEquals(0, controller.requestCount());
     }
 
-    @Test
-    void connectToGroup_unknownGroup_reportsServerNotFound() {
-        FakePlayersApi playersApi = new FakePlayersApi();
-        playersApi.connectFailure = new ApiException(404, Map.of(), "{\"error\":\"Server group not found\"}");
-        PlayerApiImpl api = new PlayerApiImpl(options(), null, playersApi);
-
-        assertEquals(CloudPlayer.ConnectResult.SERVER_NOT_FOUND, api.connectToGroup(PLAYER_ID, "lobby").join());
-    }
-
-    @Test
-    void connectToPersistentServer_rejectedRequest_failsWithCloudApiException() {
-        FakePlayersApi playersApi = new FakePlayersApi();
-        playersApi.connectFailure =
-                new ApiException(400, Map.of(), "{\"error\":\"persistent_server_id must be a valid UUID\"}");
-        PlayerApiImpl api = new PlayerApiImpl(options(), null, playersApi);
-
-        CompletionException failure = assertThrows(
-                CompletionException.class, () -> api.connectToPersistentServer(PLAYER_ID, "survival")
-                        .join());
-
-        assertInstanceOf(CloudApiException.class, failure.getCause());
-    }
-
-    private static ConnectPlayerRequest expectedConnectRequest(String serverName) {
-        return ConnectPlayerRequest.newBuilder()
-                .setPlayerId(PLAYER_ID.toString())
-                .setServerName(serverName)
-                .build();
-    }
-
-    private static Message connectResponse(ConnectResult result) {
-        ConnectPlayerResponse response =
-                ConnectPlayerResponse.newBuilder().setResult(result).build();
-        return FakeNatsConnection.reply(response.toByteArray());
-    }
-
-    private static CloudApiOptions options() {
-        return CloudApiOptions.builder()
-                .controllerUrl("http://localhost")
-                .networkId("network")
-                .networkSecret("secret")
-                .build();
-    }
-
-    private static ModelsPlayerResponse playerResponse(int onlineTimeSeconds) {
-        ModelsPlayerResponse response = new ModelsPlayerResponse();
-        response.setId(PLAYER_ID.toString());
-        response.setName("Philipp");
-        response.setDisplayName("Philipp");
-        response.setOnline(true);
-        response.setOnlineTimeSeconds(onlineTimeSeconds);
-        return response;
-    }
-
-    private static final class FakePlayersApi extends PlayersApi {
-
-        private int onlineTimeSeconds;
-        private int onlineTimeGetCalls;
-        private int patchCalls;
-        private String lastOnlineTimePlayerId;
-        private String lastPatchPlayerId;
-        private ModelsPatchPlayerRequest lastPatchRequest;
-        private ModelsConnectResult connectResult;
-        private String connectMessage;
-        private ApiException connectFailure;
-        private String lastConnectPlayerId;
-        private ModelsConnectPlayerRequest lastConnectRequest;
-
-        @Override
-        public ModelsConnectPlayerResponse connectPlayer(
-                String xNetworkID, String playerId, ModelsConnectPlayerRequest modelsConnectPlayerRequest)
-                throws ApiException {
-            lastConnectPlayerId = playerId;
-            lastConnectRequest = modelsConnectPlayerRequest;
-            if (connectFailure != null) {
-                throw connectFailure;
-            }
-            ModelsConnectPlayerResponse response = new ModelsConnectPlayerResponse();
-            response.setPlayerId(playerId);
-            response.setSuccess(connectResult == ModelsConnectResult.ConnectResultSuccess);
-            response.setResult(connectResult);
-            response.setMessage(connectMessage);
-            return response;
-        }
-
-        @Override
-        public ModelsPlayerOnlineTimeResponse getPlayerOnlineTime(String xNetworkID, String playerId) {
-            onlineTimeGetCalls++;
-            lastOnlineTimePlayerId = playerId;
-
-            ModelsPlayerOnlineTimeResponse response = new ModelsPlayerOnlineTimeResponse();
-            response.setPlayerId(playerId);
-            response.setOnlineTimeSeconds(onlineTimeSeconds);
-            return response;
-        }
-
-        @Override
-        public ModelsPlayerResponse patchPlayer(
-                String xNetworkID, String playerId, ModelsPatchPlayerRequest modelsPatchPlayerRequest) {
-            patchCalls++;
-            lastPatchPlayerId = playerId;
-            lastPatchRequest = modelsPatchPlayerRequest;
-            if (modelsPatchPlayerRequest.getOnlineTimeSeconds() != null) {
-                onlineTimeSeconds = modelsPatchPlayerRequest.getOnlineTimeSeconds();
-            }
-            return playerResponse(onlineTimeSeconds);
-        }
+    private static CloudApiException failure(CompletableFuture<?> future) {
+        CompletionException exception = assertThrows(CompletionException.class, future::join);
+        return assertInstanceOf(CloudApiException.class, exception.getCause());
     }
 }

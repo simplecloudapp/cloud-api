@@ -34,7 +34,6 @@ public class PlayerCommandHandler {
     private final String networkId;
     private final Executor executor;
     private final ProxyPlayers proxyPlayers;
-    private final Duration connectTimeout;
     private final AtomicBoolean running = new AtomicBoolean(false);
 
     private Dispatcher requestDispatcher;
@@ -44,20 +43,10 @@ public class PlayerCommandHandler {
     }
 
     PlayerCommandHandler(Connection natsConnection, String networkId, Executor executor, ProxyPlayers proxyPlayers) {
-        this(natsConnection, networkId, executor, proxyPlayers, CONNECT_TIMEOUT);
-    }
-
-    PlayerCommandHandler(
-            Connection natsConnection,
-            String networkId,
-            Executor executor,
-            ProxyPlayers proxyPlayers,
-            Duration connectTimeout) {
         this.natsConnection = natsConnection;
         this.networkId = networkId;
         this.executor = executor;
         this.proxyPlayers = proxyPlayers;
-        this.connectTimeout = connectTimeout;
     }
 
     /**
@@ -136,7 +125,7 @@ public class PlayerCommandHandler {
             CompletableFuture<CloudPlayer.ConnectResult> connect = player.get()
                     .connect(proxyServerName.get())
                     .copy()
-                    .orTimeout(connectTimeout.toMillis(), TimeUnit.MILLISECONDS);
+                    .orTimeout(CONNECT_TIMEOUT.toMillis(), TimeUnit.MILLISECONDS);
             connect.whenComplete((result, failure) -> {
                 CloudPlayer.ConnectResult reply =
                         failure == null ? result : CloudPlayer.ConnectResult.CONNECTION_FAILED;

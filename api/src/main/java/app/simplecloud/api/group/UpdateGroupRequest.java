@@ -5,6 +5,12 @@ import org.jetbrains.annotations.Nullable;
 import java.util.List;
 import java.util.Map;
 
+/**
+ * Request object for {@link GroupApi#updateGroup(String, UpdateGroupRequest)}.
+ *
+ * <p>Only fields that are set are changed. Nested configurations replace the stored ones as a whole,
+ * and no create defaults are applied.
+ */
 public class UpdateGroupRequest {
     private String name;
 

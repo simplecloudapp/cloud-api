@@ -14,6 +14,8 @@ import java.util.concurrent.CompletableFuture;
  *
  * <p>Server groups define templates for server instances, including memory limits,
  * scaling configuration, deployment strategy, and source configuration.
+ *
+ * <p>Group lookups are served from the query cache when possible, see {@link app.simplecloud.api.cache.CacheConfig}.
  */
 public interface GroupApi {
 
@@ -60,32 +62,98 @@ public interface GroupApi {
         return clearServerStartQueue(group.getServerGroupId());
     }
 
+    /**
+     * Sends a stop command to all running servers of a server group.
+     *
+     * @param serverGroupId the server group ID
+     * @return a CompletableFuture that completes with the number of servers that were told to stop
+     */
     CompletableFuture<Integer> stopAllServers(String serverGroupId);
 
+    /**
+     * Sends a stop command to all running servers of the provided group.
+     *
+     * @param group the target group
+     * @return a CompletableFuture that completes with the number of servers that were told to stop
+     */
     default CompletableFuture<Integer> stopAllServers(Group group) {
         return stopAllServers(group.getServerGroupId());
     }
 
+    /**
+     * Starts a rolling restart, which restarts the servers of a group one by one while keeping it available.
+     *
+     * <p>Only groups with {@link ScalingMode#SLOTS} support rolling restarts; other groups fail with
+     * {@link CloudApiException.Reason#INVALID_REQUEST}.
+     *
+     * @param serverGroupId the server group ID
+     * @return a CompletableFuture that completes when the rolling restart was started
+     */
     CompletableFuture<Void> startRollingRestart(String serverGroupId);
 
+    /**
+     * Starts a rolling restart for the provided group.
+     *
+     * @param group the target group
+     * @return a CompletableFuture that completes when the rolling restart was started
+     * @see #startRollingRestart(String)
+     */
     default CompletableFuture<Void> startRollingRestart(Group group) {
         return startRollingRestart(group.getServerGroupId());
     }
 
+    /**
+     * Retrieves whether a rolling restart is running for a server group.
+     *
+     * @param serverGroupId the server group ID
+     * @return a CompletableFuture that completes with the rolling restart status
+     */
     CompletableFuture<RollingRestartStatus> getRollingRestartStatus(String serverGroupId);
 
+    /**
+     * Retrieves whether a rolling restart is running for the provided group.
+     *
+     * @param group the target group
+     * @return a CompletableFuture that completes with the rolling restart status
+     */
     default CompletableFuture<RollingRestartStatus> getRollingRestartStatus(Group group) {
         return getRollingRestartStatus(group.getServerGroupId());
     }
 
+    /**
+     * Cancels the running rolling restart of a server group.
+     *
+     * @param serverGroupId the server group ID
+     * @return a CompletableFuture that completes when the rolling restart was cancelled
+     */
     CompletableFuture<Void> cancelRollingRestart(String serverGroupId);
 
+    /**
+     * Cancels the running rolling restart of the provided group.
+     *
+     * @param group the target group
+     * @return a CompletableFuture that completes when the rolling restart was cancelled
+     */
     default CompletableFuture<Void> cancelRollingRestart(Group group) {
         return cancelRollingRestart(group.getServerGroupId());
     }
 
+    /**
+     * Runs a manual workflow configured on the group for all eligible running servers of the group.
+     *
+     * @param serverGroupId the server group ID
+     * @param workflowId the ID of the manual workflow
+     * @return a CompletableFuture that completes with the result per server
+     */
     CompletableFuture<WorkflowExecutionResult> executeWorkflow(String serverGroupId, String workflowId);
 
+    /**
+     * Runs a manual workflow configured on the group for all eligible running servers of the group.
+     *
+     * @param group the target group
+     * @param workflowId the ID of the manual workflow
+     * @return a CompletableFuture that completes with the result per server
+     */
     default CompletableFuture<WorkflowExecutionResult> executeWorkflow(Group group, String workflowId) {
         return executeWorkflow(group.getServerGroupId(), workflowId);
     }
@@ -119,6 +187,8 @@ public interface GroupApi {
     /**
      * Finds a server group by its unique identifier.
      *
+     * <p>An ID that isn't a UUID returns an empty Optional without asking the controller.
+     *
      * @param id the unique ID of the server group
      * @return a CompletableFuture that completes with the group, or an empty Optional if it does not exist
      */
@@ -134,9 +204,6 @@ public interface GroupApi {
 
     /**
      * Retrieves all server groups without any filtering.
-     * <p>
-     * This is a convenience method that calls {@link #getAllGroups(GroupQuery)} with a null query,
-     * returning all available groups without any filters applied.
      *
      * @return a CompletableFuture that completes with a list of all groups
      */

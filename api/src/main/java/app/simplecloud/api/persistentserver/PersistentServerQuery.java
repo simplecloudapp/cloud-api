@@ -7,7 +7,7 @@ import java.util.Arrays;
 import java.util.List;
 
 /**
- * Query parameters for filtering and sorting persistent server lists.
+ * Filters for {@link PersistentServerApi#getAllPersistentServers(PersistentServerQuery)}.
  */
 public class PersistentServerQuery {
     private List<String> tags;

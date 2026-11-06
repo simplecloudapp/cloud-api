@@ -3,6 +3,9 @@ package app.simplecloud.api.workflow;
 import java.util.List;
 import java.util.Map;
 
+/**
+ * Result of running a manual workflow on several servers.
+ */
 public final class WorkflowExecutionResult {
     private final String workflowId;
     private final int totalServers;
@@ -35,10 +38,16 @@ public final class WorkflowExecutionResult {
         return succeededServerIds;
     }
 
+    /**
+     * @return the IDs of servers the workflow didn't run on, for example because they weren't eligible
+     */
     public List<String> getSkippedServerIds() {
         return skippedServerIds;
     }
 
+    /**
+     * @return the failed servers, mapped from server ID to error message
+     */
     public Map<String, String> getFailedServers() {
         return failedServers;
     }

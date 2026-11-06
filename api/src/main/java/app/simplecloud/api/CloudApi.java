@@ -10,32 +10,6 @@ import app.simplecloud.api.server.ServerApi;
 
 /**
  * Main entry point for the SimpleCloud API.
- *
- * <p>This interface provides access to manage server groups, individual servers,
- * and subscribe to system events. Use the static factory methods to create an instance.
- *
- * <p>Example usage:
- * <pre>{@code
- * CloudApi api = CloudApi.create(CloudApiOptions.builder()
- *     .networkId("your-network-id")
- *     .networkSecret("your-secret")
- *     .build());
- *
- * // Manage server groups
- * api.group().getAllGroups().thenAccept(groups -> {
- *     groups.forEach(group -> System.out.println(group.getName()));
- * });
- *
- * // Query servers
- * api.server().getAllServers().thenAccept(servers -> {
- *     System.out.println("Active servers: " + servers.size());
- * });
- *
- * // Subscribe to events
- * Subscription sub = api.event().group().onCreated(event -> {
- *     System.out.println("Group created: " + event.getServerGroupId());
- * });
- * }</pre>
  */
 public interface CloudApi extends AutoCloseable {
 
@@ -108,8 +82,7 @@ public interface CloudApi extends AutoCloseable {
     /**
      * Returns the player management API.
      *
-     * <p>Use this to query online players, send messages, kick, connect, etc.
-     * Players implement Adventure's Audience interface for sending content.
+     * <p>Use this to query players, kick them or connect them to other servers.
      *
      * @return the player API
      */
@@ -123,20 +96,7 @@ public interface CloudApi extends AutoCloseable {
     String getNetworkId();
 
     /**
-     * Returns the query cache for manual cache operations.
-     *
-     * <p>Use this for manual invalidation or to inspect cache state:
-     * <pre>{@code
-     * // Invalidate a specific server
-     * cloudApi.cache().invalidate(QueryKey.of("server", serverId));
-     *
-     * // Invalidate all servers
-     * cloudApi.cache().invalidateAll(QueryKey.of("servers"));
-     *
-     * // Get cache statistics
-     * CacheStats stats = cloudApi.cache().getStats();
-     * System.out.println("Cache hit rate: " + stats.getHitRate());
-     * }</pre>
+     * Returns the query cache, for manual invalidation or to inspect cache statistics.
      *
      * @return the query cache
      */

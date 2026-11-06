@@ -2,6 +2,12 @@ package app.simplecloud.api.group;
 
 import org.jetbrains.annotations.Nullable;
 
+/**
+ * How many servers of a group run.
+ *
+ * <p>The controller accepts 0 to 1000 for {@code minServers}, 1 to 1000 for {@code maxServers} and
+ * up to 1,000,000 for {@code availableSlots}.
+ */
 public class ScalingConfig {
     private int availableSlots;
     private int maxServers;
@@ -22,6 +28,9 @@ public class ScalingConfig {
         return new Builder();
     }
 
+    /**
+     * @return the number of free player slots to keep available, used with {@link ScalingMode#SLOTS}
+     */
     public int getAvailableSlots() {
         return availableSlots;
     }
@@ -39,6 +48,9 @@ public class ScalingConfig {
         this.maxServersSet = true;
     }
 
+    /**
+     * @return whether {@code maxServers} was set; if not, the create default is used
+     */
     public boolean hasMaxServers() {
         return maxServersSet;
     }
@@ -51,6 +63,9 @@ public class ScalingConfig {
         this.minServers = minServers;
     }
 
+    /**
+     * @return the player threshold as a fraction greater than 0 and at most 1, for example {@code 0.75}
+     */
     public double getPlayerThreshold() {
         return playerThreshold;
     }
@@ -60,6 +75,9 @@ public class ScalingConfig {
         this.playerThresholdSet = true;
     }
 
+    /**
+     * @return whether {@code playerThreshold} was set; if not, the create default is used
+     */
     public boolean hasPlayerThreshold() {
         return playerThresholdSet;
     }

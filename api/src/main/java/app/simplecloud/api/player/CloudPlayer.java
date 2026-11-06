@@ -8,35 +8,12 @@ import java.util.UUID;
 import java.util.concurrent.CompletableFuture;
 
 /**
- * Represents a player connected to the cloud network.
+ * Represents a player connected to the network.
  *
  * <p>CloudPlayer extends Adventure's {@link Audience}, allowing you to send
  * messages, titles, sounds, and other content directly to the player regardless
- * of which server they are connected to.
+ * of which server they are connected to. These calls are forwarded to the player's proxy.
  *
- * <p>Example usage:
- * <pre>{@code
- * CloudPlayer player = api.player().get(uuid).join();
- *
- * // Send a message (inherited from Audience)
- * player.sendMessage(Component.text("Hello!"));
- *
- * // Show a title
- * player.showTitle(Title.title(
- *     Component.text("Welcome"),
- *     Component.text("to the server")
- * ));
- *
- * // Connect to another server
- * player.connect("lobby-1").thenAccept(result -> {
- *     if (result == ConnectResult.SUCCESS) {
- *         System.out.println("Player connected!");
- *     }
- * });
- *
- * // Kick the player
- * player.kick(Component.text("Goodbye!"));
- * }</pre>
  */
 public interface CloudPlayer extends Audience {
 
@@ -113,6 +90,8 @@ public interface CloudPlayer extends Audience {
     /**
      * Returns custom player properties.
      *
+     * <p>To read or change the current properties, use {@link PlayerApi#getPlayerProperties(UUID)} and the related methods.
+     *
      * @return immutable map of properties (empty if none)
      */
     Map<String, String> getProperties();
@@ -121,30 +100,23 @@ public interface CloudPlayer extends Audience {
      * Kicks the player from the network with the specified reason.
      *
      * @param reason the kick reason displayed to the player
-     * @return a future that completes when the kick is processed
+     * @return a future that completes when the kick is processed, or completes exceptionally with a
+     *         {@link app.simplecloud.api.CloudApiException} if the player could not be kicked
      */
     CompletableFuture<Void> kick(Component reason);
 
     /**
-     * Connects the player to the specified server.
-     *
-     * <p>Today this targets the name the proxy registered the server under, exactly like
-     * {@link #connectDirect(String)}. In a later release it will take the cloud server name
-     * ({@code <group>-<number>} or the persistent server's name) and route through the controller, so it
-     * will only reach cloud-managed servers. Server IDs are not accepted.
+     * Connects the player to the specified server by its cloud name.
      *
      * <p>To reach servers that are not managed by the cloud, use {@link #connectDirect(String)}.
      *
-     * @param serverName the name of the server to connect to
+     * @param serverName the cloud name of the server to connect to
      * @return a future containing the connection result
      */
     CompletableFuture<ConnectResult> connect(String serverName);
 
     /**
      * Connects the player to a server by the name the proxy registered it under.
-     *
-     * <p>The request goes straight to the player's proxy, without the controller. It works for any server
-     * the proxy knows, including servers that are not managed by the cloud.
      *
      * @param serverName the name of the server on the proxy
      * @return a future containing the connection result
@@ -155,7 +127,7 @@ public interface CloudPlayer extends Audience {
      * Connects the player to a server of the given server group.
      *
      * @param groupName the name of the target server group
-     * @param selectionMode how the target server is chosen
+     * @param selectionMode how the target server is chosen, or null for {@link ServerSelectionMode#RANDOM}
      * @return a future containing the connection result
      */
     CompletableFuture<ConnectResult> connectToGroup(String groupName, ServerSelectionMode selectionMode);
@@ -208,7 +180,8 @@ public interface CloudPlayer extends Audience {
         PLAYER_NOT_FOUND,
 
         /**
-         * The connection failed for an unknown reason.
+         * The connection failed for an unknown reason, or the answer contained a result
+         * this API version doesn't know.
          */
         CONNECTION_FAILED
     }

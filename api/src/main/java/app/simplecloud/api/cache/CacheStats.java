@@ -2,13 +2,6 @@ package app.simplecloud.api.cache;
 
 /**
  * Cache statistics for monitoring and debugging.
- *
- * <p>Example usage:
- * <pre>{@code
- * CacheStats stats = cloudApi.cache().getStats();
- * System.out.println(stats);
- * // Output: CacheStats[hits=42, misses=5, staleHits=3, evictions=0, entries=12, hitRate=89.36%]
- * }</pre>
  */
 public final class CacheStats {
 
