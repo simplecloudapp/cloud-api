@@ -80,7 +80,8 @@ public class CloudApiImpl implements CloudApi {
         // Setup event-based cache invalidation with debouncing
         if (cacheConfig.isEnabled() && cacheConfig.isAutoInvalidateOnEvents()) {
             long debounceMs = cacheConfig.getEventDebounceTime().toMillis();
-            this.cacheEventListener = new CacheEventListener(queryCache, eventApi, debounceMs);
+            EventApi cacheEvents = new EventApiImpl(natsClient, options.getNetworkId(), playerApi);
+            this.cacheEventListener = new CacheEventListener(queryCache, cacheEvents, debounceMs);
         } else {
             this.cacheEventListener = null;
         }
