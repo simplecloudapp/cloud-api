@@ -47,6 +47,7 @@ jobs:
             :platform:folia:check \
             :platform:bungeecord:check \
             :platform:velocity:check \
+            :platform:minestom:check \
             --configure-on-demand \
             --parallel \
             --build-cache

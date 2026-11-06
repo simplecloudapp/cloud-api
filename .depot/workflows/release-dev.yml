@@ -127,7 +127,9 @@ jobs:
             :platform:velocity:shadowJar \
             :platform:fabric:shadowJar \
             :platform:neoforge:shadowJar \
+            :platform:minestom:check \
             :api:publishMavenPublicationToSimplecloudRepository \
+            :platform:minestom:publishMavenPublicationToSimplecloudRepository \
             --parallel \
             --build-cache
 

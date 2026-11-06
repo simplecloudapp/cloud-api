@@ -25,5 +25,6 @@ include(
     "platform:bungeecord",
     "platform:velocity",
     "platform:fabric",
-    "platform:neoforge"
+    "platform:neoforge",
+    "platform:minestom"
 )
