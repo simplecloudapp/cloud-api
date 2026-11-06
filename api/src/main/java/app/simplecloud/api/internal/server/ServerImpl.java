@@ -144,7 +144,7 @@ public class ServerImpl implements Server {
         try {
             return ServerState.parse(stateStr);
         } catch (IllegalArgumentException e) {
-            throw new IllegalStateException("Invalid server state: " + stateStr, e);
+            return ServerState.UNKNOWN_STATE;
         }
     }
 

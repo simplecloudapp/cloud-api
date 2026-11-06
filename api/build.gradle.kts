@@ -68,6 +68,7 @@ openApiGenerate {
             "serializationLibrary" to "gson",
             "useJakartaEe" to "true",
             "disallowAdditionalPropertiesIfNotPresent" to "false",
+            "enumUnknownDefaultCase" to "true",
         )
 }
 
