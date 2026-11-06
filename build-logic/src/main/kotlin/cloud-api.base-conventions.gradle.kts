@@ -6,6 +6,8 @@ plugins {
     id("java-library")
     id("maven-publish")
     id("com.gradleup.shadow")
+    id("cloud-api.spotless-conventions")
+    id("cloud-api.checkstyle-conventions")
 }
 
 val libs = the<LibrariesForLibs>()

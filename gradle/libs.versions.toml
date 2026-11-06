@@ -31,6 +31,10 @@ adventure-platform = "4.4.1"
 
 minotaur = "2.10.0"
 blossom = "2.2.0"
+spotless = "8.11.0"
+palantir-java-format = "2.103.0"
+ktlint = "1.8.0"
+checkstyle = "14.4.0"
 
 [libraries]
 controller-proto = { module = "build.buf.gen:simplecloud_controller_protocolbuffers_java_lite", version.ref = "controller-proto" }
@@ -67,6 +71,7 @@ adventure-bungeecord = { module = "net.kyori:adventure-platform-bungeecord", ver
 shadow = { id = "com.gradleup.shadow", version.ref = "shadow" }
 minotaur = { id = "com.modrinth.minotaur", version.ref = "minotaur" }
 blossom = { id = "net.kyori.blossom", version.ref = "blossom" }
+spotless = { id = "com.diffplug.spotless", version.ref = "spotless" }
 openapi-generator = { id = "org.openapi.generator", version.ref = "openapi-generator" }
 fabric-loom = { id = "net.fabricmc.fabric-loom", version = "1.19.3" }
 neoforge-userdev = { id = "net.neoforged.gradle.userdev", version = "7.1.39" }

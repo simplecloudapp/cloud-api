@@ -1,5 +1,6 @@
 plugins {
     id("cloud-api.base-conventions") apply false
+    id("cloud-api.spotless-conventions")
 }
 
 allprojects {
