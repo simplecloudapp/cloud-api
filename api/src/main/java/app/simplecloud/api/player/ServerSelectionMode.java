@@ -2,6 +2,8 @@ package app.simplecloud.api.player;
 
 /**
  * Strategy used to pick a server when connecting a player to a server group.
+ *
+ * <p>Only servers a player can join are considered. Player counts are the counts the servers last reported.
  */
 public enum ServerSelectionMode {
     /**
@@ -20,7 +22,7 @@ public enum ServerSelectionMode {
     MAX_PLAYERS,
 
     /**
-     * Picks the first available server.
+     * Picks the server with the lowest numerical ID.
      */
     FIRST
 }

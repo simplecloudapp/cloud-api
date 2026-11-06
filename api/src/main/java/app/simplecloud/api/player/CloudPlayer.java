@@ -106,17 +106,47 @@ public interface CloudPlayer extends Audience {
     CompletableFuture<Void> kick(Component reason);
 
     /**
+     * Connects the player through the controller, which resolves the target to one server.
+     *
+     * <p>See {@link PlayerApi#connectTo(UUID, ConnectTarget)} for when the future completes exceptionally.
+     *
+     * @param target where to send the player
+     * @return a future containing the result and the server the player was sent to
+     */
+    CompletableFuture<ConnectResponse> connectTo(ConnectTarget target);
+
+    /**
      * Connects the player to the specified server by its cloud name.
      *
-     * <p>To reach servers that are not managed by the cloud, use {@link #connectDirect(String)}.
+     * <p>The name is a persistent server's name or {@code <group>-<numerical id>}, matched
+     * case-insensitively. Server UUIDs are not accepted, use {@link #connectToServer(String)}.
+     * To reach servers that are not managed by the cloud, use {@link #connectDirect(String)}.
+     * See {@link PlayerApi#connectTo(UUID, ConnectTarget)} for when the future completes exceptionally.
      *
      * @param serverName the cloud name of the server to connect to
      * @return a future containing the connection result
      */
-    CompletableFuture<ConnectResult> connect(String serverName);
+    default CompletableFuture<ConnectResult> connect(String serverName) {
+        return connectTo(new ConnectTarget.ServerName(serverName)).thenApply(ConnectResponse::result);
+    }
+
+    /**
+     * Connects the player to the specified server by its ID.
+     *
+     * <p>See {@link PlayerApi#connectTo(UUID, ConnectTarget)} for when the future completes exceptionally.
+     *
+     * @param serverId the UUID of the server to connect to
+     * @return a future containing the connection result
+     */
+    default CompletableFuture<ConnectResult> connectToServer(String serverId) {
+        return connectTo(new ConnectTarget.ServerId(serverId)).thenApply(ConnectResponse::result);
+    }
 
     /**
      * Connects the player to a server by the name the proxy registered it under.
+     *
+     * <p>This goes to the player's proxy directly, without the controller, and never completes
+     * exceptionally.
      *
      * @param serverName the name of the server on the proxy
      * @return a future containing the connection result
@@ -126,16 +156,20 @@ public interface CloudPlayer extends Audience {
     /**
      * Connects the player to a server of the given server group.
      *
-     * @param groupName the name of the target server group
+     * <p>See {@link PlayerApi#connectTo(UUID, ConnectTarget)} for when the future completes exceptionally.
+     *
+     * @param groupName the name of the target server group, matched case-insensitively
      * @param selectionMode how the target server is chosen, or null for {@link ServerSelectionMode#RANDOM}
      * @return a future containing the connection result
      */
-    CompletableFuture<ConnectResult> connectToGroup(String groupName, ServerSelectionMode selectionMode);
+    default CompletableFuture<ConnectResult> connectToGroup(String groupName, ServerSelectionMode selectionMode) {
+        return connectTo(new ConnectTarget.GroupName(groupName, selectionMode)).thenApply(ConnectResponse::result);
+    }
 
     /**
      * Connects the player to a random server of the given server group.
      *
-     * @param groupName the name of the target server group
+     * @param groupName the name of the target server group, matched case-insensitively
      * @return a future containing the connection result
      */
     default CompletableFuture<ConnectResult> connectToGroup(String groupName) {
@@ -145,10 +179,15 @@ public interface CloudPlayer extends Audience {
     /**
      * Connects the player to a persistent server.
      *
-     * @param persistentServerId the ID of the target persistent server
+     * <p>To connect by the persistent server's name, use {@link #connect(String)}.
+     * See {@link PlayerApi#connectTo(UUID, ConnectTarget)} for when the future completes exceptionally.
+     *
+     * @param persistentServerId the UUID of the target persistent server
      * @return a future containing the connection result
      */
-    CompletableFuture<ConnectResult> connectToPersistentServer(String persistentServerId);
+    default CompletableFuture<ConnectResult> connectToPersistentServer(String persistentServerId) {
+        return connectTo(new ConnectTarget.PersistentServer(persistentServerId)).thenApply(ConnectResponse::result);
+    }
 
     /**
      * Result of a player connection attempt.
@@ -160,7 +199,7 @@ public interface CloudPlayer extends Audience {
         SUCCESS,
 
         /**
-         * The target server was not found.
+         * The target server was not found: the cloud does not know it, or the proxy has not registered it yet.
          */
         SERVER_NOT_FOUND,
 

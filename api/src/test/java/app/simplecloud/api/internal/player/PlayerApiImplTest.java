@@ -3,9 +3,12 @@ package app.simplecloud.api.internal.player;
 import app.simplecloud.api.CloudApiException;
 import app.simplecloud.api.internal.ControllerServer;
 import app.simplecloud.api.player.CloudPlayer;
+import app.simplecloud.api.player.ConnectResponse;
+import app.simplecloud.api.player.ConnectTarget;
 import app.simplecloud.api.player.PlayerApi;
 import app.simplecloud.api.player.PlayerClientSettings;
 import app.simplecloud.api.player.PlayerQuery;
+import app.simplecloud.api.player.ServerSelectionMode;
 import app.simplecloud.api.player.UpdateClientSettingsRequest;
 import com.google.gson.JsonObject;
 import okhttp3.HttpUrl;
@@ -28,6 +31,8 @@ import static org.junit.jupiter.api.Assertions.assertTrue;
 class PlayerApiImplTest {
 
     private static final UUID PLAYER_ID = UUID.fromString("069a79f4-44e9-4726-a5be-fca90e38aaf5");
+    private static final String SERVER_ID = "6f1c2a51-0c8e-4f0a-9d55-3b8e1f6c2d10";
+    private static final String GROUP_ID = "1b2e7c3d-5a64-4e2f-8c1d-9a0b3c4d5e6f";
     private static final String PLAYER_JSON =
             """
             {"id": "069a79f4-44e9-4726-a5be-fca90e38aaf5", "name": "Steve", "online": true,
@@ -142,6 +147,41 @@ class PlayerApiImplTest {
         controller.respond(409, "{\"error\": \"Server name is ambiguous\"}");
 
         assertEquals(CloudApiException.Reason.CONFLICT, failure(api.connect(PLAYER_ID, "lobby")).getReason());
+    }
+
+    @Test
+    void connectToServerSendsServerIdOnly() {
+        controller.respond(200, "{\"success\": true, \"result\": \"SUCCESS\", \"server_name\": \"lobby-1\"}");
+
+        assertEquals(CloudPlayer.ConnectResult.SUCCESS, api.connectToServer(PLAYER_ID, SERVER_ID).join());
+
+        JsonObject body = ControllerServer.body(controller.takeRequest());
+        assertEquals(SERVER_ID, body.get("server_id").getAsString());
+        assertFalse(body.has("server_name"));
+    }
+
+    @Test
+    void connectToReturnsTheChosenServer() {
+        controller.respond(200, "{\"success\": true, \"result\": \"SUCCESS\", \"server_name\": \"lobby-2\"}");
+
+        ConnectResponse response = api.connectTo(
+                        PLAYER_ID, new ConnectTarget.GroupId(GROUP_ID, ServerSelectionMode.FIRST))
+                .join();
+
+        assertEquals(new ConnectResponse(CloudPlayer.ConnectResult.SUCCESS, "lobby-2"), response);
+        JsonObject body = ControllerServer.body(controller.takeRequest());
+        assertEquals(GROUP_ID, body.get("server_group_id").getAsString());
+        assertEquals("FIRST", body.get("selection_mode").getAsString());
+    }
+
+    @Test
+    void connectToReportsNoServerWithoutServerName() {
+        controller.respond(
+                200, "{\"success\": false, \"result\": \"NO_SERVER_AVAILABLE\", \"message\": \"Target server not found\"}");
+
+        assertEquals(
+                new ConnectResponse(CloudPlayer.ConnectResult.NO_SERVER_AVAILABLE, null),
+                api.connectTo(PLAYER_ID, new ConnectTarget.GroupName("lobby", null)).join());
     }
 
     @Test
