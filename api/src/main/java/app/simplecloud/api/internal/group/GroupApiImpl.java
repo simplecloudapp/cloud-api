@@ -567,8 +567,7 @@ public class GroupApiImpl implements GroupApi {
                             apiRequest.setDeployment(convertDeploymentConfig(request.getDeployment()));
                         }
                         if (request.getScaling() != null) {
-                            apiRequest.setScaling(convertScalingConfig(
-                                    createRequestDefaults.defaultGroupScaling(request.getScaling())));
+                            apiRequest.setScaling(convertScalingConfig(request.getScaling()));
                         }
                         if (request.getSource() != null) {
                             apiRequest.setSource(convertSourceConfig(request.getSource()));

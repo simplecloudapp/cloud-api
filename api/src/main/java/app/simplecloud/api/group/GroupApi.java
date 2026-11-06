@@ -155,8 +155,12 @@ public interface GroupApi {
     /**
      * Updates an existing server group.
      *
+     * <p>Only the top-level fields set in the request are updated. Nested configurations
+     * ({@code scaling}, {@code deployment}, {@code workflows}) replace the
+     * stored configuration as a whole, so they must be complete; no create defaults are applied.
+     *
      * @param id      the unique ID of the server group to update
-     * @param request the updated configuration (only specified fields will be updated)
+     * @param request the updated configuration
      * @return a CompletableFuture that completes with the updated group
      */
     CompletableFuture<Group> updateGroup(String id, UpdateGroupRequest request);

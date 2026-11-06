@@ -262,6 +262,8 @@ class GroupApiImplTest {
 
         api.createGroup(request).join();
 
+        assertEquals(1, serverGroupsApi.lastCreateRequest.getScaling().getMinServers());
+        assertEquals(1, serverGroupsApi.lastCreateRequest.getScaling().getMaxServers());
         assertEquals(
                 BigDecimal.valueOf(0.75),
                 serverGroupsApi.lastCreateRequest.getScaling().getPlayerThreshold());
@@ -517,6 +519,42 @@ class GroupApiImplTest {
         assertNull(serverGroupsApi.lastPatchRequest.getType());
         assertNull(serverGroupsApi.lastPatchRequest.getName());
         assertEquals(GROUP_ID, group.getServerGroupId());
+    }
+
+    @Test
+    void updateGroup_scaling_isSentWithoutCreateDefaults() {
+        AtomicInteger order = new AtomicInteger();
+        FakeServerGroupsApi serverGroupsApi = new FakeServerGroupsApi(order);
+        GroupApiImpl api =
+                new GroupApiImpl(options(), new NoOpQueryCache(), serverGroupsApi, new FakeBlueprintsApi(order));
+
+        ScalingConfig scaling = ScalingConfig.builder().maxServers(5).build();
+
+        api.updateGroup(GROUP_ID, UpdateGroupRequest.builder().scaling(scaling).build())
+                .join();
+
+        assertEquals(5, serverGroupsApi.lastPatchRequest.getScaling().getMaxServers());
+        assertNull(serverGroupsApi.lastPatchRequest.getScaling().getScalingMode());
+        assertNull(serverGroupsApi.lastPatchRequest.getScaling().getScaleDown());
+    }
+
+    @Test
+    void createGroup_zeroPlayerThresholdFailsBeforeRequest() {
+        AtomicInteger order = new AtomicInteger();
+        FakeServerGroupsApi serverGroupsApi = new FakeServerGroupsApi(order);
+        GroupApiImpl api =
+                new GroupApiImpl(options(), new NoOpQueryCache(), serverGroupsApi, new FakeBlueprintsApi(order));
+
+        CreateGroupRequest request = CreateGroupRequest.builder()
+                .name("Lobby")
+                .scaling(ScalingConfig.builder().playerThreshold(0).build())
+                .build();
+
+        CompletionException failure = assertThrows(
+                CompletionException.class, () -> api.createGroup(request).join());
+
+        assertInstanceOf(IllegalArgumentException.class, failure.getCause());
+        assertEquals(0, serverGroupsApi.postCalls);
     }
 
     @Test

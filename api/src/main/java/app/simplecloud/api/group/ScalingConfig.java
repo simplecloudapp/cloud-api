@@ -5,6 +5,7 @@ import org.jetbrains.annotations.Nullable;
 public class ScalingConfig {
     private int availableSlots;
     private int maxServers;
+    private boolean maxServersSet;
     private int minServers;
     private double playerThreshold;
     private boolean playerThresholdSet;
@@ -35,6 +36,11 @@ public class ScalingConfig {
 
     public void setMaxServers(int maxServers) {
         this.maxServers = maxServers;
+        this.maxServersSet = true;
+    }
+
+    public boolean hasMaxServers() {
+        return maxServersSet;
     }
 
     public int getMinServers() {
@@ -79,6 +85,7 @@ public class ScalingConfig {
     public static class Builder {
         private int availableSlots;
         private int maxServers;
+        private boolean maxServersSet;
         private int minServers;
         private double playerThreshold;
         private boolean playerThresholdSet;
@@ -92,6 +99,7 @@ public class ScalingConfig {
 
         public Builder maxServers(int maxServers) {
             this.maxServers = maxServers;
+            this.maxServersSet = true;
             return this;
         }
 
@@ -119,7 +127,9 @@ public class ScalingConfig {
         public ScalingConfig build() {
             ScalingConfig config = new ScalingConfig();
             config.setAvailableSlots(availableSlots);
-            config.setMaxServers(maxServers);
+            if (maxServersSet) {
+                config.setMaxServers(maxServers);
+            }
             config.setMinServers(minServers);
             if (playerThresholdSet) {
                 config.setPlayerThreshold(playerThreshold);

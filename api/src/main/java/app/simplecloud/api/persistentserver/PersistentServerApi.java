@@ -80,8 +80,11 @@ public interface PersistentServerApi {
     /**
      * Updates an existing persistent server.
      *
+     * <p>Only the top-level fields set in the request are updated. A {@code workflows}
+     * configuration replaces the stored one as a whole, so it must be complete.
+     *
      * @param id      the unique ID of the persistent server to update
-     * @param request the updated configuration (only specified fields will be updated)
+     * @param request the updated configuration
      * @return a CompletableFuture that completes with the updated persistent server
      */
     CompletableFuture<PersistentServer> updatePersistentServer(String id, UpdatePersistentServerRequest request);

@@ -93,14 +93,14 @@ public final class CreateRequestDefaults {
         }
 
         double playerThreshold = scaling.hasPlayerThreshold() ? scaling.getPlayerThreshold() : DEFAULT_PLAYER_THRESHOLD;
-        if (scaling.hasPlayerThreshold() && (playerThreshold < 0 || playerThreshold > 1)) {
-            throw new IllegalArgumentException("playerThreshold must be between 0 and 1");
+        if (scaling.hasPlayerThreshold() && (playerThreshold <= 0 || playerThreshold > 1)) {
+            throw new IllegalArgumentException("playerThreshold must be greater than 0 and at most 1");
         }
 
         return ScalingConfig.builder()
                 .availableSlots(scaling.getAvailableSlots())
                 .minServers(scaling.getMinServers())
-                .maxServers(scaling.getMaxServers())
+                .maxServers(scaling.hasMaxServers() ? scaling.getMaxServers() : DEFAULT_MAX_SERVERS)
                 .playerThreshold(playerThreshold)
                 .scalingMode(scaling.getScalingMode() != null ? scaling.getScalingMode() : ScalingMode.SLOTS)
                 .scaleDown(defaultScaleDown(scaling.getScaleDown()))
