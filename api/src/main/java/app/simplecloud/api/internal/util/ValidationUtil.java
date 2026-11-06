@@ -1,5 +1,7 @@
 package app.simplecloud.api.internal.util;
 
+import app.simplecloud.api.group.GroupServerType;
+
 import java.nio.charset.StandardCharsets;
 import java.util.regex.Pattern;
 
@@ -13,6 +15,13 @@ public final class ValidationUtil {
 
     public static boolean isUuid(String value) {
         return value != null && UUID_PATTERN.matcher(value).matches();
+    }
+
+    public static String serverTypeName(GroupServerType type) {
+        if (type == GroupServerType.UNKNOWN_SERVER) {
+            throw new IllegalArgumentException("type must be SERVER or PROXY");
+        }
+        return type.name();
     }
 
     public static boolean isPlayerName(String value) {

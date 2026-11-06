@@ -385,7 +385,7 @@ public class GroupApiImpl implements GroupApi {
                 this.options.getNetworkId(),
                 serverGroupId,
                 name,
-                query != null && query.getType() != null ? query.getType().name() : null,
+                query != null && query.getType() != null ? ValidationUtil.serverTypeName(query.getType()) : null,
                 query != null ? query.getTag() : null,
                 null,
                 null,
@@ -480,7 +480,8 @@ public class GroupApiImpl implements GroupApi {
 
                     ModelsCreateServerGroupRequest apiRequest = new ModelsCreateServerGroupRequest();
                     apiRequest.setName(request.getName());
-                    apiRequest.setType(ModelsCreateServerGroupRequest.TypeEnum.valueOf(effectiveType.name()));
+                    apiRequest.setType(ModelsCreateServerGroupRequest.TypeEnum.valueOf(
+                            ValidationUtil.serverTypeName(effectiveType)));
                     apiRequest.setMinMemory(request.getMinMemory());
                     apiRequest.setMaxMemory(request.getMaxMemory());
                     apiRequest.setMaxPlayers(effectiveMaxPlayers);
@@ -555,7 +556,7 @@ public class GroupApiImpl implements GroupApi {
                         apiRequest.setName(request.getName());
                         if (request.getType() != null) {
                             apiRequest.setType(ModelsPatchServerGroupRequest.TypeEnum.valueOf(
-                                    request.getType().name()));
+                                    ValidationUtil.serverTypeName(request.getType())));
                         }
                         apiRequest.setMinMemory(request.getMinMemory());
                         apiRequest.setMaxMemory(request.getMaxMemory());

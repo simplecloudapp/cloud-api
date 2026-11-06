@@ -21,9 +21,9 @@ import java.util.Map;
  * <p>Default stale times by entity type (optimized for typical usage patterns):
  * <ul>
  *   <li>SERVER: 3 seconds (metrics like CPU/memory may change without events)</li>
- *   <li>GROUP: 30 seconds (configuration rarely changes, events handle updates)</li>
- *   <li>PERSISTENT_SERVER: 30 seconds (similar to groups)</li>
- *   <li>PLAYER: 5 seconds (balance between freshness and load)</li>
+ *   <li>GROUP: 10 seconds (configuration rarely changes, events handle updates)</li>
+ *   <li>PERSISTENT_SERVER: 10 seconds (similar to groups)</li>
+ *   <li>PLAYER: 5 seconds (player queries are currently not cached, so this has no effect)</li>
  * </ul>
  *
  * <p>Example:

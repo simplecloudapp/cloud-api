@@ -127,7 +127,7 @@ public interface GroupApi {
     /**
      * Retrieves all server groups, optionally filtered by a query.
      *
-     * @param query optional query parameters to filter results (type, tags, sorting, limit)
+     * @param query optional query parameters to filter results (type, tag, limit)
      * @return a CompletableFuture that completes with a list of matching groups
      */
     CompletableFuture<List<Group>> getAllGroups(@Nullable GroupQuery query);

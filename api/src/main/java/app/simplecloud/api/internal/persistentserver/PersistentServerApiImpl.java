@@ -312,7 +312,8 @@ public class PersistentServerApiImpl implements PersistentServerApi {
                     apiRequest.setServerhostId(request.getServerhostId());
                     apiRequest.setProperties(effectiveProperties);
                     apiRequest.setTags(effectiveTags);
-                    apiRequest.setType(ModelsCreatePersistentServerRequest.TypeEnum.valueOf(effectiveType.name()));
+                    apiRequest.setType(ModelsCreatePersistentServerRequest.TypeEnum.valueOf(
+                            ValidationUtil.serverTypeName(effectiveType)));
                     apiRequest.setWorkflows(convertWorkflowsConfig(effectiveWorkflows));
 
                     String createdBlueprintId = null;
@@ -370,7 +371,7 @@ public class PersistentServerApiImpl implements PersistentServerApi {
 
                         if (request.getType() != null) {
                             apiRequest.setType(ModelsPatchPersistentServerRequest.TypeEnum.valueOf(
-                                    request.getType().name()));
+                                    ValidationUtil.serverTypeName(request.getType())));
                         }
                         if (request.getSource() != null) {
                             apiRequest.setSource(convertSourceConfig(request.getSource()));

@@ -7,8 +7,6 @@ public class GroupQuery {
     private GroupServerType type;
 
     private String tag;
-    private String sortBy;
-    private String sortOrder;
     private Integer limit;
 
     public GroupQuery() {}
@@ -30,26 +28,6 @@ public class GroupQuery {
 
     public GroupQuery filterByTag(String tag) {
         this.tag = tag;
-        return this;
-    }
-
-    @Nullable
-    public String getSortBy() {
-        return sortBy;
-    }
-
-    public GroupQuery sortBy(String sortBy) {
-        this.sortBy = sortBy;
-        return this;
-    }
-
-    @Nullable
-    public String getSortOrder() {
-        return sortOrder;
-    }
-
-    public GroupQuery sortOrder(String sortOrder) {
-        this.sortOrder = sortOrder;
         return this;
     }
 
@@ -76,8 +54,6 @@ public class GroupQuery {
         GroupQuery copy = new GroupQuery();
         copy.type = type;
         copy.tag = tag;
-        copy.sortBy = sortBy;
-        copy.sortOrder = sortOrder;
         copy.limit = limit;
         return copy;
     }
