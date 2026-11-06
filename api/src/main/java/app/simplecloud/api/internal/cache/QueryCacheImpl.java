@@ -23,6 +23,7 @@ import java.util.concurrent.Executors;
 import java.util.concurrent.RejectedExecutionException;
 import java.util.concurrent.TimeUnit;
 import java.util.concurrent.atomic.AtomicLong;
+import java.util.function.Predicate;
 import java.util.function.Supplier;
 import java.util.logging.Level;
 import java.util.logging.Logger;
@@ -92,17 +93,8 @@ public class QueryCacheImpl implements QueryCache {
     @Override
     @SuppressWarnings("unchecked")
     public <T> CompletableFuture<T> fetch(QueryKey key, Supplier<CompletableFuture<T>> fetcher) {
-        if (!config.isEnabled()) {
+        if (!isCachingEnabled(key)) {
             return fetcher.get();
-        }
-
-        // Check if caching is disabled for this entity type
-        EntityType entityType = key.getEntityType();
-        if (entityType != null && config.getEntityConfigs().containsKey(entityType)) {
-            EntityCacheConfig entityConfig = config.getEntityConfigs().get(entityType);
-            if (!entityConfig.isEnabled()) {
-                return fetcher.get();
-            }
         }
 
         CacheEntry<T> entry = (CacheEntry<T>) cache.getIfPresent(key);
@@ -130,6 +122,62 @@ public class QueryCacheImpl implements QueryCache {
         // No cached data - fetch with deduplication
         missCount.incrementAndGet();
         return fetchWithDeduplication(key, fetcher);
+    }
+
+    @Override
+    public <T> CompletableFuture<T> fetchWithTransientMissRecovery(
+            QueryKey key,
+            Supplier<CompletableFuture<T>> fetcher,
+            Predicate<T> isTransientMiss,
+            Duration retryDelay,
+            int maxRetries) {
+        if (!isCachingEnabled(key)) {
+            return QueryCache.super.fetchWithTransientMissRecovery(
+                    key, fetcher, isTransientMiss, retryDelay, maxRetries);
+        }
+        if (maxRetries < 0) {
+            throw new IllegalArgumentException("maxRetries must be >= 0");
+        }
+        if (retryDelay.isNegative()) {
+            throw new IllegalArgumentException("retryDelay must be >= 0");
+        }
+
+        return fetch(key, fetcher)
+                .thenCompose(result -> retryTransientMiss(key, fetcher, isTransientMiss, retryDelay, maxRetries, result));
+    }
+
+    private <T> CompletableFuture<T> retryTransientMiss(
+            QueryKey key,
+            Supplier<CompletableFuture<T>> fetcher,
+            Predicate<T> isTransientMiss,
+            Duration retryDelay,
+            int retriesRemaining,
+            T result) {
+        if (!isTransientMiss.test(result)) {
+            return CompletableFuture.completedFuture(result);
+        }
+        if (retriesRemaining == 0) {
+            cache.invalidate(key);
+            return CompletableFuture.completedFuture(result);
+        }
+
+        return CompletableFuture.supplyAsync(
+                        () -> null, CompletableFuture.delayedExecutor(retryDelay.toMillis(), TimeUnit.MILLISECONDS))
+                .thenCompose(ignored -> fetchWithDeduplication(key, fetcher))
+                .thenCompose(retriedResult -> retryTransientMiss(
+                        key, fetcher, isTransientMiss, retryDelay, retriesRemaining - 1, retriedResult));
+    }
+
+    private boolean isCachingEnabled(QueryKey key) {
+        if (!config.isEnabled()) {
+            return false;
+        }
+        EntityType entityType = key.getEntityType();
+        if (entityType != null && config.getEntityConfigs().containsKey(entityType)) {
+            EntityCacheConfig entityConfig = config.getEntityConfigs().get(entityType);
+            return entityConfig.isEnabled();
+        }
+        return true;
     }
 
     @SuppressWarnings("unchecked")

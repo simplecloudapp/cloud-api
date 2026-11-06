@@ -5,6 +5,7 @@ import app.simplecloud.api.cache.CacheConfig;
 import app.simplecloud.api.cache.CacheEntry;
 import app.simplecloud.api.cache.QueryKey;
 import org.junit.jupiter.api.Test;
+import org.junit.jupiter.api.Timeout;
 
 import java.time.Duration;
 import java.util.concurrent.CompletableFuture;
@@ -34,6 +35,71 @@ class QueryCacheImplTest {
                 .defaultStaleTime(Duration.ofSeconds(30))
                 .defaultCacheTime(Duration.ofMinutes(1))
                 .build();
+    }
+
+    @Test
+    void fetchWithTransientMissRecovery_retriedValueIsCached() throws Exception {
+        QueryCacheImpl cache = new QueryCacheImpl(baseConfig(), LONG_TIMEOUT);
+        QueryKey key = QueryKey.of("test", "recovered");
+        AtomicInteger calls = new AtomicInteger();
+
+        String result = cache.<String>fetchWithTransientMissRecovery(
+                        key,
+                        () -> CompletableFuture.completedFuture(calls.incrementAndGet() == 1 ? null : "value"),
+                        value -> value == null,
+                        Duration.ofMillis(10),
+                        2)
+                .get(1, TimeUnit.SECONDS);
+
+        assertEquals("value", result);
+        assertEquals(2, calls.get());
+        assertEquals("value", cache.<String>get(key).getData());
+    }
+
+    @Test
+    @Timeout(5)
+    void fetchWithTransientMissRecovery_invalidationDuringRetry_doesNotCacheRetriedValue() throws Exception {
+        QueryCacheImpl cache = new QueryCacheImpl(baseConfig(), LONG_TIMEOUT);
+        QueryKey key = QueryKey.of("test", "invalidated-retry");
+        AtomicInteger calls = new AtomicInteger();
+        CompletableFuture<String> retry = new CompletableFuture<>();
+
+        CompletableFuture<String> result = cache.fetchWithTransientMissRecovery(
+                key,
+                () -> calls.incrementAndGet() == 1 ? CompletableFuture.<String>completedFuture(null) : retry,
+                value -> value == null,
+                Duration.ofMillis(10),
+                1);
+        while (calls.get() < 2) {
+            Thread.sleep(5);
+        }
+        cache.invalidate(key);
+        retry.complete("stale");
+
+        assertEquals("stale", result.get(1, TimeUnit.SECONDS));
+        assertNull(cache.get(key));
+    }
+
+    @Test
+    void fetchWithTransientMissRecovery_persistentMiss_leavesNoEntry() throws Exception {
+        QueryCacheImpl cache = new QueryCacheImpl(baseConfig(), LONG_TIMEOUT);
+        QueryKey key = QueryKey.of("test", "missing");
+        AtomicInteger calls = new AtomicInteger();
+
+        String result = cache.<String>fetchWithTransientMissRecovery(
+                        key,
+                        () -> {
+                            calls.incrementAndGet();
+                            return CompletableFuture.completedFuture(null);
+                        },
+                        value -> value == null,
+                        Duration.ofMillis(10),
+                        2)
+                .get(1, TimeUnit.SECONDS);
+
+        assertNull(result);
+        assertEquals(3, calls.get());
+        assertNull(cache.get(key));
     }
 
     @Test

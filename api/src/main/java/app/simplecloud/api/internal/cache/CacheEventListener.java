@@ -24,6 +24,8 @@ import java.util.concurrent.TimeUnit;
  */
 public class CacheEventListener {
 
+    private static final long MAX_WAIT_DEBOUNCE_FACTOR = 10;
+
     private final QueryCache cache;
     private final List<Subscription> subscriptions = new ArrayList<>();
     private final ScheduledExecutorService scheduler;
@@ -33,6 +35,7 @@ public class CacheEventListener {
     private final Set<QueryKey> pendingInvalidations = ConcurrentHashMap.newKeySet();
     private final Set<QueryKey> pendingPatternInvalidations = ConcurrentHashMap.newKeySet();
     private volatile ScheduledFuture<?> pendingFlush;
+    private long firstPendingAtNanos = -1;
     private boolean shutdown;
 
     public CacheEventListener(QueryCache cache, EventApi eventApi, long debounceMs) {
@@ -74,16 +77,24 @@ public class CacheEventListener {
      * only one flush will occur after the window expires.
      */
     private void scheduleFlush() {
+        long now = System.nanoTime();
+        if (firstPendingAtNanos < 0) {
+            firstPendingAtNanos = now;
+        }
         if (pendingFlush != null && !pendingFlush.isDone()) {
             pendingFlush.cancel(false);
         }
-        pendingFlush = scheduler.schedule(this::flush, debounceMs, TimeUnit.MILLISECONDS);
+        long maxWaitLeftMs = TimeUnit.NANOSECONDS.toMillis(
+                firstPendingAtNanos + TimeUnit.MILLISECONDS.toNanos(debounceMs * MAX_WAIT_DEBOUNCE_FACTOR) - now);
+        long delayMs = Math.max(0, Math.min(debounceMs, maxWaitLeftMs));
+        pendingFlush = scheduler.schedule(this::flush, delayMs, TimeUnit.MILLISECONDS);
     }
 
     /**
      * Flushes all pending invalidations.
      */
     private synchronized void flush() {
+        firstPendingAtNanos = -1;
         // Process pattern invalidations first (they may cover individual keys)
         for (QueryKey pattern : pendingPatternInvalidations) {
             cache.invalidateAll(pattern);
