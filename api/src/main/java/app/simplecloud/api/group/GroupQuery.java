@@ -66,4 +66,19 @@ public class GroupQuery {
     public static GroupQuery create() {
         return new GroupQuery();
     }
+
+    /**
+     * Creates an independent copy of this query.
+     *
+     * @return a new query with the same filters
+     */
+    public GroupQuery copy() {
+        GroupQuery copy = new GroupQuery();
+        copy.type = type;
+        copy.tag = tag;
+        copy.sortBy = sortBy;
+        copy.sortOrder = sortOrder;
+        copy.limit = limit;
+        return copy;
+    }
 }

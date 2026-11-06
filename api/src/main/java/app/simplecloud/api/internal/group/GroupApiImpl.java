@@ -341,7 +341,9 @@ public class GroupApiImpl implements GroupApi {
     }
 
     @Override
-    public CompletableFuture<List<Group>> getAllGroups(@org.jetbrains.annotations.Nullable GroupQuery query) {
+    public CompletableFuture<List<Group>> getAllGroups(
+            @org.jetbrains.annotations.Nullable GroupQuery requestedQuery) {
+        GroupQuery query = requestedQuery == null ? null : requestedQuery.copy();
         QueryKey key = buildQueryKey(query);
 
         return cache.fetch(

@@ -17,6 +17,20 @@ public class PersistentServerQuery {
 
     public PersistentServerQuery() {}
 
+    /**
+     * Creates an independent copy of this query.
+     *
+     * @return a new query with the same filters
+     */
+    public PersistentServerQuery copy() {
+        PersistentServerQuery copy = new PersistentServerQuery();
+        copy.tags = tags == null ? null : new ArrayList<>(tags);
+        copy.active = active;
+        copy.serverhostId = serverhostId;
+        copy.limit = limit;
+        return copy;
+    }
+
     @Nullable
     public List<String> getTags() {
         return tags;

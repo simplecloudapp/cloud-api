@@ -34,6 +34,31 @@ public class PlayerQuery {
         return new PlayerQuery();
     }
 
+    /**
+     * Creates an independent copy of this query.
+     *
+     * @return a new query with the same filters, sorting and paging
+     */
+    public PlayerQuery copy() {
+        PlayerQuery copy = new PlayerQuery();
+        copy.online = online;
+        copy.serverName = serverName;
+        copy.proxyName = proxyName;
+        copy.playerIds = playerIds == null ? null : new ArrayList<>(playerIds);
+        copy.firstSeenFrom = firstSeenFrom;
+        copy.firstSeenTo = firstSeenTo;
+        copy.lastSeenFrom = lastSeenFrom;
+        copy.lastSeenTo = lastSeenTo;
+        copy.onlineTimeSecondsMin = onlineTimeSecondsMin;
+        copy.onlineTimeSecondsMax = onlineTimeSecondsMax;
+        copy.search = search;
+        copy.sortBy = sortBy;
+        copy.sortOrder = sortOrder;
+        copy.limit = limit;
+        copy.offset = offset;
+        return copy;
+    }
+
     public PlayerQuery filterByOnline(boolean online) {
         this.online = online;
         return this;

@@ -161,7 +161,9 @@ public class PersistentServerApiImpl implements PersistentServerApi {
     }
 
     @Override
-    public CompletableFuture<List<PersistentServer>> getAllPersistentServers(@Nullable PersistentServerQuery query) {
+    public CompletableFuture<List<PersistentServer>> getAllPersistentServers(
+            @Nullable PersistentServerQuery requestedQuery) {
+        PersistentServerQuery query = requestedQuery == null ? null : requestedQuery.copy();
         QueryKey key = buildQueryKey(query);
 
         return cache.fetch(

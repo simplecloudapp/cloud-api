@@ -141,7 +141,8 @@ public class ServerApiImpl implements ServerApi {
     }
 
     @Override
-    public CompletableFuture<List<Server>> getAllServers(@Nullable ServerQuery query) {
+    public CompletableFuture<List<Server>> getAllServers(@Nullable ServerQuery requestedQuery) {
+        ServerQuery query = requestedQuery == null ? null : requestedQuery.copy();
         QueryKey key = buildQueryKey(query);
 
         CompletableFuture<List<Server>> future;

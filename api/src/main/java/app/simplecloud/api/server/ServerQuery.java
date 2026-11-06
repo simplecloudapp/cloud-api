@@ -34,6 +34,30 @@ public class ServerQuery {
 
     public ServerQuery() {}
 
+    /**
+     * Creates an independent copy of this query.
+     *
+     * @return a new query with the same filters and sorting
+     */
+    public ServerQuery copy() {
+        ServerQuery copy = new ServerQuery();
+        copy.serverGroupIds = copyList(serverGroupIds);
+        copy.states = copyList(states);
+        copy.serverhostId = serverhostId;
+        copy.persistentServerId = persistentServerId;
+        copy.serverGroupTypes = copyList(serverGroupTypes);
+        copy.serverGroupNames = copyList(serverGroupNames);
+        copy.serverGroupTags = copyList(serverGroupTags);
+        copy.numericalIds = copyList(numericalIds);
+        copy.sortBy = sortBy;
+        copy.sortOrder = sortOrder;
+        return copy;
+    }
+
+    private static <T> List<T> copyList(@Nullable List<T> list) {
+        return list == null ? null : new ArrayList<>(list);
+    }
+
     @Nullable
     public List<String> getServerGroupIds() {
         return serverGroupIds;

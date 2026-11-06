@@ -151,7 +151,7 @@ public class PlayerApiImpl implements PlayerApi {
 
     @Override
     public CompletableFuture<List<CloudPlayer>> list(@Nullable PlayerQuery query) {
-        PlayerQuery q = query != null ? query : PlayerQuery.create();
+        PlayerQuery q = query != null ? query.copy() : PlayerQuery.create();
         List<String> playerIds = q.getPlayerIds() == null
                 ? null
                 : q.getPlayerIds().stream().map(UUID::toString).toList();
