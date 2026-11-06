@@ -85,7 +85,8 @@ public final class NatsFailoverConnectionManager {
             try {
                 connection.close();
             } catch (InterruptedException e) {
-                throw new RuntimeException(e);
+                Thread.currentThread().interrupt();
+                LOGGER.log(Level.WARNING, "Interrupted while closing the NATS connection", e);
             }
         }
     }

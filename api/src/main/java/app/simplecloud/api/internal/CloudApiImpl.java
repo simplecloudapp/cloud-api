@@ -22,9 +22,11 @@ import app.simplecloud.api.server.ServerApi;
 import app.simplecloud.api.web.ApiClient;
 import io.nats.client.Connection;
 
+import java.time.Duration;
 import java.util.concurrent.Executor;
 import java.util.concurrent.ExecutorService;
 import java.util.concurrent.Executors;
+import java.util.concurrent.TimeUnit;
 import java.util.concurrent.atomic.AtomicBoolean;
 import java.util.logging.Level;
 import java.util.logging.Logger;
@@ -32,6 +34,7 @@ import java.util.logging.Logger;
 public class CloudApiImpl implements CloudApi {
 
     private static final Logger LOGGER = Logger.getLogger(CloudApiImpl.class.getName());
+    private static final Duration SHUTDOWN_GRACE_PERIOD = Duration.ofSeconds(2);
 
     private final CloudApiOptions options;
     private final ApiClient httpClient;
@@ -138,6 +141,15 @@ public class CloudApiImpl implements CloudApi {
             return;
         }
 
+        executor.shutdown();
+        try {
+            if (!executor.awaitTermination(SHUTDOWN_GRACE_PERIOD.toMillis(), TimeUnit.MILLISECONDS)) {
+                LOGGER.fine("Closing CloudApi while requests are still running");
+            }
+        } catch (InterruptedException e) {
+            Thread.currentThread().interrupt();
+        }
+
         if (cacheEventListener != null) {
             try {
                 cacheEventListener.shutdown();
@@ -159,6 +171,5 @@ public class CloudApiImpl implements CloudApi {
         }
         httpClient.getHttpClient().dispatcher().executorService().shutdown();
         httpClient.getHttpClient().connectionPool().evictAll();
-        executor.shutdown();
     }
 }
