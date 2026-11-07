@@ -64,7 +64,8 @@ public class ServerEventApiImpl implements ServerEventApi {
         io.nats.client.Subscription natsSub = dispatcher.subscribe(subject, (Message msg) -> {
             try {
                 ServerStateChangedEvent protoEvent = ServerStateChangedEvent.parseFrom(msg.getData());
-                app.simplecloud.api.event.server.ServerStateChangedEvent event = new ServerStateChangedEventImpl(protoEvent);
+                app.simplecloud.api.event.server.ServerStateChangedEvent event =
+                        new ServerStateChangedEventImpl(protoEvent);
                 handler.accept(event);
             } catch (Exception e) {
                 LOGGER.log(Level.SEVERE, "Error handling ServerStateChangedEvent", e);
@@ -102,5 +103,4 @@ public class ServerEventApiImpl implements ServerEventApi {
         });
         return new SubscriptionImpl(natsSub);
     }
-
 }

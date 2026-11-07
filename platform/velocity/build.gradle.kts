@@ -2,6 +2,16 @@ plugins {
     id("cloud-api.platform-conventions")
 }
 
+sourceSets {
+    main {
+        blossom {
+            javaSources {
+                property("version", project.version.toString())
+            }
+        }
+    }
+}
+
 dependencies {
     implementation(project(":platform:shared"))
     compileOnly(libs.velocity)

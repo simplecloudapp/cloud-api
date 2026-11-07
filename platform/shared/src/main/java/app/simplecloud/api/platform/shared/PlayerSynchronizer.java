@@ -1,19 +1,27 @@
 package app.simplecloud.api.platform.shared;
 
 import app.simplecloud.api.CloudApi;
+import app.simplecloud.api.platform.shared.player.OnlinePlayerCount;
 import app.simplecloud.api.runtime.SimpleCloudRuntime;
 
 import java.util.HashMap;
 import java.util.Map;
-import java.util.concurrent.*;
+import java.util.concurrent.Executors;
+import java.util.concurrent.ScheduledExecutorService;
+import java.util.concurrent.ScheduledFuture;
+import java.util.concurrent.TimeUnit;
 import java.util.concurrent.atomic.AtomicBoolean;
+import java.util.logging.Level;
+import java.util.logging.Logger;
 
 public class PlayerSynchronizer {
+
+    private static final Logger LOGGER = Logger.getLogger(PlayerSynchronizer.class.getName());
 
     private final CloudApi cloudApi;
     private final OnlinePlayerCount onlinePlayerCount;
     private final String currentServerId;
-    
+
     private ScheduledExecutorService scheduler;
     private ScheduledFuture<?> periodicTask;
     private ScheduledFuture<?> debounceTask;
@@ -42,19 +50,15 @@ public class PlayerSynchronizer {
             try {
                 Map<String, Object> properties = new HashMap<>();
                 properties.put("player-count-ping", "skip");
-                cloudApi.server().updateServerProperties(currentServerId, properties).join();
+                cloudApi.server()
+                        .updateServerProperties(currentServerId, properties)
+                        .join();
             } catch (Exception e) {
-                System.err.println("Error updating server property: " + e.getMessage());
-                e.printStackTrace();
+                LOGGER.log(Level.WARNING, "Error updating server property", e);
             }
         });
 
-        periodicTask = scheduler.scheduleAtFixedRate(
-            this::updatePlayerCount,
-            15,
-            15,
-            TimeUnit.SECONDS
-        );
+        periodicTask = scheduler.scheduleAtFixedRate(this::updatePlayerCount, 15, 15, TimeUnit.SECONDS);
     }
 
     public void updatePlayerCount() {
@@ -86,11 +90,12 @@ public class PlayerSynchronizer {
 
                 Map<String, Object> properties = new HashMap<>();
                 properties.put("player-count", playerCount);
-                cloudApi.server().updateServerProperties(currentServerId, properties).join();
+                cloudApi.server()
+                        .updateServerProperties(currentServerId, properties)
+                        .join();
                 lastPublishedCount = playerCount;
             } catch (Exception e) {
-                System.err.println("Error updating player count: " + e.getMessage());
-                e.printStackTrace();
+                LOGGER.log(Level.WARNING, "Error updating player count", e);
             }
         }
     }

@@ -9,7 +9,8 @@ import java.util.UUID;
 class PlayerClientSettingsUpdatedEventImpl implements PlayerClientSettingsUpdatedEvent {
     private final build.buf.gen.simplecloud.player.v2.PlayerClientSettingsUpdatedEvent delegate;
 
-    PlayerClientSettingsUpdatedEventImpl(build.buf.gen.simplecloud.player.v2.PlayerClientSettingsUpdatedEvent delegate) {
+    PlayerClientSettingsUpdatedEventImpl(
+            build.buf.gen.simplecloud.player.v2.PlayerClientSettingsUpdatedEvent delegate) {
         this.delegate = delegate;
     }
 

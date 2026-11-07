@@ -4,8 +4,8 @@ import app.simplecloud.api.internal.integration.player.LoginResult;
 import app.simplecloud.api.internal.integration.player.PlayerLogin;
 import app.simplecloud.api.internal.integration.player.PlayerSessionReporter;
 import app.simplecloud.api.internal.integration.presence.ProxyPresenceTracker;
-import app.simplecloud.api.platform.shared.LuckPermsSynchronizer;
 import app.simplecloud.api.platform.shared.PlayerSynchronizer;
+import app.simplecloud.api.platform.shared.luckperms.LuckPermsSynchronizer;
 import app.simplecloud.api.player.PlayerClientSettings;
 import net.md_5.bungee.api.SkinConfiguration;
 import net.md_5.bungee.api.connection.PendingConnection;
@@ -29,7 +29,7 @@ import java.util.logging.Logger;
 
 public class PlayerConnectionListener implements Listener {
 
-    private static final Logger logger = Logger.getLogger(PlayerConnectionListener.class.getName());
+    private static final Logger LOGGER = Logger.getLogger(PlayerConnectionListener.class.getName());
     private static final long LOGIN_WAIT_SECONDS = 5;
 
     private final Plugin plugin;
@@ -45,8 +45,7 @@ public class PlayerConnectionListener implements Listener {
             PlayerSessionReporter playerSessionReporter,
             ProxyPresenceTracker proxyPresenceTracker,
             String proxyName,
-            LuckPermsSynchronizer luckPermsSynchronizer
-    ) {
+            LuckPermsSynchronizer luckPermsSynchronizer) {
         this.plugin = plugin;
         this.playerSynchronizer = playerSynchronizer;
         this.playerSessionReporter = playerSessionReporter;
@@ -74,27 +73,25 @@ public class PlayerConnectionListener implements Listener {
                 clientLanguage,
                 connection.getVersion(),
                 connection.isOnlineMode(),
-                null
-        );
+                null);
 
         CompletableFuture<LoginResult> loginReport = playerSessionReporter.reportLogin(login);
-        // Keep the initial backend connection behind controller registration.
         event.registerIntent(plugin);
         CompletableFuture<Void> loginApplied = loginReport.thenAccept(result -> applyLoginResult(player, result));
         CompletableFuture<Void> registration = loginApplied.exceptionally(failure -> {
-            logger.log(Level.SEVERE, "Failed to send login event for " + player.getName(), failure);
+            LOGGER.log(Level.SEVERE, "Failed to send login event for " + player.getName(), failure);
             return null;
         });
         CompletableFuture<Void> registrationOrTimeout =
                 registration.copy().completeOnTimeout(null, LOGIN_WAIT_SECONDS, TimeUnit.SECONDS);
         registrationOrTimeout.whenComplete((ignored, failure) -> event.completeIntent(plugin));
 
-        CompletableFuture.runAsync(() -> playerSynchronizer.updatePlayerCount());
+        CompletableFuture.runAsync(playerSynchronizer::updatePlayerCount);
     }
 
     private void applyLoginResult(ProxiedPlayer player, LoginResult result) {
         if (!result.isSuccess()) {
-            logger.warning("Login failed for " + player.getName() + ": " + result.getErrorMessage());
+            LOGGER.warning("Login failed for " + player.getName() + ": " + result.getErrorMessage());
             return;
         }
         UUID playerId = player.getUniqueId();
@@ -111,22 +108,21 @@ public class PlayerConnectionListener implements Listener {
         ProxiedPlayer player = event.getPlayer();
         UUID playerId = player.getUniqueId();
 
-        playerSessionReporter.reportDisconnect(playerId)
-                .exceptionally(e -> {
-                    logger.log(Level.SEVERE, "Failed to send disconnect event for " + player.getName(), e);
-                    return null;
-                });
+        playerSessionReporter.reportDisconnect(playerId).exceptionally(e -> {
+            LOGGER.log(Level.SEVERE, "Failed to send disconnect event for " + player.getName(), e);
+            return null;
+        });
         proxyPresenceTracker.remove(playerId.toString());
         luckPermsSynchronizer.forget(playerId);
 
-        CompletableFuture.runAsync(() -> playerSynchronizer.updatePlayerCount());
+        CompletableFuture.runAsync(playerSynchronizer::updatePlayerCount);
     }
 
     @EventHandler
     public void onSettingsChanged(SettingsChangedEvent event) {
         ProxiedPlayer player = event.getPlayer();
-        String sessionId = proxyPresenceTracker.getSessionId(player.getUniqueId().toString());
-        // Settings sent before the login completed are picked up once the session exists.
+        String sessionId =
+                proxyPresenceTracker.getSessionId(player.getUniqueId().toString());
         if (sessionId == null) {
             return;
         }
@@ -137,21 +133,24 @@ public class PlayerConnectionListener implements Listener {
     @EventHandler
     public void onServerSwitch(ServerSwitchEvent event) {
         ProxiedPlayer player = event.getPlayer();
-        String newServer = player.getServer() != null ? player.getServer().getInfo().getName() : null;
+        String newServer =
+                player.getServer() != null ? player.getServer().getInfo().getName() : null;
 
         if (newServer != null) {
-            playerSessionReporter.reportServerSwitch(player.getUniqueId(), newServer)
+            playerSessionReporter
+                    .reportServerSwitch(player.getUniqueId(), newServer)
                     .exceptionally(e -> {
-                        logger.log(Level.SEVERE, "Failed to send server switch event for " + player.getName(), e);
+                        LOGGER.log(Level.SEVERE, "Failed to send server switch event for " + player.getName(), e);
                         return null;
                     });
         }
     }
 
     private void sendClientSettings(ProxiedPlayer player, String sessionId) {
-        playerSessionReporter.reportClientSettings(sessionId, toClientSettings(player))
+        playerSessionReporter
+                .reportClientSettings(sessionId, toClientSettings(player))
                 .exceptionally(e -> {
-                    logger.log(Level.SEVERE, "Failed to send client settings for " + player.getName(), e);
+                    LOGGER.log(Level.SEVERE, "Failed to send client settings for " + player.getName(), e);
                     return null;
                 });
     }
@@ -159,17 +158,19 @@ public class PlayerConnectionListener implements Listener {
     static PlayerClientSettings toClientSettings(ProxiedPlayer player) {
         PlayerClientSettings result = new PlayerClientSettings();
         if (player.getChatMode() != null) {
-            result.setChatMode(switch (player.getChatMode()) {
-                case SHOWN -> PlayerClientSettings.ChatMode.ENABLED;
-                case COMMANDS_ONLY -> PlayerClientSettings.ChatMode.COMMANDS_ONLY;
-                case HIDDEN -> PlayerClientSettings.ChatMode.HIDDEN;
-            });
+            result.setChatMode(
+                    switch (player.getChatMode()) {
+                        case SHOWN -> PlayerClientSettings.ChatMode.ENABLED;
+                        case COMMANDS_ONLY -> PlayerClientSettings.ChatMode.COMMANDS_ONLY;
+                        case HIDDEN -> PlayerClientSettings.ChatMode.HIDDEN;
+                    });
         }
         result.setLocale(player.getLocale() != null ? player.getLocale().toString() : null);
         if (player.getMainHand() != null) {
-            result.setMainHand(player.getMainHand() == ProxiedPlayer.MainHand.LEFT
-                    ? PlayerClientSettings.MainHand.LEFT
-                    : PlayerClientSettings.MainHand.RIGHT);
+            result.setMainHand(
+                    player.getMainHand() == ProxiedPlayer.MainHand.LEFT
+                            ? PlayerClientSettings.MainHand.LEFT
+                            : PlayerClientSettings.MainHand.RIGHT);
         }
         result.setViewDistance(player.getViewDistance());
         result.setChatColors(player.hasChatColors());

@@ -37,4 +37,3 @@ class PersistentServerCreatedEventImpl implements PersistentServerCreatedEvent {
         return Instant.ofEpochSecond(delegate.getTimestamp()).toString();
     }
 }
-

@@ -32,35 +32,40 @@ public interface Blueprint {
      *
      * @return the configurator name, or null if not set
      */
-    @Nullable String getConfigurator();
+    @Nullable
+    String getConfigurator();
 
     /**
      * Returns the Minecraft version this blueprint is configured for.
      *
      * @return the Minecraft version, or null if not applicable
      */
-    @Nullable String getMinecraftVersion();
+    @Nullable
+    String getMinecraftVersion();
 
     /**
      * Returns the server software type (e.g., "paper", "spigot", "velocity").
      *
      * @return the server software, or null if not set
      */
-    @Nullable String getServerSoftware();
+    @Nullable
+    String getServerSoftware();
 
     /**
      * Returns the download URL for the server software.
      *
      * @return the server URL, or null if not set
      */
-    @Nullable String getServerUrl();
+    @Nullable
+    String getServerUrl();
 
     /**
      * Returns the specific version of the server software.
      *
      * @return the software version, or null if not set
      */
-    @Nullable String getSoftwareVersion();
+    @Nullable
+    String getSoftwareVersion();
 
     /**
      * Returns the runtime configuration for servers using this blueprint.
@@ -69,14 +74,16 @@ public interface Blueprint {
      *
      * @return the runtime config, or null if not set
      */
-    @Nullable RuntimeConfig getRuntimeConfig();
+    @Nullable
+    RuntimeConfig getRuntimeConfig();
 
     /**
      * Returns the workflow steps to execute during server lifecycle events.
      *
      * @return the list of workflow step IDs, or null if none defined
      */
-    @Nullable List<String> getWorkflowSteps();
+    @Nullable
+    List<String> getWorkflowSteps();
 
     /**
      * Returns the timestamp when this blueprint was created (ISO 8601 format).

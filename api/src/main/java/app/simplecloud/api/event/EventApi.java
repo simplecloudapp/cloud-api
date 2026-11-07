@@ -9,8 +9,7 @@ import app.simplecloud.api.event.server.ServerEventApi;
 /**
  * API for subscribing to real-time system events.
  *
- * <p>Provides access to event streams for various system entities.
- * All event subscriptions return a {@link Subscription} that must be
+ * <p>All event subscriptions return a {@link Subscription} that must be
  * closed when no longer needed to prevent resource leaks.
  */
 public interface EventApi {
@@ -49,6 +48,4 @@ public interface EventApi {
      * @return the player event API
      */
     PlayerEventApi player();
-
 }
-

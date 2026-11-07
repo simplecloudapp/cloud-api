@@ -1,0 +1,7 @@
+name: simplecloud-api
+version: "{{ version }}"
+main: app.simplecloud.api.provider.paper.PaperApiProvider
+loader: app.simplecloud.api.provider.paper.PaperLoader
+bootstrapper: app.simplecloud.api.provider.paper.PaperBootstrap
+api-version: "1.21"
+folia-supported: true

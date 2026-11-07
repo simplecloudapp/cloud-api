@@ -3,11 +3,17 @@ import com.github.jengelman.gradle.plugins.shadow.tasks.ShadowJar
 plugins {
     id("cloud-api.shadow-conventions")
     id("com.modrinth.minotaur")
+    id("net.kyori.blossom")
 }
 
-val modrinthVersion = version.toString().substringBefore("-dev.")
-require(modrinthVersion.length <= 32) {
-    "Modrinth version '$modrinthVersion' exceeds the 32-character limit"
+sourceSets {
+    main {
+        blossom {
+            resources {
+                property("version", project.version.toString())
+            }
+        }
+    }
 }
 
 val shadowJar = tasks.named<ShadowJar>("shadowJar") {
@@ -23,7 +29,7 @@ val shadowJar = tasks.named<ShadowJar>("shadowJar") {
 modrinth {
     token = providers.gradleProperty("modrinthToken").orElse(providers.environmentVariable("MODRINTH_TOKEN"))
     projectId = "JCJKZvY2"
-    versionNumber = modrinthVersion
+    versionNumber = version.toString()
     versionType = "release"
     uploadFile.set(shadowJar)
     changelog = "https://docs.simplecloud.app/changelog"

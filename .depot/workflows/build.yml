@@ -39,14 +39,15 @@ jobs:
 
       - name: Build and Test
         run: |
-          ./gradlew :api:check \
+          ./gradlew :spotlessCheck \
+            :api:check \
             :platform:shared:check \
             :platform:spigot:check \
             :platform:spigot-legacy:check \
             :platform:paper:check \
-            :platform:folia:check \
             :platform:bungeecord:check \
             :platform:velocity:check \
+            :platform:minestom:check \
             --configure-on-demand \
             --parallel \
             --build-cache

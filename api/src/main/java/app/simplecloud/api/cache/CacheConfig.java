@@ -1,12 +1,11 @@
 package app.simplecloud.api.cache;
 
 import java.time.Duration;
-import java.util.Collections;
 import java.util.HashMap;
 import java.util.Map;
 
 /**
- * Configuration for the query cache, inspired by TanStack Query.
+ * Configuration for the query cache.
  *
  * <p>Key concepts:
  * <ul>
@@ -21,25 +20,10 @@ import java.util.Map;
  * <p>Default stale times by entity type (optimized for typical usage patterns):
  * <ul>
  *   <li>SERVER: 3 seconds (metrics like CPU/memory may change without events)</li>
- *   <li>GROUP: 30 seconds (configuration rarely changes, events handle updates)</li>
- *   <li>PERSISTENT_SERVER: 30 seconds (similar to groups)</li>
- *   <li>PLAYER: 5 seconds (balance between freshness and load)</li>
+ *   <li>GROUP: 10 seconds (configuration rarely changes, events handle updates)</li>
+ *   <li>PERSISTENT_SERVER: 10 seconds (similar to groups)</li>
+ *   <li>PLAYER: 5 seconds (player queries are currently not cached, so this has no effect)</li>
  * </ul>
- *
- * <p>Example:
- * <pre>{@code
- * // Use defaults - recommended for most cases
- * CloudApi api = CloudApi.create();
- *
- * // Custom configuration
- * CacheConfig config = CacheConfig.builder()
- *     .defaultStaleTime(Duration.ofSeconds(10))
- *     .defaultCacheTime(Duration.ofMinutes(5))
- *     .entityConfig(EntityType.SERVER, EntityCacheConfig.builder()
- *         .staleTime(Duration.ofSeconds(1))  // Need very fresh server data
- *         .build())
- *     .build();
- * }</pre>
  */
 public class CacheConfig {
 
@@ -65,7 +49,7 @@ public class CacheConfig {
         this.enabled = builder.enabled;
         this.defaultStaleTime = builder.defaultStaleTime;
         this.defaultCacheTime = builder.defaultCacheTime;
-        this.entityConfigs = Collections.unmodifiableMap(new HashMap<>(builder.entityConfigs));
+        this.entityConfigs = Map.copyOf(builder.entityConfigs);
         this.autoInvalidateOnEvents = builder.autoInvalidateOnEvents;
         this.maxEntries = builder.maxEntries;
         this.eventDebounceTime = builder.eventDebounceTime;
@@ -129,7 +113,7 @@ public class CacheConfig {
         private boolean enabled = true;
         private Duration defaultStaleTime = Duration.ofSeconds(5);
         private Duration defaultCacheTime = Duration.ofMinutes(2);
-        private Map<EntityType, EntityCacheConfig> entityConfigs = createDefaultEntityConfigs();
+        private final Map<EntityType, EntityCacheConfig> entityConfigs = createDefaultEntityConfigs();
         private boolean autoInvalidateOnEvents = true;
         private int maxEntries = 500;
         private Duration eventDebounceTime = Duration.ofMillis(50);
@@ -137,21 +121,30 @@ public class CacheConfig {
         private static Map<EntityType, EntityCacheConfig> createDefaultEntityConfigs() {
             Map<EntityType, EntityCacheConfig> configs = new HashMap<>();
             // Servers: 3 seconds - metrics (CPU, memory, player count) may update without events
-            configs.put(EntityType.SERVER, EntityCacheConfig.builder()
-                    .staleTime(Duration.ofSeconds(3))
-                    .build());
+            configs.put(
+                    EntityType.SERVER,
+                    EntityCacheConfig.builder().staleTime(Duration.ofSeconds(3)).build());
             // Groups: 10 seconds - configuration rarely changes, events handle actual updates
-            configs.put(EntityType.GROUP, EntityCacheConfig.builder()
-                    .staleTime(Duration.ofSeconds(10))
-                    .build());
+            configs.put(
+                    EntityType.GROUP,
+                    EntityCacheConfig.builder()
+                            .staleTime(Duration.ofSeconds(10))
+                            .build());
             // Persistent servers: 10 seconds - similar to groups
-            configs.put(EntityType.PERSISTENT_SERVER, EntityCacheConfig.builder()
-                    .staleTime(Duration.ofSeconds(10))
-                    .build());
+            configs.put(
+                    EntityType.PERSISTENT_SERVER,
+                    EntityCacheConfig.builder()
+                            .staleTime(Duration.ofSeconds(10))
+                            .build());
             // Players: 5 seconds - balance between freshness and reducing load
-            configs.put(EntityType.PLAYER, EntityCacheConfig.builder()
-                    .staleTime(Duration.ofSeconds(5))
-                    .build());
+            configs.put(
+                    EntityType.PLAYER,
+                    EntityCacheConfig.builder().staleTime(Duration.ofSeconds(5)).build());
+            configs.put(
+                    EntityType.BLUEPRINT,
+                    EntityCacheConfig.builder()
+                            .staleTime(Duration.ofSeconds(10))
+                            .build());
             return configs;
         }
 

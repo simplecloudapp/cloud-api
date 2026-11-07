@@ -18,17 +18,23 @@ jakarta-annotation = "3.0.0"
 velocity = "3.5.0-SNAPSHOT"
 bungeecord = "1.21-R0.4"
 paper = "1.21.4-R0.1-SNAPSHOT"
-folia = "1.21.4-R0.1-SNAPSHOT"
 luckperms = "5.5"
 fabric-minecraft = "26.2"
 fabric-loader = "0.19.3"
 fabric-api = "0.156.0+26.2"
 neoforge = "26.2.0.40-beta"
+minestom = "26_3-SNAPSHOT"
+slf4j = "2.0.20"
 
 adventure = "5.2.0"
 adventure-platform = "4.4.1"
 
 minotaur = "2.10.0"
+blossom = "2.2.0"
+spotless = "8.11.0"
+palantir-java-format = "2.103.0"
+ktlint = "1.8.0"
+checkstyle = "14.4.0"
 
 [libraries]
 controller-proto = { module = "build.buf.gen:simplecloud_controller_protocolbuffers_java_lite", version.ref = "controller-proto" }
@@ -48,13 +54,13 @@ junit-jupiter = { module = "org.junit.jupiter:junit-jupiter", version.ref = "jun
 mockito-core = { module = "org.mockito:mockito-core", version.ref = "mockito" }
 
 paper-api = { module = "io.papermc.paper:paper-api", version.ref = "paper" }
-folia-api = { module = "dev.folia:folia-api", version.ref = "folia" }
 velocity = { module = "com.velocitypowered:velocity-api", version.ref = "velocity" }
 bungeecord = { module = "net.md-5:bungeecord-api", version.ref = "bungeecord" }
 luckperms = { module = "net.luckperms:api", version.ref = "luckperms" }
 fabric-loader = { module = "net.fabricmc:fabric-loader", version.ref = "fabric-loader" }
 fabric-api = { module = "net.fabricmc.fabric-api:fabric-api", version.ref = "fabric-api" }
-neoforge = { module = "net.neoforged:neoforge", version.ref = "neoforge" }
+minestom = { module = "net.minestom:minestom", version.ref = "minestom" }
+slf4j-api = { module = "org.slf4j:slf4j-api", version.ref = "slf4j" }
 
 adventure-api = { module = "net.kyori:adventure-api", version.ref = "adventure" }
 adventure-gson = { module = "net.kyori:adventure-text-serializer-gson", version.ref = "adventure" }
@@ -63,6 +69,8 @@ adventure-bungeecord = { module = "net.kyori:adventure-platform-bungeecord", ver
 [plugins]
 shadow = { id = "com.gradleup.shadow", version.ref = "shadow" }
 minotaur = { id = "com.modrinth.minotaur", version.ref = "minotaur" }
+blossom = { id = "net.kyori.blossom", version.ref = "blossom" }
+spotless = { id = "com.diffplug.spotless", version.ref = "spotless" }
 openapi-generator = { id = "org.openapi.generator", version.ref = "openapi-generator" }
 fabric-loom = { id = "net.fabricmc.fabric-loom", version = "1.19.3" }
-neoforge-userdev = { id = "net.neoforged.gradle.userdev", version = "7.1.39" }
+neoforge-moddev = { id = "net.neoforged.moddev", version = "2.0.148" }

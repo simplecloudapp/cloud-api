@@ -10,13 +10,7 @@ public enum ScalingMode {
     SLOTS,
 
     /**
-     * Scale based on player count and thresholds.
+     * Scale based on the number of server instances.
      */
-    PLAYERS,
-
-    /**
-     * Manual scaling only, no automatic scaling.
-     */
-    MANUAL
+    SERVERS
 }
-

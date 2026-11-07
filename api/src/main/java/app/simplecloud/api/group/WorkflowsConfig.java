@@ -4,14 +4,17 @@ import org.jetbrains.annotations.Nullable;
 
 import java.util.List;
 
+/**
+ * Workflows of a group or persistent server.
+ */
 public class WorkflowsConfig {
     @Nullable
     private List<String> manual;
+
     @Nullable
     private WorkflowWhen when;
 
-    public WorkflowsConfig() {
-    }
+    public WorkflowsConfig() {}
 
     public static Builder builder() {
         return new Builder();

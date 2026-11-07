@@ -1,16 +1,16 @@
 package app.simplecloud.api.internal.cache;
 
-import app.simplecloud.api.cache.*;
+import app.simplecloud.api.cache.CacheEntry;
+import app.simplecloud.api.cache.CacheStats;
+import app.simplecloud.api.cache.EntityType;
+import app.simplecloud.api.cache.QueryCache;
+import app.simplecloud.api.cache.QueryKey;
 
 import java.util.Collections;
 import java.util.Set;
 import java.util.concurrent.CompletableFuture;
 import java.util.function.Supplier;
 
-/**
- * A no-op cache implementation used when caching is disabled.
- * All operations pass through to the underlying fetcher without caching.
- */
 public class NoOpQueryCache implements QueryCache {
 
     @Override

@@ -17,9 +17,6 @@ import java.util.concurrent.atomic.AtomicBoolean;
 import java.util.logging.Level;
 import java.util.logging.Logger;
 
-/**
- * Responds to controller presence-compare requests for a single proxy.
- */
 public final class ProxyPresenceResponder {
 
     private static final Logger LOGGER = Logger.getLogger(ProxyPresenceResponder.class.getName());
@@ -35,14 +32,11 @@ public final class ProxyPresenceResponder {
     private Dispatcher dispatcher;
 
     public ProxyPresenceResponder(
-            Connection natsConnection,
-            String networkId,
-            String serverId,
-            ProxyPresencePlayerProvider playerProvider
-    ) {
+            Connection natsConnection, String networkId, String serverId, ProxyPresencePlayerProvider playerProvider) {
         this.natsConnection = Objects.requireNonNull(natsConnection, "natsConnection");
         this.serverId = serverId == null ? "" : serverId;
-        this.subject = Objects.requireNonNull(networkId, "networkId") + ".server." + this.serverId + ".presence.compare";
+        this.subject =
+                Objects.requireNonNull(networkId, "networkId") + ".server." + this.serverId + ".presence.compare";
         this.playerProvider = playerProvider;
     }
 
@@ -80,11 +74,12 @@ public final class ProxyPresenceResponder {
             int localHash = computeHash(players);
             boolean match = localHash == request.getHash();
 
-            ProxyPresenceCompareResponse.Builder response = ProxyPresenceCompareResponse.newBuilder()
-                    .setMatch(match);
+            ProxyPresenceCompareResponse.Builder response =
+                    ProxyPresenceCompareResponse.newBuilder().setMatch(match);
 
             if (!match) {
-                response.addAllPlayers(players.stream().map(ProxyPresencePlayer::toProto).toList());
+                response.addAllPlayers(
+                        players.stream().map(ProxyPresencePlayer::toProto).toList());
             }
 
             natsConnection.publish(replyTo, response.build().toByteArray());

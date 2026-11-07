@@ -2,49 +2,42 @@ import com.github.jengelman.gradle.plugins.shadow.tasks.ShadowJar
 
 plugins {
     id("cloud-api.platform-conventions")
-    alias(libs.plugins.neoforge.userdev)
+    alias(libs.plugins.neoforge.moddev)
 }
 
 val shade = configurations.create("shade")
 val minecraftVersions = listOf("26.2", "26.3")
 
+neoForge {
+    version = libs.versions.neoforge.get()
+}
+
 dependencies {
-    implementation(libs.neoforge)
-    implementation(project(":platform:shared"))
-    implementation(project(":api"))
+    implementation(project(":platform:shared")) {
+        exclude(group = "com.google.code.gson")
+        exclude(group = "org.jspecify")
+    }
+    implementation(project(":api")) {
+        exclude(group = "com.google.code.gson")
+        exclude(group = "org.jspecify")
+    }
 
     shade(project(":platform:shared"))
     shade(project(":api"))
-}
-
-runs {
-    register("server") {
-        runType("server")
-        argument("--nogui")
-        workingDirectory(layout.projectDirectory.dir("run/server"))
-        modSource(sourceSets.main.get())
-    }
 }
 
 tasks.named<ShadowJar>("shadowJar") {
     configurations = listOf(shade)
 }
 
-tasks.withType<JavaExec>().configureEach {
-    if (name == "runServer") {
-        standardInput = System.`in`
-    }
-}
-
-tasks.processResources {
-    val properties = mapOf(
-        "version" to project.version.toString(),
-        "minecraftVersionRange" to "[${minecraftVersions.first()},${minecraftVersions.last()}]",
-        "neoForgeVersion" to libs.versions.neoforge.get()
-    )
-    inputs.properties(properties)
-    filesMatching("META-INF/neoforge.mods.toml") {
-        expand(properties)
+sourceSets {
+    main {
+        blossom {
+            resources {
+                property("minecraftVersionRange", "[${minecraftVersions.first()},${minecraftVersions.last()}]")
+                property("neoForgeVersion", libs.versions.neoforge.get())
+            }
+        }
     }
 }
 

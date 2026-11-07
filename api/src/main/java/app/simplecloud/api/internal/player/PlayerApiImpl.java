@@ -2,19 +2,21 @@ package app.simplecloud.api.internal.player;
 
 import app.simplecloud.api.CloudApiException;
 import app.simplecloud.api.CloudApiOptions;
-import app.simplecloud.api.internal.web.ApiClients;
-import app.simplecloud.api.internal.web.ApiErrors;
-import app.simplecloud.api.internal.web.Identifiers;
+import app.simplecloud.api.internal.util.ValidationUtil;
+import app.simplecloud.api.internal.web.ApiCalls;
+import app.simplecloud.api.internal.web.ApiClientFactory;
+import app.simplecloud.api.internal.web.ApiExceptions;
 import app.simplecloud.api.player.CloudPlayer;
+import app.simplecloud.api.player.ConnectResponse;
+import app.simplecloud.api.player.ConnectTarget;
 import app.simplecloud.api.player.PlayerApi;
 import app.simplecloud.api.player.PlayerClientSettings;
 import app.simplecloud.api.player.PlayerProfile;
 import app.simplecloud.api.player.PlayerQuery;
 import app.simplecloud.api.player.PlayerSession;
-import app.simplecloud.api.player.ServerSelectionMode;
 import app.simplecloud.api.player.UpdateClientSettingsRequest;
-import app.simplecloud.api.web.ApiException;
 import app.simplecloud.api.web.ApiClient;
+import app.simplecloud.api.web.ApiException;
 import app.simplecloud.api.web.apis.PlayersApi;
 import app.simplecloud.api.web.models.ModelsConnectPlayerRequest;
 import app.simplecloud.api.web.models.ModelsConnectPlayerResponse;
@@ -60,9 +62,12 @@ import java.util.UUID;
 import java.util.concurrent.CompletableFuture;
 import java.util.concurrent.Executor;
 import java.util.concurrent.ForkJoinPool;
+import java.util.logging.Level;
+import java.util.logging.Logger;
 
 public class PlayerApiImpl implements PlayerApi {
 
+    private static final Logger LOGGER = Logger.getLogger(PlayerApiImpl.class.getName());
     private static final Duration REQUEST_TIMEOUT = Duration.ofSeconds(30);
     private static final int MAX_PAGE_SIZE = 100;
 
@@ -72,7 +77,7 @@ public class PlayerApiImpl implements PlayerApi {
     private final Executor executor;
 
     public PlayerApiImpl(CloudApiOptions options, Connection natsConnection) {
-        this(options, natsConnection, ApiClients.create(options));
+        this(options, natsConnection, ApiClientFactory.create(options));
     }
 
     public PlayerApiImpl(CloudApiOptions options, Connection natsConnection, ApiClient httpClient) {
@@ -91,22 +96,21 @@ public class PlayerApiImpl implements PlayerApi {
         this.options = options;
         this.natsConnection = natsConnection;
         this.playersApi = playersApi;
-        this.playersApi.setCustomBaseUrl(options.getControllerUrl());
         this.executor = executor;
     }
-    
+
     @Override
     public CompletableFuture<CloudPlayer> get(UUID uniqueId) {
-        return find(uniqueId).thenApply(player -> player.orElseThrow(
-                () -> ApiErrors.notFound("Player '" + uniqueId + "' not found")
-        ));
+        return find(uniqueId)
+                .thenApply(player ->
+                        player.orElseThrow(() -> ApiExceptions.notFound("Player '" + uniqueId + "' not found")));
     }
 
     @Override
     public CompletableFuture<CloudPlayer> get(String name) {
-        return find(name).thenApply(player -> player.orElseThrow(
-                () -> ApiErrors.notFound("Player '" + name + "' not found")
-        ));
+        return find(name)
+                .thenApply(
+                        player -> player.orElseThrow(() -> ApiExceptions.notFound("Player '" + name + "' not found")));
     }
 
     @Override
@@ -119,7 +123,7 @@ public class PlayerApiImpl implements PlayerApi {
 
     @Override
     public CompletableFuture<Optional<CloudPlayer>> find(String name) {
-        if (!Identifiers.isPlayerName(name)) {
+        if (!ValidationUtil.isPlayerName(name)) {
             return CompletableFuture.completedFuture(Optional.empty());
         }
         return callOrEmptyIfNotFound(() -> {
@@ -151,8 +155,10 @@ public class PlayerApiImpl implements PlayerApi {
 
     @Override
     public CompletableFuture<List<CloudPlayer>> list(@Nullable PlayerQuery query) {
-        PlayerQuery q = query != null ? query : PlayerQuery.create();
-        List<String> playerIds = q.getPlayerIds() == null ? null : q.getPlayerIds().stream().map(UUID::toString).toList();
+        PlayerQuery q = query != null ? query.copy() : PlayerQuery.create();
+        List<String> playerIds = q.getPlayerIds() == null
+                ? null
+                : q.getPlayerIds().stream().map(UUID::toString).toList();
 
         return call(() -> {
             Integer onlineTimeMin = toControllerOnlineTimeSeconds(q.getOnlineTimeSecondsMin());
@@ -173,8 +179,7 @@ public class PlayerApiImpl implements PlayerApi {
                     q.getSortBy() != null ? q.getSortBy().getValue() : null,
                     q.getSortOrder() != null ? q.getSortOrder().getValue() : null,
                     q.getLimit(),
-                    q.getOffset()
-            );
+                    q.getOffset());
 
             List<CloudPlayer> players = new ArrayList<>();
             if (response.getPlayers() != null) {
@@ -193,14 +198,12 @@ public class PlayerApiImpl implements PlayerApi {
             return response.getCount() != null ? response.getCount() : 0;
         });
     }
-    
+
     @Override
     public CompletableFuture<Long> getOnlineTimeSeconds(UUID uniqueId) {
         return call(() -> {
-            ModelsPlayerOnlineTimeResponse response = playersApi.getPlayerOnlineTime(
-                    options.getNetworkId(),
-                    uniqueId.toString()
-            );
+            ModelsPlayerOnlineTimeResponse response =
+                    playersApi.getPlayerOnlineTime(options.getNetworkId(), uniqueId.toString());
 
             if (response == null || response.getOnlineTimeSeconds() == null) {
                 return 0L;
@@ -232,14 +235,10 @@ public class PlayerApiImpl implements PlayerApi {
     }
 
     private CloudPlayer patchPlayer(UUID uniqueId, ModelsPatchPlayerRequest request) throws ApiException {
-        ModelsPlayerResponse response = playersApi.patchPlayer(
-                options.getNetworkId(),
-                uniqueId.toString(),
-                request
-        );
+        ModelsPlayerResponse response = playersApi.patchPlayer(options.getNetworkId(), uniqueId.toString(), request);
         return convertPlayerResponse(response);
     }
-    
+
     @Override
     public CompletableFuture<Map<String, String>> getPlayerProperties(UUID uniqueId) {
         return call(() -> fetchPlayerProperties(uniqueId));
@@ -251,26 +250,21 @@ public class PlayerApiImpl implements PlayerApi {
             ModelsUpdatePlayerPropertiesRequest request = new ModelsUpdatePlayerPropertiesRequest();
             request.setProperties(properties);
 
-            ModelsUpdatePlayerPropertiesResponse response = playersApi.updatePlayerProperties(
-                    options.getNetworkId(),
-                    uniqueId.toString(),
-                    request
-            );
+            ModelsUpdatePlayerPropertiesResponse response =
+                    playersApi.updatePlayerProperties(options.getNetworkId(), uniqueId.toString(), request);
             return toPropertiesMap(response.getProperties());
         });
     }
 
     @Override
-    public CompletableFuture<Map<String, String>> updatePlayerProperties(UUID uniqueId, Map<String, String> properties) {
+    public CompletableFuture<Map<String, String>> updatePlayerProperties(
+            UUID uniqueId, Map<String, String> properties) {
         return call(() -> {
             ModelsUpdatePlayerPropertiesRequest request = new ModelsUpdatePlayerPropertiesRequest();
             request.setProperties(properties);
 
-            ModelsUpdatePlayerPropertiesResponse response = playersApi.patchPlayerProperties(
-                    options.getNetworkId(),
-                    uniqueId.toString(),
-                    request
-            );
+            ModelsUpdatePlayerPropertiesResponse response =
+                    playersApi.patchPlayerProperties(options.getNetworkId(), uniqueId.toString(), request);
             return toPropertiesMap(response.getProperties());
         });
     }
@@ -281,25 +275,17 @@ public class PlayerApiImpl implements PlayerApi {
             ModelsDeletePlayerPropertiesRequest request = new ModelsDeletePlayerPropertiesRequest();
             request.setKeys(keys);
 
-            playersApi.deletePlayerProperties(
-                    options.getNetworkId(),
-                    uniqueId.toString(),
-                    request
-            );
+            playersApi.deletePlayerProperties(options.getNetworkId(), uniqueId.toString(), request);
             return fetchPlayerProperties(uniqueId);
         });
     }
-    
+
     @Override
     public CompletableFuture<List<PlayerProfile>> getProfiles(UUID uniqueId, int limit, int offset) {
         return call(() -> {
             validatePagination(limit, offset);
-            ModelsListPlayerProfilesResponse response = playersApi.listPlayerProfiles(
-                    options.getNetworkId(),
-                    uniqueId.toString(),
-                    limit,
-                    offset
-            );
+            ModelsListPlayerProfilesResponse response =
+                    playersApi.listPlayerProfiles(options.getNetworkId(), uniqueId.toString(), limit, offset);
 
             List<PlayerProfile> profiles = new ArrayList<>();
             if (response.getProfiles() != null) {
@@ -313,18 +299,16 @@ public class PlayerApiImpl implements PlayerApi {
 
     @Override
     public CompletableFuture<PlayerProfile> getLatestProfile(UUID uniqueId) {
-        return findLatestProfile(uniqueId).thenApply(profile -> profile.orElseThrow(
-                () -> ApiErrors.notFound("No profile recorded for player '" + uniqueId + "'")
-        ));
+        return findLatestProfile(uniqueId)
+                .thenApply(profile -> profile.orElseThrow(
+                        () -> ApiExceptions.notFound("No profile recorded for player '" + uniqueId + "'")));
     }
 
     @Override
     public CompletableFuture<Optional<PlayerProfile>> findLatestProfile(UUID uniqueId) {
         return callOrEmptyIfNotFound(() -> {
-            ModelsPlayerProfileResponse response = playersApi.getLatestPlayerProfile(
-                    options.getNetworkId(),
-                    uniqueId.toString()
-            );
+            ModelsPlayerProfileResponse response =
+                    playersApi.getLatestPlayerProfile(options.getNetworkId(), uniqueId.toString());
             return response != null ? convertProfile(response) : null;
         });
     }
@@ -333,12 +317,8 @@ public class PlayerApiImpl implements PlayerApi {
     public CompletableFuture<List<PlayerSession>> getSessions(UUID uniqueId, int limit, int offset) {
         return call(() -> {
             validatePagination(limit, offset);
-            ModelsListPlayerSessionsResponse response = playersApi.listPlayerSessions(
-                    options.getNetworkId(),
-                    uniqueId.toString(),
-                    limit,
-                    offset
-            );
+            ModelsListPlayerSessionsResponse response =
+                    playersApi.listPlayerSessions(options.getNetworkId(), uniqueId.toString(), limit, offset);
 
             List<PlayerSession> sessions = new ArrayList<>();
             if (response.getSessions() != null) {
@@ -352,18 +332,16 @@ public class PlayerApiImpl implements PlayerApi {
 
     @Override
     public CompletableFuture<PlayerSession> getCurrentSession(UUID uniqueId) {
-        return findCurrentSession(uniqueId).thenApply(session -> session.orElseThrow(
-                () -> ApiErrors.notFound("Player '" + uniqueId + "' has no active session")
-        ));
+        return findCurrentSession(uniqueId)
+                .thenApply(session -> session.orElseThrow(
+                        () -> ApiExceptions.notFound("Player '" + uniqueId + "' has no active session")));
     }
 
     @Override
     public CompletableFuture<Optional<PlayerSession>> findCurrentSession(UUID uniqueId) {
         return callOrEmptyIfNotFound(() -> {
-            ModelsCurrentSessionResponse response = playersApi.getCurrentSession(
-                    options.getNetworkId(),
-                    uniqueId.toString()
-            );
+            ModelsCurrentSessionResponse response =
+                    playersApi.getCurrentSession(options.getNetworkId(), uniqueId.toString());
             if (response == null || response.getSession() == null) {
                 return null;
             }
@@ -373,24 +351,23 @@ public class PlayerApiImpl implements PlayerApi {
 
     @Override
     public CompletableFuture<PlayerClientSettings> getClientSettings(UUID uniqueId) {
-        return findClientSettings(uniqueId).thenApply(settings -> settings.orElseThrow(
-                () -> ApiErrors.notFound("No client settings for player '" + uniqueId + "'")
-        ));
+        return findClientSettings(uniqueId)
+                .thenApply(settings -> settings.orElseThrow(
+                        () -> ApiExceptions.notFound("No client settings for player '" + uniqueId + "'")));
     }
 
     @Override
     public CompletableFuture<Optional<PlayerClientSettings>> findClientSettings(UUID uniqueId) {
         return callOrEmptyIfNotFound(() -> {
-            ModelsPlayerClientSettingsResponse response = playersApi.getClientSettings(
-                    options.getNetworkId(),
-                    uniqueId.toString()
-            );
+            ModelsPlayerClientSettingsResponse response =
+                    playersApi.getClientSettings(options.getNetworkId(), uniqueId.toString());
             return response != null ? convertClientSettings(response) : null;
         });
     }
 
     @Override
-    public CompletableFuture<PlayerClientSettings> updateClientSettings(UUID uniqueId, UpdateClientSettingsRequest request) {
+    public CompletableFuture<PlayerClientSettings> updateClientSettings(
+            UUID uniqueId, UpdateClientSettingsRequest request) {
         return call(() -> {
             if (request == null) {
                 throw new IllegalArgumentException("request must not be null");
@@ -409,21 +386,17 @@ public class PlayerApiImpl implements PlayerApi {
             body.setClientListingAllowed(request.getClientListingAllowed());
             body.setSkinParts(request.getSkinParts());
 
-            ModelsUpdateClientSettingsResponse response = playersApi.updateClientSettings(
-                    options.getNetworkId(),
-                    uniqueId.toString(),
-                    body
-            );
+            ModelsUpdateClientSettingsResponse response =
+                    playersApi.updateClientSettings(options.getNetworkId(), uniqueId.toString(), body);
             if (response.getSettings() == null) {
                 throw new CloudApiException(
                         CloudApiException.Reason.UNKNOWN,
-                        "Controller did not return updated client settings: " + response.getMessage()
-                );
+                        "Controller did not return updated client settings: " + response.getMessage());
             }
             return convertClientSettings(response.getSettings());
         });
     }
-    
+
     @Override
     public CompletableFuture<Boolean> kick(UUID uniqueId, @Nullable Component reason) {
         return call(() -> {
@@ -433,11 +406,8 @@ public class PlayerApiImpl implements PlayerApi {
             }
 
             try {
-                ModelsKickPlayerResponse response = playersApi.kickPlayer(
-                        options.getNetworkId(),
-                        uniqueId.toString(),
-                        request
-                );
+                ModelsKickPlayerResponse response =
+                        playersApi.kickPlayer(options.getNetworkId(), uniqueId.toString(), request);
                 return Boolean.TRUE.equals(response.getSuccess());
             } catch (ApiException e) {
                 if (e.getCode() == 404) {
@@ -447,102 +417,101 @@ public class PlayerApiImpl implements PlayerApi {
             }
         });
     }
-    
+
     @Override
-    public CompletableFuture<CloudPlayer.ConnectResult> connect(UUID uniqueId, String serverName) {
-        return connectDirect(uniqueId, serverName);
+    public CompletableFuture<ConnectResponse> connectTo(UUID uniqueId, ConnectTarget target) {
+        ModelsConnectPlayerRequest request = new ModelsConnectPlayerRequest();
+        switch (target) {
+            case ConnectTarget.ServerName t -> request.setServerName(t.serverName());
+            case ConnectTarget.ServerId t -> request.setServerId(t.serverId());
+            case ConnectTarget.GroupName t -> {
+                request.setServerGroupName(t.groupName());
+                request.setSelectionMode(t.selectionMode().name());
+            }
+            case ConnectTarget.GroupId t -> {
+                request.setServerGroupId(t.groupId());
+                request.setSelectionMode(t.selectionMode().name());
+            }
+            case ConnectTarget.PersistentServer t -> request.setPersistentServerId(t.persistentServerId());
+        }
+        return connectViaController(uniqueId, request);
     }
 
     @Override
     public CompletableFuture<CloudPlayer.ConnectResult> connectDirect(UUID uniqueId, String serverName) {
-        return CompletableFuture.supplyAsync(() -> {
-            try {
-                ConnectPlayerRequest request = ConnectPlayerRequest.newBuilder()
-                        .setPlayerId(uniqueId.toString())
-                        .setServerName(serverName)
-                        .build();
+        return CompletableFuture.supplyAsync(
+                () -> {
+                    try {
+                        ConnectPlayerRequest request = ConnectPlayerRequest.newBuilder()
+                                .setPlayerId(uniqueId.toString())
+                                .setServerName(serverName)
+                                .build();
 
-                String subject = options.getNetworkId() + ".player." + uniqueId + ".connect";
-                Message response = natsConnection.request(subject, request.toByteArray(), REQUEST_TIMEOUT);
+                        String subject = options.getNetworkId() + ".player." + uniqueId + ".connect";
+                        Message response = natsConnection.request(subject, request.toByteArray(), REQUEST_TIMEOUT);
 
-                if (response == null) {
-                    return CloudPlayer.ConnectResult.CONNECTION_FAILED;
-                }
+                        if (response == null) {
+                            return CloudPlayer.ConnectResult.PLAYER_NOT_FOUND;
+                        }
 
-                ConnectPlayerResponse protoResponse = ConnectPlayerResponse.parseFrom(response.getData());
-                return switch (protoResponse.getResult()) {
-                    case CONNECT_RESULT_SUCCESS -> CloudPlayer.ConnectResult.SUCCESS;
-                    case CONNECT_RESULT_SERVER_NOT_FOUND -> CloudPlayer.ConnectResult.SERVER_NOT_FOUND;
-                    case CONNECT_RESULT_ALREADY_CONNECTED -> CloudPlayer.ConnectResult.ALREADY_CONNECTED;
-                    default -> CloudPlayer.ConnectResult.CONNECTION_FAILED;
-                };
-            } catch (Exception e) {
-                return CloudPlayer.ConnectResult.CONNECTION_FAILED;
-            }
-        }, executor);
+                        ConnectPlayerResponse protoResponse = ConnectPlayerResponse.parseFrom(response.getData());
+                        return switch (protoResponse.getResult()) {
+                            case CONNECT_RESULT_SUCCESS -> CloudPlayer.ConnectResult.SUCCESS;
+                            case CONNECT_RESULT_SERVER_NOT_FOUND -> CloudPlayer.ConnectResult.SERVER_NOT_FOUND;
+                            case CONNECT_RESULT_ALREADY_CONNECTED -> CloudPlayer.ConnectResult.ALREADY_CONNECTED;
+                            default -> CloudPlayer.ConnectResult.CONNECTION_FAILED;
+                        };
+                    } catch (InterruptedException e) {
+                        Thread.currentThread().interrupt();
+                        return CloudPlayer.ConnectResult.CONNECTION_FAILED;
+                    } catch (Exception e) {
+                        LOGGER.log(Level.FINE, "Failed to connect player " + uniqueId + " to " + serverName, e);
+                        return CloudPlayer.ConnectResult.CONNECTION_FAILED;
+                    }
+                },
+                executor);
     }
 
-    @Override
-    public CompletableFuture<CloudPlayer.ConnectResult> connectToGroup(
-            UUID uniqueId,
-            String groupName,
-            ServerSelectionMode selectionMode
-    ) {
-        ModelsConnectPlayerRequest request = new ModelsConnectPlayerRequest();
-        request.setServerGroupId(groupName);
-        request.setSelectionMode((selectionMode != null ? selectionMode : ServerSelectionMode.RANDOM).name());
-        return connectViaController(uniqueId, request);
+    private CompletableFuture<ConnectResponse> connectViaController(UUID uniqueId, ModelsConnectPlayerRequest request) {
+        return CompletableFuture.supplyAsync(
+                () -> {
+                    try {
+                        ModelsConnectPlayerResponse response =
+                                playersApi.connectPlayer(options.getNetworkId(), uniqueId.toString(), request);
+                        return new ConnectResponse(
+                                toConnectResult(response), response != null ? response.getServerName() : null);
+                    } catch (ApiException e) {
+                        if (e.getCode() == 404) {
+                            return new ConnectResponse(
+                                    isPlayerNotOnline(e)
+                                            ? CloudPlayer.ConnectResult.PLAYER_NOT_FOUND
+                                            : CloudPlayer.ConnectResult.SERVER_NOT_FOUND,
+                                    null);
+                        }
+                        throw ApiExceptions.from(e);
+                    }
+                },
+                executor);
     }
 
-    @Override
-    public CompletableFuture<CloudPlayer.ConnectResult> connectToPersistentServer(UUID uniqueId, String persistentServerId) {
-        ModelsConnectPlayerRequest request = new ModelsConnectPlayerRequest();
-        request.setPersistentServerId(persistentServerId);
-        return connectViaController(uniqueId, request);
-    }
-
-    private CompletableFuture<CloudPlayer.ConnectResult> connectViaController(UUID uniqueId, ModelsConnectPlayerRequest request) {
-        return CompletableFuture.supplyAsync(() -> {
-            try {
-                ModelsConnectPlayerResponse response = playersApi.connectPlayer(
-                        options.getNetworkId(),
-                        uniqueId.toString(),
-                        request
-                );
-                return toConnectResult(response);
-            } catch (ApiException e) {
-                if (e.getCode() == 404) {
-                    return isPlayerNotOnline(e)
-                            ? CloudPlayer.ConnectResult.PLAYER_NOT_FOUND
-                            : CloudPlayer.ConnectResult.SERVER_NOT_FOUND;
-                }
-                throw ApiErrors.from(e);
-            }
-        }, executor);
-    }
-    
     private static boolean isPlayerNotOnline(ApiException e) {
         String body = e.getResponseBody();
         return body != null && body.contains("Player is not online");
     }
 
     static CloudPlayer.ConnectResult toConnectResult(ModelsConnectPlayerResponse response) {
-        if (response == null) {
+        if (response == null || response.getResult() == null) {
             return CloudPlayer.ConnectResult.CONNECTION_FAILED;
         }
-        if (Boolean.TRUE.equals(response.getSuccess())) {
-            return CloudPlayer.ConnectResult.SUCCESS;
-        }
-        String message = response.getMessage();
-        if ("Player is already connected to this server".equals(message)) {
-            return CloudPlayer.ConnectResult.ALREADY_CONNECTED;
-        }
-        if ("Target server not found".equals(message)) {
-            return CloudPlayer.ConnectResult.SERVER_NOT_FOUND;
-        }
-        return CloudPlayer.ConnectResult.CONNECTION_FAILED;
+        return switch (response.getResult()) {
+            case ConnectResultSuccess -> CloudPlayer.ConnectResult.SUCCESS;
+            case ConnectResultAlreadyConnected -> CloudPlayer.ConnectResult.ALREADY_CONNECTED;
+            case ConnectResultNoServerAvailable -> CloudPlayer.ConnectResult.NO_SERVER_AVAILABLE;
+            case ConnectResultServerNotFound -> CloudPlayer.ConnectResult.SERVER_NOT_FOUND;
+            default -> CloudPlayer.ConnectResult.CONNECTION_FAILED;
+        };
     }
-    
+
     private CloudPlayer convertPlayer(ModelsOnlinePlayerResponse player) {
         assert player.getId() != null;
         return new CloudPlayerImpl(
@@ -559,8 +528,7 @@ public class PlayerApiImpl implements PlayerApi {
                 player.getSessionId(),
                 player.getFirstSeen(),
                 player.getLastSeen(),
-                player.getProperties()
-        );
+                player.getProperties());
     }
 
     private CloudPlayer convertPlayerResponse(ModelsPlayerResponse player) {
@@ -578,8 +546,7 @@ public class PlayerApiImpl implements PlayerApi {
                 player.getSessionId(),
                 player.getFirstSeen(),
                 player.getLastSeen(),
-                player.getProperties()
-        );
+                player.getProperties());
     }
 
     private PlayerProfile convertProfile(ModelsPlayerProfileResponse response) {
@@ -593,9 +560,7 @@ public class PlayerApiImpl implements PlayerApi {
     }
 
     private PlayerSession convertSession(
-            ModelsPlayerSessionResponse response,
-            @Nullable ModelsPlayerClientSettingsResponse settings
-    ) {
+            ModelsPlayerSessionResponse response, @Nullable ModelsPlayerClientSettingsResponse settings) {
         PlayerSession result = new PlayerSession();
         result.setId(response.getId());
         result.setNetworkId(response.getNetworkId());
@@ -631,10 +596,8 @@ public class PlayerApiImpl implements PlayerApi {
     }
 
     private Map<String, String> fetchPlayerProperties(UUID uniqueId) throws ApiException {
-        ModelsPlayerPropertiesResponse response = playersApi.getPlayerProperties(
-                options.getNetworkId(),
-                uniqueId.toString()
-        );
+        ModelsPlayerPropertiesResponse response =
+                playersApi.getPlayerProperties(options.getNetworkId(), uniqueId.toString());
         return toPropertiesMap(response.getProperties());
     }
 
@@ -642,27 +605,23 @@ public class PlayerApiImpl implements PlayerApi {
         return properties != null ? properties : new HashMap<>();
     }
 
-    private <T> CompletableFuture<T> call(ApiCall<T> call) {
-        return CompletableFuture.supplyAsync(() -> {
-            try {
-                return call.execute();
-            } catch (ApiException e) {
-                throw ApiErrors.from(e);
-            }
-        }, executor);
+    private <T> CompletableFuture<T> call(ApiCalls.Call<T> call) {
+        return ApiCalls.supplyAsync(executor, call);
     }
 
-    private <T> CompletableFuture<Optional<T>> callOrEmptyIfNotFound(ApiCall<T> call) {
-        return CompletableFuture.supplyAsync(() -> {
-            try {
-                return Optional.ofNullable(call.execute());
-            } catch (ApiException e) {
-                if (e.getCode() == 404) {
-                    return Optional.empty();
-                }
-                throw ApiErrors.from(e);
-            }
-        }, executor);
+    private <T> CompletableFuture<Optional<T>> callOrEmptyIfNotFound(ApiCalls.Call<T> call) {
+        return CompletableFuture.supplyAsync(
+                () -> {
+                    try {
+                        return Optional.ofNullable(call.execute());
+                    } catch (ApiException e) {
+                        if (e.getCode() == 404) {
+                            return Optional.empty();
+                        }
+                        throw ApiExceptions.from(e);
+                    }
+                },
+                executor);
     }
 
     private static void validatePagination(int limit, int offset) {
@@ -691,10 +650,5 @@ public class PlayerApiImpl implements PlayerApi {
 
     private static long toOnlineTimeSeconds(Integer onlineTimeSeconds) {
         return onlineTimeSeconds != null ? onlineTimeSeconds.longValue() : 0L;
-    }
-
-    @FunctionalInterface
-    private interface ApiCall<T> {
-        T execute() throws ApiException;
     }
 }

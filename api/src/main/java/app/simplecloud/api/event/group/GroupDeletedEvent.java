@@ -26,7 +26,8 @@ public interface GroupDeletedEvent {
      *
      * @return the group name, or null if not available
      */
-    @Nullable String getName();
+    @Nullable
+    String getName();
 
     /**
      * Returns the timestamp when this event occurred (ISO 8601 format).
@@ -35,4 +36,3 @@ public interface GroupDeletedEvent {
      */
     String getTimestamp();
 }
-

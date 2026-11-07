@@ -50,6 +50,9 @@ public interface PlayerDisconnectEvent {
     /**
      * Returns the player as reported by the controller with this event.
      *
+     * <p>This is a minimal snapshot: only the ID, name, display name and online time are set.
+     * The proxy and server the player left are available on this event itself.
+     *
      * @return the player, or null if the controller sent no player data
      */
     @Nullable

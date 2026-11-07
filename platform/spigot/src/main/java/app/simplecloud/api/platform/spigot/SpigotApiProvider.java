@@ -1,8 +1,8 @@
 package app.simplecloud.api.platform.spigot;
 
 import app.simplecloud.api.CloudApi;
-import app.simplecloud.api.platform.shared.OnlinePlayerTracker;
 import app.simplecloud.api.platform.shared.PlayerSynchronizer;
+import app.simplecloud.api.platform.shared.player.OnlinePlayerTracker;
 import org.bukkit.Bukkit;
 import org.bukkit.entity.Player;
 import org.bukkit.plugin.java.JavaPlugin;
@@ -16,8 +16,10 @@ public class SpigotApiProvider extends JavaPlugin {
     @Override
     public void onEnable() {
         getLogger().info("SimpleCloud v3 API provider initialized!");
-        onlinePlayerTracker.reset(Bukkit.getOnlinePlayers().stream().map(Player::getUniqueId).toList());
-        Bukkit.getPluginManager().registerEvents(new PlayerConnectionListener(onlinePlayerTracker, playerSynchronizer), this);
+        onlinePlayerTracker.reset(
+                Bukkit.getOnlinePlayers().stream().map(Player::getUniqueId).toList());
+        Bukkit.getPluginManager()
+                .registerEvents(new PlayerConnectionListener(onlinePlayerTracker, playerSynchronizer), this);
 
         playerSynchronizer.start();
         playerSynchronizer.updatePlayerCount();

@@ -16,8 +16,6 @@ tasks.named<ShadowJar>("shadowJar") {
     relocate("okio", "app.simplecloud.api.shaded.okio")
     relocate("io.gsonfire", "app.simplecloud.api.shaded.gsonfire")
     relocate("org.bouncycastle", "app.simplecloud.api.shaded.bouncycastle")
-    relocate("org.intellij", "app.simplecloud.api.shaded.intellij")
-    relocate("org.jetbrains", "app.simplecloud.api.shaded.jetbrains")
     relocate("kotlin", "app.simplecloud.api.shaded.kotlin")
     relocate("com.github.benmanes.caffeine", "app.simplecloud.api.shaded.caffeine")
     relocate("google", "app.simplecloud.api.shaded.google")

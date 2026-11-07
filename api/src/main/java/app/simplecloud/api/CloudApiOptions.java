@@ -6,9 +6,19 @@ import java.time.Duration;
 import java.util.regex.Matcher;
 import java.util.regex.Pattern;
 
+/**
+ * Connection settings for {@link CloudApi}.
+ *
+ * <p>Values that aren't set on the builder are read from environment variables,
+ * see {@link CloudApi#create()}.
+ */
 public class CloudApiOptions {
 
-    public final static CloudApiOptions DEFAULT = new Builder().build();
+    /**
+     * Options built from environment variables only, read once when this class is loaded.
+     */
+    public static final CloudApiOptions DEFAULT = new Builder().build();
+
     private static final Pattern DURATION_PATTERN = Pattern.compile("^(\\d+)(ms|s|m|h)$");
 
     private final String natsUrl;
@@ -119,17 +129,16 @@ public class CloudApiOptions {
 
         public Builder() {
             this.natsUrl = System.getenv().getOrDefault("SIMPLECLOUD_NATS_URL", "wss://nats.simplecloud.app:443");
-            this.natsFailoverReconnectAfter = parseDuration(
-                    System.getenv("SIMPLECLOUD_NATS_FAILOVER_RECONNECT_AFTER"),
-                    Duration.ofSeconds(30)
-            );
-            this.controllerUrl = System.getenv().getOrDefault("SIMPLECLOUD_CONTROLLER_URL", "https://controller.simplecloud.app");
+            this.natsFailoverReconnectAfter =
+                    parseDuration(System.getenv("SIMPLECLOUD_NATS_FAILOVER_RECONNECT_AFTER"), Duration.ofSeconds(30));
+            this.controllerUrl =
+                    System.getenv().getOrDefault("SIMPLECLOUD_CONTROLLER_URL", "https://controller.simplecloud.app");
             this.networkId = System.getenv().getOrDefault("SIMPLECLOUD_NETWORK_ID", "default");
             this.networkSecret = System.getenv().getOrDefault("SIMPLECLOUD_NETWORK_SECRET", "");
-            this.serverVersionManifestUrl = System.getenv().getOrDefault(
-                    "SIMPLECLOUD_SERVER_VERSION_MANIFEST_URL",
-                    "https://raw.githubusercontent.com/theSimpleCloud/simplecloud-manifest/refs/heads/main/server_versions.json"
-            );
+            this.serverVersionManifestUrl = System.getenv()
+                    .getOrDefault(
+                            "SIMPLECLOUD_SERVER_VERSION_MANIFEST_URL",
+                            "https://raw.githubusercontent.com/theSimpleCloud/simplecloud-manifest/refs/heads/main/server_versions.json");
         }
 
         public Builder natsUrl(String natsUrl) {
@@ -137,6 +146,13 @@ public class CloudApiOptions {
             return this;
         }
 
+        /**
+         * Sets how long the NATS connection may stay disconnected before a new connection is forced.
+         * Zero disables forced reconnects. Defaults to 30 seconds.
+         *
+         * @param natsFailoverReconnectAfter the duration; must be non-null and non-negative
+         * @return this builder
+         */
         public Builder natsFailoverReconnectAfter(Duration natsFailoverReconnectAfter) {
             if (natsFailoverReconnectAfter == null) {
                 throw new IllegalArgumentException("natsFailoverReconnectAfter must not be null");
@@ -179,8 +195,7 @@ public class CloudApiOptions {
          * for inline blueprint creation.
          *
          * <p>The manifest is only fetched over HTTPS from publicly routable addresses; redirects
-         * are re-checked and the response size is capped. If a JVM-wide proxy is configured, the proxy
-         * resolves the manifest host, so the address check applies to the proxy host instead.
+         * are re-checked and the response size is capped.
          *
          * @param serverVersionManifestUrl manifest endpoint returning {@code server_versions.json}
          * @return this builder
@@ -217,9 +232,10 @@ public class CloudApiOptions {
 
         /**
          * Sets the HTTP connect timeout for the controller REST client.
-         * A value of zero disables the timeout.
+         * A value of zero disables the timeout. Defaults to 5 seconds.
          *
          * @param httpConnectTimeout the connect timeout; must be non-null and non-negative
+         * @return this builder
          */
         public Builder httpConnectTimeout(Duration httpConnectTimeout) {
             if (httpConnectTimeout == null || httpConnectTimeout.isNegative()) {
@@ -231,11 +247,11 @@ public class CloudApiOptions {
 
         /**
          * Sets the HTTP read timeout for the controller REST client.
-         * A value of zero disables the timeout. Setting a bounded read timeout
-         * prevents in-flight requests from hanging indefinitely when the
-         * controller stops responding.
+         * A value of zero disables the timeout, so requests can hang forever if the
+         * controller stops responding. Defaults to 15 seconds.
          *
          * @param httpReadTimeout the read timeout; must be non-null and non-negative
+         * @return this builder
          */
         public Builder httpReadTimeout(Duration httpReadTimeout) {
             if (httpReadTimeout == null || httpReadTimeout.isNegative()) {
@@ -247,9 +263,10 @@ public class CloudApiOptions {
 
         /**
          * Sets the HTTP write timeout for the controller REST client.
-         * A value of zero disables the timeout.
+         * A value of zero disables the timeout. Defaults to 10 seconds.
          *
          * @param httpWriteTimeout the write timeout; must be non-null and non-negative
+         * @return this builder
          */
         public Builder httpWriteTimeout(Duration httpWriteTimeout) {
             if (httpWriteTimeout == null || httpWriteTimeout.isNegative()) {
@@ -289,10 +306,9 @@ public class CloudApiOptions {
                 return duration;
             } catch (Exception e) {
                 throw new IllegalArgumentException(
-                        "Invalid SIMPLECLOUD_NATS_FAILOVER_RECONNECT_AFTER value '" + raw +
-                                "'. Use values like 30s, 2m, 1h, 500ms, or ISO-8601 (e.g. PT30S).",
-                        e
-                );
+                        "Invalid SIMPLECLOUD_NATS_FAILOVER_RECONNECT_AFTER value '" + raw
+                                + "'. Use values like 30s, 2m, 1h, 500ms, or ISO-8601 (e.g. PT30S).",
+                        e);
             }
         }
     }

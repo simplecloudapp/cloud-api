@@ -10,18 +10,7 @@ public enum RuntimeType {
     JAVA,
 
     /**
-     * Node.js runtime environment.
+     * Native binary executable.
      */
-    NODE,
-
-    /**
-     * Python runtime environment.
-     */
-    PYTHON,
-
-    /**
-     * Docker container runtime.
-     */
-    DOCKER
+    BINARY
 }
-

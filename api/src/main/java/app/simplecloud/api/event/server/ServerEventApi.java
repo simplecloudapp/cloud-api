@@ -48,6 +48,4 @@ public interface ServerEventApi {
      * @return a subscription that can be closed to stop receiving events
      */
     Subscription onUpdated(Consumer<ServerUpdatedEvent> handler);
-
 }
-

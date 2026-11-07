@@ -8,11 +8,20 @@ import java.util.Map;
 
 /**
  * Request object for creating a new server group.
+ *
+ * <p>Fields that aren't set get these defaults: type {@link GroupServerType#SERVER}, 50 max players,
+ * active, tags {@code [name]}, deployment {@link DeploymentStrategy#BLACKLIST} with no hosts, scaling
+ * {@link ScalingMode#SLOTS} with 0 to 1 servers and a player threshold of 0.75, scale down after 3 minutes idle,
+ * start workflow {@code internal/setup}, stop workflow {@code internal/cleanup} and manual workflows
+ * {@code default/backup} and {@code default/copy-to-template}.
+ *
  */
 public class CreateGroupRequest {
     private final String name;
+
     @Nullable
     private GroupServerType type;
+
     private Integer minMemory;
     private Integer maxMemory;
     private Integer maxPlayers;

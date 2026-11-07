@@ -32,6 +32,4 @@ public interface BlueprintEventApi {
      * @return a subscription that can be closed to stop receiving events
      */
     Subscription onDeleted(Consumer<BlueprintDeletedEvent> handler);
-
 }
-

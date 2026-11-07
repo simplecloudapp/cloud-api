@@ -4,14 +4,7 @@ import app.simplecloud.api.base.ServerBase;
 import org.jetbrains.annotations.Nullable;
 
 /**
- * Represents a server group configuration.
- *
- * <p>Server groups are templates that define how server instances should be
- * created, deployed, and scaled. Each group specifies memory limits, player capacity,
- * deployment strategy, scaling behavior, and source configuration.
- *
- * <p>This interface extends {@link ServerBase} to provide common configuration access
- * alongside group-specific properties like deployment and scaling configuration.
+ * Represents a server group.
  */
 public interface Group extends ServerBase {
 
@@ -29,21 +22,24 @@ public interface Group extends ServerBase {
      *
      * @return the deployment config, or null if not set
      */
-    @Nullable DeploymentConfig getDeployment();
+    @Nullable
+    DeploymentConfig getDeployment();
 
     /**
      * Returns whether this group is active.
      *
      * @return active flag, or null if not available
      */
-    @Nullable Boolean isActive();
+    @Nullable
+    Boolean isActive();
 
     /**
      * Returns the priority for this group.
      *
      * @return priority, or null if not available
      */
-    @Nullable Integer getPriority();
+    @Nullable
+    Integer getPriority();
 
     /**
      * Returns the scaling configuration for this group.
@@ -52,5 +48,17 @@ public interface Group extends ServerBase {
      *
      * @return the scaling config, or null if not set
      */
-    @Nullable ScalingConfig getScaling();
+    @Nullable
+    ScalingConfig getScaling();
+
+    /**
+     * Returns the server and player counts of this group.
+     *
+     * <p>Groups returned by {@link GroupApi#createGroup} and {@link GroupApi#updateGroup} and groups
+     * attached to a {@link app.simplecloud.api.server.Server} carry no stats.
+     *
+     * @return the stats, or null if not available
+     */
+    @Nullable
+    GroupStats getStats();
 }

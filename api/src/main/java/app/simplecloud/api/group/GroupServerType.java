@@ -19,4 +19,3 @@ public enum GroupServerType {
      */
     PROXY
 }
-

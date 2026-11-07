@@ -6,16 +6,16 @@ import app.simplecloud.api.internal.integration.player.PlayerCommandHandler;
 import app.simplecloud.api.internal.integration.player.PlayerSessionReporter;
 import app.simplecloud.api.internal.integration.presence.ProxyPresenceResponder;
 import app.simplecloud.api.internal.integration.presence.ProxyPresenceTracker;
+import app.simplecloud.api.platform.shared.PlayerSynchronizer;
+import app.simplecloud.api.platform.shared.luckperms.LuckPermsPrimaryGroupSynchronizer;
+import app.simplecloud.api.platform.shared.luckperms.LuckPermsSynchronizer;
 import app.simplecloud.api.presence.ProxyPresencePlayer;
 import app.simplecloud.api.presence.ProxyPresencePlayerProvider;
 import app.simplecloud.api.runtime.SimpleCloudRuntime;
-import app.simplecloud.api.platform.shared.LuckPermsPrimaryGroupSynchronizer;
-import app.simplecloud.api.platform.shared.LuckPermsSynchronizer;
-import app.simplecloud.api.platform.shared.PlayerSynchronizer;
 import net.kyori.adventure.platform.bungeecord.BungeeAudiences;
+import net.luckperms.api.LuckPermsProvider;
 import net.md_5.bungee.api.connection.ProxiedPlayer;
 import net.md_5.bungee.api.plugin.Plugin;
-import net.luckperms.api.LuckPermsProvider;
 
 import java.util.List;
 import java.util.Locale;
@@ -23,9 +23,7 @@ import java.util.Locale;
 public class BungeeCordApiProvider extends Plugin implements ProxyPresencePlayerProvider {
 
     private CloudApiImpl cloudApi;
-    private String proxyName;
     private PlayerSynchronizer playerSynchronizer;
-    private PlayerSessionReporter playerSessionReporter;
     private PlayerCommandHandler playerCommandHandler;
     private ProxyPresenceTracker proxyPresenceTracker;
     private ProxyPresenceResponder proxyPresenceResponder;
@@ -36,32 +34,29 @@ public class BungeeCordApiProvider extends Plugin implements ProxyPresencePlayer
     @Override
     public void onEnable() {
         this.cloudApi = (CloudApiImpl) CloudApi.create();
-        // Started right after the CloudApi and stopped first in onDisable, so onDisable stops it
-        // even if a later step of onEnable fails.
         this.luckPermsSynchronizer = startLuckPermsSynchronizer();
-        this.proxyName = SimpleCloudRuntime.serverName();
+        String proxyName = SimpleCloudRuntime.serverName();
         this.playerSynchronizer = new PlayerSynchronizer(cloudApi, getProxy()::getOnlineCount);
-        this.playerSessionReporter = new PlayerSessionReporter(cloudApi);
+        PlayerSessionReporter playerSessionReporter = new PlayerSessionReporter(cloudApi);
         this.playerCommandHandler = new PlayerCommandHandler(cloudApi, new BungeeCordPlayers(getProxy()));
         this.proxyPresenceTracker = new ProxyPresenceTracker(proxyName);
         this.proxyPresenceResponder = new ProxyPresenceResponder(
-                cloudApi.getNatsConnection(),
-                cloudApi.getNetworkId(),
-                SimpleCloudRuntime.serverId(),
-                this
-        );
+                cloudApi.getNatsConnection(), cloudApi.getNetworkId(), SimpleCloudRuntime.serverId(), this);
 
         this.bungeeAudiences = BungeeAudiences.create(this);
 
         getLogger().info("SimpleCloud v3 API provider initialized!");
-        getProxy().getPluginManager().registerListener(this, new PlayerConnectionListener(
-                this,
-                playerSynchronizer,
-                playerSessionReporter,
-                proxyPresenceTracker,
-                proxyName,
-                luckPermsSynchronizer
-        ));
+        getProxy()
+                .getPluginManager()
+                .registerListener(
+                        this,
+                        new PlayerConnectionListener(
+                                this,
+                                playerSynchronizer,
+                                playerSessionReporter,
+                                proxyPresenceTracker,
+                                proxyName,
+                                luckPermsSynchronizer));
 
         playerSynchronizer.start();
         playerCommandHandler.start();
@@ -92,26 +87,28 @@ public class BungeeCordApiProvider extends Plugin implements ProxyPresencePlayer
                     LuckPermsProvider.get(),
                     this,
                     playerId -> getProxy().getPlayer(playerId) != null,
-                    (message, cause) -> getLogger().log(java.util.logging.Level.SEVERE, message, cause)
-            );
+                    (message, cause) -> getLogger().log(java.util.logging.Level.SEVERE, message, cause));
             primaryGroupSynchronizer.start();
             getLogger().info("LuckPerms primary group synchronization enabled");
             return primaryGroupSynchronizer;
         } catch (IllegalStateException exception) {
-            getLogger().log(java.util.logging.Level.WARNING, "LuckPerms is present but its API is not available", exception);
+            getLogger()
+                    .log(
+                            java.util.logging.Level.WARNING,
+                            "LuckPerms is present but its API is not available",
+                            exception);
             return LuckPermsSynchronizer.DISABLED;
         }
     }
 
     @Override
     public List<ProxyPresencePlayer> getProxyPresencePlayers() {
-        return getProxy().getPlayers().stream()
-                .map(this::toPresencePlayer)
-                .toList();
+        return getProxy().getPlayers().stream().map(this::toPresencePlayer).toList();
     }
 
     private ProxyPresencePlayer toPresencePlayer(ProxiedPlayer player) {
-        String connectedServerName = player.getServer() != null ? player.getServer().getInfo().getName() : "";
+        String connectedServerName =
+                player.getServer() != null ? player.getServer().getInfo().getName() : "";
         Locale locale = player.getLocale();
         var pendingConnection = player.getPendingConnection();
 
@@ -122,7 +119,6 @@ public class BungeeCordApiProvider extends Plugin implements ProxyPresencePlayer
                 connectedServerName,
                 locale != null ? locale.toString() : "en_US",
                 pendingConnection != null ? pendingConnection.getVersion() : 0,
-                pendingConnection != null && pendingConnection.isOnlineMode()
-        );
+                pendingConnection != null && pendingConnection.isOnlineMode());
     }
 }

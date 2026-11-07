@@ -3,8 +3,9 @@ package app.simplecloud.api.internal.player;
 import app.simplecloud.api.CloudApiException;
 import app.simplecloud.api.internal.integration.adventure.RemoteAudience;
 import app.simplecloud.api.player.CloudPlayer;
+import app.simplecloud.api.player.ConnectResponse;
+import app.simplecloud.api.player.ConnectTarget;
 import app.simplecloud.api.player.PlayerApi;
-import app.simplecloud.api.player.ServerSelectionMode;
 import io.nats.client.Connection;
 import net.kyori.adventure.audience.Audience;
 import net.kyori.adventure.audience.ForwardingAudience;
@@ -47,8 +48,7 @@ public class CloudPlayerImpl implements CloudPlayer, ForwardingAudience.Single {
             String sessionId,
             String firstSeen,
             String lastSeen,
-            Map<String, String> properties
-    ) {
+            Map<String, String> properties) {
         this.playerApi = playerApi;
         this.audience = RemoteAudience.builder(natsConnection, networkId).forPlayer(uniqueId);
         this.uniqueId = uniqueId;
@@ -133,31 +133,19 @@ public class CloudPlayerImpl implements CloudPlayer, ForwardingAudience.Single {
         return playerApi.kick(uniqueId, reason).thenApply(success -> {
             if (!Boolean.TRUE.equals(success)) {
                 throw new CloudApiException(
-                        CloudApiException.Reason.UNKNOWN,
-                        "Player '" + uniqueId + "' could not be kicked"
-                );
+                        CloudApiException.Reason.UNKNOWN, "Player '" + uniqueId + "' could not be kicked");
             }
             return null;
         });
     }
 
     @Override
-    public CompletableFuture<ConnectResult> connect(String serverName) {
-        return playerApi.connect(uniqueId, serverName);
+    public CompletableFuture<ConnectResponse> connectTo(ConnectTarget target) {
+        return playerApi.connectTo(uniqueId, target);
     }
 
     @Override
     public CompletableFuture<ConnectResult> connectDirect(String serverName) {
         return playerApi.connectDirect(uniqueId, serverName);
-    }
-
-    @Override
-    public CompletableFuture<ConnectResult> connectToGroup(String groupName, ServerSelectionMode selectionMode) {
-        return playerApi.connectToGroup(uniqueId, groupName, selectionMode);
-    }
-
-    @Override
-    public CompletableFuture<ConnectResult> connectToPersistentServer(String persistentServerId) {
-        return playerApi.connectToPersistentServer(uniqueId, persistentServerId);
     }
 }

@@ -32,6 +32,4 @@ public interface GroupEventApi {
      * @return a subscription that can be closed to stop receiving events
      */
     Subscription onDeleted(Consumer<GroupDeletedEvent> handler);
-
 }
-

@@ -1,23 +1,34 @@
 package app.simplecloud.api.internal.cache;
 
 import app.simplecloud.api.CloudApiException;
-import app.simplecloud.api.cache.*;
+import app.simplecloud.api.cache.CacheConfig;
+import app.simplecloud.api.cache.CacheEntry;
+import app.simplecloud.api.cache.CacheStats;
+import app.simplecloud.api.cache.EntityCacheConfig;
+import app.simplecloud.api.cache.EntityType;
+import app.simplecloud.api.cache.QueryCache;
+import app.simplecloud.api.cache.QueryKey;
 import com.github.benmanes.caffeine.cache.Cache;
 import com.github.benmanes.caffeine.cache.Caffeine;
 import com.github.benmanes.caffeine.cache.Expiry;
+import org.jspecify.annotations.NonNull;
 
 import java.time.Duration;
 import java.time.Instant;
 import java.util.Set;
-import java.util.concurrent.*;
+import java.util.concurrent.CompletableFuture;
+import java.util.concurrent.ConcurrentHashMap;
+import java.util.concurrent.ConcurrentMap;
+import java.util.concurrent.ExecutorService;
+import java.util.concurrent.Executors;
+import java.util.concurrent.RejectedExecutionException;
+import java.util.concurrent.TimeUnit;
 import java.util.concurrent.atomic.AtomicLong;
+import java.util.function.Predicate;
 import java.util.function.Supplier;
 import java.util.logging.Level;
 import java.util.logging.Logger;
 
-/**
- * Caffeine-backed implementation of QueryCache with stale-while-revalidate semantics.
- */
 public class QueryCacheImpl implements QueryCache {
 
     private static final Logger LOGGER = Logger.getLogger(QueryCacheImpl.class.getName());
@@ -53,17 +64,26 @@ public class QueryCacheImpl implements QueryCache {
                 .maximumSize(config.getMaxEntries())
                 .expireAfter(new Expiry<QueryKey, CacheEntry<?>>() {
                     @Override
-                    public long expireAfterCreate(QueryKey key, CacheEntry<?> value, long currentTime) {
+                    public long expireAfterCreate(
+                            @NonNull QueryKey key, @NonNull CacheEntry<?> value, long currentTime) {
                         return remainingNanos(value);
                     }
 
                     @Override
-                    public long expireAfterUpdate(QueryKey key, CacheEntry<?> value, long currentTime, long currentDuration) {
+                    public long expireAfterUpdate(
+                            @NonNull QueryKey key,
+                            @NonNull CacheEntry<?> value,
+                            long currentTime,
+                            long currentDuration) {
                         return remainingNanos(value);
                     }
 
                     @Override
-                    public long expireAfterRead(QueryKey key, CacheEntry<?> value, long currentTime, long currentDuration) {
+                    public long expireAfterRead(
+                            @NonNull QueryKey key,
+                            @NonNull CacheEntry<?> value,
+                            long currentTime,
+                            long currentDuration) {
                         return currentDuration;
                     }
                 })
@@ -78,17 +98,8 @@ public class QueryCacheImpl implements QueryCache {
     @Override
     @SuppressWarnings("unchecked")
     public <T> CompletableFuture<T> fetch(QueryKey key, Supplier<CompletableFuture<T>> fetcher) {
-        if (!config.isEnabled()) {
+        if (isCachingEnabled(key)) {
             return fetcher.get();
-        }
-
-        // Check if caching is disabled for this entity type
-        EntityType entityType = key.getEntityType();
-        if (entityType != null && config.getEntityConfigs().containsKey(entityType)) {
-            EntityCacheConfig entityConfig = config.getEntityConfigs().get(entityType);
-            if (!entityConfig.isEnabled()) {
-                return fetcher.get();
-            }
         }
 
         CacheEntry<T> entry = (CacheEntry<T>) cache.getIfPresent(key);
@@ -103,19 +114,75 @@ public class QueryCacheImpl implements QueryCache {
                 if (!entry.isStale(staleThreshold)) {
                     // Fresh data - return immediately
                     hitCount.incrementAndGet();
-                    return CompletableFuture.completedFuture(entry.getData());
                 } else {
                     // Stale data - return cached, revalidate in background
                     staleHitCount.incrementAndGet();
                     triggerBackgroundRevalidation(key, fetcher);
-                    return CompletableFuture.completedFuture(entry.getData());
                 }
+                return CompletableFuture.completedFuture(entry.getData());
             }
         }
 
         // No cached data - fetch with deduplication
         missCount.incrementAndGet();
         return fetchWithDeduplication(key, fetcher);
+    }
+
+    @Override
+    public <T> CompletableFuture<T> fetchWithTransientMissRecovery(
+            QueryKey key,
+            Supplier<CompletableFuture<T>> fetcher,
+            Predicate<T> isTransientMiss,
+            Duration retryDelay,
+            int maxRetries) {
+        if (isCachingEnabled(key)) {
+            return QueryCache.super.fetchWithTransientMissRecovery(
+                    key, fetcher, isTransientMiss, retryDelay, maxRetries);
+        }
+        if (maxRetries < 0) {
+            throw new IllegalArgumentException("maxRetries must be >= 0");
+        }
+        if (retryDelay.isNegative()) {
+            throw new IllegalArgumentException("retryDelay must be >= 0");
+        }
+
+        return fetch(key, fetcher)
+                .thenCompose(
+                        result -> retryTransientMiss(key, fetcher, isTransientMiss, retryDelay, maxRetries, result));
+    }
+
+    private <T> CompletableFuture<T> retryTransientMiss(
+            QueryKey key,
+            Supplier<CompletableFuture<T>> fetcher,
+            Predicate<T> isTransientMiss,
+            Duration retryDelay,
+            int retriesRemaining,
+            T result) {
+        if (!isTransientMiss.test(result)) {
+            return CompletableFuture.completedFuture(result);
+        }
+        if (retriesRemaining == 0) {
+            cache.invalidate(key);
+            return CompletableFuture.completedFuture(result);
+        }
+
+        return CompletableFuture.supplyAsync(
+                        () -> null, CompletableFuture.delayedExecutor(retryDelay.toMillis(), TimeUnit.MILLISECONDS))
+                .thenCompose(ignored -> fetchWithDeduplication(key, fetcher))
+                .thenCompose(retriedResult -> retryTransientMiss(
+                        key, fetcher, isTransientMiss, retryDelay, retriesRemaining - 1, retriedResult));
+    }
+
+    private boolean isCachingEnabled(QueryKey key) {
+        if (!config.isEnabled()) {
+            return true;
+        }
+        EntityType entityType = key.getEntityType();
+        if (entityType != null && config.getEntityConfigs().containsKey(entityType)) {
+            EntityCacheConfig entityConfig = config.getEntityConfigs().get(entityType);
+            return !entityConfig.isEnabled();
+        }
+        return false;
     }
 
     @SuppressWarnings("unchecked")
@@ -130,8 +197,7 @@ public class QueryCacheImpl implements QueryCache {
         CompletableFuture.delayedExecutor(inFlightTimeout.toMillis(), TimeUnit.MILLISECONDS)
                 .execute(() -> result.completeExceptionally(new CloudApiException(
                         CloudApiException.Reason.UNAVAILABLE,
-                        "Controller did not respond within " + inFlightTimeout.toMillis() + " ms"
-                )));
+                        "Controller did not respond within " + inFlightTimeout.toMillis() + " ms")));
 
         CompletableFuture<T> source;
         try {
@@ -163,10 +229,11 @@ public class QueryCacheImpl implements QueryCache {
         }
 
         try {
-            revalidationExecutor.execute(() -> fetchWithDeduplication(key, fetcher).exceptionally(e -> {
-                LOGGER.log(Level.WARNING, "Background revalidation failed for " + key, e);
-                return null;
-            }));
+            revalidationExecutor.execute(() -> fetchWithDeduplication(key, fetcher)
+                    .exceptionally(e -> {
+                        LOGGER.log(Level.FINE, "Background revalidation failed for " + key, e);
+                        return null;
+                    }));
         } catch (RejectedExecutionException e) {
             LOGGER.log(Level.FINE, "Skipping background revalidation for " + key + " after shutdown", e);
         }
@@ -240,14 +307,7 @@ public class QueryCacheImpl implements QueryCache {
         long total = hits + staleHits + misses;
         double hitRate = total > 0 ? (double) (hits + staleHits) / total : 0.0;
 
-        return new CacheStats(
-                hits,
-                misses,
-                staleHits,
-                evictionCount.get(),
-                cache.estimatedSize(),
-                hitRate
-        );
+        return new CacheStats(hits, misses, staleHits, evictionCount.get(), cache.estimatedSize(), hitRate);
     }
 
     @Override
@@ -255,10 +315,6 @@ public class QueryCacheImpl implements QueryCache {
         return cache.asMap().keySet();
     }
 
-    /**
-     * Shuts down the background revalidation executor.
-     * Call this when the CloudApi is being shut down.
-     */
     public void shutdown() {
         revalidationExecutor.shutdown();
         try {

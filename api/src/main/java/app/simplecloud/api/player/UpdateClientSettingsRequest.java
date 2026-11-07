@@ -4,24 +4,42 @@ import org.jetbrains.annotations.Nullable;
 
 import java.util.List;
 
+/**
+ * Partial update for {@link PlayerApi#updateClientSettings(java.util.UUID, UpdateClientSettingsRequest)}.
+ *
+ * <p>Only fields that are set are changed; {@code null} fields keep their stored value.
+ * {@code UNKNOWN} is rejected for chat mode and main hand with an {@link IllegalArgumentException}.
+ *
+ * <pre>{@code
+ * UpdateClientSettingsRequest request = UpdateClientSettingsRequest.builder()
+ *         .locale("de_DE")
+ *         .viewDistance(8)
+ *         .build();
+ * }</pre>
+ */
 public class UpdateClientSettingsRequest {
     @Nullable
     private PlayerClientSettings.ChatMode chatMode;
+
     @Nullable
     private String locale;
+
     @Nullable
     private PlayerClientSettings.MainHand mainHand;
+
     @Nullable
     private Integer viewDistance;
+
     @Nullable
     private Boolean chatColors;
+
     @Nullable
     private Boolean clientListingAllowed;
+
     @Nullable
     private List<String> skinParts;
 
-    public UpdateClientSettingsRequest() {
-    }
+    public UpdateClientSettingsRequest() {}
 
     public static Builder builder() {
         return new Builder();

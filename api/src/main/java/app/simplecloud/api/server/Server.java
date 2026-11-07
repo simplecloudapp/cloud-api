@@ -11,9 +11,6 @@ import java.util.Map;
 /**
  * Represents a running server instance.
  *
- * <p>Provides detailed information about a server's state, resource usage,
- * network configuration, and associated base configuration.
- *
  * <p>A server can be spawned from either a {@link Group} or a {@link PersistentServer}.
  * Use {@link #getServerBase()} to access common configuration properties regardless
  * of the source type, or use {@link #getGroup()} / {@link #getPersistentServer()} to
@@ -33,7 +30,8 @@ public interface Server {
      *
      * @return the persistent server ID, or null if spawned from a group
      */
-    @Nullable String getPersistentServerId();
+    @Nullable
+    String getPersistentServerId();
 
     /**
      * Returns the numerical ID of this server (typically a sequential number).
@@ -47,7 +45,8 @@ public interface Server {
      *
      * @return the server group ID, or null if spawned from a persistent server
      */
-    @Nullable String getServerGroupId();
+    @Nullable
+    String getServerGroupId();
 
     /**
      * Returns the ID of the host machine running this server.
@@ -68,14 +67,16 @@ public interface Server {
      *
      * @return the IP address, or null if not yet assigned
      */
-    @Nullable String getIp();
+    @Nullable
+    String getIp();
 
     /**
      * Returns the port where this server is listening.
      *
      * @return the port number, or null if not yet assigned
      */
-    @Nullable Integer getPort();
+    @Nullable
+    Integer getPort();
 
     /**
      * Returns the minimum memory allocation for this server (in MB).
@@ -96,21 +97,24 @@ public interface Server {
      *
      * @return the CPU usage percentage, or null if not available
      */
-    @Nullable Double getCpuUsage();
+    @Nullable
+    Double getCpuUsage();
 
     /**
      * Returns the current memory usage (in MB).
      *
      * @return the memory usage, or null if not available
      */
-    @Nullable Double getMemoryUsage();
+    @Nullable
+    Double getMemoryUsage();
 
     /**
      * Returns the current number of connected players.
      *
      * @return the player count, or null if not available
      */
-    @Nullable Integer getPlayerCount();
+    @Nullable
+    Integer getPlayerCount();
 
     /**
      * Returns the maximum number of players allowed on this server.
@@ -145,21 +149,24 @@ public interface Server {
      *
      * @return the last activity timestamp, or null if not available
      */
-    @Nullable String getLastActivity();
+    @Nullable
+    String getLastActivity();
 
     /**
      * Returns custom properties attached to this server.
      *
      * @return the properties map, or null if none set
      */
-    @Nullable Map<String, Object> getProperties();
+    @Nullable
+    Map<String, Object> getProperties();
 
     /**
      * Returns the blueprint this server was created from.
      *
      * @return the blueprint, or null if not available
      */
-    @Nullable Blueprint getBlueprint();
+    @Nullable
+    Blueprint getBlueprint();
 
     /**
      * Returns the server base configuration.
@@ -176,14 +183,16 @@ public interface Server {
      *
      * @return the server group, or null if this server was spawned from a persistent server
      */
-    @Nullable Group getGroup();
+    @Nullable
+    Group getGroup();
 
     /**
      * Returns the persistent server configuration, if spawned from a persistent server.
      *
      * @return the persistent server, or null if this server was spawned from a group
      */
-    @Nullable PersistentServer getPersistentServer();
+    @Nullable
+    PersistentServer getPersistentServer();
 
     /**
      * Returns whether this server was spawned from a group.
@@ -215,7 +224,8 @@ public interface Server {
     default Group getServerGroup() {
         Group group = getGroup();
         if (group == null) {
-            throw new IllegalStateException("Server was spawned from a persistent server, not a group. Use getGroup() or getPersistentServer() instead.");
+            throw new IllegalStateException(
+                    "Server was spawned from a persistent server, not a group. Use getGroup() or getPersistentServer() instead.");
         }
         return group;
     }

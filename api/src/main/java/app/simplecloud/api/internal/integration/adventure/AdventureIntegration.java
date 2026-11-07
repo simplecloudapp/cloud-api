@@ -1,15 +1,37 @@
 package app.simplecloud.api.internal.integration.adventure;
 
 import app.simplecloud.api.internal.CloudApiImpl;
-import build.buf.gen.simplecloud.adventure.v1.*;
+import app.simplecloud.api.internal.integration.adventure.PlayerAudiences.PlayerAction;
+import build.buf.gen.simplecloud.adventure.v1.AdventureBook;
+import build.buf.gen.simplecloud.adventure.v1.AdventureBossBar;
+import build.buf.gen.simplecloud.adventure.v1.AdventureComponent;
+import build.buf.gen.simplecloud.adventure.v1.AdventureSound;
+import build.buf.gen.simplecloud.adventure.v1.BossBarColor;
+import build.buf.gen.simplecloud.adventure.v1.BossBarOverlay;
+import build.buf.gen.simplecloud.adventure.v1.SendActionbarRequest;
+import build.buf.gen.simplecloud.adventure.v1.SendBossBarRemoveRequest;
+import build.buf.gen.simplecloud.adventure.v1.SendBossBarRequest;
+import build.buf.gen.simplecloud.adventure.v1.SendMessageRequest;
+import build.buf.gen.simplecloud.adventure.v1.SendOpenBookRequest;
+import build.buf.gen.simplecloud.adventure.v1.SendPlaySoundAtCoordinatesRequest;
+import build.buf.gen.simplecloud.adventure.v1.SendPlaySoundRequest;
+import build.buf.gen.simplecloud.adventure.v1.SendPlayerListHeaderAndFooterRequest;
+import build.buf.gen.simplecloud.adventure.v1.SendStopSoundRequest;
+import build.buf.gen.simplecloud.adventure.v1.SendSubtitleRequest;
+import build.buf.gen.simplecloud.adventure.v1.SendTitleRequest;
+import build.buf.gen.simplecloud.adventure.v1.SendTitleTimesRequest;
+import build.buf.gen.simplecloud.adventure.v1.SoundCoordinates;
+import build.buf.gen.simplecloud.adventure.v1.SoundSource;
+import build.buf.gen.simplecloud.adventure.v1.TitleTimes;
 import io.nats.client.Connection;
 import io.nats.client.Dispatcher;
 import io.nats.client.Message;
 import io.nats.client.MessageHandler;
-import net.kyori.adventure.audience.Audience;
 import net.kyori.adventure.bossbar.BossBar;
+import net.kyori.adventure.inventory.Book;
 import net.kyori.adventure.key.Key;
 import net.kyori.adventure.sound.Sound;
+import net.kyori.adventure.sound.SoundStop;
 import net.kyori.adventure.text.Component;
 import net.kyori.adventure.text.serializer.gson.GsonComponentSerializer;
 import net.kyori.adventure.title.Title;
@@ -18,7 +40,6 @@ import net.kyori.adventure.title.TitlePart;
 import java.time.Duration;
 import java.util.List;
 import java.util.Map;
-import java.util.Optional;
 import java.util.UUID;
 import java.util.concurrent.ConcurrentHashMap;
 import java.util.concurrent.atomic.AtomicBoolean;
@@ -43,8 +64,7 @@ public class AdventureIntegration {
             "bossbar",
             "bossbar-remove",
             "player-list",
-            "open-book"
-    );
+            "open-book");
 
     private final Connection natsConnection;
     private final String networkId;
@@ -53,19 +73,24 @@ public class AdventureIntegration {
     private final String groupName;
 
     private final AtomicBoolean running = new AtomicBoolean(false);
-    private final Map<String, BossBar> activeBossBars = new ConcurrentHashMap<>();
+    private final Map<String, Map<UUID, BossBar>> activeBossBars = new ConcurrentHashMap<>();
 
     private Dispatcher dispatcher;
 
     /**
      * Creates an integration for actions sent to a player on this server, to this server, or to its group.
      */
-    public AdventureIntegration(CloudApiImpl cloudApi, PlayerAudiences playerAudiences, String serverId, String groupName) {
+    public AdventureIntegration(
+            CloudApiImpl cloudApi, PlayerAudiences playerAudiences, String serverId, String groupName) {
         this(cloudApi.getNatsConnection(), cloudApi.getNetworkId(), playerAudiences, serverId, groupName);
     }
 
-    AdventureIntegration(Connection natsConnection, String networkId, PlayerAudiences playerAudiences,
-                         String serverId, String groupName) {
+    AdventureIntegration(
+            Connection natsConnection,
+            String networkId,
+            PlayerAudiences playerAudiences,
+            String serverId,
+            String groupName) {
         this.natsConnection = natsConnection;
         this.networkId = networkId;
         this.playerAudiences = playerAudiences;
@@ -110,31 +135,35 @@ public class AdventureIntegration {
                 Thread.currentThread().interrupt();
             }
         }
+        activeBossBars.clear();
     }
 
     private void handlePlayerMessage(Message msg) {
-        Optional<Audience> player = findAddressedPlayer(msg.getSubject());
-        // Every server receives player actions; only the server holding the player runs them.
-        if (player.isEmpty()) return;
+        UUID playerId = extractPlayerId(msg.getSubject());
+        if (playerId == null) return;
 
-        String action = extractAction(msg.getSubject());
-        executeAction(action, msg, player.get());
+        PlayerAction action = prepareAction(extractAction(msg.getSubject()), msg);
+        if (action == null) return;
+
+        // Every server receives player actions; only the server holding the player runs them.
+        playerAudiences.runForPlayer(playerId, action);
     }
 
     private void handleBroadcastMessage(Message msg) {
-        String action = extractAction(msg.getSubject());
-        executeAction(action, msg, playerAudiences.allPlayers());
+        PlayerAction action = prepareAction(extractAction(msg.getSubject()), msg);
+        if (action == null) return;
+
+        playerAudiences.runForAllPlayers(action);
     }
 
-    private Optional<Audience> findAddressedPlayer(String subject) {
+    private UUID extractPlayerId(String subject) {
         // Subject pattern: {networkId}.adventure.player.{uuid}.{action}
         String[] parts = subject.split("\\.");
-        String playerToken = parts[parts.length - 2];
+        if (parts.length < 2) return null;
         try {
-            UUID playerId = UUID.fromString(playerToken);
-            return playerAudiences.findPlayer(playerId);
+            return UUID.fromString(parts[parts.length - 2]);
         } catch (IllegalArgumentException e) {
-            return Optional.empty();
+            return null;
         }
     }
 
@@ -143,118 +172,121 @@ public class AdventureIntegration {
         return parts.length > 0 ? parts[parts.length - 1] : "";
     }
 
-    private void executeAction(String action, Message msg, Audience audience) {
+    private PlayerAction prepareAction(String action, Message msg) {
         try {
-            switch (action) {
-                case "message":
-                    SendMessageRequest msgReq = SendMessageRequest.parseFrom(msg.getData());
-                    audience.sendMessage(deserialize(msgReq.getMessage()));
-                    break;
-                case "actionbar":
-                    SendActionbarRequest abReq = SendActionbarRequest.parseFrom(msg.getData());
-                    audience.sendActionBar(deserialize(abReq.getMessage()));
-                    break;
-                case "title":
-                    SendTitleRequest titleReq = SendTitleRequest.parseFrom(msg.getData());
-                    audience.sendTitlePart(TitlePart.TITLE, deserialize(titleReq.getTitle()));
-                    break;
-                case "subtitle":
-                    SendSubtitleRequest subReq = SendSubtitleRequest.parseFrom(msg.getData());
-                    audience.sendTitlePart(TitlePart.SUBTITLE, deserialize(subReq.getSubtitle()));
-                    break;
-                case "title-times":
-                    SendTitleTimesRequest timesReq = SendTitleTimesRequest.parseFrom(msg.getData());
-                    TitleTimes times = timesReq.getTimes();
+            return switch (action) {
+                case "message" -> {
+                    Component message = deserialize(
+                            SendMessageRequest.parseFrom(msg.getData()).getMessage());
+                    yield (playerId, player) -> player.sendMessage(message);
+                }
+                case "actionbar" -> {
+                    Component message = deserialize(
+                            SendActionbarRequest.parseFrom(msg.getData()).getMessage());
+                    yield (playerId, player) -> player.sendActionBar(message);
+                }
+                case "title" -> {
+                    Component title = deserialize(
+                            SendTitleRequest.parseFrom(msg.getData()).getTitle());
+                    yield (playerId, player) -> player.sendTitlePart(TitlePart.TITLE, title);
+                }
+                case "subtitle" -> {
+                    Component subtitle = deserialize(
+                            SendSubtitleRequest.parseFrom(msg.getData()).getSubtitle());
+                    yield (playerId, player) -> player.sendTitlePart(TitlePart.SUBTITLE, subtitle);
+                }
+                case "title-times" -> {
+                    TitleTimes times =
+                            SendTitleTimesRequest.parseFrom(msg.getData()).getTimes();
                     Title.Times titleTimes = Title.Times.times(
                             Duration.ofMillis(times.getFadeInMs()),
                             Duration.ofMillis(times.getStayMs()),
-                            Duration.ofMillis(times.getFadeOutMs())
-                    );
-                    audience.sendTitlePart(TitlePart.TIMES, titleTimes);
-                    break;
-                case "clear-title":
-                    audience.clearTitle();
-                    break;
-                case "reset-title":
-                    audience.resetTitle();
-                    break;
-                case "sound":
-                    SendPlaySoundRequest soundReq = SendPlaySoundRequest.parseFrom(msg.getData());
-                    audience.playSound(convertSound(soundReq.getSound()));
-                    break;
-                case "sound-at":
-                    SendPlaySoundAtCoordinatesRequest soundAtReq = SendPlaySoundAtCoordinatesRequest.parseFrom(msg.getData());
-                    SoundCoordinates coords = soundAtReq.getCoordinates();
-                    audience.playSound(convertSound(soundAtReq.getSound()), coords.getX(), coords.getY(), coords.getZ());
-                    break;
-                case "stop-sound":
-                    SendStopSoundRequest stopReq = SendStopSoundRequest.parseFrom(msg.getData());
-                    if (stopReq.hasSound()) {
-                        audience.stopSound(net.kyori.adventure.sound.SoundStop.named(Key.key(stopReq.getSound())));
-                    } else if (stopReq.hasSource()) {
-                        audience.stopSound(net.kyori.adventure.sound.SoundStop.source(convertSoundSource(stopReq.getSource())));
-                    } else {
-                        audience.stopSound(net.kyori.adventure.sound.SoundStop.all());
-                    }
-                    break;
-                case "bossbar":
-                    SendBossBarRequest bbReq = SendBossBarRequest.parseFrom(msg.getData());
-                    handleBossBar(audience, bbReq);
-                    break;
-                case "bossbar-remove":
-                    SendBossBarRemoveRequest bbRemReq = SendBossBarRemoveRequest.parseFrom(msg.getData());
-                    handleBossBarRemove(audience, bbRemReq);
-                    break;
-                case "player-list":
-                    SendPlayerListHeaderAndFooterRequest plReq = SendPlayerListHeaderAndFooterRequest.parseFrom(msg.getData());
-                    audience.sendPlayerListHeaderAndFooter(deserialize(plReq.getHeader()), deserialize(plReq.getFooter()));
-                    break;
-                case "open-book":
-                    SendOpenBookRequest bookReq = SendOpenBookRequest.parseFrom(msg.getData());
-                    handleOpenBook(audience, bookReq);
-                    break;
-            }
+                            Duration.ofMillis(times.getFadeOutMs()));
+                    yield (playerId, player) -> player.sendTitlePart(TitlePart.TIMES, titleTimes);
+                }
+                case "clear-title" -> (playerId, player) -> player.clearTitle();
+                case "reset-title" -> (playerId, player) -> player.resetTitle();
+                case "sound" -> {
+                    Sound sound = convertSound(
+                            SendPlaySoundRequest.parseFrom(msg.getData()).getSound());
+                    yield (playerId, player) -> player.playSound(sound);
+                }
+                case "sound-at" -> {
+                    SendPlaySoundAtCoordinatesRequest request =
+                            SendPlaySoundAtCoordinatesRequest.parseFrom(msg.getData());
+                    Sound sound = convertSound(request.getSound());
+                    SoundCoordinates coords = request.getCoordinates();
+                    yield (playerId, player) -> player.playSound(sound, coords.getX(), coords.getY(), coords.getZ());
+                }
+                case "stop-sound" -> {
+                    SoundStop soundStop = convertSoundStop(SendStopSoundRequest.parseFrom(msg.getData()));
+                    yield (playerId, player) -> player.stopSound(soundStop);
+                }
+                case "bossbar" -> prepareBossBar(SendBossBarRequest.parseFrom(msg.getData()));
+                case "bossbar-remove" -> prepareBossBarRemove(SendBossBarRemoveRequest.parseFrom(msg.getData()));
+                case "player-list" -> {
+                    SendPlayerListHeaderAndFooterRequest request =
+                            SendPlayerListHeaderAndFooterRequest.parseFrom(msg.getData());
+                    Component header = deserialize(request.getHeader());
+                    Component footer = deserialize(request.getFooter());
+                    yield (playerId, player) -> player.sendPlayerListHeaderAndFooter(header, footer);
+                }
+                case "open-book" -> {
+                    Book book = convertBook(
+                            SendOpenBookRequest.parseFrom(msg.getData()).getBook());
+                    yield (playerId, player) -> player.openBook(book);
+                }
+                default -> null;
+            };
         } catch (Exception ignored) {
+            return null;
         }
     }
 
-    private void handleBossBar(Audience audience, SendBossBarRequest request) {
+    private PlayerAction prepareBossBar(SendBossBarRequest request) {
         AdventureBossBar config = request.getBossBar();
-
         BossBar bossBar = BossBar.bossBar(
                 deserialize(config.getTitle()),
                 config.getProgress(),
                 convertBossBarColor(config.getColor()),
-                convertBossBarOverlay(config.getOverlay())
-        );
+                convertBossBarOverlay(config.getOverlay()));
 
-        BossBar oldBar = activeBossBars.put(config.getId(), bossBar);
-        if (oldBar != null) {
-            audience.hideBossBar(oldBar);
-        }
-
-        audience.showBossBar(bossBar);
+        return (playerId, player) -> {
+            Map<UUID, BossBar> perPlayerBossBars =
+                    activeBossBars.computeIfAbsent(config.getId(), ignored -> new ConcurrentHashMap<>());
+            BossBar oldBar = perPlayerBossBars.put(playerId, bossBar);
+            if (oldBar != null) {
+                player.hideBossBar(oldBar);
+            }
+            player.showBossBar(bossBar);
+        };
     }
 
-    private void handleBossBarRemove(Audience audience, SendBossBarRemoveRequest request) {
-        BossBar bossBar = activeBossBars.remove(request.getBossBarId());
-        if (bossBar != null) {
-            audience.hideBossBar(bossBar);
-        }
+    private PlayerAction prepareBossBarRemove(SendBossBarRemoveRequest request) {
+        String bossBarId = request.getBossBarId();
+        return (playerId, player) -> {
+            Map<UUID, BossBar> perPlayerBossBars = activeBossBars.get(bossBarId);
+            if (perPlayerBossBars == null) return;
+
+            BossBar bossBar = perPlayerBossBars.remove(playerId);
+            if (bossBar != null) {
+                player.hideBossBar(bossBar);
+            }
+            if (perPlayerBossBars.isEmpty()) {
+                activeBossBars.remove(bossBarId, perPlayerBossBars);
+            }
+        };
     }
 
-    private void handleOpenBook(Audience audience, SendOpenBookRequest request) {
-        AdventureBook bookConfig = request.getBook();
-
-        net.kyori.adventure.inventory.Book.Builder bookBuilder = net.kyori.adventure.inventory.Book.builder()
-                .title(deserialize(bookConfig.getTitle()))
-                .author(deserialize(bookConfig.getAuthor()));
+    private Book convertBook(AdventureBook bookConfig) {
+        Book.Builder bookBuilder =
+                Book.builder().title(deserialize(bookConfig.getTitle())).author(deserialize(bookConfig.getAuthor()));
 
         for (AdventureComponent page : bookConfig.getPagesList()) {
             bookBuilder.addPage(deserialize(page));
         }
 
-        audience.openBook(bookBuilder.build());
+        return bookBuilder.build();
     }
 
     private Component deserialize(AdventureComponent component) {
@@ -266,8 +298,17 @@ public class AdventureIntegration {
                 Key.key(protoSound.getSound()),
                 convertSoundSource(protoSound.getSource()),
                 protoSound.getVolume(),
-                protoSound.getPitch()
-        );
+                protoSound.getPitch());
+    }
+
+    private SoundStop convertSoundStop(SendStopSoundRequest request) {
+        if (request.hasSound()) {
+            return SoundStop.named(Key.key(request.getSound()));
+        }
+        if (request.hasSource()) {
+            return SoundStop.source(convertSoundSource(request.getSource()));
+        }
+        return SoundStop.all();
     }
 
     private Sound.Source convertSoundSource(SoundSource source) {

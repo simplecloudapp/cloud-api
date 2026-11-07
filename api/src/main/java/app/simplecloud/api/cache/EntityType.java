@@ -8,5 +8,6 @@ public enum EntityType {
     SERVER,
     GROUP,
     PERSISTENT_SERVER,
-    PLAYER
+    PLAYER,
+    BLUEPRINT
 }

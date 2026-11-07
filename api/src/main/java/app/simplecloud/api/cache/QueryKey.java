@@ -4,27 +4,7 @@ import java.util.Arrays;
 import java.util.Objects;
 
 /**
- * Represents a cache key for queries, similar to TanStack Query's query keys.
- *
- * <p>Query keys are arrays that uniquely identify a query. They support hierarchical
- * matching for invalidation patterns.
- *
- * <p>Example keys:
- * <pre>{@code
- * QueryKey.of("server", serverId)              // Single server by ID
- * QueryKey.of("servers", "group", groupName)   // Servers filtered by group
- * QueryKey.of("servers")                       // All servers
- * QueryKey.of("groups")                        // All groups
- * QueryKey.of("group", groupId)                // Single group by ID
- * }</pre>
- *
- * <p>Hierarchical matching for invalidation:
- * <pre>{@code
- * // Invalidating QueryKey.of("servers") will also invalidate:
- * // - QueryKey.of("servers", "group", "Lobby")
- * // - QueryKey.of("servers", "query", ...)
- * cache.invalidateAll(QueryKey.of("servers"));
- * }</pre>
+ * Identifies a cached query by a list of parts.
  */
 public final class QueryKey {
 
@@ -47,7 +27,10 @@ public final class QueryKey {
     }
 
     /**
-     * Returns the entity type inferred from this key, or null if unknown.
+     * Returns the entity type inferred from the first part, for example {@code "servers"} for
+     * {@link EntityType#SERVER}.
+     *
+     * @return the entity type, or null if unknown
      */
     public EntityType getEntityType() {
         if (parts.length == 0) return null;
@@ -57,6 +40,7 @@ public final class QueryKey {
             case "group", "groups" -> EntityType.GROUP;
             case "persistentServer", "persistentServers" -> EntityType.PERSISTENT_SERVER;
             case "player", "players" -> EntityType.PLAYER;
+            case "blueprint", "blueprints" -> EntityType.BLUEPRINT;
             default -> null;
         };
     }

@@ -9,30 +9,13 @@ import java.util.function.Predicate;
 import java.util.function.Supplier;
 
 /**
- * Query cache interface providing TanStack Query-like caching semantics.
+ * Cache for controller queries.
  *
- * <p>Key features:
  * <ul>
  *   <li><b>Stale-while-revalidate</b>: Returns cached data immediately, refetches in background if stale</li>
  *   <li><b>Query deduplication</b>: Multiple simultaneous identical requests share one network call</li>
  *   <li><b>Automatic garbage collection</b>: Unused cache entries are evicted after cache time</li>
  * </ul>
- *
- * <p>Example usage:
- * <pre>{@code
- * // Manual cache invalidation
- * cloudApi.cache().invalidate(QueryKey.of("server", serverId));
- * cloudApi.cache().invalidateAll(QueryKey.of("servers"));
- *
- * // Check cache state
- * CacheEntry<Server> entry = cloudApi.cache().get(QueryKey.of("server", serverId));
- * if (entry != null) {
- *     System.out.println("Cached at: " + entry.getFetchedAt());
- * }
- *
- * // Get statistics
- * System.out.println(cloudApi.cache().getStats());
- * }</pre>
  */
 public interface QueryCache {
 
@@ -76,8 +59,7 @@ public interface QueryCache {
             Supplier<CompletableFuture<T>> fetcher,
             Predicate<T> isTransientMiss,
             Duration retryDelay,
-            int maxRetries
-    ) {
+            int maxRetries) {
         Objects.requireNonNull(key, "key");
         Objects.requireNonNull(fetcher, "fetcher");
         Objects.requireNonNull(isTransientMiss, "isTransientMiss");
@@ -91,14 +73,8 @@ public interface QueryCache {
         }
 
         return fetch(key, fetcher)
-                .thenCompose(result -> recoverTransientMiss(
-                        key,
-                        fetcher,
-                        isTransientMiss,
-                        retryDelay,
-                        maxRetries,
-                        result
-                ));
+                .thenCompose(
+                        result -> recoverTransientMiss(key, fetcher, isTransientMiss, retryDelay, maxRetries, result));
     }
 
     /**
@@ -173,8 +149,7 @@ public interface QueryCache {
             Predicate<T> isTransientMiss,
             Duration retryDelay,
             int retriesRemaining,
-            T result
-    ) {
+            T result) {
         if (!isTransientMiss.test(result)) {
             return CompletableFuture.completedFuture(result);
         }
@@ -184,11 +159,8 @@ public interface QueryCache {
             return CompletableFuture.completedFuture(result);
         }
 
-        return CompletableFuture
-                .supplyAsync(
-                        () -> null,
-                        CompletableFuture.delayedExecutor(retryDelay.toMillis(), TimeUnit.MILLISECONDS)
-                )
+        return CompletableFuture.supplyAsync(
+                        () -> null, CompletableFuture.delayedExecutor(retryDelay.toMillis(), TimeUnit.MILLISECONDS))
                 .thenCompose(ignored -> fetcher.get())
                 .thenCompose(retriedResult -> {
                     if (!isTransientMiss.test(retriedResult)) {
@@ -197,13 +169,7 @@ public interface QueryCache {
                     }
 
                     return recoverTransientMiss(
-                            key,
-                            fetcher,
-                            isTransientMiss,
-                            retryDelay,
-                            retriesRemaining - 1,
-                            retriedResult
-                    );
+                            key, fetcher, isTransientMiss, retryDelay, retriesRemaining - 1, retriedResult);
                 });
     }
 }

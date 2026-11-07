@@ -2,8 +2,12 @@ package app.simplecloud.api.group;
 
 import org.jetbrains.annotations.Nullable;
 
+/**
+ * Which hosts may run the servers of a group. How {@link #getHosts()} is used depends on the {@link DeploymentStrategy}.
+ */
 public class DeploymentConfig {
     private DeploymentHost[] hosts;
+
     @Nullable
     private DeploymentStrategy strategy;
 
@@ -58,4 +62,3 @@ public class DeploymentConfig {
         }
     }
 }
-

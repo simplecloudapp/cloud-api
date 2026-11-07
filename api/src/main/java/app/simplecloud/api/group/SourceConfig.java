@@ -2,16 +2,20 @@ package app.simplecloud.api.group;
 
 import org.jetbrains.annotations.Nullable;
 
+/**
+ * What servers are created from: a blueprint or a container image, depending on {@link #getType()}.
+ */
 public class SourceConfig {
     @Nullable
     private SourceType type;
+
     @Nullable
     private String blueprint;
+
     @Nullable
     private String image;
 
-    public SourceConfig() {
-    }
+    public SourceConfig() {}
 
     public static Builder builder() {
         return new Builder();
@@ -26,6 +30,9 @@ public class SourceConfig {
         this.type = type;
     }
 
+    /**
+     * @return the ID of the blueprint, or null if not set
+     */
     @Nullable
     public String getBlueprint() {
         return blueprint;
@@ -35,6 +42,9 @@ public class SourceConfig {
         this.blueprint = blueprint;
     }
 
+    /**
+     * @return the container image reference, for example {@code ghcr.io/user/image:latest}, or null if not set
+     */
     @Nullable
     public String getImage() {
         return image;

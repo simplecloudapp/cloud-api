@@ -4,33 +4,40 @@ import app.simplecloud.api.CloudApiException;
 import app.simplecloud.api.CloudApiOptions;
 import app.simplecloud.api.cache.QueryCache;
 import app.simplecloud.api.cache.QueryKey;
-import app.simplecloud.api.internal.web.ApiClients;
-import app.simplecloud.api.internal.web.ApiErrors;
-import app.simplecloud.api.internal.web.Identifiers;
+import app.simplecloud.api.internal.util.ValidationUtil;
+import app.simplecloud.api.internal.web.ApiCalls;
+import app.simplecloud.api.internal.web.ApiExceptions;
+import app.simplecloud.api.internal.workflow.WorkflowResults;
 import app.simplecloud.api.server.Server;
 import app.simplecloud.api.server.ServerApi;
 import app.simplecloud.api.server.ServerQuery;
 import app.simplecloud.api.server.UpdateServerRequest;
-import app.simplecloud.api.web.ApiException;
 import app.simplecloud.api.web.ApiClient;
+import app.simplecloud.api.web.ApiException;
 import app.simplecloud.api.web.apis.ServersApi;
 import app.simplecloud.api.web.models.ModelsDeletePropertiesRequest;
-import app.simplecloud.api.web.models.ModelsDeletePropertiesResponse;
 import app.simplecloud.api.web.models.ModelsListServersResponse;
 import app.simplecloud.api.web.models.ModelsPatchPropertiesRequest;
-import app.simplecloud.api.web.models.ModelsPatchPropertiesResponse;
 import app.simplecloud.api.web.models.ModelsPatchServerRequest;
 import app.simplecloud.api.web.models.ModelsPatchServerResponse;
+import app.simplecloud.api.web.models.ModelsSendCommandRequest;
 import app.simplecloud.api.web.models.ModelsServerSummary;
+import app.simplecloud.api.workflow.WorkflowExecutionResult;
 import org.jetbrains.annotations.NotNull;
 import org.jetbrains.annotations.Nullable;
 
 import java.time.Duration;
-import java.util.*;
+import java.util.HashMap;
+import java.util.List;
+import java.util.Locale;
+import java.util.Map;
+import java.util.Objects;
+import java.util.Optional;
 import java.util.concurrent.CompletableFuture;
 import java.util.concurrent.Executor;
-import java.util.concurrent.ForkJoinPool;
 import java.util.logging.Logger;
+
+import static app.simplecloud.api.internal.util.ValidationUtil.requireNotBlank;
 
 public class ServerApiImpl implements ServerApi {
     private static final Logger LOGGER = Logger.getLogger(ServerApiImpl.class.getName());
@@ -42,53 +49,41 @@ public class ServerApiImpl implements ServerApi {
     private final QueryCache cache;
     private final Executor executor;
 
-    public ServerApiImpl(CloudApiOptions options, QueryCache cache) {
-        this(options, cache, ApiClients.create(options));
-    }
-
-    public ServerApiImpl(CloudApiOptions options, QueryCache cache, ApiClient httpClient) {
-        this(options, cache, httpClient, ForkJoinPool.commonPool());
-    }
-
     public ServerApiImpl(CloudApiOptions options, QueryCache cache, ApiClient httpClient, Executor executor) {
-        this(options, cache, createServersApi(options, httpClient), executor);
-    }
-
-    private ServerApiImpl(CloudApiOptions options, QueryCache cache, ServersApi serversApi, Executor executor) {
         this.options = options;
         this.cache = cache;
-        this.serversApi = serversApi;
+        this.serversApi = new ServersApi(httpClient);
         this.executor = executor;
     }
 
     @Override
     public CompletableFuture<Server> getServerById(String id) {
-        return findServerById(id).thenApply(server -> server.orElseThrow(
-                () -> ApiErrors.notFound("Server with ID '" + id + "' not found")
-        ));
+        return findServerById(id)
+                .thenApply(server ->
+                        server.orElseThrow(() -> ApiExceptions.notFound("Server with ID '" + id + "' not found")));
     }
 
     @Override
     public CompletableFuture<Optional<Server>> findServerById(String id) {
-        if (!Identifiers.isUuid(id)) {
+        if (!ValidationUtil.isUuid(id)) {
             return CompletableFuture.completedFuture(Optional.empty());
         }
         QueryKey key = QueryKey.of("server", id);
 
         return cache.fetchWithTransientMissRecovery(
-                key,
-                () -> fetchServerByIdFromController(id),
-                Objects::isNull,
-                TRANSIENT_MISS_RETRY_DELAY,
-                TRANSIENT_MISS_MAX_RETRIES
-        ).thenApply(Optional::ofNullable);
+                        key,
+                        () -> fetchServerByIdFromController(id),
+                        Objects::isNull,
+                        TRANSIENT_MISS_RETRY_DELAY,
+                        TRANSIENT_MISS_MAX_RETRIES)
+                .thenApply(Optional::ofNullable);
     }
 
     @Override
     public CompletableFuture<Server> getServerByNumericalId(String groupName, int numericalId) {
-        return findServerByNumericalId(groupName, numericalId).thenApply(server -> server.orElseThrow(
-                () -> ApiErrors.notFound("Server '" + groupName + "-" + numericalId + "' not found")
-        ));
+        return findServerByNumericalId(groupName, numericalId)
+                .thenApply(server -> server.orElseThrow(
+                        () -> ApiExceptions.notFound("Server '" + groupName + "-" + numericalId + "' not found")));
     }
 
     @Override
@@ -96,40 +91,32 @@ public class ServerApiImpl implements ServerApi {
         QueryKey key = QueryKey.of("server", "numerical", groupName, numericalId);
 
         return cache.fetchWithTransientMissRecovery(
-                key,
-                () -> fetchServerByNumericalIdFromController(groupName, numericalId),
-                Objects::isNull,
-                TRANSIENT_MISS_RETRY_DELAY,
-                TRANSIENT_MISS_MAX_RETRIES
-        ).thenApply(Optional::ofNullable);
+                        key,
+                        () -> fetchServerByNumericalIdFromController(groupName, numericalId),
+                        Objects::isNull,
+                        TRANSIENT_MISS_RETRY_DELAY,
+                        TRANSIENT_MISS_MAX_RETRIES)
+                .thenApply(Optional::ofNullable);
     }
 
     @Override
     public CompletableFuture<List<Server>> getServersByGroup(String groupName) {
         QueryKey key = QueryKey.of("servers", "group", groupName);
 
-        return cache.fetch(key, () -> CompletableFuture.supplyAsync(() -> {
-            try {
-                ServerQuery query = ServerQuery.create()
-                        .filterByServerGroupName(groupName);
-                ModelsListServersResponse serversResponse = executeQuery(query);
-
-                List<ModelsServerSummary> servers = serversResponse.getServers();
-                if (servers == null) {
-                    return List.of();
-                }
-
-                return servers.stream()
-                        .<Server>map(ServerImpl::new)
-                        .toList();
-            } catch (ApiException e) {
-                throw ApiErrors.from(e);
-            }
-        }, executor));
+        return cache.fetch(
+                key,
+                () -> ApiCalls.supplyAsync(
+                        executor,
+                        () -> listServers(ServerQuery.create().filterByServerGroupName(groupName), null).stream()
+                                .filter(server -> server.getServerGroupId() != null
+                                        && !server.getServerGroupId().isEmpty())
+                                .<Server>map(ServerImpl::new)
+                                .toList()));
     }
 
     @Override
-    public CompletableFuture<List<Server>> getAllServers(@Nullable ServerQuery query) {
+    public CompletableFuture<List<Server>> getAllServers(@Nullable ServerQuery requestedQuery) {
+        ServerQuery query = requestedQuery == null ? null : requestedQuery.copy();
         QueryKey key = buildQueryKey(query);
 
         CompletableFuture<List<Server>> future;
@@ -139,62 +126,40 @@ public class ServerApiImpl implements ServerApi {
                     () -> fetchServersFromController(query),
                     List::isEmpty,
                     TRANSIENT_MISS_RETRY_DELAY,
-                    TRANSIENT_MISS_MAX_RETRIES
-            );
+                    TRANSIENT_MISS_MAX_RETRIES);
         } else {
             future = cache.fetch(key, () -> fetchServersFromController(query));
         }
 
         return future.thenApply(servers -> {
-                    if (debugEmptyServerResultsEnabled() && servers.isEmpty()) {
-                        logEmptyServerResult(query, key);
-                    }
-                    return servers;
-                });
+            if (debugEmptyServerResultsEnabled() && servers.isEmpty()) {
+                logEmptyServerResult(query, key);
+            }
+            return servers;
+        });
     }
 
     private CompletableFuture<List<Server>> fetchServersFromController(@Nullable ServerQuery query) {
-        return CompletableFuture.supplyAsync(() -> {
-            try {
-                ModelsListServersResponse serversResponse = executeQuery(query);
-
-                List<ModelsServerSummary> servers = serversResponse.getServers();
-                if (servers == null) {
-                    return List.of();
-                }
-
-                return servers.stream()
+        return ApiCalls.supplyAsync(
+                executor,
+                () -> listServers(query, null).stream()
                         .<Server>map(ServerImpl::new)
-                        .toList();
-            } catch (ApiException e) {
-                throw ApiErrors.from(e);
-            }
-        }, executor);
+                        .toList());
     }
 
     private CompletableFuture<Server> fetchServerByIdFromController(String id) {
-        return CompletableFuture.supplyAsync(() -> {
-            try {
-                ModelsListServersResponse response = executeQuery(null, id);
-                List<ModelsServerSummary> servers = response.getServers();
-                if (servers == null || servers.isEmpty()) {
-                    return null;
-                }
-                return servers.stream()
+        return ApiCalls.supplyAsync(
+                executor,
+                () -> listServers(null, id).stream()
                         .filter(summary -> id.equals(summary.getServerId()))
                         .findFirst()
                         .<Server>map(ServerImpl::new)
-                        .orElse(null);
-            } catch (ApiException e) {
-                throw ApiErrors.from(e);
-            }
-        }, executor);
+                        .orElse(null));
     }
 
     private CompletableFuture<Server> fetchServerByNumericalIdFromController(String groupName, int numericalId) {
-        ServerQuery query = ServerQuery.create()
-                .filterByServerGroupName(groupName)
-                .filterByNumericalId(numericalId);
+        ServerQuery query =
+                ServerQuery.create().filterByServerGroupName(groupName).filterByNumericalId(numericalId);
 
         return fetchServersFromController(query)
                 .thenApply(servers -> servers.stream()
@@ -233,8 +198,9 @@ public class ServerApiImpl implements ServerApi {
         if (query == null) {
             return QueryKey.of("servers");
         }
-        // Snapshot mutable builder state so cache keys remain stable after query construction.
-        return QueryKey.of("servers", "query",
+        return QueryKey.of(
+                "servers",
+                "query",
                 snapshot(query.getServerGroupIds()),
                 snapshot(query.getStates()),
                 query.getServerhostId(),
@@ -244,8 +210,9 @@ public class ServerApiImpl implements ServerApi {
                 snapshot(query.getServerGroupTags()),
                 snapshot(query.getNumericalIds()),
                 query.getSortBy(),
-                query.getSortOrder()
-        );
+                query.getSortOrder(),
+                query.getLimit(),
+                query.getOffset());
     }
 
     private static <T> List<T> snapshot(@Nullable List<T> values) {
@@ -253,7 +220,7 @@ public class ServerApiImpl implements ServerApi {
     }
 
     private void logEmptyServerResult(@Nullable ServerQuery query, QueryKey key) {
-        LOGGER.warning(() -> "getAllServers returned an empty result"
+        LOGGER.fine(() -> "getAllServers returned an empty result"
                 + " [runtimeServer=" + runtimeServerName()
                 + ", uniqueId=" + envValue("SIMPLECLOUD_UNIQUE_ID")
                 + ", group=" + envValue("SIMPLECLOUD_GROUP")
@@ -307,53 +274,60 @@ public class ServerApiImpl implements ServerApi {
         return value == null ? "" : value.trim();
     }
 
-    private ModelsListServersResponse executeQuery(@Nullable ServerQuery query) throws ApiException {
-        return executeQuery(query, null);
-    }
-
-    private ModelsListServersResponse executeQuery(@Nullable ServerQuery query, @Nullable String serverId) throws ApiException {
+    private List<ModelsServerSummary> listServers(@Nullable ServerQuery query, @Nullable String serverId)
+            throws ApiException {
         String serverGroupId = null;
-        if (query != null && query.getServerGroupIds() != null && !query.getServerGroupIds().isEmpty()) {
+        if (query != null
+                && query.getServerGroupIds() != null
+                && !query.getServerGroupIds().isEmpty()) {
             serverGroupId = String.join(",", query.getServerGroupIds());
         }
 
         String state = null;
         if (query != null && query.getStates() != null && !query.getStates().isEmpty()) {
-            state = query.getStates().stream()
-                    .map(Enum::name)
-                    .collect(java.util.stream.Collectors.joining(","));
+            state = query.getStates().stream().map(Enum::name).collect(java.util.stream.Collectors.joining(","));
         }
 
         String serverhostId = query != null ? query.getServerhostId() : null;
         String persistentServerId = query != null ? query.getPersistentServerId() : null;
 
         String serverGroupType = null;
-        if (query != null && query.getServerGroupTypes() != null && !query.getServerGroupTypes().isEmpty()) {
+        if (query != null
+                && query.getServerGroupTypes() != null
+                && !query.getServerGroupTypes().isEmpty()) {
             serverGroupType = query.getServerGroupTypes().stream()
                     .map(Enum::name)
                     .collect(java.util.stream.Collectors.joining(","));
         }
 
         String serverGroupName = null;
-        if (query != null && query.getServerGroupNames() != null && !query.getServerGroupNames().isEmpty()) {
+        if (query != null
+                && query.getServerGroupNames() != null
+                && !query.getServerGroupNames().isEmpty()) {
             serverGroupName = String.join(",", query.getServerGroupNames());
         }
 
         String serverGroupTags = null;
-        if (query != null && query.getServerGroupTags() != null && !query.getServerGroupTags().isEmpty()) {
+        if (query != null
+                && query.getServerGroupTags() != null
+                && !query.getServerGroupTags().isEmpty()) {
             serverGroupTags = String.join(",", query.getServerGroupTags());
         }
 
         String numericalIds = null;
-        if (query != null && query.getNumericalIds() != null && !query.getNumericalIds().isEmpty()) {
-            numericalIds = query.getNumericalIds().stream().map(Object::toString).collect(java.util.stream.Collectors.joining(","));
+        if (query != null
+                && query.getNumericalIds() != null
+                && !query.getNumericalIds().isEmpty()) {
+            numericalIds = query.getNumericalIds().stream()
+                    .map(Object::toString)
+                    .collect(java.util.stream.Collectors.joining(","));
         }
 
         String sortBy = query != null ? query.getSortBy() : null;
         String sortOrder = query != null ? query.getSortOrder() : null;
 
-        return serversApi.listServers(
-                this.options.getNetworkId(),
+        ModelsListServersResponse response = serversApi.listServers(
+                options.getNetworkId(),
                 serverId,
                 serverGroupId,
                 state,
@@ -365,67 +339,66 @@ public class ServerApiImpl implements ServerApi {
                 numericalIds,
                 sortBy,
                 sortOrder,
-                null,
-                null
-        );
-    }
-
-    private static ServersApi createServersApi(CloudApiOptions options, ApiClient httpClient) {
-        ServersApi serversApi = new ServersApi(httpClient);
-        serversApi.setCustomBaseUrl(options.getControllerUrl());
-        return serversApi;
+                query != null ? query.getLimit() : null,
+                query != null ? query.getOffset() : null);
+        List<ModelsServerSummary> servers = response.getServers();
+        return servers == null ? List.of() : servers;
     }
 
     @Override
     public CompletableFuture<Void> stopServer(String id) {
-        return CompletableFuture.runAsync(() -> {
-            try {
-                serversApi.stopServer(
-                        this.options.getNetworkId(),
-                        id
-                );
+        return ApiCalls.runAsync(executor, () -> {
+            serversApi.stopServer(options.getNetworkId(), id);
+            invalidateServers(id);
+        });
+    }
 
-                // Invalidate this server and list caches
-                cache.invalidate(QueryKey.of("server", id));
-                cache.invalidateAll(QueryKey.of("servers"));
-                cache.invalidateAll(QueryKey.of("server", "numerical"));
-            } catch (ApiException e) {
-                throw ApiErrors.from(e);
-            }
-        }, executor);
+    @Override
+    public CompletableFuture<Void> sendCommand(String id, String command) {
+        return ApiCalls.runAsync(executor, () -> {
+            requireNotBlank(id, "id");
+            ModelsSendCommandRequest request = new ModelsSendCommandRequest();
+            request.setCommand(requireNotBlank(command, "command"));
+            serversApi.sendCommand(options.getNetworkId(), id, request);
+        });
+    }
+
+    @Override
+    public CompletableFuture<WorkflowExecutionResult> executeWorkflow(String id, String workflowId) {
+        return ApiCalls.supplyAsync(
+                executor,
+                () -> WorkflowResults.fromServer(
+                        id,
+                        workflowId,
+                        serversApi.executeServerWorkflow(
+                                options.getNetworkId(),
+                                requireNotBlank(id, "id"),
+                                WorkflowResults.request(workflowId))));
     }
 
     @Override
     public CompletableFuture<Server> updateServer(String id, UpdateServerRequest request) {
-        return CompletableFuture.supplyAsync(() -> {
-            try {
-                ModelsPatchServerRequest patchRequest = getModelsPatchServerRequest(request);
-
-                ModelsPatchServerResponse response = serversApi.patchServer(
-                        this.options.getNetworkId(),
-                        id,
-                        patchRequest
-                );
-
-                if (response.getServer() == null) {
-                    throw new CloudApiException(
-                            CloudApiException.Reason.UNKNOWN,
-                            "Server update response did not contain server data"
-                    );
-                }
-
-                Server server = new ServerImpl(response.getServer());
-
-                // Update cache with new data and invalidate list caches
-                cache.set(QueryKey.of("server", id), server);
-                cache.invalidateAll(QueryKey.of("servers"));
-                cache.invalidateAll(QueryKey.of("server", "numerical"));
-
-                return server;
-            } catch (ApiException e) {
-                throw ApiErrors.from(e);
+        return ApiCalls.supplyAsync(executor, () -> {
+            ModelsPatchServerResponse response =
+                    serversApi.patchServer(options.getNetworkId(), id, getModelsPatchServerRequest(request));
+            if (response.getServer() == null) {
+                throw new CloudApiException(
+                        CloudApiException.Reason.UNKNOWN, "Server update response did not contain server data");
             }
-        }, executor);
+
+            Server server = new ServerImpl(response.getServer());
+            invalidateServers(null);
+            cache.set(QueryKey.of("server", id), server);
+            return server;
+        });
+    }
+
+    private void invalidateServers(@Nullable String id) {
+        if (id != null) {
+            cache.invalidate(QueryKey.of("server", id));
+        }
+        cache.invalidateAll(QueryKey.of("servers"));
+        cache.invalidateAll(QueryKey.of("server", "numerical"));
     }
 
     @NotNull
@@ -436,7 +409,8 @@ public class ServerApiImpl implements ServerApi {
         patchRequest.setMinMemory(request.getMinMemory());
         patchRequest.setProperties(request.getProperties());
         if (request.getState() != null) {
-            patchRequest.setState(ModelsPatchServerRequest.StateEnum.valueOf(request.getState().name()));
+            patchRequest.setState(ModelsPatchServerRequest.StateEnum.valueOf(
+                    request.getState().name()));
         }
         return patchRequest;
     }
@@ -446,61 +420,34 @@ public class ServerApiImpl implements ServerApi {
         String serverId = System.getenv("SIMPLECLOUD_UNIQUE_ID");
         if (serverId == null || serverId.isEmpty()) {
             return CompletableFuture.failedFuture(
-                    new IllegalStateException("SIMPLECLOUD_UNIQUE_ID environment variable is not set")
-            );
+                    new IllegalStateException("SIMPLECLOUD_UNIQUE_ID environment variable is not set"));
         }
         return getServerById(serverId);
     }
 
     @Override
     public CompletableFuture<Map<String, Object>> updateServerProperties(String id, Map<String, Object> properties) {
-        return CompletableFuture.supplyAsync(() -> {
-            try {
-                ModelsPatchPropertiesRequest request = new ModelsPatchPropertiesRequest();
-                request.setProperties(properties);
-
-                ModelsPatchPropertiesResponse response = serversApi.patchServerProperties(
-                        this.options.getNetworkId(),
-                        id,
-                        request
-                );
-
-                // Invalidate server cache (properties changed)
-                cache.invalidate(QueryKey.of("server", id));
-                cache.invalidateAll(QueryKey.of("servers"));
-                cache.invalidateAll(QueryKey.of("server", "numerical"));
-
-                Map<String, Object> result = response.getProperties();
-                return result != null ? result : new HashMap<>();
-            } catch (ApiException e) {
-                throw ApiErrors.from(e);
-            }
-        }, executor);
+        return ApiCalls.supplyAsync(executor, () -> {
+            ModelsPatchPropertiesRequest request = new ModelsPatchPropertiesRequest();
+            request.setProperties(properties);
+            Map<String, Object> result = serversApi
+                    .patchServerProperties(options.getNetworkId(), id, request)
+                    .getProperties();
+            invalidateServers(id);
+            return result != null ? result : new HashMap<>();
+        });
     }
 
     @Override
     public CompletableFuture<Map<String, Object>> deleteServerProperties(String id, List<String> keys) {
-        return CompletableFuture.supplyAsync(() -> {
-            try {
-                ModelsDeletePropertiesRequest request = new ModelsDeletePropertiesRequest();
-                request.setKeys(keys);
-
-                ModelsDeletePropertiesResponse response = serversApi.deleteServerProperties(
-                        this.options.getNetworkId(),
-                        id,
-                        request
-                );
-
-                // Invalidate server cache (properties changed)
-                cache.invalidate(QueryKey.of("server", id));
-                cache.invalidateAll(QueryKey.of("servers"));
-                cache.invalidateAll(QueryKey.of("server", "numerical"));
-
-                Map<String, Object> result = response.getProperties();
-                return result != null ? result : new HashMap<>();
-            } catch (ApiException e) {
-                throw ApiErrors.from(e);
-            }
-        }, executor);
+        return ApiCalls.supplyAsync(executor, () -> {
+            ModelsDeletePropertiesRequest request = new ModelsDeletePropertiesRequest();
+            request.setKeys(keys);
+            Map<String, Object> result = serversApi
+                    .deleteServerProperties(options.getNetworkId(), id, request)
+                    .getProperties();
+            invalidateServers(id);
+            return result != null ? result : new HashMap<>();
+        });
     }
 }

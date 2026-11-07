@@ -5,10 +5,18 @@ import org.jetbrains.annotations.Nullable;
 import java.util.List;
 import java.util.Map;
 
+/**
+ * Request object for {@link GroupApi#updateGroup(String, UpdateGroupRequest)}.
+ *
+ * <p>Only fields that are set are changed. Nested configurations replace the stored ones as a whole,
+ * and no create defaults are applied.
+ */
 public class UpdateGroupRequest {
     private String name;
+
     @Nullable
     private GroupServerType type;
+
     private Integer minMemory;
     private Integer maxMemory;
     private Integer maxPlayers;
@@ -21,8 +29,7 @@ public class UpdateGroupRequest {
     private Map<String, Object> properties;
     private List<String> tags;
 
-    public UpdateGroupRequest() {
-    }
+    public UpdateGroupRequest() {}
 
     public static Builder builder() {
         return new Builder();

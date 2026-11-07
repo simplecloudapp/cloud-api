@@ -1,8 +1,8 @@
 package app.simplecloud.api.internal.event.server;
 
-import app.simplecloud.api.internal.ProtoConversionUtil;
 import app.simplecloud.api.internal.persistentserver.PersistentServerImpl;
 import app.simplecloud.api.internal.server.ServerImpl;
+import app.simplecloud.api.internal.util.ProtoConversionUtil;
 import app.simplecloud.api.server.Server;
 import app.simplecloud.api.web.models.ModelsBlueprintInfo;
 import app.simplecloud.api.web.models.ModelsPersistentServerInfo;
@@ -32,8 +32,7 @@ import java.util.Map;
 final class ServerEventModelMapper {
     private static final Gson GSON = new Gson();
 
-    private ServerEventModelMapper() {
-    }
+    private ServerEventModelMapper() {}
 
     static Server mapServer(
             String networkId,
@@ -45,8 +44,7 @@ final class ServerEventModelMapper {
             @Nullable ServerState state,
             @Nullable ServerGroupConfig groupConfig,
             @Nullable PersistentServerConfig persistentServerConfig,
-            long timestamp
-    ) {
+            long timestamp) {
         ModelsServerSummary summary = new ModelsServerSummary();
         summary.setNetworkId(networkId);
         summary.setServerId(serverId);
@@ -69,12 +67,8 @@ final class ServerEventModelMapper {
             summary.setServerGroup(toGroupInfo(serverGroupId, groupConfig, timestamp));
         }
         if (persistentServerConfig != null && persistentServerConfig.hasBaseConfig()) {
-            ModelsPersistentServerInfo persistentServer = toPersistentServerInfo(
-                    persistentServerId,
-                    persistentServerConfig,
-                    runtimeInfo,
-                    timestamp
-            );
+            ModelsPersistentServerInfo persistentServer =
+                    toPersistentServerInfo(persistentServerId, persistentServerConfig, runtimeInfo, timestamp);
             summary.setPersistentServer(persistentServer);
             summary.setPersistentServerId(persistentServerId);
             server.setPersistentServer(new PersistentServerImpl(persistentServer));
@@ -84,10 +78,7 @@ final class ServerEventModelMapper {
     }
 
     private static void applyBaseConfig(
-            ModelsServerSummary summary,
-            @Nullable BaseServerConfig config,
-            @Nullable ServerRuntimeInfo runtimeInfo
-    ) {
+            ModelsServerSummary summary, @Nullable BaseServerConfig config, @Nullable ServerRuntimeInfo runtimeInfo) {
         if (config == null) {
             return;
         }
@@ -103,8 +94,7 @@ final class ServerEventModelMapper {
             ModelsServerSummary summary,
             @Nullable ServerRuntimeInfo runtimeInfo,
             @Nullable ServerState state,
-            @Nullable BaseServerConfig config
-    ) {
+            @Nullable BaseServerConfig config) {
         if (runtimeInfo != null) {
             summary.setNumericalId(runtimeInfo.getNumericalId());
             summary.setIp(runtimeInfo.getIp());
@@ -156,8 +146,7 @@ final class ServerEventModelMapper {
             String persistentServerId,
             PersistentServerConfig config,
             @Nullable ServerRuntimeInfo runtimeInfo,
-            long timestamp
-    ) {
+            long timestamp) {
         ModelsPersistentServerInfo persistent = new ModelsPersistentServerInfo();
         BaseServerConfig base = config.getBaseConfig();
 
@@ -193,7 +182,8 @@ final class ServerEventModelMapper {
         return getRuntimeIntField(runtimeInfo, "getPlayerCount", 0);
     }
 
-    private static int getRuntimeMaxPlayers(@Nullable ServerRuntimeInfo runtimeInfo, @Nullable BaseServerConfig config) {
+    private static int getRuntimeMaxPlayers(
+            @Nullable ServerRuntimeInfo runtimeInfo, @Nullable BaseServerConfig config) {
         if (runtimeInfo != null) {
             int runtimeMaxPlayers = getRuntimeIntField(runtimeInfo, "getMaxPlayers", -1);
             if (runtimeMaxPlayers >= 0) {
@@ -301,7 +291,8 @@ final class ServerEventModelMapper {
         return name;
     }
 
-    private static ModelsSourceConfig toSourceConfig(build.buf.gen.simplecloud.controller.v2.SourceConfig sourceConfig) {
+    private static ModelsSourceConfig toSourceConfig(
+            build.buf.gen.simplecloud.controller.v2.SourceConfig sourceConfig) {
         if (sourceConfig == null) {
             return null;
         }
@@ -351,7 +342,8 @@ final class ServerEventModelMapper {
         return name.toLowerCase(Locale.ROOT);
     }
 
-    private static ModelsBlueprintInfo toBlueprintInfo(build.buf.gen.simplecloud.controller.v2.BlueprintConfig blueprint) {
+    private static ModelsBlueprintInfo toBlueprintInfo(
+            build.buf.gen.simplecloud.controller.v2.BlueprintConfig blueprint) {
         ModelsBlueprintInfo result = new ModelsBlueprintInfo();
         result.setId(blueprint.getBlueprintId());
         result.setName(blueprint.getName());
@@ -364,7 +356,8 @@ final class ServerEventModelMapper {
         return result;
     }
 
-    private static ModelsWorkflowsConfig toWorkflowsConfig(build.buf.gen.simplecloud.controller.v2.WorkflowConfig workflowConfig) {
+    private static ModelsWorkflowsConfig toWorkflowsConfig(
+            build.buf.gen.simplecloud.controller.v2.WorkflowConfig workflowConfig) {
         if (workflowConfig == null) {
             return null;
         }
@@ -384,7 +377,8 @@ final class ServerEventModelMapper {
         return workflows;
     }
 
-    private static Map<String, Object> toWorkflowsMap(build.buf.gen.simplecloud.controller.v2.WorkflowConfig workflowConfig) {
+    private static Map<String, Object> toWorkflowsMap(
+            build.buf.gen.simplecloud.controller.v2.WorkflowConfig workflowConfig) {
         Map<String, Object> workflows = new LinkedHashMap<>();
         if (workflowConfig == null) {
             return workflows;

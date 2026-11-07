@@ -1,225 +1,170 @@
 package app.simplecloud.api.internal.cache;
 
-import app.simplecloud.api.CloudApiException;
 import app.simplecloud.api.cache.CacheConfig;
-import app.simplecloud.api.cache.CacheEntry;
+import app.simplecloud.api.cache.EntityCacheConfig;
+import app.simplecloud.api.cache.EntityType;
 import app.simplecloud.api.cache.QueryKey;
+import org.junit.jupiter.api.AfterEach;
 import org.junit.jupiter.api.Test;
 
 import java.time.Duration;
+import java.util.Objects;
 import java.util.concurrent.CompletableFuture;
-import java.util.concurrent.ExecutionException;
+import java.util.concurrent.CompletionException;
+import java.util.concurrent.CountDownLatch;
 import java.util.concurrent.TimeUnit;
 import java.util.concurrent.atomic.AtomicInteger;
 
 import static org.junit.jupiter.api.Assertions.assertEquals;
-import static org.junit.jupiter.api.Assertions.assertInstanceOf;
 import static org.junit.jupiter.api.Assertions.assertNotNull;
 import static org.junit.jupiter.api.Assertions.assertNull;
+import static org.junit.jupiter.api.Assertions.assertSame;
 import static org.junit.jupiter.api.Assertions.assertThrows;
 import static org.junit.jupiter.api.Assertions.assertTrue;
 
 class QueryCacheImplTest {
 
-    private static final Duration LONG_TIMEOUT = Duration.ofSeconds(2);
-    private static final Duration SHORT_TIMEOUT = Duration.ofMillis(200);
+    private static final QueryKey KEY = QueryKey.of("server", "a");
 
-    private static void assertUnavailable(Throwable error, String message) {
-        CloudApiException exception = assertInstanceOf(CloudApiException.class, error, message);
-        assertEquals(CloudApiException.Reason.UNAVAILABLE, exception.getReason(), message);
-    }
+    private QueryCacheImpl cache = new QueryCacheImpl(CacheConfig.DEFAULT);
 
-    private CacheConfig baseConfig() {
-        return CacheConfig.builder()
-                .defaultStaleTime(Duration.ofSeconds(30))
-                .defaultCacheTime(Duration.ofMinutes(1))
-                .build();
+    @AfterEach
+    void tearDown() {
+        cache.shutdown();
     }
 
     @Test
-    void fetch_cacheMiss_populatesCache() throws Exception {
-        QueryCacheImpl cache = new QueryCacheImpl(baseConfig(), LONG_TIMEOUT);
-        QueryKey key = QueryKey.of("test", "populate");
-
-        String result = cache.fetch(key, () -> CompletableFuture.completedFuture("value"))
-                .get(1, TimeUnit.SECONDS);
-
-        assertEquals("value", result);
-
-        CacheEntry<String> entry = cache.get(key);
-        assertNotNull(entry, "cache should contain the entry after a successful miss");
-        assertEquals("value", entry.getData());
-    }
-
-    @Test
-    void fetch_cacheHit_doesNotInvokeFetcher() throws Exception {
-        QueryCacheImpl cache = new QueryCacheImpl(baseConfig(), LONG_TIMEOUT);
-        QueryKey key = QueryKey.of("test", "hit");
+    void freshValueIsServedFromCache() {
         AtomicInteger calls = new AtomicInteger();
 
-        cache.fetch(key, () -> {
-            calls.incrementAndGet();
-            return CompletableFuture.completedFuture("v1");
-        }).get(1, TimeUnit.SECONDS);
+        cache.fetch(KEY, () -> completed(calls, "value")).join();
+        String second = cache.fetch(KEY, () -> completed(calls, "other")).join();
 
-        String result = cache.fetch(key, () -> {
-            calls.incrementAndGet();
-            return CompletableFuture.completedFuture("v2");
-        }).get(1, TimeUnit.SECONDS);
-
-        assertEquals("v1", result);
-        assertEquals(1, calls.get(), "second call must be served from cache");
+        assertEquals("value", second);
+        assertEquals(1, calls.get());
     }
 
     @Test
-    void fetch_concurrentCalls_deduplicateIntoSingleFetch() throws Exception {
-        QueryCacheImpl cache = new QueryCacheImpl(baseConfig(), LONG_TIMEOUT);
-        QueryKey key = QueryKey.of("test", "dedup");
+    void concurrentFetchesShareOneRequest() {
         AtomicInteger calls = new AtomicInteger();
-        CompletableFuture<String> gate = new CompletableFuture<>();
+        CompletableFuture<String> pending = new CompletableFuture<>();
 
-        CompletableFuture<String> a = cache.fetch(key, () -> {
+        CompletableFuture<String> first = cache.fetch(KEY, () -> {
             calls.incrementAndGet();
-            return gate;
+            return pending;
         });
-        CompletableFuture<String> b = cache.fetch(key, () -> {
-            calls.incrementAndGet();
-            return gate;
-        });
+        CompletableFuture<String> second = cache.fetch(KEY, () -> completed(calls, "other"));
+        pending.complete("value");
 
-        gate.complete("shared");
-
-        assertEquals("shared", a.get(1, TimeUnit.SECONDS));
-        assertEquals("shared", b.get(1, TimeUnit.SECONDS));
-        assertEquals(1, calls.get(), "concurrent callers must share one fetch");
+        assertEquals("value", first.join());
+        assertEquals("value", second.join());
+        assertEquals(1, calls.get());
     }
 
-    /**
-     * Regression test for the zombie in-flight bug.
-     *
-     * <p>Before the fix, if the upstream fetcher hung forever, the in-flight map entry
-     * was never removed. Every subsequent call dedup'd into the hanging future and
-     * the caller's .orTimeout() fired perpetually. The fix fails the stored future after
-     * {@code inFlightTimeout} so the map self-cleans.
-     */
     @Test
-    void fetch_hangingFetcher_storedFutureTimesOut() throws Exception {
-        QueryCacheImpl cache = new QueryCacheImpl(baseConfig(), SHORT_TIMEOUT);
-        QueryKey key = QueryKey.of("test", "hang");
-        CompletableFuture<String> neverCompletes = new CompletableFuture<>();
+    void staleValueIsReturnedWhileItIsRefreshed() throws InterruptedException {
+        cache.fetch(KEY, () -> CompletableFuture.completedFuture("old")).join();
+        cache.get(KEY).markStale();
+        CountDownLatch refreshed = new CountDownLatch(1);
 
-        CompletableFuture<String> result = cache.fetch(key, () -> neverCompletes);
+        String value = cache.fetch(KEY, () -> {
+                    refreshed.countDown();
+                    return CompletableFuture.completedFuture("new");
+                })
+                .join();
 
-        ExecutionException ex = assertThrows(
-                ExecutionException.class,
-                () -> result.get(1, TimeUnit.SECONDS)
-        );
-        assertUnavailable(ex.getCause(),
-                "hanging fetcher must time out via in-flight timeout");
+        assertEquals("old", value);
+        assertTrue(refreshed.await(5, TimeUnit.SECONDS));
     }
 
-    /**
-     * After the in-flight timeout fires, the next call must NOT see the zombie future.
-     * This is the key behavioral guarantee the fix provides.
-     */
     @Test
-    void fetch_afterInFlightTimeout_subsequentCallGetsFreshFetch() throws Exception {
-        QueryCacheImpl cache = new QueryCacheImpl(baseConfig(), SHORT_TIMEOUT);
-        QueryKey key = QueryKey.of("test", "recover");
-        CompletableFuture<String> neverCompletes = new CompletableFuture<>();
-
-        CompletableFuture<String> firstCall = cache.fetch(key, () -> neverCompletes);
-        assertThrows(ExecutionException.class, () -> firstCall.get(1, TimeUnit.SECONDS));
-
+    void failedFetchIsNotCached() {
         AtomicInteger calls = new AtomicInteger();
-        String recovered = cache.fetch(key, () -> {
+
+        CompletableFuture<String> failed = cache.fetch(KEY, () -> {
             calls.incrementAndGet();
-            return CompletableFuture.completedFuture("fresh");
-        }).get(1, TimeUnit.SECONDS);
-
-        assertEquals("fresh", recovered);
-        assertEquals(1, calls.get(), "fetcher must be invoked fresh; zombie future must not be reused");
-        assertNotNull(cache.get(key), "successful recovery should populate cache");
-    }
-
-    /**
-     * Ensures cache.put does NOT run if the fetcher completes after the in-flight timeout.
-     * JDK CompletableFuture.uniApply short-circuits when the downstream stage is already
-     * completed exceptionally, so late data must not pollute the cache.
-     */
-    @Test
-    void fetch_fetcherCompletesAfterTimeout_doesNotPolluteCache() throws Exception {
-        QueryCacheImpl cache = new QueryCacheImpl(baseConfig(), SHORT_TIMEOUT);
-        QueryKey key = QueryKey.of("test", "late");
-        CompletableFuture<String> lateCompletion = new CompletableFuture<>();
-
-        CompletableFuture<String> result = cache.fetch(key, () -> lateCompletion);
-        assertThrows(ExecutionException.class, () -> result.get(1, TimeUnit.SECONDS));
-
-        // Simulate the HTTP call finally returning after the caller already gave up.
-        lateCompletion.complete("late-data");
-        Thread.sleep(100);
-
-        assertNull(cache.get(key),
-                "cache must not be populated by a fetcher that completed after the timeout");
-    }
-
-    @Test
-    void fetch_fetcherThrows_clearsInFlightAndAllowsRetry() throws Exception {
-        QueryCacheImpl cache = new QueryCacheImpl(baseConfig(), LONG_TIMEOUT);
-        QueryKey key = QueryKey.of("test", "throws");
-
-        CompletableFuture<String> failing = new CompletableFuture<>();
-        failing.completeExceptionally(new RuntimeException("boom"));
-
-        CompletableFuture<String> firstCall = cache.fetch(key, () -> failing);
-        assertThrows(ExecutionException.class, () -> firstCall.get(1, TimeUnit.SECONDS));
-
-        String recovered = cache.fetch(key, () -> CompletableFuture.completedFuture("ok"))
-                .get(1, TimeUnit.SECONDS);
-        assertEquals("ok", recovered, "failed attempt must not leave a zombie in-flight entry");
-    }
-
-    /**
-     * Directly exercises {@link QueryCacheImpl#fetchWithDeduplication} with a supplier
-     * whose returned future never completes. The stored in-flight future must still
-     * complete (exceptionally, via the in-flight timeout) so the map entry is cleared
-     * and subsequent callers are not trapped in the zombie dedup slot.
-     */
-    @Test
-    void fetchWithDeduplication_supplierReturnsNeverCompletingFuture_returnedFutureStillCompletes()
-            throws Exception {
-        QueryCacheImpl cache = new QueryCacheImpl(baseConfig(), SHORT_TIMEOUT);
-        QueryKey key = QueryKey.of("test", "never-completes");
-        CompletableFuture<String> neverCompletes = new CompletableFuture<>();
-
-        CompletableFuture<String> returned = cache.fetchWithDeduplication(key, () -> neverCompletes);
-
-        // The key guarantee: the returned future must not hang forever.
-        ExecutionException ex = assertThrows(
-                ExecutionException.class,
-                () -> returned.get(1, TimeUnit.SECONDS),
-                "fetchWithDeduplication must return a future that eventually completes"
-        );
-        assertUnavailable(ex.getCause(),
-                "in-flight timeout must complete the future exceptionally with CloudApiException");
-        assertTrue(returned.isDone(), "returned future must be marked done after timeout");
-    }
-
-    @Test
-    void fetch_sharedHangingFuture_allCallersSeeTimeout() throws Exception {
-        QueryCacheImpl cache = new QueryCacheImpl(baseConfig(), SHORT_TIMEOUT);
-        QueryKey key = QueryKey.of("test", "shared-hang");
-        CompletableFuture<String> neverCompletes = new CompletableFuture<>();
-
-        CompletableFuture<String> a = cache.fetch(key, () -> neverCompletes);
-        CompletableFuture<String> b = cache.fetch(key, () -> {
-            throw new AssertionError("fetcher must not be invoked for dedup'd call");
+            return CompletableFuture.failedFuture(new IllegalStateException("controller down"));
         });
+        assertThrows(CompletionException.class, failed::join);
 
-        assertThrows(ExecutionException.class, () -> a.get(1, TimeUnit.SECONDS));
-        assertThrows(ExecutionException.class, () -> b.get(1, TimeUnit.SECONDS));
-        assertTrue(a.isCompletedExceptionally());
-        assertTrue(b.isCompletedExceptionally());
+        assertEquals("value", cache.fetch(KEY, () -> completed(calls, "value")).join());
+        assertEquals(2, calls.get());
+    }
+
+    @Test
+    void invalidateAllRemovesEveryKeyWithThePrefix() {
+        cache.set(QueryKey.of("servers"), "all");
+        cache.set(QueryKey.of("servers", "group", "lobby"), "lobby");
+        cache.set(QueryKey.of("groups"), "groups");
+
+        cache.invalidateAll(QueryKey.of("servers"));
+
+        assertNull(cache.get(QueryKey.of("servers")));
+        assertNull(cache.get(QueryKey.of("servers", "group", "lobby")));
+        assertNotNull(cache.get(QueryKey.of("groups")));
+    }
+
+    @Test
+    void disabledEntityTypeIsNeverCached() {
+        cache.shutdown();
+        cache = new QueryCacheImpl(CacheConfig.builder()
+                .entityConfig(
+                        EntityType.SERVER,
+                        EntityCacheConfig.builder().enabled(false).build())
+                .build());
+        AtomicInteger calls = new AtomicInteger();
+
+        cache.fetch(KEY, () -> completed(calls, "value")).join();
+        cache.fetch(KEY, () -> completed(calls, "value")).join();
+
+        assertEquals(2, calls.get());
+        assertNull(cache.get(KEY));
+    }
+
+    @Test
+    void transientMissIsRetriedAndTheHitIsCached() {
+        AtomicInteger calls = new AtomicInteger();
+
+        String value = cache.fetchWithTransientMissRecovery(
+                        KEY,
+                        () -> completed(calls, calls.get() == 0 ? null : "value"),
+                        Objects::isNull,
+                        Duration.ZERO,
+                        2)
+                .join();
+
+        assertEquals("value", value);
+        assertEquals(2, calls.get());
+        assertEquals("value", cache.get(KEY).getData());
+    }
+
+    @Test
+    void persistentMissIsNotCached() {
+        AtomicInteger calls = new AtomicInteger();
+
+        String value = cache.<String>fetchWithTransientMissRecovery(
+                        KEY, () -> completed(calls, null), Objects::isNull, Duration.ZERO, 1)
+                .join();
+
+        assertNull(value);
+        assertEquals(2, calls.get());
+        assertNull(cache.get(KEY));
+    }
+
+    @Test
+    void setReplacesCachedValue() {
+        cache.fetch(KEY, () -> CompletableFuture.completedFuture("old")).join();
+
+        cache.set(KEY, "new");
+
+        assertSame(
+                "new",
+                cache.fetch(KEY, () -> CompletableFuture.completedFuture("fetched"))
+                        .join());
+    }
+
+    private static <T> CompletableFuture<T> completed(AtomicInteger calls, T value) {
+        calls.incrementAndGet();
+        return CompletableFuture.completedFuture(value);
     }
 }

@@ -4,14 +4,17 @@ import org.jetbrains.annotations.Nullable;
 
 import java.util.List;
 
+/**
+ * Workflows that run automatically when a server starts or stops.
+ */
 public class WorkflowWhen {
     @Nullable
     private List<String> start;
+
     @Nullable
     private List<String> stop;
 
-    public WorkflowWhen() {
-    }
+    public WorkflowWhen() {}
 
     public static Builder builder() {
         return new Builder();

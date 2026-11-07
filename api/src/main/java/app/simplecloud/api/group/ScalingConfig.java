@@ -2,24 +2,35 @@ package app.simplecloud.api.group;
 
 import org.jetbrains.annotations.Nullable;
 
+/**
+ * How many servers of a group run.
+ *
+ * <p>The controller accepts 0 to 1000 for {@code minServers}, 1 to 1000 for {@code maxServers} and
+ * up to 1,000,000 for {@code availableSlots}.
+ */
 public class ScalingConfig {
     private int availableSlots;
     private int maxServers;
+    private boolean maxServersSet;
     private int minServers;
     private double playerThreshold;
     private boolean playerThresholdSet;
+
     @Nullable
     private ScaleDownConfig scaleDown;
+
     @Nullable
     private ScalingMode scalingMode;
 
-    public ScalingConfig() {
-    }
+    public ScalingConfig() {}
 
     public static Builder builder() {
         return new Builder();
     }
 
+    /**
+     * @return the number of free player slots to keep available, used with {@link ScalingMode#SLOTS}
+     */
     public int getAvailableSlots() {
         return availableSlots;
     }
@@ -34,6 +45,11 @@ public class ScalingConfig {
 
     public void setMaxServers(int maxServers) {
         this.maxServers = maxServers;
+        this.maxServersSet = true;
+    }
+
+    public boolean hasMaxServers() {
+        return maxServersSet;
     }
 
     public int getMinServers() {
@@ -78,6 +94,7 @@ public class ScalingConfig {
     public static class Builder {
         private int availableSlots;
         private int maxServers;
+        private boolean maxServersSet;
         private int minServers;
         private double playerThreshold;
         private boolean playerThresholdSet;
@@ -91,6 +108,7 @@ public class ScalingConfig {
 
         public Builder maxServers(int maxServers) {
             this.maxServers = maxServers;
+            this.maxServersSet = true;
             return this;
         }
 
@@ -118,7 +136,9 @@ public class ScalingConfig {
         public ScalingConfig build() {
             ScalingConfig config = new ScalingConfig();
             config.setAvailableSlots(availableSlots);
-            config.setMaxServers(maxServers);
+            if (maxServersSet) {
+                config.setMaxServers(maxServers);
+            }
             config.setMinServers(minServers);
             if (playerThresholdSet) {
                 config.setPlayerThreshold(playerThreshold);

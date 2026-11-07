@@ -30,8 +30,26 @@ class PersistentServerStoppedEventImpl implements PersistentServerStoppedEvent {
     }
 
     @Override
+    public boolean isCrashed() {
+        return delegate.getCrashed();
+    }
+
+    @Override
+    @Nullable
+    public Integer getExitCode() {
+        int exitCode = delegate.getExitCode();
+        return exitCode != 0 ? exitCode : null;
+    }
+
+    @Override
+    @Nullable
+    public String getReason() {
+        String reason = delegate.getReason();
+        return reason.isEmpty() ? null : reason;
+    }
+
+    @Override
     public String getTimestamp() {
         return Instant.ofEpochSecond(delegate.getTimestamp()).toString();
     }
 }
-

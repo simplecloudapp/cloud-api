@@ -1,15 +1,25 @@
 package app.simplecloud.api.internal.group;
 
-import app.simplecloud.api.group.*;
+import app.simplecloud.api.group.DeploymentConfig;
+import app.simplecloud.api.group.Group;
+import app.simplecloud.api.group.GroupServerType;
+import app.simplecloud.api.group.GroupStats;
+import app.simplecloud.api.group.ScalingConfig;
+import app.simplecloud.api.group.SourceConfig;
+import app.simplecloud.api.group.WorkflowsConfig;
+import app.simplecloud.api.internal.util.RestModelMapper;
+import app.simplecloud.api.server.ServerState;
 import app.simplecloud.api.web.models.ModelsServerGroupInfo;
+import app.simplecloud.api.web.models.ModelsServerGroupStats;
 import app.simplecloud.api.web.models.ModelsServerGroupSummary;
 import com.google.gson.Gson;
 import org.jetbrains.annotations.Nullable;
 
+import java.util.EnumMap;
 import java.util.List;
 import java.util.Map;
 
-public class GroupImpl implements app.simplecloud.api.group.Group {
+public class GroupImpl implements Group {
     private static final Gson GSON = new Gson();
     private final ModelsServerGroupSummary summaryDelegate;
     private final ModelsServerGroupInfo infoDelegate;
@@ -17,6 +27,7 @@ public class GroupImpl implements app.simplecloud.api.group.Group {
     private ScalingConfig scaling;
     private SourceConfig source;
     private WorkflowsConfig workflows;
+    private GroupStats stats;
 
     public GroupImpl(ModelsServerGroupSummary delegate) {
         this.summaryDelegate = delegate;
@@ -127,7 +138,7 @@ public class GroupImpl implements app.simplecloud.api.group.Group {
                 }
             }
             if (config != null) {
-                deployment = convertDeploymentConfig(config);
+                deployment = RestModelMapper.fromModel(config);
             }
         }
         return deployment;
@@ -147,7 +158,7 @@ public class GroupImpl implements app.simplecloud.api.group.Group {
                 }
             }
             if (config != null) {
-                scaling = convertScalingConfig(config);
+                scaling = RestModelMapper.fromModel(config);
             }
         }
         return scaling;
@@ -164,7 +175,8 @@ public class GroupImpl implements app.simplecloud.api.group.Group {
                 app.simplecloud.api.web.models.ModelsSourceInfo sourceInfo = infoDelegate.getSource();
                 if (sourceInfo != null) {
                     config = new app.simplecloud.api.web.models.ModelsSourceConfig();
-                    config.setType(app.simplecloud.api.web.models.ModelsSourceConfig.TypeEnum.fromValue(sourceInfo.getType()));
+                    config.setType(
+                            app.simplecloud.api.web.models.ModelsSourceConfig.TypeEnum.fromValue(sourceInfo.getType()));
                     app.simplecloud.api.web.models.ModelsBlueprintInfo blueprintInfo = sourceInfo.getBlueprint();
                     if (blueprintInfo != null) {
                         config.setBlueprint(blueprintInfo.getId());
@@ -173,7 +185,7 @@ public class GroupImpl implements app.simplecloud.api.group.Group {
                 }
             }
             if (config != null) {
-                source = convertSourceConfig(config);
+                source = RestModelMapper.fromModel(config);
             }
         }
         return source;
@@ -193,7 +205,7 @@ public class GroupImpl implements app.simplecloud.api.group.Group {
                 }
             }
             if (config != null) {
-                workflows = convertWorkflowsConfig(config);
+                workflows = RestModelMapper.fromModel(config);
             }
         }
         return workflows;
@@ -263,87 +275,29 @@ public class GroupImpl implements app.simplecloud.api.group.Group {
         return updatedAt;
     }
 
-    private DeploymentConfig convertDeploymentConfig(app.simplecloud.api.web.models.ModelsDeploymentConfig config) {
-        DeploymentConfig result = new DeploymentConfig();
-        String strategyStr = config.getStrategy();
-        if (strategyStr != null) {
-            try {
-                result.setStrategy(DeploymentStrategy.valueOf(strategyStr.toUpperCase()));
-            } catch (IllegalArgumentException ignored) {
-            }
-        }
-        if (config.getHosts() != null) {
-            DeploymentHost[] hosts = config.getHosts().stream()
-                    .map(h -> {
-                        DeploymentHost host = new DeploymentHost();
-                        host.setName(h.getName());
-                        host.setPriority(h.getPriority() != null ? h.getPriority() : 0);
-                        return host;
-                    })
-                    .toArray(DeploymentHost[]::new);
-            result.setHosts(hosts);
-        }
-        return result;
-    }
-
-    private ScalingConfig convertScalingConfig(app.simplecloud.api.web.models.ModelsScalingConfig config) {
-        ScalingConfig result = new ScalingConfig();
-        result.setAvailableSlots(config.getAvailableSlots() != null ? config.getAvailableSlots() : 0);
-        result.setMaxServers(config.getMaxServers() != null ? config.getMaxServers() : 0);
-        result.setMinServers(config.getMinServers() != null ? config.getMinServers() : 0);
-        if (config.getPlayerThreshold() != null) {
-            result.setPlayerThreshold(config.getPlayerThreshold().doubleValue());
-        }
-        if (config.getScalingMode() != null) {
-            ScalingMode scalingMode = convertScalingMode(config.getScalingMode().getValue());
-            if (scalingMode != null) {
-                result.setScalingMode(scalingMode);
-            }
-        }
-        if (config.getScaleDown() != null) {
-            ScaleDownConfig scaleDown = new ScaleDownConfig();
-            scaleDown.setIdleTime(config.getScaleDown().getIdleTime());
-            if (config.getScaleDown().getIgnorePlayers() != null) {
-                scaleDown.setIgnorePlayers(config.getScaleDown().getIgnorePlayers());
-            }
-            result.setScaleDown(scaleDown);
-        }
-        return result;
-    }
-
+    @Override
     @Nullable
-    private ScalingMode convertScalingMode(String scalingMode) {
-        return switch (scalingMode) {
-            case "SLOTS" -> ScalingMode.SLOTS;
-            case "SERVERS" -> ScalingMode.PLAYERS;
-            default -> null;
-        };
-    }
-
-    private SourceConfig convertSourceConfig(app.simplecloud.api.web.models.ModelsSourceConfig config) {
-        SourceConfig result = new SourceConfig();
-        String typeStr = config.getType() == null ? null : config.getType().getValue();
-        if (typeStr != null) {
-            try {
-                result.setType(SourceType.valueOf(typeStr.toUpperCase()));
-            } catch (IllegalArgumentException ignored) {
+    public GroupStats getStats() {
+        if (stats == null && summaryDelegate != null && summaryDelegate.getStats() != null) {
+            ModelsServerGroupStats model = summaryDelegate.getStats();
+            Map<ServerState, Integer> byState = new EnumMap<>(ServerState.class);
+            if (model.getServersByState() != null) {
+                model.getServersByState().forEach((state, count) -> {
+                    if (state == null || count == null) {
+                        return;
+                    }
+                    try {
+                        byState.merge(ServerState.parse(state), count, Integer::sum);
+                    } catch (IllegalArgumentException ignored) {
+                    }
+                });
             }
+            stats = new GroupStats(
+                    RestModelMapper.orZero(model.getTotalServers()),
+                    byState,
+                    RestModelMapper.orZero(model.getOnlinePlayers()));
         }
-        result.setBlueprint(config.getBlueprint());
-        result.setImage(config.getImage());
-        return result;
-    }
-
-    private WorkflowsConfig convertWorkflowsConfig(app.simplecloud.api.web.models.ModelsWorkflowsConfig config) {
-        WorkflowsConfig result = new WorkflowsConfig();
-        result.setManual(config.getManual());
-        if (config.getWhen() != null) {
-            WorkflowWhen when = new WorkflowWhen();
-            when.setStart(config.getWhen().getStart());
-            when.setStop(config.getWhen().getStop());
-            result.setWhen(when);
-        }
-        return result;
+        return stats;
     }
 
     private <T> T mapToModel(Map<String, Object> source, Class<T> type) {

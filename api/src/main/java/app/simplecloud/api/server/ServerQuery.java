@@ -8,17 +8,11 @@ import java.util.Arrays;
 import java.util.List;
 
 /**
- * Query parameters for filtering and sorting server lists.
+ * Filters and sorting for {@link ServerApi#getAllServers(ServerQuery)}.
  *
- * <p>Use the builder methods to construct queries. Example:
- * <pre>
- * ServerQuery query = ServerQuery.create()
- *     .filterByServerGroupId("group-123")
- *     .filterByState(ServerState.RUNNING, ServerState.STARTING)
- *     .filterByNumericalId(1, 5, 10)
- *     .sortBy("created_at")
- *     .sortOrder("desc");
- * </pre>
+ * <p>Filter methods that take several values match any of them, and repeated calls add to the earlier values.
+ *
+ * <p>The server group type, name and tag filters also match persistent servers with that type, name or tag.
  */
 public class ServerQuery {
     private List<String> serverGroupIds;
@@ -31,8 +25,35 @@ public class ServerQuery {
     private List<Integer> numericalIds;
     private String sortBy;
     private String sortOrder;
+    private Integer limit;
+    private Integer offset;
 
-    public ServerQuery() {
+    public ServerQuery() {}
+
+    /**
+     * Creates an independent copy of this query.
+     *
+     * @return a new query with the same filters and sorting
+     */
+    public ServerQuery copy() {
+        ServerQuery copy = new ServerQuery();
+        copy.serverGroupIds = copyList(serverGroupIds);
+        copy.states = copyList(states);
+        copy.serverhostId = serverhostId;
+        copy.persistentServerId = persistentServerId;
+        copy.serverGroupTypes = copyList(serverGroupTypes);
+        copy.serverGroupNames = copyList(serverGroupNames);
+        copy.serverGroupTags = copyList(serverGroupTags);
+        copy.numericalIds = copyList(numericalIds);
+        copy.sortBy = sortBy;
+        copy.sortOrder = sortOrder;
+        copy.limit = limit;
+        copy.offset = offset;
+        return copy;
+    }
+
+    private static <T> List<T> copyList(@Nullable List<T> list) {
+        return list == null ? null : new ArrayList<>(list);
     }
 
     @Nullable
@@ -111,7 +132,7 @@ public class ServerQuery {
     }
 
     /**
-     * Filter by one or more server group types.
+     * Filter by one or more server group types. Persistent servers of these types match too.
      *
      * @param types the server group types to filter by (e.g., SERVER, PROXY)
      * @return this query for chaining
@@ -130,7 +151,7 @@ public class ServerQuery {
     }
 
     /**
-     * Filter by one or more server group names.
+     * Filter by one or more server group names. Persistent servers with one of these names match too.
      *
      * @param names the server group names to filter by
      * @return this query for chaining
@@ -149,7 +170,8 @@ public class ServerQuery {
     }
 
     /**
-     * Filter by one or more server group tags (matches if any tag matches).
+     * Filter by one or more server group tags (matches if any tag matches). Persistent servers with one
+     * of these tags match too.
      *
      * @param tags the tags to filter by
      * @return this query for chaining
@@ -210,6 +232,38 @@ public class ServerQuery {
      */
     public ServerQuery sortOrder(String sortOrder) {
         this.sortOrder = sortOrder;
+        return this;
+    }
+
+    @Nullable
+    public Integer getLimit() {
+        return limit;
+    }
+
+    /**
+     * Limit the number of results. The controller accepts 1 to 500.
+     *
+     * @param limit maximum number of results to return
+     * @return this query for chaining
+     */
+    public ServerQuery limit(int limit) {
+        this.limit = limit;
+        return this;
+    }
+
+    @Nullable
+    public Integer getOffset() {
+        return offset;
+    }
+
+    /**
+     * Skips the first servers of the result. The controller only accepts an offset together with a limit.
+     *
+     * @param offset the number of servers to skip
+     * @return this query for chaining
+     */
+    public ServerQuery offset(int offset) {
+        this.offset = offset;
         return this;
     }
 

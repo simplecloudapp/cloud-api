@@ -8,8 +8,24 @@ import java.util.Arrays;
 import java.util.List;
 import java.util.UUID;
 
+/**
+ * Filters, sorting and paging for {@link PlayerApi#list(PlayerQuery)}.
+ *
+ * <p>Unset values use the controller defaults: no filter, sorted by {@link SortField#LAST_SEEN}
+ * {@link SortOrder#DESC}, at most 50 players. A player has to match all filters that are set.
+ *
+ * <pre>{@code
+ * PlayerQuery query = PlayerQuery.create()
+ *         .filterByOnline(true)
+ *         .search("steve")
+ *         .limit(20);
+ * }</pre>
+ */
 public class PlayerQuery {
 
+    /**
+     * The highest value accepted by {@link #limit(int)}.
+     */
     public static final int MAX_LIMIT = 1000;
 
     private Boolean online;
@@ -28,11 +44,35 @@ public class PlayerQuery {
     private Integer limit;
     private Integer offset;
 
-    public PlayerQuery() {
-    }
+    public PlayerQuery() {}
 
     public static PlayerQuery create() {
         return new PlayerQuery();
+    }
+
+    /**
+     * Creates an independent copy of this query.
+     *
+     * @return a new query with the same filters, sorting and paging
+     */
+    public PlayerQuery copy() {
+        PlayerQuery copy = new PlayerQuery();
+        copy.online = online;
+        copy.serverName = serverName;
+        copy.proxyName = proxyName;
+        copy.playerIds = playerIds == null ? null : new ArrayList<>(playerIds);
+        copy.firstSeenFrom = firstSeenFrom;
+        copy.firstSeenTo = firstSeenTo;
+        copy.lastSeenFrom = lastSeenFrom;
+        copy.lastSeenTo = lastSeenTo;
+        copy.onlineTimeSecondsMin = onlineTimeSecondsMin;
+        copy.onlineTimeSecondsMax = onlineTimeSecondsMax;
+        copy.search = search;
+        copy.sortBy = sortBy;
+        copy.sortOrder = sortOrder;
+        copy.limit = limit;
+        copy.offset = offset;
+        return copy;
     }
 
     public PlayerQuery filterByOnline(boolean online) {
@@ -40,16 +80,34 @@ public class PlayerQuery {
         return this;
     }
 
+    /**
+     * Only includes players on the server with exactly this name. Implies {@code online = true}.
+     *
+     * @param serverName the server name
+     * @return this query
+     */
     public PlayerQuery filterByServer(String serverName) {
         this.serverName = serverName;
         return this;
     }
 
+    /**
+     * Only includes players on the proxy with exactly this name. Implies {@code online = true}.
+     *
+     * @param proxyName the proxy name
+     * @return this query
+     */
     public PlayerQuery filterByProxy(String proxyName) {
         this.proxyName = proxyName;
         return this;
     }
 
+    /**
+     * Only includes the given players. Repeated calls add to the IDs from earlier calls.
+     *
+     * @param playerIds the player UUIDs
+     * @return this query
+     */
     public PlayerQuery filterByPlayerId(UUID... playerIds) {
         if (this.playerIds == null) {
             this.playerIds = new ArrayList<>();
@@ -58,18 +116,40 @@ public class PlayerQuery {
         return this;
     }
 
+    /**
+     * Only includes players first seen in this range. Both bounds are inclusive; null leaves that side open.
+     *
+     * @param from the earliest time, or null
+     * @param to the latest time, or null
+     * @return this query
+     */
     public PlayerQuery filterByFirstSeen(@Nullable Instant from, @Nullable Instant to) {
         this.firstSeenFrom = from;
         this.firstSeenTo = to;
         return this;
     }
 
+    /**
+     * Only includes players last seen in this range. Both bounds are inclusive; null leaves that side open.
+     *
+     * @param from the earliest time, or null
+     * @param to the latest time, or null
+     * @return this query
+     */
     public PlayerQuery filterByLastSeen(@Nullable Instant from, @Nullable Instant to) {
         this.lastSeenFrom = from;
         this.lastSeenTo = to;
         return this;
     }
 
+    /**
+     * Only includes players whose accumulated online time is in this range. Null leaves that side open.
+     *
+     * @param min the minimum in seconds, or null
+     * @param max the maximum in seconds, or null
+     * @return this query
+     * @throws IllegalArgumentException if a bound is negative
+     */
     public PlayerQuery filterByOnlineTimeSeconds(@Nullable Long min, @Nullable Long max) {
         if ((min != null && min < 0) || (max != null && max < 0)) {
             throw new IllegalArgumentException("online time bounds must be >= 0");
@@ -79,6 +159,12 @@ public class PlayerQuery {
         return this;
     }
 
+    /**
+     * Only includes players whose current name contains this text, ignoring case.
+     *
+     * @param search the text to search for
+     * @return this query
+     */
     public PlayerQuery search(String search) {
         this.search = search;
         return this;
@@ -94,6 +180,13 @@ public class PlayerQuery {
         return this;
     }
 
+    /**
+     * Sets the maximum number of players returned. Defaults to 50.
+     *
+     * @param limit the limit, between 1 and {@link #MAX_LIMIT}
+     * @return this query
+     * @throws IllegalArgumentException if the limit is out of range
+     */
     public PlayerQuery limit(int limit) {
         if (limit < 1 || limit > MAX_LIMIT) {
             throw new IllegalArgumentException("limit must be between 1 and " + MAX_LIMIT);

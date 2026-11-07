@@ -36,38 +36,70 @@ public class PlayerEventApiImpl implements PlayerEventApi {
 
     @Override
     public Subscription onLogin(Consumer<PlayerLoginEvent> handler) {
-        return subscribe("login", "PlayerLoginEvent", handler, data -> new PlayerLoginEventImpl(
-                build.buf.gen.simplecloud.player.v2.PlayerLoginEvent.parseFrom(data), playerApi, natsConnection));
+        return subscribe(
+                "login",
+                "PlayerLoginEvent",
+                handler,
+                data -> new PlayerLoginEventImpl(
+                        build.buf.gen.simplecloud.player.v2.PlayerLoginEvent.parseFrom(data),
+                        playerApi,
+                        natsConnection));
     }
 
     @Override
     public Subscription onDisconnect(Consumer<PlayerDisconnectEvent> handler) {
-        return subscribe("disconnect", "PlayerDisconnectEvent", handler, data -> new PlayerDisconnectEventImpl(
-                build.buf.gen.simplecloud.player.v2.PlayerDisconnectEvent.parseFrom(data), playerApi, natsConnection));
+        return subscribe(
+                "disconnect",
+                "PlayerDisconnectEvent",
+                handler,
+                data -> new PlayerDisconnectEventImpl(
+                        build.buf.gen.simplecloud.player.v2.PlayerDisconnectEvent.parseFrom(data),
+                        playerApi,
+                        natsConnection));
     }
 
     @Override
     public Subscription onServerSwitch(Consumer<PlayerServerSwitchEvent> handler) {
-        return subscribe("server-switch", "PlayerServerSwitchEvent", handler, data -> new PlayerServerSwitchEventImpl(
-                build.buf.gen.simplecloud.player.v2.PlayerServerSwitchEvent.parseFrom(data), playerApi, natsConnection));
+        return subscribe(
+                "server-switch",
+                "PlayerServerSwitchEvent",
+                handler,
+                data -> new PlayerServerSwitchEventImpl(
+                        build.buf.gen.simplecloud.player.v2.PlayerServerSwitchEvent.parseFrom(data),
+                        playerApi,
+                        natsConnection));
     }
 
     @Override
     public Subscription onKick(Consumer<PlayerKickEvent> handler) {
-        return subscribe("kick", "PlayerKickEvent", handler, data -> new PlayerKickEventImpl(
-                build.buf.gen.simplecloud.player.v2.PlayerKickEvent.parseFrom(data), playerApi, natsConnection));
+        return subscribe(
+                "kick",
+                "PlayerKickEvent",
+                handler,
+                data -> new PlayerKickEventImpl(
+                        build.buf.gen.simplecloud.player.v2.PlayerKickEvent.parseFrom(data),
+                        playerApi,
+                        natsConnection));
     }
 
     @Override
     public Subscription onProfileChanged(Consumer<PlayerProfileChangedEvent> handler) {
-        return subscribe("profile-changed", "PlayerProfileChangedEvent", handler, data -> new PlayerProfileChangedEventImpl(
-                build.buf.gen.simplecloud.player.v2.PlayerProfileChangedEvent.parseFrom(data)));
+        return subscribe(
+                "profile-changed",
+                "PlayerProfileChangedEvent",
+                handler,
+                data -> new PlayerProfileChangedEventImpl(
+                        build.buf.gen.simplecloud.player.v2.PlayerProfileChangedEvent.parseFrom(data)));
     }
 
     @Override
     public Subscription onClientSettingsUpdated(Consumer<PlayerClientSettingsUpdatedEvent> handler) {
-        return subscribe("client-settings-updated", "PlayerClientSettingsUpdatedEvent", handler, data -> new PlayerClientSettingsUpdatedEventImpl(
-                build.buf.gen.simplecloud.player.v2.PlayerClientSettingsUpdatedEvent.parseFrom(data)));
+        return subscribe(
+                "client-settings-updated",
+                "PlayerClientSettingsUpdatedEvent",
+                handler,
+                data -> new PlayerClientSettingsUpdatedEventImpl(
+                        build.buf.gen.simplecloud.player.v2.PlayerClientSettingsUpdatedEvent.parseFrom(data)));
     }
 
     private <E> Subscription subscribe(String action, String eventName, Consumer<E> handler, EventParser<E> parser) {
@@ -86,5 +118,4 @@ public class PlayerEventApiImpl implements PlayerEventApi {
     private interface EventParser<E> {
         E parse(byte[] data) throws Exception;
     }
-
 }

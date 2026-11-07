@@ -36,4 +36,3 @@ public interface BlueprintCreatedEvent {
      */
     String getTimestamp();
 }
-

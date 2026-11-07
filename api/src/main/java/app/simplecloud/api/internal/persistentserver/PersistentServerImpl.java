@@ -2,9 +2,8 @@ package app.simplecloud.api.internal.persistentserver;
 
 import app.simplecloud.api.group.GroupServerType;
 import app.simplecloud.api.group.SourceConfig;
-import app.simplecloud.api.group.SourceType;
-import app.simplecloud.api.group.WorkflowWhen;
 import app.simplecloud.api.group.WorkflowsConfig;
+import app.simplecloud.api.internal.util.RestModelMapper;
 import app.simplecloud.api.persistentserver.PersistentServer;
 import app.simplecloud.api.web.models.ModelsPersistentServerInfo;
 import app.simplecloud.api.web.models.ModelsPersistentServerSummary;
@@ -137,7 +136,7 @@ public class PersistentServerImpl implements PersistentServer {
                 config = infoDelegate.getSource();
             }
             if (config != null) {
-                source = convertSourceConfig(config);
+                source = RestModelMapper.fromModel(config);
             }
         }
         return source;
@@ -154,7 +153,7 @@ public class PersistentServerImpl implements PersistentServer {
                 config = infoDelegate.getWorkflows();
             }
             if (config != null) {
-                workflows = convertWorkflowsConfig(config);
+                workflows = RestModelMapper.fromModel(config);
             }
         }
         return workflows;
@@ -222,31 +221,5 @@ public class PersistentServerImpl implements PersistentServer {
             throw new IllegalStateException("Updated at timestamp is null");
         }
         return updatedAt;
-    }
-
-    private SourceConfig convertSourceConfig(app.simplecloud.api.web.models.ModelsSourceConfig config) {
-        SourceConfig result = new SourceConfig();
-        String typeStr = config.getType() == null ? null : config.getType().getValue();
-        if (typeStr != null) {
-            try {
-                result.setType(SourceType.valueOf(typeStr.toUpperCase()));
-            } catch (IllegalArgumentException ignored) {
-            }
-        }
-        result.setBlueprint(config.getBlueprint());
-        result.setImage(config.getImage());
-        return result;
-    }
-
-    private WorkflowsConfig convertWorkflowsConfig(app.simplecloud.api.web.models.ModelsWorkflowsConfig config) {
-        WorkflowsConfig result = new WorkflowsConfig();
-        result.setManual(config.getManual());
-        if (config.getWhen() != null) {
-            WorkflowWhen when = new WorkflowWhen();
-            when.setStart(config.getWhen().getStart());
-            when.setStop(config.getWhen().getStop());
-            result.setWhen(when);
-        }
-        return result;
     }
 }

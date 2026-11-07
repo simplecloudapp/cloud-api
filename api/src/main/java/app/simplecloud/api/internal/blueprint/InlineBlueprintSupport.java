@@ -3,23 +3,19 @@ package app.simplecloud.api.internal.blueprint;
 import app.simplecloud.api.CloudApiException;
 import app.simplecloud.api.CloudApiOptions;
 import app.simplecloud.api.blueprint.CreateBlueprintRequest;
-import app.simplecloud.api.blueprint.RuntimeConfig;
 import app.simplecloud.api.group.SourceConfig;
 import app.simplecloud.api.group.SourceType;
-import app.simplecloud.api.internal.web.ApiErrors;
+import app.simplecloud.api.internal.util.RestModelMapper;
+import app.simplecloud.api.internal.web.ApiExceptions;
 import app.simplecloud.api.web.ApiException;
 import app.simplecloud.api.web.apis.BlueprintsApi;
 import app.simplecloud.api.web.models.ModelsCreateBlueprintRequest;
 import app.simplecloud.api.web.models.ModelsCreateBlueprintResponse;
-import app.simplecloud.api.web.models.ModelsRuntimeConfig;
 import app.simplecloud.api.web.models.ModelsSourceConfig;
 import org.jetbrains.annotations.Nullable;
 
 import java.time.Duration;
 
-/**
- * Shared support for resources that create or delete a referenced blueprint as part of their lifecycle.
- */
 public final class InlineBlueprintSupport {
     private static final Duration DELETE_RETRY_DELAY = Duration.ofMillis(200);
     private static final int DELETE_MAX_ATTEMPTS = 3;
@@ -34,22 +30,22 @@ public final class InlineBlueprintSupport {
         this(options, blueprintsApi, new ManifestServerUrlResolver(options));
     }
 
-    public InlineBlueprintSupport(CloudApiOptions options,
-                                  BlueprintsApi blueprintsApi,
-                                  ServerUrlResolver serverUrlResolver) {
+    public InlineBlueprintSupport(
+            CloudApiOptions options, BlueprintsApi blueprintsApi, ServerUrlResolver serverUrlResolver) {
         this.options = options;
         this.blueprintsApi = blueprintsApi;
         this.serverUrlResolver = serverUrlResolver;
     }
 
-    public void validateInlineBlueprintSource(@Nullable CreateBlueprintRequest createBlueprint,
-                                              @Nullable SourceConfig requestedSource) {
+    public void validateInlineBlueprintSource(
+            @Nullable CreateBlueprintRequest createBlueprint, @Nullable SourceConfig requestedSource) {
         if (createBlueprint == null || requestedSource == null) {
             return;
         }
 
         if (requestedSource.getType() != null && requestedSource.getType() != SourceType.BLUEPRINT) {
-            throw new IllegalArgumentException("createBlueprint requires source.type to be BLUEPRINT when source is provided");
+            throw new IllegalArgumentException(
+                    "createBlueprint requires source.type to be BLUEPRINT when source is provided");
         }
         if (hasText(requestedSource.getBlueprint())) {
             throw new IllegalArgumentException("createBlueprint cannot be combined with source.blueprint");
@@ -65,17 +61,18 @@ public final class InlineBlueprintSupport {
             return null;
         }
 
-        ModelsCreateBlueprintRequest apiRequest = convertCreateBlueprintRequest(blueprintName, request);
-        ModelsCreateBlueprintResponse response = blueprintsApi.createBlueprint(
-                options.getNetworkId(),
-                apiRequest
-        );
-
-        String blueprintId = response.getBlueprintId();
+        String blueprintId = create(blueprintName, request).getBlueprintId();
         if (blueprintId == null || blueprintId.isBlank()) {
-            throw new CloudApiException(CloudApiException.Reason.UNKNOWN, "Controller returned blueprint without a blueprint ID");
+            throw new CloudApiException(
+                    CloudApiException.Reason.UNKNOWN, "Controller returned blueprint without a blueprint ID");
         }
         return blueprintId;
+    }
+
+    public ModelsCreateBlueprintResponse create(String blueprintName, CreateBlueprintRequest request)
+            throws ApiException {
+        ModelsCreateBlueprintRequest apiRequest = convertCreateBlueprintRequest(blueprintName, request);
+        return blueprintsApi.createBlueprint(options.getNetworkId(), apiRequest);
     }
 
     public SourceConfig buildInlineBlueprintSource(@Nullable SourceConfig requestedSource, String blueprintId) {
@@ -103,10 +100,7 @@ public final class InlineBlueprintSupport {
         ApiException lastDeleteFailure = null;
         for (int attempt = 1; attempt <= DELETE_MAX_ATTEMPTS; attempt++) {
             try {
-                blueprintsApi.deleteBlueprint(
-                        options.getNetworkId(),
-                        normalizedBlueprintId
-                );
+                blueprintsApi.deleteBlueprint(options.getNetworkId(), normalizedBlueprintId);
                 return;
             } catch (ApiException deleteFailure) {
                 int statusCode = deleteFailure.getCode();
@@ -126,43 +120,34 @@ public final class InlineBlueprintSupport {
         throw lastDeleteFailure;
     }
 
-    /**
-     * Deletes the inline blueprint after creating the resource that references it failed,
-     * and returns the exception the caller throws.
-     * Keeps the blueprint if the resource may have been created and either turns out to exist or can't be checked.
-     *
-     * @param resourceKind names the resource in the failure message, for example {@code "group"}
-     * @return the create failure converted to a {@link CloudApiException}, or a rollback failure wrapping it if
-     * the blueprint could not be deleted
-     */
-    public CloudApiException rollBackAfterCreateFailure(String resourceKind,
-                                                        @Nullable String blueprintId,
-                                                        ApiException createFailure,
-                                                        CreatedResourceCheck createdResource) {
+    public CloudApiException rollBackAfterCreateFailure(
+            String resourceKind,
+            @Nullable String blueprintId,
+            ApiException createFailure,
+            CreatedResourceCheck createdResource) {
         if (blueprintId == null) {
-            return ApiErrors.from(createFailure);
+            return ApiExceptions.from(createFailure);
         }
 
         if (failureMayHaveCreatedResource(createFailure)) {
             try {
                 if (resourceExistsAfterReconciliation(createdResource)) {
-                    return ApiErrors.from(createFailure);
+                    return ApiExceptions.from(createFailure);
                 }
             } catch (RuntimeException reconcileFailure) {
                 createFailure.addSuppressed(reconcileFailure);
-                return ApiErrors.from(createFailure);
+                return ApiExceptions.from(createFailure);
             }
         }
 
         try {
             deleteBlueprint(blueprintId);
-            return ApiErrors.from(createFailure);
+            return ApiExceptions.from(createFailure);
         } catch (ApiException deleteFailure) {
             createFailure.addSuppressed(deleteFailure);
-            CloudApiException rollbackFailure = ApiErrors.from(
+            CloudApiException rollbackFailure = ApiExceptions.from(
                     "Failed to create " + resourceKind + " and rollback inline blueprint " + blueprintId,
-                    createFailure
-            );
+                    createFailure);
             rollbackFailure.addSuppressed(deleteFailure);
             return rollbackFailure;
         }
@@ -189,7 +174,8 @@ public final class InlineBlueprintSupport {
         return false;
     }
 
-    private ModelsCreateBlueprintRequest convertCreateBlueprintRequest(String blueprintName, CreateBlueprintRequest request) {
+    private ModelsCreateBlueprintRequest convertCreateBlueprintRequest(
+            String blueprintName, CreateBlueprintRequest request) {
         ModelsCreateBlueprintRequest apiRequest = new ModelsCreateBlueprintRequest();
         apiRequest.setName(blueprintName);
         apiRequest.setConfigurator(request.getConfigurator());
@@ -199,14 +185,8 @@ public final class InlineBlueprintSupport {
         apiRequest.setSoftwareVersion(request.getSoftwareVersion());
         apiRequest.setWorkflowSteps(request.getWorkflowSteps());
 
-        RuntimeConfig runtimeConfig = request.getRuntimeConfig();
-        if (runtimeConfig != null) {
-            ModelsRuntimeConfig apiRuntimeConfig = new ModelsRuntimeConfig();
-            if (runtimeConfig.getType() != null) {
-                apiRuntimeConfig.setType(runtimeConfig.getType().name().toLowerCase());
-            }
-            apiRuntimeConfig.setWith(runtimeConfig.getWith());
-            apiRequest.setRuntimeConfig(apiRuntimeConfig);
+        if (request.getRuntimeConfig() != null) {
+            apiRequest.setRuntimeConfig(RestModelMapper.toModel(request.getRuntimeConfig()));
         }
 
         return apiRequest;
@@ -227,8 +207,7 @@ public final class InlineBlueprintSupport {
         String resolvedServerUrl = normalize(serverUrlResolver.resolve(request));
         if (resolvedServerUrl == null) {
             throw new IllegalArgumentException(
-                    "No manifest download link found for software '" + software + "' and version '" + version + "'"
-            );
+                    "No manifest download link found for software '" + software + "' and version '" + version + "'");
         }
         return resolvedServerUrl;
     }
@@ -262,12 +241,10 @@ public final class InlineBlueprintSupport {
 
     @FunctionalInterface
     public interface ServerUrlResolver {
-        @Nullable String resolve(CreateBlueprintRequest request);
+        @Nullable
+        String resolve(CreateBlueprintRequest request);
     }
 
-    /**
-     * Checks whether the resource that references the inline blueprint exists.
-     */
     @FunctionalInterface
     public interface CreatedResourceCheck {
         boolean resourceExists();

@@ -44,8 +44,7 @@ class ServerUpdatedEventImpl implements ServerUpdatedEvent {
                     null,
                     delegate.hasGroupConfig() ? delegate.getGroupConfig() : null,
                     delegate.hasPersistentServerConfig() ? delegate.getPersistentServerConfig() : null,
-                    delegate.getTimestamp()
-            );
+                    delegate.getTimestamp());
         }
         return server;
     }
@@ -54,7 +53,4 @@ class ServerUpdatedEventImpl implements ServerUpdatedEvent {
     public String getTimestamp() {
         return Instant.ofEpochSecond(delegate.getTimestamp()).toString();
     }
-
 }
-
-

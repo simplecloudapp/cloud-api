@@ -6,7 +6,12 @@ plugins {
 }
 
 val shade = configurations.create("shade")
-val minecraftVersions = listOf(libs.versions.fabric.minecraft.get(), "26.3")
+val minecraftVersions =
+    listOf(
+        libs.versions.fabric.minecraft
+            .get(),
+        "26.3",
+    )
 
 dependencies {
     minecraft("com.mojang:minecraft:${libs.versions.fabric.minecraft.get()}")
@@ -25,14 +30,13 @@ tasks.named<ShadowJar>("shadowJar") {
     configurations = listOf(shade)
 }
 
-tasks.processResources {
-    val properties = mapOf(
-        "version" to project.version.toString(),
-        "minecraftVersionRange" to ">=${minecraftVersions.first()} <=${minecraftVersions.last()}"
-    )
-    inputs.properties(properties)
-    filesMatching("fabric.mod.json") {
-        expand(properties)
+sourceSets {
+    main {
+        blossom {
+            resources {
+                property("minecraftVersionRange", ">=${minecraftVersions.first()} <=${minecraftVersions.last()}")
+            }
+        }
     }
 }
 

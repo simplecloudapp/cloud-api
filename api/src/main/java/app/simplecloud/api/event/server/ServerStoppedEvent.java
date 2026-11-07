@@ -25,7 +25,7 @@ public interface ServerStoppedEvent {
     /**
      * Returns the server group ID this server belongs to.
      *
-     * @return the server group ID
+     * @return the server group ID, or an empty string for a persistent server's server
      */
     String getServerGroupId();
 
@@ -42,21 +42,23 @@ public interface ServerStoppedEvent {
      *
      * @return true if the server crashed, false if it stopped normally
      */
-    boolean getCrashed();
+    boolean isCrashed();
 
     /**
      * Returns the exit code of the server process.
      *
-     * @return the exit code, or null if not available
+     * @return the exit code, or null if not available (an exit code of 0 is reported as null)
      */
-    @Nullable Integer getExitCode();
+    @Nullable
+    Integer getExitCode();
 
     /**
      * Returns the reason why the server stopped.
      *
      * @return the stop reason, or null if not available
      */
-    @Nullable String getReason();
+    @Nullable
+    String getReason();
 
     /**
      * Returns the timestamp when this event occurred (ISO 8601 format).
@@ -65,4 +67,3 @@ public interface ServerStoppedEvent {
      */
     String getTimestamp();
 }
-

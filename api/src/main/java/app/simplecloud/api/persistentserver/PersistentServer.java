@@ -4,14 +4,7 @@ import app.simplecloud.api.base.ServerBase;
 import org.jetbrains.annotations.Nullable;
 
 /**
- * Represents a persistent server configuration.
- *
- * <p>Persistent servers are long-lived server instances that maintain state across restarts.
- * Unlike servers spawned from a group, persistent servers don't have scaling or deployment
- * configuration - they are single instances that run on a specific host.
- *
- * <p>This interface extends {@link ServerBase} to provide common configuration access
- * alongside persistent server-specific properties.
+ * Represents a persistent server.
  */
 public interface PersistentServer extends ServerBase {
 
@@ -30,14 +23,16 @@ public interface PersistentServer extends ServerBase {
      *
      * @return true if active, false otherwise, or null if not set
      */
-    @Nullable Boolean isActive();
+    @Nullable
+    Boolean isActive();
 
     /**
      * Returns the priority of this persistent server.
      *
      * @return the priority, or null if not set
      */
-    @Nullable Integer getPriority();
+    @Nullable
+    Integer getPriority();
 
     /**
      * Returns the current player count of the running instance.
@@ -53,5 +48,6 @@ public interface PersistentServer extends ServerBase {
      *
      * @return the serverhost ID, or null if not set
      */
-    @Nullable String getServerhostId();
+    @Nullable
+    String getServerhostId();
 }

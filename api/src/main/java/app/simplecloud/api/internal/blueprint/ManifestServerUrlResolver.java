@@ -26,10 +26,6 @@ import java.util.concurrent.TimeUnit;
 
 /**
  * Resolves inline blueprint download links from the server version manifest.
- *
- * <p>The manifest URL is configurable, so the fetch is restricted to HTTPS and public addresses
- * (see {@link PublicAddressDns}). Redirects are followed manually so every hop is checked again,
- * and the body is capped before it is parsed.
  */
 final class ManifestServerUrlResolver implements InlineBlueprintSupport.ServerUrlResolver {
     static final int MAX_REDIRECTS = 5;
@@ -37,8 +33,7 @@ final class ManifestServerUrlResolver implements InlineBlueprintSupport.ServerUr
 
     private static final Duration FETCH_TIMEOUT = Duration.ofSeconds(30);
     private static final Duration CACHE_TTL = Duration.ofMinutes(5);
-    private static final Type MANIFEST_TYPE = new TypeToken<List<ManifestEntry>>() {
-    }.getType();
+    private static final Type MANIFEST_TYPE = new TypeToken<List<ManifestEntry>>() {}.getType();
 
     private final @Nullable HttpUrl manifestUrl;
     private final String manifestUrlForErrors;
@@ -58,8 +53,7 @@ final class ManifestServerUrlResolver implements InlineBlueprintSupport.ServerUr
                         .dns(new PublicAddressDns(Dns.SYSTEM))
                         .build(),
                 FETCH_TIMEOUT,
-                new Gson()
-        );
+                new Gson());
     }
 
     /**
@@ -68,9 +62,11 @@ final class ManifestServerUrlResolver implements InlineBlueprintSupport.ServerUr
      * An invalid URL only fails once the manifest is needed, so unrelated SDK features keep working.
      */
     ManifestServerUrlResolver(String manifestUrl, OkHttpClient httpClient, Duration fetchTimeout, Gson gson) {
-        this.manifestUrl = HttpUrl.parse(Objects.requireNonNull(manifestUrl, "manifestUrl").trim());
+        this.manifestUrl =
+                HttpUrl.parse(Objects.requireNonNull(manifestUrl, "manifestUrl").trim());
         this.manifestUrlForErrors = this.manifestUrl != null ? withoutSecrets(this.manifestUrl) : "an invalid URL";
-        this.httpClient = Objects.requireNonNull(httpClient, "httpClient").newBuilder()
+        this.httpClient = Objects.requireNonNull(httpClient, "httpClient")
+                .newBuilder()
                 .followRedirects(false)
                 .followSslRedirects(false)
                 .build();
@@ -98,13 +94,13 @@ final class ManifestServerUrlResolver implements InlineBlueprintSupport.ServerUr
 
     private List<ManifestEntry> loadManifest() {
         CachedManifest current = cachedManifest;
-        if (current != null && !current.isExpired()) {
+        if (current != null && current.isExpired()) {
             return current.entries;
         }
 
         synchronized (this) {
             current = cachedManifest;
-            if (current != null && !current.isExpired()) {
+            if (current != null && current.isExpired()) {
                 return current.entries;
             }
 
@@ -133,10 +129,7 @@ final class ManifestServerUrlResolver implements InlineBlueprintSupport.ServerUr
                 if (remainingMillis <= 0) {
                     throw fetchFailure("timed out after " + fetchTimeout.toMillis() + " ms");
                 }
-                Request request = new Request.Builder()
-                        .url(url)
-                        .get()
-                        .build();
+                Request request = new Request.Builder().url(url).get().build();
                 Call call = httpClient.newCall(request);
                 call.timeout().timeout(remainingMillis, TimeUnit.MILLISECONDS);
                 try (Response response = call.execute()) {
@@ -154,8 +147,7 @@ final class ManifestServerUrlResolver implements InlineBlueprintSupport.ServerUr
                     CloudApiException.Reason.UNAVAILABLE,
                     0,
                     "Failed to fetch server version manifest from " + manifestUrlForErrors,
-                    e
-            );
+                    e);
         }
     }
 
@@ -177,9 +169,6 @@ final class ManifestServerUrlResolver implements InlineBlueprintSupport.ServerUr
         }
 
         ResponseBody body = response.body();
-        if (body == null) {
-            throw fetchFailure("empty response body");
-        }
 
         // Content-Length may be absent or lie, so also probe the stream for one byte past the limit.
         BufferedSource source = body.source();
@@ -195,16 +184,14 @@ final class ManifestServerUrlResolver implements InlineBlueprintSupport.ServerUr
                     CloudApiException.Reason.UNAVAILABLE,
                     0,
                     "Failed to parse server version manifest from " + manifestUrlForErrors,
-                    e
-            );
+                    e);
         }
     }
 
     private CloudApiException fetchFailure(String reason) {
         return new CloudApiException(
                 CloudApiException.Reason.UNAVAILABLE,
-                "Failed to fetch server version manifest from " + manifestUrlForErrors + ": " + reason
-        );
+                "Failed to fetch server version manifest from " + manifestUrlForErrors + ": " + reason);
     }
 
     private static String withoutSecrets(HttpUrl url) {
@@ -237,17 +224,14 @@ final class ManifestServerUrlResolver implements InlineBlueprintSupport.ServerUr
         return normalized.isEmpty() ? null : normalized;
     }
 
-    private static final class CachedManifest {
-        private final List<ManifestEntry> entries;
-        private final Instant expiresAt;
-
+    private record CachedManifest(List<ManifestEntry> entries, Instant expiresAt) {
         private CachedManifest(List<ManifestEntry> entries, Instant expiresAt) {
             this.entries = List.copyOf(entries);
             this.expiresAt = expiresAt;
         }
 
         private boolean isExpired() {
-            return Instant.now().isAfter(expiresAt);
+            return !Instant.now().isAfter(expiresAt);
         }
     }
 

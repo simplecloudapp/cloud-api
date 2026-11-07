@@ -21,9 +21,9 @@ include(
     "platform:spigot",
     "platform:spigot-legacy",
     "platform:paper",
-    "platform:folia",
     "platform:bungeecord",
     "platform:velocity",
     "platform:fabric",
-    "platform:neoforge"
+    "platform:neoforge",
+    "platform:minestom",
 )

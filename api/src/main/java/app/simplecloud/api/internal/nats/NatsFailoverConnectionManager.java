@@ -50,11 +50,7 @@ public final class NatsFailoverConnectionManager {
     private final ScheduledExecutorService reconnectExecutor;
 
     public NatsFailoverConnectionManager(
-            String natsUrl,
-            String networkId,
-            String networkSecret,
-            Duration failoverReconnectAfter
-    ) {
+            String natsUrl, String networkId, String networkSecret, Duration failoverReconnectAfter) {
         this.natsUrl = natsUrl;
         this.networkId = networkId;
         this.networkSecret = networkSecret;
@@ -64,8 +60,10 @@ public final class NatsFailoverConnectionManager {
         this.connectionRef = new AtomicReference<>(null);
         this.connectionProxy = createConnectionProxy();
 
-        this.monitorExecutor = Executors.newSingleThreadScheduledExecutor(daemonFactory("simplecloud-nats-failover-monitor"));
-        this.reconnectExecutor = Executors.newSingleThreadScheduledExecutor(daemonFactory("simplecloud-nats-failover-reconnect"));
+        this.monitorExecutor =
+                Executors.newSingleThreadScheduledExecutor(daemonFactory("simplecloud-nats-failover-monitor"));
+        this.reconnectExecutor =
+                Executors.newSingleThreadScheduledExecutor(daemonFactory("simplecloud-nats-failover-reconnect"));
 
         scheduleReconnect("no NATS connection has been established", true);
         this.monitorExecutor.scheduleAtFixedRate(this::monitorConnection, 2, 2, TimeUnit.SECONDS);
@@ -87,7 +85,8 @@ public final class NatsFailoverConnectionManager {
             try {
                 connection.close();
             } catch (InterruptedException e) {
-                throw new RuntimeException(e);
+                Thread.currentThread().interrupt();
+                LOGGER.log(Level.FINE, "Interrupted while closing the NATS connection", e);
             }
         }
     }
@@ -116,10 +115,7 @@ public final class NatsFailoverConnectionManager {
                         && !failoverReconnectAfter.isNegative()
                         && now - since >= failoverReconnectAfter.toMillis()) {
                     reconnectingSince.set(-1);
-                    scheduleReconnect(
-                            "connection stayed " + status + " for at least " + failoverReconnectAfter,
-                            false
-                    );
+                    scheduleReconnect("connection stayed " + status + " for at least " + failoverReconnectAfter, false);
                 }
                 return;
             }
@@ -185,17 +181,20 @@ public final class NatsFailoverConnectionManager {
                 return;
             } catch (InterruptedException e) {
                 Thread.currentThread().interrupt();
-                LOGGER.log(Level.WARNING, "Interrupted while reconnecting NATS", e);
+                LOGGER.log(Level.FINE, "Interrupted while reconnecting NATS", e);
                 return;
             } catch (Exception e) {
                 String connectionDescription = initialConnection ? "initial NATS connection" : "new NATS connection";
-                LOGGER.warning("Failed to establish " + connectionDescription + ", retrying in "
+                LOGGER.fine("Failed to establish " + connectionDescription + ", retrying in "
                         + Duration.ofMillis(backoffMillis) + ": " + e.getMessage());
                 try {
                     Thread.sleep(backoffMillis);
                 } catch (InterruptedException interruptedException) {
                     Thread.currentThread().interrupt();
-                    LOGGER.log(Level.WARNING, "Interrupted while waiting for next NATS reconnect retry", interruptedException);
+                    LOGGER.log(
+                            Level.FINE,
+                            "Interrupted while waiting for next NATS reconnect retry",
+                            interruptedException);
                     return;
                 }
                 backoffMillis = Math.min(backoffMillis * 2, maxBackoffMillis);
@@ -228,11 +227,7 @@ public final class NatsFailoverConnectionManager {
     }
 
     static Options createOptions(
-            String natsUrl,
-            String networkId,
-            String networkSecret,
-            SimpleCloudNatsListener listener
-    ) {
+            String natsUrl, String networkId, String networkSecret, SimpleCloudNatsListener listener) {
         return Options.builder()
                 .server(natsUrl)
                 .userInfo(networkId, networkSecret)
@@ -282,21 +277,18 @@ public final class NatsFailoverConnectionManager {
                     case "toString" -> "NATS connection proxy (disconnected)";
                     case "hashCode" -> System.identityHashCode(connectionProxy);
                     case "equals" -> args != null && args.length > 0 && proxy == args[0];
-                    default -> throw new CloudApiException(
-                            CloudApiException.Reason.UNAVAILABLE,
-                            "NATS connection to " + natsUrl + " is not established"
-                    );
+                    default ->
+                        throw new CloudApiException(
+                                CloudApiException.Reason.UNAVAILABLE,
+                                "NATS connection to " + natsUrl + " is not established");
                 };
             }
 
             return invoke(method, connection, args);
         };
 
-        return (Connection) Proxy.newProxyInstance(
-                Connection.class.getClassLoader(),
-                new Class<?>[]{Connection.class},
-                handler
-        );
+        return (Connection)
+                Proxy.newProxyInstance(Connection.class.getClassLoader(), new Class<?>[] {Connection.class}, handler);
     }
 
     private static Object invoke(Method method, Object target, Object[] args) throws Throwable {
@@ -324,9 +316,8 @@ public final class NatsFailoverConnectionManager {
         private DispatcherProxyState(MessageHandler messageHandler) {
             this.messageHandler = messageHandler;
             Connection connection = connectionRef.get();
-            this.delegateRef = new AtomicReference<>(
-                    connection == null ? null : connection.createDispatcher(messageHandler)
-            );
+            this.delegateRef =
+                    new AtomicReference<>(connection == null ? null : connection.createDispatcher(messageHandler));
             this.proxy = createDispatcherProxy();
         }
 
@@ -337,8 +328,10 @@ public final class NatsFailoverConnectionManager {
                     MessageHandler handlerArg = (MessageHandler) args[1];
                     synchronized (bindLock) {
                         Dispatcher dispatcher = delegateRef.get();
-                        Subscription created = dispatcher == null ? null : (Subscription) invoke(method, dispatcher, args);
-                        SubscriptionProxyState subState = new SubscriptionProxyState(this, subject, handlerArg, created);
+                        Subscription created =
+                                dispatcher == null ? null : (Subscription) invoke(method, dispatcher, args);
+                        SubscriptionProxyState subState =
+                                new SubscriptionProxyState(this, subject, handlerArg, created);
                         subscriptions.add(subState);
                         return subState.proxy;
                     }
@@ -379,10 +372,7 @@ public final class NatsFailoverConnectionManager {
             };
 
             return (Dispatcher) Proxy.newProxyInstance(
-                    Dispatcher.class.getClassLoader(),
-                    new Class<?>[]{Dispatcher.class},
-                    handler
-            );
+                    Dispatcher.class.getClassLoader(), new Class<?>[] {Dispatcher.class}, handler);
         }
 
         private Dispatcher close() {
@@ -416,8 +406,7 @@ public final class NatsFailoverConnectionManager {
                 DispatcherProxyState dispatcherState,
                 String subject,
                 MessageHandler messageHandler,
-                Subscription initialDelegate
-        ) {
+                Subscription initialDelegate) {
             this.dispatcherState = dispatcherState;
             this.subject = subject;
             this.messageHandler = messageHandler;
@@ -453,10 +442,7 @@ public final class NatsFailoverConnectionManager {
             };
 
             return (Subscription) Proxy.newProxyInstance(
-                    Subscription.class.getClassLoader(),
-                    new Class<?>[]{Subscription.class},
-                    handler
-            );
+                    Subscription.class.getClassLoader(), new Class<?>[] {Subscription.class}, handler);
         }
 
         private void deactivate() {

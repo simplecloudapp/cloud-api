@@ -7,6 +7,9 @@ import java.util.UUID;
 
 /**
  * Event fired when a player's Minecraft profile (name or skin) changes.
+ *
+ * <p>The controller publishes it when a known player logs in with a changed name or skin. A player's
+ * first profile does not fire this event.
  */
 public interface PlayerProfileChangedEvent {
 
@@ -27,7 +30,7 @@ public interface PlayerProfileChangedEvent {
     /**
      * Returns the profile before the change.
      *
-     * @return the old profile, or null if the player had none
+     * @return the old profile; the controller always sends it, null only if the message lacks it
      */
     @Nullable
     PlayerProfile getOldProfile();
@@ -35,7 +38,7 @@ public interface PlayerProfileChangedEvent {
     /**
      * Returns the profile after the change.
      *
-     * @return the new profile, or null if unavailable
+     * @return the new profile; the controller always sends it, null only if the message lacks it
      */
     @Nullable
     PlayerProfile getNewProfile();

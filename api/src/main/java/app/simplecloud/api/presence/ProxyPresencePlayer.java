@@ -28,8 +28,7 @@ public final class ProxyPresencePlayer {
             String clientLanguage,
             int clientVersion,
             boolean onlineMode,
-            String sessionId
-    ) {
+            String sessionId) {
         String normalizedDisplayName = normalize(displayName);
 
         this.playerId = normalize(playerId);

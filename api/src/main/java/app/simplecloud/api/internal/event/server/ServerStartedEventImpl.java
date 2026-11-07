@@ -44,8 +44,7 @@ class ServerStartedEventImpl implements ServerStartedEvent {
                     delegate.getState(),
                     delegate.hasGroupConfig() ? delegate.getGroupConfig() : null,
                     delegate.hasPersistentServerConfig() ? delegate.getPersistentServerConfig() : null,
-                    delegate.getTimestamp()
-            );
+                    delegate.getTimestamp());
         }
         return server;
     }

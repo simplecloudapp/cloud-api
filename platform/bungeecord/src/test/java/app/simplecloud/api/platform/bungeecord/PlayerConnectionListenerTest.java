@@ -4,17 +4,17 @@ import app.simplecloud.api.internal.integration.player.LoginResult;
 import app.simplecloud.api.internal.integration.player.PlayerLogin;
 import app.simplecloud.api.internal.integration.player.PlayerSessionReporter;
 import app.simplecloud.api.internal.integration.presence.ProxyPresenceTracker;
-import app.simplecloud.api.platform.shared.LuckPermsSynchronizer;
 import app.simplecloud.api.platform.shared.PlayerSynchronizer;
+import app.simplecloud.api.platform.shared.luckperms.LuckPermsSynchronizer;
 import app.simplecloud.api.player.PlayerClientSettings;
 import net.md_5.bungee.api.Callback;
 import net.md_5.bungee.api.SkinConfiguration;
-import net.md_5.bungee.api.plugin.Plugin;
 import net.md_5.bungee.api.connection.PendingConnection;
 import net.md_5.bungee.api.connection.ProxiedPlayer;
 import net.md_5.bungee.api.event.PlayerDisconnectEvent;
 import net.md_5.bungee.api.event.PostLoginEvent;
 import net.md_5.bungee.api.event.SettingsChangedEvent;
+import net.md_5.bungee.api.plugin.Plugin;
 import org.junit.jupiter.api.Test;
 import org.junit.jupiter.params.ParameterizedTest;
 import org.junit.jupiter.params.provider.CsvSource;
@@ -33,8 +33,8 @@ class PlayerConnectionListenerTest {
 
     @ParameterizedTest
     @CsvSource({
-            "success, false", "failure, false", "exception, false",
-            "success, true", "failure, true", "exception, true"
+        "success, false", "failure, false", "exception, false",
+        "success, true", "failure, true", "exception, true"
     })
     @SuppressWarnings("unchecked")
     void loginWaitsForControllerAndAlwaysReleasesEvent(String outcome, boolean completedBeforeEvent) {
@@ -45,7 +45,12 @@ class PlayerConnectionListenerTest {
         ProxyPresenceTracker presence = mock(ProxyPresenceTracker.class);
         LuckPermsSynchronizer luckPermsSynchronizer = mock(LuckPermsSynchronizer.class);
         PlayerConnectionListener listener = new PlayerConnectionListener(
-                mock(Plugin.class), mock(PlayerSynchronizer.class), sessionReporter, presence, "proxy-1", luckPermsSynchronizer);
+                mock(Plugin.class),
+                mock(PlayerSynchronizer.class),
+                sessionReporter,
+                presence,
+                "proxy-1",
+                luckPermsSynchronizer);
         ProxiedPlayer player = mock(ProxiedPlayer.class);
         PendingConnection connection = mock(PendingConnection.class);
         when(player.getUniqueId()).thenReturn(playerId);
@@ -83,7 +88,12 @@ class PlayerConnectionListenerTest {
         when(sessionReporter.reportDisconnect(playerId)).thenReturn(CompletableFuture.completedFuture(null));
         LuckPermsSynchronizer luckPermsSynchronizer = mock(LuckPermsSynchronizer.class);
         PlayerConnectionListener listener = new PlayerConnectionListener(
-                mock(Plugin.class), mock(PlayerSynchronizer.class), sessionReporter, mock(ProxyPresenceTracker.class), "proxy-1", luckPermsSynchronizer);
+                mock(Plugin.class),
+                mock(PlayerSynchronizer.class),
+                sessionReporter,
+                mock(ProxyPresenceTracker.class),
+                "proxy-1",
+                luckPermsSynchronizer);
         ProxiedPlayer player = mock(ProxiedPlayer.class);
         when(player.getUniqueId()).thenReturn(playerId);
 
@@ -100,7 +110,12 @@ class PlayerConnectionListenerTest {
         PlayerSessionReporter sessionReporter = mock(PlayerSessionReporter.class);
         when(sessionReporter.reportLogin(any(PlayerLogin.class))).thenReturn(new CompletableFuture<>());
         PlayerConnectionListener listener = new PlayerConnectionListener(
-                mock(Plugin.class), mock(PlayerSynchronizer.class), sessionReporter, mock(ProxyPresenceTracker.class), "proxy-1", LuckPermsSynchronizer.DISABLED);
+                mock(Plugin.class),
+                mock(PlayerSynchronizer.class),
+                sessionReporter,
+                mock(ProxyPresenceTracker.class),
+                "proxy-1",
+                LuckPermsSynchronizer.DISABLED);
         ProxiedPlayer player = mock(ProxiedPlayer.class);
         PendingConnection connection = mock(PendingConnection.class);
         when(player.getUniqueId()).thenReturn(playerId);
@@ -113,8 +128,8 @@ class PlayerConnectionListenerTest {
 
         listener.onPlayerJoin(new PostLoginEvent(player, null, mock(Callback.class)));
 
-        PlayerLogin expected = new PlayerLogin(playerId, "Player", "Display", "proxy-1",
-                String.valueOf(address.hashCode()), "en_US", 767, true, null);
+        PlayerLogin expected = new PlayerLogin(
+                playerId, "Player", "Display", "proxy-1", String.valueOf(address.hashCode()), "en_US", 767, true, null);
         verify(sessionReporter).reportLogin(expected);
     }
 
@@ -125,9 +140,15 @@ class PlayerConnectionListenerTest {
         PlayerSessionReporter sessionReporter = mock(PlayerSessionReporter.class);
         when(sessionReporter.reportLogin(any(PlayerLogin.class)))
                 .thenReturn(CompletableFuture.completedFuture(LoginResult.success("session-1")));
-        when(sessionReporter.reportClientSettings(anyString(), any())).thenReturn(CompletableFuture.completedFuture(null));
+        when(sessionReporter.reportClientSettings(anyString(), any()))
+                .thenReturn(CompletableFuture.completedFuture(null));
         PlayerConnectionListener listener = new PlayerConnectionListener(
-                mock(Plugin.class), mock(PlayerSynchronizer.class), sessionReporter, mock(ProxyPresenceTracker.class), "proxy-1", LuckPermsSynchronizer.DISABLED);
+                mock(Plugin.class),
+                mock(PlayerSynchronizer.class),
+                sessionReporter,
+                mock(ProxyPresenceTracker.class),
+                "proxy-1",
+                LuckPermsSynchronizer.DISABLED);
         ProxiedPlayer player = playerWithSettings(playerId);
         PendingConnection connection = mock(PendingConnection.class);
         when(player.getName()).thenReturn("Player");
@@ -146,7 +167,12 @@ class PlayerConnectionListenerTest {
     void settingsChangeIsIgnoredUntilTheSessionIsKnown() {
         PlayerSessionReporter sessionReporter = mock(PlayerSessionReporter.class);
         PlayerConnectionListener listener = new PlayerConnectionListener(
-                mock(Plugin.class), mock(PlayerSynchronizer.class), sessionReporter, mock(ProxyPresenceTracker.class), "proxy-1", LuckPermsSynchronizer.DISABLED);
+                mock(Plugin.class),
+                mock(PlayerSynchronizer.class),
+                sessionReporter,
+                mock(ProxyPresenceTracker.class),
+                "proxy-1",
+                LuckPermsSynchronizer.DISABLED);
 
         listener.onSettingsChanged(new SettingsChangedEvent(playerWithSettings(UUID.randomUUID())));
 
@@ -157,11 +183,17 @@ class PlayerConnectionListenerTest {
     void settingsChangeIsForwardedWithTheSession() {
         UUID playerId = UUID.randomUUID();
         PlayerSessionReporter sessionReporter = mock(PlayerSessionReporter.class);
-        when(sessionReporter.reportClientSettings(anyString(), any())).thenReturn(CompletableFuture.completedFuture(null));
+        when(sessionReporter.reportClientSettings(anyString(), any()))
+                .thenReturn(CompletableFuture.completedFuture(null));
         ProxyPresenceTracker presence = mock(ProxyPresenceTracker.class);
         when(presence.getSessionId(playerId.toString())).thenReturn("session-1");
         PlayerConnectionListener listener = new PlayerConnectionListener(
-                mock(Plugin.class), mock(PlayerSynchronizer.class), sessionReporter, presence, "proxy-1", LuckPermsSynchronizer.DISABLED);
+                mock(Plugin.class),
+                mock(PlayerSynchronizer.class),
+                sessionReporter,
+                presence,
+                "proxy-1",
+                LuckPermsSynchronizer.DISABLED);
 
         listener.onSettingsChanged(new SettingsChangedEvent(playerWithSettings(playerId)));
 
@@ -204,5 +236,4 @@ class PlayerConnectionListenerTest {
             default -> throw new AssertionError(outcome);
         }
     }
-
 }

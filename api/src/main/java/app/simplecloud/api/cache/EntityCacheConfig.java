@@ -3,16 +3,9 @@ package app.simplecloud.api.cache;
 import java.time.Duration;
 
 /**
- * Per-entity-type cache configuration overrides.
- * Use this to set different freshness requirements for different entity types.
+ * Per-entity-type overrides for {@link CacheConfig}.
  *
- * <p>Example:
- * <pre>{@code
- * EntityCacheConfig serverConfig = EntityCacheConfig.builder()
- *     .staleTime(Duration.ofSeconds(2))  // Servers need fresher data
- *     .cacheTime(Duration.ofMinutes(2))
- *     .build();
- * }</pre>
+ * <p>Values that aren't set fall back to the defaults of the {@link CacheConfig}.
  */
 public class EntityCacheConfig {
 

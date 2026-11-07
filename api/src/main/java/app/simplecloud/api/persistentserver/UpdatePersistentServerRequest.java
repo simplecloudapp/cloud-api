@@ -1,8 +1,8 @@
 package app.simplecloud.api.persistentserver;
 
+import app.simplecloud.api.group.GroupServerType;
 import app.simplecloud.api.group.SourceConfig;
 import app.simplecloud.api.group.WorkflowsConfig;
-import app.simplecloud.api.group.GroupServerType;
 import org.jetbrains.annotations.Nullable;
 
 import java.util.List;
@@ -10,7 +10,9 @@ import java.util.Map;
 
 /**
  * Request to update an existing persistent server.
- * All fields are optional - only specified fields will be updated.
+ *
+ * <p>Only fields that are set are changed. A {@code workflows} configuration replaces the stored one
+ * as a whole, and no create defaults are applied.
  */
 public class UpdatePersistentServerRequest {
     private final String name;

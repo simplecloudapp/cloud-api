@@ -50,9 +50,15 @@ public enum ServerState {
     /**
      * Server has been stopped.
      */
-    STOPPED
-    ;
+    STOPPED;
 
+    /**
+     * Parses a state with or without the {@code SERVER_STATE_} prefix, ignoring case.
+     *
+     * @param state the value to parse
+     * @return the state
+     * @throws IllegalArgumentException if the value is not a known state
+     */
     public static ServerState parse(String state) {
         return ServerState.valueOf(state.toUpperCase().replace("SERVER_STATE_", ""));
     }
@@ -64,6 +70,4 @@ public enum ServerState {
     public static ServerState parse(ModelsPatchServerRequest.StateEnum state) {
         return parse(state.toString());
     }
-
 }
-

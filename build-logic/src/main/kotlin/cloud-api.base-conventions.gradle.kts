@@ -6,6 +6,8 @@ plugins {
     id("java-library")
     id("maven-publish")
     id("com.gradleup.shadow")
+    id("cloud-api.spotless-conventions")
+    id("cloud-api.checkstyle-conventions")
 }
 
 val libs = the<LibrariesForLibs>()
@@ -16,6 +18,7 @@ repositories {
     maven("https://repo.papermc.io/repository/maven-public")
     maven("https://repo.simplecloud.app/snapshots")
     maven("https://buf.build/gen/maven")
+    maven("https://central.sonatype.com/repository/maven-snapshots/")
 }
 
 java {

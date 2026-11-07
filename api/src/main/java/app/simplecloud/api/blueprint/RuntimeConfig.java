@@ -4,14 +4,17 @@ import org.jetbrains.annotations.Nullable;
 
 import java.util.Map;
 
+/**
+ * How servers of a blueprint are run.
+ */
 public class RuntimeConfig {
     @Nullable
     private RuntimeType type;
+
     @Nullable
     private Map<String, Object> with;
 
-    public RuntimeConfig() {
-    }
+    public RuntimeConfig() {}
 
     public static Builder builder() {
         return new Builder();
@@ -26,6 +29,9 @@ public class RuntimeConfig {
         this.type = type;
     }
 
+    /**
+     * @return options for the runtime type, or null if none are set
+     */
     @Nullable
     public Map<String, Object> getWith() {
         return with;
