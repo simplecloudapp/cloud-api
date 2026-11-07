@@ -7,32 +7,4 @@ import org.jetbrains.annotations.Nullable;
  *
  * @see GroupApi#getRollingRestartStatus(String)
  */
-public final class RollingRestartStatus {
-    private final String serverGroupId;
-    private final boolean active;
-
-    @Nullable
-    private final String startedAt;
-
-    public RollingRestartStatus(String serverGroupId, boolean active, @Nullable String startedAt) {
-        this.serverGroupId = serverGroupId;
-        this.active = active;
-        this.startedAt = startedAt;
-    }
-
-    public String getServerGroupId() {
-        return serverGroupId;
-    }
-
-    public boolean isActive() {
-        return active;
-    }
-
-    /**
-     * @return when the rolling restart started as an ISO-8601 timestamp, or null if unavailable
-     */
-    @Nullable
-    public String getStartedAt() {
-        return startedAt;
-    }
-}
+public record RollingRestartStatus(String serverGroupId, boolean active, @Nullable String startedAt) { }

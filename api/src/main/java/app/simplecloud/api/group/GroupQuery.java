@@ -10,7 +10,10 @@ public class GroupQuery {
     private GroupServerType type;
 
     private String tag;
+    private Boolean active;
+    private String blueprintId;
     private Integer limit;
+    private Integer offset;
 
     public GroupQuery() {}
 
@@ -35,12 +38,54 @@ public class GroupQuery {
     }
 
     @Nullable
+    public Boolean getActive() {
+        return active;
+    }
+
+    public GroupQuery filterByActive(@Nullable Boolean active) {
+        this.active = active;
+        return this;
+    }
+
+    @Nullable
+    public String getBlueprintId() {
+        return blueprintId;
+    }
+
+    /**
+     * Filter by the blueprint the group's source references.
+     *
+     * @param blueprintId the blueprint ID
+     * @return this query for chaining
+     */
+    public GroupQuery filterByBlueprintId(@Nullable String blueprintId) {
+        this.blueprintId = blueprintId;
+        return this;
+    }
+
+    @Nullable
     public Integer getLimit() {
         return limit;
     }
 
     public GroupQuery limit(Integer limit) {
         this.limit = limit;
+        return this;
+    }
+
+    @Nullable
+    public Integer getOffset() {
+        return offset;
+    }
+
+    /**
+     * Skips the first groups of the result. The controller only accepts an offset together with a limit.
+     *
+     * @param offset the number of groups to skip
+     * @return this query for chaining
+     */
+    public GroupQuery offset(Integer offset) {
+        this.offset = offset;
         return this;
     }
 
@@ -57,7 +102,10 @@ public class GroupQuery {
         GroupQuery copy = new GroupQuery();
         copy.type = type;
         copy.tag = tag;
+        copy.active = active;
+        copy.blueprintId = blueprintId;
         copy.limit = limit;
+        copy.offset = offset;
         return copy;
     }
 }

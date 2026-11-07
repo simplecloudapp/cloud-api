@@ -5,7 +5,7 @@ import org.jetbrains.annotations.Nullable;
 import java.util.List;
 
 /**
- * Workflow IDs that run automatically when a server starts or stops.
+ * Workflows that run automatically when a server starts or stops.
  */
 public class WorkflowWhen {
     @Nullable

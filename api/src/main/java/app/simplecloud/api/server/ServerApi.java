@@ -11,9 +11,6 @@ import java.util.concurrent.CompletableFuture;
 
 /**
  * API for managing server instances.
- *
- * <p>Provides methods to query running servers and stop/update server instances.
- * Lookups are served from the query cache when possible, see {@link app.simplecloud.api.cache.CacheConfig}.
  */
 public interface ServerApi {
 

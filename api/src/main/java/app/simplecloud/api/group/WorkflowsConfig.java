@@ -6,9 +6,6 @@ import java.util.List;
 
 /**
  * Workflows of a group or persistent server.
- *
- * <p>{@code manual} lists the workflow IDs that can be run on demand, for example with
- * {@link GroupApi#executeWorkflow(String, String)}. {@code when} lists the workflows that run automatically.
  */
 public class WorkflowsConfig {
     @Nullable

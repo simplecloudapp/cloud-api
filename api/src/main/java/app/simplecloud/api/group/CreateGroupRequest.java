@@ -15,10 +15,6 @@ import java.util.Map;
  * start workflow {@code internal/setup}, stop workflow {@code internal/cleanup} and manual workflows
  * {@code default/backup} and {@code default/copy-to-template}.
  *
- * <p>Use {@link #setCreateBlueprint(CreateBlueprintRequest)} to create a blueprint together with the group
- * instead of referencing an existing one. It can't be combined with {@code source.blueprint} or {@code source.image}.
- * If the blueprint has no {@code serverUrl}, it is looked up from the server software and version in the
- * manifest set with {@link app.simplecloud.api.CloudApiOptions.Builder#serverVersionManifestUrl(String)}.
  */
 public class CreateGroupRequest {
     private final String name;

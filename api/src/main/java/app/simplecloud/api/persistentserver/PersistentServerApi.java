@@ -1,6 +1,10 @@
 package app.simplecloud.api.persistentserver;
 
 import app.simplecloud.api.CloudApiException;
+import app.simplecloud.api.group.DeploymentHost;
+import app.simplecloud.api.group.Group;
+import app.simplecloud.api.group.GroupApi;
+import app.simplecloud.api.group.ScalingConfig;
 import app.simplecloud.api.workflow.WorkflowExecutionResult;
 import org.jetbrains.annotations.Nullable;
 
@@ -11,12 +15,6 @@ import java.util.concurrent.CompletableFuture;
 
 /**
  * API for managing persistent servers.
- *
- * <p>Persistent servers are long-lived server instances that maintain state across restarts.
- * Unlike servers spawned from a group, persistent servers don't have scaling or deployment
- * configuration - they are single instances that run on a specific host.
- *
- * <p>Lookups are served from the query cache when possible, see {@link app.simplecloud.api.cache.CacheConfig}.
  */
 public interface PersistentServerApi {
 
@@ -109,6 +107,21 @@ public interface PersistentServerApi {
      * @return a CompletableFuture that completes with the result per server
      */
     CompletableFuture<WorkflowExecutionResult> executeWorkflow(String id, String workflowId);
+
+    /**
+     * Converts a persistent server into a server group.
+     *
+     * <p>The persistent server must be inactive and have no server instance; otherwise the future fails
+     * with {@link CloudApiException.Reason#CONFLICT}. The group gets a new ID and starts inactive. The
+     * persistent server is deleted and world files are not migrated.
+     *
+     * @param persistentServerId the ID of the persistent server to convert
+     * @param hosts the hosts the group may run on; an empty list allows all hosts
+     * @param scaling the complete scaling config of the group, see {@link GroupApi#updateGroup}
+     * @return a CompletableFuture that completes with the new group
+     */
+    CompletableFuture<Group> convertToGroup(
+            String persistentServerId, List<DeploymentHost> hosts, ScalingConfig scaling);
 
     /**
      * Updates persistent server properties by merging with existing properties (deep merge).

@@ -48,9 +48,6 @@ public class ScalingConfig {
         this.maxServersSet = true;
     }
 
-    /**
-     * @return whether {@code maxServers} was set; if not, the create default is used
-     */
     public boolean hasMaxServers() {
         return maxServersSet;
     }
@@ -63,9 +60,6 @@ public class ScalingConfig {
         this.minServers = minServers;
     }
 
-    /**
-     * @return the player threshold as a fraction greater than 0 and at most 1, for example {@code 0.75}
-     */
     public double getPlayerThreshold() {
         return playerThreshold;
     }
@@ -75,9 +69,6 @@ public class ScalingConfig {
         this.playerThresholdSet = true;
     }
 
-    /**
-     * @return whether {@code playerThreshold} was set; if not, the create default is used
-     */
     public boolean hasPlayerThreshold() {
         return playerThresholdSet;
     }

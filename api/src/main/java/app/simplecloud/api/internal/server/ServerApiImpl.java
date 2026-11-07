@@ -5,7 +5,6 @@ import app.simplecloud.api.CloudApiOptions;
 import app.simplecloud.api.cache.QueryCache;
 import app.simplecloud.api.cache.QueryKey;
 import app.simplecloud.api.internal.util.ValidationUtil;
-import app.simplecloud.api.internal.web.ApiClientFactory;
 import app.simplecloud.api.internal.web.ApiExceptions;
 import app.simplecloud.api.internal.workflow.WorkflowResults;
 import app.simplecloud.api.server.Server;
@@ -38,7 +37,6 @@ import java.util.Objects;
 import java.util.Optional;
 import java.util.concurrent.CompletableFuture;
 import java.util.concurrent.Executor;
-import java.util.concurrent.ForkJoinPool;
 import java.util.logging.Logger;
 
 public class ServerApiImpl implements ServerApi {
@@ -50,14 +48,6 @@ public class ServerApiImpl implements ServerApi {
     private final ServersApi serversApi;
     private final QueryCache cache;
     private final Executor executor;
-
-    public ServerApiImpl(CloudApiOptions options, QueryCache cache) {
-        this(options, cache, ApiClientFactory.create(options));
-    }
-
-    public ServerApiImpl(CloudApiOptions options, QueryCache cache, ApiClient httpClient) {
-        this(options, cache, httpClient, ForkJoinPool.commonPool());
-    }
 
     public ServerApiImpl(CloudApiOptions options, QueryCache cache, ApiClient httpClient, Executor executor) {
         this(options, cache, createServersApi(options, httpClient), executor);
@@ -131,6 +121,8 @@ public class ServerApiImpl implements ServerApi {
                                 }
 
                                 return servers.stream()
+                                        .filter(server -> server.getServerGroupId() != null
+                                                && !server.getServerGroupId().isEmpty())
                                         .<Server>map(ServerImpl::new)
                                         .toList();
                             } catch (ApiException e) {
@@ -246,7 +238,6 @@ public class ServerApiImpl implements ServerApi {
         if (query == null) {
             return QueryKey.of("servers");
         }
-        // Snapshot mutable builder state so cache keys remain stable after query construction.
         return QueryKey.of(
                 "servers",
                 "query",
@@ -259,7 +250,9 @@ public class ServerApiImpl implements ServerApi {
                 snapshot(query.getServerGroupTags()),
                 snapshot(query.getNumericalIds()),
                 query.getSortBy(),
-                query.getSortOrder());
+                query.getSortOrder(),
+                query.getLimit(),
+                query.getOffset());
     }
 
     private static <T> List<T> snapshot(@Nullable List<T> values) {
@@ -390,8 +383,8 @@ public class ServerApiImpl implements ServerApi {
                 numericalIds,
                 sortBy,
                 sortOrder,
-                null,
-                null);
+                query != null ? query.getLimit() : null,
+                query != null ? query.getOffset() : null);
     }
 
     private static ServersApi createServersApi(CloudApiOptions options, ApiClient httpClient) {
@@ -406,8 +399,6 @@ public class ServerApiImpl implements ServerApi {
                 () -> {
                     try {
                         serversApi.stopServer(this.options.getNetworkId(), id);
-
-                        // Invalidate this server and list caches
                         cache.invalidate(QueryKey.of("server", id));
                         cache.invalidateAll(QueryKey.of("servers"));
                         cache.invalidateAll(QueryKey.of("server", "numerical"));

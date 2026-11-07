@@ -4,11 +4,7 @@ import app.simplecloud.api.base.ServerBase;
 import org.jetbrains.annotations.Nullable;
 
 /**
- * Represents a server group configuration.
- *
- * <p>Server groups are templates that define how server instances should be
- * created, deployed, and scaled. Each group specifies memory limits, player capacity,
- * deployment strategy, scaling behavior, and source configuration.
+ * Represents a server group.
  */
 public interface Group extends ServerBase {
 
@@ -54,4 +50,15 @@ public interface Group extends ServerBase {
      */
     @Nullable
     ScalingConfig getScaling();
+
+    /**
+     * Returns the server and player counts of this group.
+     *
+     * <p>Groups returned by {@link GroupApi#createGroup} and {@link GroupApi#updateGroup} and groups
+     * attached to a {@link app.simplecloud.api.server.Server} carry no stats.
+     *
+     * @return the stats, or null if not available
+     */
+    @Nullable
+    GroupStats getStats();
 }

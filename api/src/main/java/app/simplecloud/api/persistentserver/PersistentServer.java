@@ -4,11 +4,7 @@ import app.simplecloud.api.base.ServerBase;
 import org.jetbrains.annotations.Nullable;
 
 /**
- * Represents a persistent server configuration.
- *
- * <p>Persistent servers are long-lived server instances that maintain state across restarts.
- * Unlike servers spawned from a group, persistent servers don't have scaling or deployment
- * configuration - they are single instances that run on a specific host.
+ * Represents a persistent server.
  */
 public interface PersistentServer extends ServerBase {
 

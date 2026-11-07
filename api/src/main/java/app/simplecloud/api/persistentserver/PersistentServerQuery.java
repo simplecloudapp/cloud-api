@@ -1,5 +1,6 @@
 package app.simplecloud.api.persistentserver;
 
+import app.simplecloud.api.group.GroupServerType;
 import org.jetbrains.annotations.Nullable;
 
 import java.util.ArrayList;
@@ -13,7 +14,10 @@ public class PersistentServerQuery {
     private List<String> tags;
     private Boolean active;
     private String serverhostId;
+    private GroupServerType type;
+    private String blueprintId;
     private Integer limit;
+    private Integer offset;
 
     public PersistentServerQuery() {}
 
@@ -27,7 +31,10 @@ public class PersistentServerQuery {
         copy.tags = tags == null ? null : new ArrayList<>(tags);
         copy.active = active;
         copy.serverhostId = serverhostId;
+        copy.type = type;
+        copy.blueprintId = blueprintId;
         copy.limit = limit;
+        copy.offset = offset;
         return copy;
     }
 
@@ -79,6 +86,55 @@ public class PersistentServerQuery {
      */
     public PersistentServerQuery filterByServerhostId(String serverhostId) {
         this.serverhostId = serverhostId;
+        return this;
+    }
+
+    @Nullable
+    public GroupServerType getType() {
+        return type;
+    }
+
+    /**
+     * Filter by server type.
+     *
+     * @param type the server type to filter by
+     * @return this query for chaining
+     */
+    public PersistentServerQuery filterByType(GroupServerType type) {
+        this.type = type;
+        return this;
+    }
+
+    @Nullable
+    public String getBlueprintId() {
+        return blueprintId;
+    }
+
+    /**
+     * Filter by the blueprint the persistent server's source references.
+     *
+     * @param blueprintId the blueprint ID
+     * @return this query for chaining
+     */
+    public PersistentServerQuery filterByBlueprintId(String blueprintId) {
+        this.blueprintId = blueprintId;
+        return this;
+    }
+
+    @Nullable
+    public Integer getOffset() {
+        return offset;
+    }
+
+    /**
+     * Skips the first persistent servers of the result. The controller only accepts an offset together
+     * with a limit.
+     *
+     * @param offset the number of persistent servers to skip
+     * @return this query for chaining
+     */
+    public PersistentServerQuery offset(int offset) {
+        this.offset = offset;
         return this;
     }
 

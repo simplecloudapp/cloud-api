@@ -24,14 +24,18 @@ import app.simplecloud.api.group.UpdateGroupRequest;
 import app.simplecloud.api.group.WorkflowsConfig;
 import app.simplecloud.api.internal.blueprint.InlineBlueprintSupport;
 import app.simplecloud.api.internal.create.CreateRequestDefaults;
+import app.simplecloud.api.internal.persistentserver.PersistentServerApiImpl;
+import app.simplecloud.api.internal.persistentserver.PersistentServerImpl;
 import app.simplecloud.api.internal.util.ValidationUtil;
-import app.simplecloud.api.internal.web.ApiClientFactory;
 import app.simplecloud.api.internal.web.ApiExceptions;
 import app.simplecloud.api.internal.workflow.WorkflowResults;
+import app.simplecloud.api.persistentserver.PersistentServer;
 import app.simplecloud.api.web.ApiClient;
 import app.simplecloud.api.web.ApiException;
 import app.simplecloud.api.web.apis.BlueprintsApi;
 import app.simplecloud.api.web.apis.ServerGroupsApi;
+import app.simplecloud.api.web.models.ModelsConvertGroupToPersistentRequest;
+import app.simplecloud.api.web.models.ModelsCreatePersistentServerResponse;
 import app.simplecloud.api.web.models.ModelsCreateServerGroupRequest;
 import app.simplecloud.api.web.models.ModelsCreateServerGroupResponse;
 import app.simplecloud.api.web.models.ModelsDeletePropertiesRequest;
@@ -69,7 +73,6 @@ import java.util.Objects;
 import java.util.Optional;
 import java.util.concurrent.CompletableFuture;
 import java.util.concurrent.Executor;
-import java.util.concurrent.ForkJoinPool;
 
 public class GroupApiImpl implements GroupApi {
     private static final Duration TRANSIENT_MISS_RETRY_DELAY = Duration.ofMillis(200);
@@ -82,14 +85,6 @@ public class GroupApiImpl implements GroupApi {
     private final QueryCache cache;
     private final Executor executor;
 
-    public GroupApiImpl(CloudApiOptions options, QueryCache cache) {
-        this(options, cache, ApiClientFactory.create(options));
-    }
-
-    public GroupApiImpl(CloudApiOptions options, QueryCache cache, ApiClient httpClient) {
-        this(options, cache, httpClient, ForkJoinPool.commonPool());
-    }
-
     public GroupApiImpl(CloudApiOptions options, QueryCache cache, ApiClient httpClient, Executor executor) {
         this(
                 options,
@@ -97,30 +92,6 @@ public class GroupApiImpl implements GroupApi {
                 createServerGroupsApi(options, httpClient),
                 new InlineBlueprintSupport(options, createBlueprintsApi(options, httpClient)),
                 executor);
-    }
-
-    GroupApiImpl(
-            CloudApiOptions options, QueryCache cache, ServerGroupsApi serverGroupsApi, BlueprintsApi blueprintsApi) {
-        this(
-                options,
-                cache,
-                serverGroupsApi,
-                new InlineBlueprintSupport(options, blueprintsApi),
-                ForkJoinPool.commonPool());
-    }
-
-    GroupApiImpl(
-            CloudApiOptions options,
-            QueryCache cache,
-            ServerGroupsApi serverGroupsApi,
-            BlueprintsApi blueprintsApi,
-            InlineBlueprintSupport.ServerUrlResolver serverUrlResolver) {
-        this(
-                options,
-                cache,
-                serverGroupsApi,
-                new InlineBlueprintSupport(options, blueprintsApi, serverUrlResolver),
-                ForkJoinPool.commonPool());
     }
 
     private GroupApiImpl(
@@ -371,7 +342,15 @@ public class GroupApiImpl implements GroupApi {
         if (query == null) {
             return QueryKey.of("groups");
         }
-        return QueryKey.of("groups", "query", query.getType(), query.getTag(), query.getLimit());
+        return QueryKey.of(
+                "groups",
+                "query",
+                query.getType(),
+                query.getTag(),
+                query.getActive(),
+                query.getBlueprintId(),
+                query.getLimit(),
+                query.getOffset());
     }
 
     private ModelsListServerGroupsResponse executeQuery(@org.jetbrains.annotations.Nullable GroupQuery query)
@@ -387,11 +366,11 @@ public class GroupApiImpl implements GroupApi {
                 name,
                 query != null && query.getType() != null ? ValidationUtil.serverTypeName(query.getType()) : null,
                 query != null ? query.getTag() : null,
+                query != null ? query.getActive() : null,
                 null,
-                null,
-                null,
+                query != null ? query.getBlueprintId() : null,
                 query != null ? query.getLimit() : null,
-                null);
+                query != null ? query.getOffset() : null);
     }
 
     private boolean groupExistsWithBlueprint(String name, @Nullable String blueprintId) {
@@ -493,13 +472,13 @@ public class GroupApiImpl implements GroupApi {
                     apiRequest.setScaling(convertScalingConfig(effectiveScaling));
                     apiRequest.setWorkflows(convertWorkflowsConfig(effectiveWorkflows));
 
-                    String createdBlueprintId;
+                    String blueprintId;
                     try {
-                        createdBlueprintId =
+                        blueprintId =
                                 inlineBlueprintSupport.createBlueprint(request.getName(), effectiveCreateBlueprint);
-                        SourceConfig effectiveSource = createdBlueprintId != null
+                        SourceConfig effectiveSource = blueprintId != null
                                 ? inlineBlueprintSupport.buildInlineBlueprintSource(
-                                        request.getSource(), createdBlueprintId)
+                                        request.getSource(), blueprintId)
                                 : request.getSource();
                         if (effectiveSource != null) {
                             apiRequest.setSource(convertSourceConfig(effectiveSource));
@@ -509,7 +488,6 @@ public class GroupApiImpl implements GroupApi {
                         try {
                             response = serverGroupsApi.createServerGroup(this.options.getNetworkId(), apiRequest);
                         } catch (ApiException e) {
-                            String blueprintId = createdBlueprintId;
                             throw inlineBlueprintSupport.rollBackAfterCreateFailure(
                                     "group",
                                     blueprintId,
@@ -521,25 +499,7 @@ public class GroupApiImpl implements GroupApi {
                         cache.invalidateAll(QueryKey.of("groups"));
                         cache.invalidateAll(QueryKey.of("group", "name"));
 
-                        ModelsServerGroupSummary summary = new ModelsServerGroupSummary();
-                        summary.setServerGroupId(response.getServerGroupId());
-                        summary.setName(response.getName());
-                        summary.setType(response.getType());
-                        summary.setMinMemory(response.getMinMemory());
-                        summary.setMaxMemory(response.getMaxMemory());
-                        summary.setMaxPlayers(response.getMaxPlayers());
-                        summary.setActive(response.getActive());
-                        summary.setPriority(response.getPriority());
-                        summary.setDeployment(response.getDeployment());
-                        summary.setScaling(response.getScaling());
-                        summary.setSource(response.getSource());
-                        summary.setWorkflows(response.getWorkflows());
-                        summary.setProperties(response.getProperties());
-                        summary.setTags(response.getTags());
-                        summary.setCreatedAt(response.getCreatedAt());
-                        summary.setUpdatedAt(response.getUpdatedAt());
-
-                        return new GroupImpl(summary);
+                        return new GroupImpl(toSummary(response));
                     } catch (ApiException e) {
                         throw ApiExceptions.from(e);
                     }
@@ -570,6 +530,7 @@ public class GroupApiImpl implements GroupApi {
                             apiRequest.setDeployment(convertDeploymentConfig(request.getDeployment()));
                         }
                         if (request.getScaling() != null) {
+                            requireCompleteScaling(request.getScaling());
                             apiRequest.setScaling(convertScalingConfig(request.getScaling()));
                         }
                         if (request.getSource() != null) {
@@ -640,7 +601,35 @@ public class GroupApiImpl implements GroupApi {
         };
     }
 
-    private ModelsScalingConfig convertScalingConfig(ScalingConfig config) {
+    public static ModelsServerGroupSummary toSummary(ModelsCreateServerGroupResponse response) {
+        ModelsServerGroupSummary summary = new ModelsServerGroupSummary();
+        summary.setServerGroupId(response.getServerGroupId());
+        summary.setName(response.getName());
+        summary.setType(response.getType());
+        summary.setMinMemory(response.getMinMemory());
+        summary.setMaxMemory(response.getMaxMemory());
+        summary.setMaxPlayers(response.getMaxPlayers());
+        summary.setActive(response.getActive());
+        summary.setPriority(response.getPriority());
+        summary.setDeployment(response.getDeployment());
+        summary.setScaling(response.getScaling());
+        summary.setSource(response.getSource());
+        summary.setWorkflows(response.getWorkflows());
+        summary.setProperties(response.getProperties());
+        summary.setTags(response.getTags());
+        summary.setCreatedAt(response.getCreatedAt());
+        summary.setUpdatedAt(response.getUpdatedAt());
+        return summary;
+    }
+
+    public static void requireCompleteScaling(ScalingConfig config) {
+        if (config.getScalingMode() == null || !config.hasMaxServers() || !config.hasPlayerThreshold()) {
+            throw new IllegalArgumentException(
+                    "scaling replaces the stored config as a whole, so scalingMode, maxServers and playerThreshold must be set");
+        }
+    }
+
+    public static ModelsScalingConfig convertScalingConfig(ScalingConfig config) {
         ModelsScalingConfig result = new ModelsScalingConfig();
         result.setAvailableSlots(config.getAvailableSlots());
         result.setMaxServers(config.getMaxServers());
@@ -660,7 +649,7 @@ public class GroupApiImpl implements GroupApi {
         return result;
     }
 
-    private String convertScalingMode(ScalingMode scalingMode) {
+    private static String convertScalingMode(ScalingMode scalingMode) {
         return switch (scalingMode) {
             case SLOTS -> "SLOTS";
             case SERVERS -> "SERVERS";
@@ -727,6 +716,32 @@ public class GroupApiImpl implements GroupApi {
                         cache.invalidateAll(QueryKey.of("group", "name"));
 
                         inlineBlueprintSupport.deleteBlueprint(blueprintId);
+                    } catch (ApiException e) {
+                        throw ApiExceptions.from(e);
+                    }
+                },
+                executor);
+    }
+
+    @Override
+    public CompletableFuture<PersistentServer> convertToPersistentServer(String serverGroupId, String serverhostId) {
+        return CompletableFuture.supplyAsync(
+                () -> {
+                    String normalizedServerGroupId = requireServerGroupId(serverGroupId);
+                    try {
+                        ModelsConvertGroupToPersistentRequest request = new ModelsConvertGroupToPersistentRequest();
+                        request.setServerhostId(serverhostId);
+
+                        ModelsCreatePersistentServerResponse response = serverGroupsApi.convertGroupToPersistent(
+                                options.getNetworkId(), normalizedServerGroupId, request);
+
+                        cache.invalidate(QueryKey.of("group", normalizedServerGroupId));
+                        cache.invalidateAll(QueryKey.of("groups"));
+                        cache.invalidateAll(QueryKey.of("group", "name"));
+                        cache.invalidateAll(QueryKey.of("persistentServers"));
+                        cache.invalidateAll(QueryKey.of("persistentServer", "name"));
+
+                        return new PersistentServerImpl(PersistentServerApiImpl.toSummary(response));
                     } catch (ApiException e) {
                         throw ApiExceptions.from(e);
                     }

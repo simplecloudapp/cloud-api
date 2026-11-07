@@ -14,14 +14,6 @@ import java.util.concurrent.ScheduledExecutorService;
 import java.util.concurrent.ScheduledFuture;
 import java.util.concurrent.TimeUnit;
 
-/**
- * Automatically invalidates cache entries when NATS events arrive.
- * This provides automatic cache coherence without manual intervention.
- *
- * <p>Uses debouncing to coalesce multiple events within a short time window
- * into a single invalidation. This is particularly useful during rolling restarts
- * or bulk operations where many events may arrive in rapid succession.
- */
 public class CacheEventListener {
 
     private static final long MAX_WAIT_DEBOUNCE_FACTOR = 10;
@@ -31,7 +23,6 @@ public class CacheEventListener {
     private final ScheduledExecutorService scheduler;
     private final long debounceMs;
 
-    // Pending invalidations - using concurrent sets for thread safety
     private final Set<QueryKey> pendingInvalidations = ConcurrentHashMap.newKeySet();
     private final Set<QueryKey> pendingPatternInvalidations = ConcurrentHashMap.newKeySet();
     private volatile ScheduledFuture<?> pendingFlush;
@@ -49,9 +40,6 @@ public class CacheEventListener {
         setupListeners(eventApi);
     }
 
-    /**
-     * Schedules a debounced invalidation for a specific key.
-     */
     private synchronized void scheduleInvalidation(QueryKey key) {
         if (shutdown) {
             return;
@@ -60,9 +48,6 @@ public class CacheEventListener {
         scheduleFlush();
     }
 
-    /**
-     * Schedules a debounced pattern invalidation (invalidateAll).
-     */
     private synchronized void schedulePatternInvalidation(QueryKey pattern) {
         if (shutdown) {
             return;
@@ -71,11 +56,11 @@ public class CacheEventListener {
         scheduleFlush();
     }
 
-    /**
-     * Schedules or reschedules the flush operation.
-     * Uses debouncing - if called multiple times within the debounce window,
-     * only one flush will occur after the window expires.
-     */
+    private void scheduleGroupStatsInvalidation() {
+        schedulePatternInvalidation(QueryKey.of("groups"));
+        schedulePatternInvalidation(QueryKey.of("group"));
+    }
+
     private void scheduleFlush() {
         long now = System.nanoTime();
         if (firstPendingAtNanos < 0) {
@@ -86,22 +71,17 @@ public class CacheEventListener {
         }
         long maxWaitLeftMs = TimeUnit.NANOSECONDS.toMillis(
                 firstPendingAtNanos + TimeUnit.MILLISECONDS.toNanos(debounceMs * MAX_WAIT_DEBOUNCE_FACTOR) - now);
-        long delayMs = Math.max(0, Math.min(debounceMs, maxWaitLeftMs));
+        long delayMs = Math.clamp(debounceMs, 0, maxWaitLeftMs);
         pendingFlush = scheduler.schedule(this::flush, delayMs, TimeUnit.MILLISECONDS);
     }
 
-    /**
-     * Flushes all pending invalidations.
-     */
     private synchronized void flush() {
         firstPendingAtNanos = -1;
-        // Process pattern invalidations first (they may cover individual keys)
         for (QueryKey pattern : pendingPatternInvalidations) {
             cache.invalidateAll(pattern);
         }
         pendingPatternInvalidations.clear();
 
-        // Process individual key invalidations
         for (QueryKey key : pendingInvalidations) {
             cache.invalidate(key);
         }
@@ -113,24 +93,28 @@ public class CacheEventListener {
         subscriptions.add(eventApi.server().onStarted(event -> {
             schedulePatternInvalidation(QueryKey.of("servers"));
             schedulePatternInvalidation(QueryKey.of("server", "numerical"));
+            scheduleGroupStatsInvalidation();
         }));
 
         subscriptions.add(eventApi.server().onStopped(event -> {
             scheduleInvalidation(QueryKey.of("server", event.getServerId()));
             schedulePatternInvalidation(QueryKey.of("servers"));
             schedulePatternInvalidation(QueryKey.of("server", "numerical"));
+            scheduleGroupStatsInvalidation();
         }));
 
         subscriptions.add(eventApi.server().onStateChanged(event -> {
             scheduleInvalidation(QueryKey.of("server", event.getServerId()));
             schedulePatternInvalidation(QueryKey.of("servers"));
             schedulePatternInvalidation(QueryKey.of("server", "numerical"));
+            scheduleGroupStatsInvalidation();
         }));
 
         subscriptions.add(eventApi.server().onDeleted(event -> {
             scheduleInvalidation(QueryKey.of("server", event.getServerId()));
             schedulePatternInvalidation(QueryKey.of("servers"));
             schedulePatternInvalidation(QueryKey.of("server", "numerical"));
+            scheduleGroupStatsInvalidation();
         }));
 
         subscriptions.add(eventApi.server().onUpdated(event -> {
@@ -188,9 +172,6 @@ public class CacheEventListener {
         }));
     }
 
-    /**
-     * Shuts down the event listener by unsubscribing from all events.
-     */
     public void shutdown() {
         synchronized (this) {
             if (shutdown) {
@@ -217,7 +198,6 @@ public class CacheEventListener {
             Thread.currentThread().interrupt();
         }
 
-        // Flush anything that was queued before shutdown after the scheduler is stopped.
         flush();
     }
 }

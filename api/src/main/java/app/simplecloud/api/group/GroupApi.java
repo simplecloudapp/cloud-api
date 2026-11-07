@@ -1,6 +1,7 @@
 package app.simplecloud.api.group;
 
 import app.simplecloud.api.CloudApiException;
+import app.simplecloud.api.persistentserver.PersistentServer;
 import app.simplecloud.api.workflow.WorkflowExecutionResult;
 import org.jetbrains.annotations.Nullable;
 
@@ -11,11 +12,6 @@ import java.util.concurrent.CompletableFuture;
 
 /**
  * API for managing server groups.
- *
- * <p>Server groups define templates for server instances, including memory limits,
- * scaling configuration, deployment strategy, and source configuration.
- *
- * <p>Group lookups are served from the query cache when possible, see {@link app.simplecloud.api.cache.CacheConfig}.
  */
 public interface GroupApi {
 
@@ -29,6 +25,11 @@ public interface GroupApi {
     /**
      * Requests one server start for a server group.
      *
+     * <p>Only active groups with {@link ScalingMode#SERVERS} support queued starts; other groups fail with
+     * {@link CloudApiException.Reason#INVALID_REQUEST}. Accepting the request does not guarantee that the
+     * server starts: a start that does not succeed within about 5 minutes is marked
+     * {@link GroupStartQueueItemStatus#FAILED}, see {@link #getServerStartQueue()}.
+     *
      * @param serverGroupId the server group ID
      * @return a CompletableFuture that completes when the start request was accepted
      */
@@ -39,6 +40,7 @@ public interface GroupApi {
      *
      * @param group the target group
      * @return a CompletableFuture that completes when the start request was accepted
+     * @see #requestServerStart(String)
      */
     default CompletableFuture<Void> requestServerStart(Group group) {
         return requestServerStart(group.getServerGroupId());
@@ -197,7 +199,7 @@ public interface GroupApi {
     /**
      * Retrieves all server groups, optionally filtered by a query.
      *
-     * @param query optional query parameters to filter results (type, tag, limit)
+     * @param query optional filters and paging, see {@link GroupQuery}
      * @return a CompletableFuture that completes with a list of matching groups
      */
     CompletableFuture<List<Group>> getAllGroups(@Nullable GroupQuery query);
@@ -225,6 +227,8 @@ public interface GroupApi {
      * <p>Only the top-level fields set in the request are updated. Nested configurations
      * ({@code scaling}, {@code deployment}, {@code workflows}) replace the
      * stored configuration as a whole, so they must be complete; no create defaults are applied.
+     * A {@code scaling} config without scaling mode, max servers or player threshold fails with an
+     * {@link IllegalArgumentException}.
      *
      * @param id      the unique ID of the server group to update
      * @param request the updated configuration
@@ -235,12 +239,27 @@ public interface GroupApi {
     /**
      * Deletes a server group and its referenced blueprint, if present.
      *
-     * <p>Note: This will not stop running servers, but prevents new servers from being created.
+     * <p>The controller refuses to delete a group that still has servers; the future then fails with
+     * {@link CloudApiException.Reason#CONFLICT}. Stop them first, for example with {@link #stopAllServers(String)}.
      *
      * @param id the unique ID of the server group to delete
      * @return a CompletableFuture that completes when the group and its referenced blueprint are deleted
      */
     CompletableFuture<Void> deleteGroup(String id);
+
+    /**
+     * Converts a server group into a persistent server.
+     *
+     * <p>The group must be inactive and have no servers, queued starts or running rolling restart; otherwise
+     * the future fails with {@link CloudApiException.Reason#CONFLICT}. The persistent server gets a new ID
+     * and starts inactive. The group is deleted, its scaling and deployment settings are dropped, and world
+     * files are not migrated.
+     *
+     * @param serverGroupId the ID of the group to convert
+     * @param serverhostId the ID of the serverhost the persistent server runs on
+     * @return a CompletableFuture that completes with the new persistent server
+     */
+    CompletableFuture<PersistentServer> convertToPersistentServer(String serverGroupId, String serverhostId);
 
     /**
      * Updates group properties by merging with existing properties (deep merge).

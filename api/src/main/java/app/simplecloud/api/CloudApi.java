@@ -53,7 +53,8 @@ public interface CloudApi extends AutoCloseable {
     /**
      * Returns the server management API.
      *
-     * <p>Use this to query running servers, start new instances, and stop servers.
+     * <p>Use this to query, update and stop servers. To start a server of a group, use
+     * {@link GroupApi#requestServerStart(String)}.
      *
      * @return the server API
      */

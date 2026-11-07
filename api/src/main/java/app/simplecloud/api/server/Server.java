@@ -11,9 +11,6 @@ import java.util.Map;
 /**
  * Represents a running server instance.
  *
- * <p>Provides detailed information about a server's state, resource usage,
- * network configuration, and associated base configuration.
- *
  * <p>A server can be spawned from either a {@link Group} or a {@link PersistentServer}.
  * Use {@link #getServerBase()} to access common configuration properties regardless
  * of the source type, or use {@link #getGroup()} / {@link #getPersistentServer()} to

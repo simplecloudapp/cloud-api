@@ -12,7 +12,7 @@ public enum GroupStartQueueItemStatus {
     PENDING,
 
     /**
-     * The start was attempted and failed, see {@link GroupStartQueueItem#getFailureReason()}.
+     * The start was attempted and failed, see {@link GroupStartQueueItem#failureReason()}.
      */
     FAILED,
 

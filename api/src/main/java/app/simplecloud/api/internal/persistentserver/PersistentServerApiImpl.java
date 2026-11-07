@@ -4,13 +4,17 @@ import app.simplecloud.api.CloudApiOptions;
 import app.simplecloud.api.blueprint.CreateBlueprintRequest;
 import app.simplecloud.api.cache.QueryCache;
 import app.simplecloud.api.cache.QueryKey;
+import app.simplecloud.api.group.DeploymentHost;
+import app.simplecloud.api.group.Group;
 import app.simplecloud.api.group.GroupServerType;
+import app.simplecloud.api.group.ScalingConfig;
 import app.simplecloud.api.group.SourceConfig;
 import app.simplecloud.api.group.WorkflowsConfig;
 import app.simplecloud.api.internal.blueprint.InlineBlueprintSupport;
 import app.simplecloud.api.internal.create.CreateRequestDefaults;
+import app.simplecloud.api.internal.group.GroupApiImpl;
+import app.simplecloud.api.internal.group.GroupImpl;
 import app.simplecloud.api.internal.util.ValidationUtil;
-import app.simplecloud.api.internal.web.ApiClientFactory;
 import app.simplecloud.api.internal.web.ApiExceptions;
 import app.simplecloud.api.internal.workflow.WorkflowResults;
 import app.simplecloud.api.persistentserver.CreatePersistentServerRequest;
@@ -22,8 +26,12 @@ import app.simplecloud.api.web.ApiClient;
 import app.simplecloud.api.web.ApiException;
 import app.simplecloud.api.web.apis.BlueprintsApi;
 import app.simplecloud.api.web.apis.PersistentServersApi;
+import app.simplecloud.api.web.models.ModelsConversionDeployment;
+import app.simplecloud.api.web.models.ModelsConvertPersistentToGroupRequest;
 import app.simplecloud.api.web.models.ModelsCreatePersistentServerRequest;
 import app.simplecloud.api.web.models.ModelsCreatePersistentServerResponse;
+import app.simplecloud.api.web.models.ModelsCreateServerGroupResponse;
+import app.simplecloud.api.web.models.ModelsDeploymentHost;
 import app.simplecloud.api.web.models.ModelsDeletePropertiesRequest;
 import app.simplecloud.api.web.models.ModelsDeletePropertiesResponse;
 import app.simplecloud.api.web.models.ModelsExecutePersistentServerWorkflowResponse;
@@ -46,7 +54,7 @@ import java.util.Objects;
 import java.util.Optional;
 import java.util.concurrent.CompletableFuture;
 import java.util.concurrent.Executor;
-import java.util.concurrent.ForkJoinPool;
+import java.util.stream.Collectors;
 
 public class PersistentServerApiImpl implements PersistentServerApi {
     private static final Duration TRANSIENT_MISS_RETRY_DELAY = Duration.ofMillis(200);
@@ -59,14 +67,6 @@ public class PersistentServerApiImpl implements PersistentServerApi {
     private final QueryCache cache;
     private final Executor executor;
 
-    public PersistentServerApiImpl(CloudApiOptions options, QueryCache cache) {
-        this(options, cache, ApiClientFactory.create(options));
-    }
-
-    public PersistentServerApiImpl(CloudApiOptions options, QueryCache cache, ApiClient httpClient) {
-        this(options, cache, httpClient, ForkJoinPool.commonPool());
-    }
-
     public PersistentServerApiImpl(CloudApiOptions options, QueryCache cache, ApiClient httpClient, Executor executor) {
         this(
                 options,
@@ -74,33 +74,6 @@ public class PersistentServerApiImpl implements PersistentServerApi {
                 createPersistentServersApi(options, httpClient),
                 new InlineBlueprintSupport(options, createBlueprintsApi(options, httpClient)),
                 executor);
-    }
-
-    PersistentServerApiImpl(
-            CloudApiOptions options,
-            QueryCache cache,
-            PersistentServersApi persistentServersApi,
-            BlueprintsApi blueprintsApi) {
-        this(
-                options,
-                cache,
-                persistentServersApi,
-                new InlineBlueprintSupport(options, blueprintsApi),
-                ForkJoinPool.commonPool());
-    }
-
-    PersistentServerApiImpl(
-            CloudApiOptions options,
-            QueryCache cache,
-            PersistentServersApi persistentServersApi,
-            BlueprintsApi blueprintsApi,
-            InlineBlueprintSupport.ServerUrlResolver serverUrlResolver) {
-        this(
-                options,
-                cache,
-                persistentServersApi,
-                new InlineBlueprintSupport(options, blueprintsApi, serverUrlResolver),
-                ForkJoinPool.commonPool());
     }
 
     private PersistentServerApiImpl(
@@ -197,7 +170,10 @@ public class PersistentServerApiImpl implements PersistentServerApi {
                 query.getActive(),
                 query.getServerhostId(),
                 query.getTags() == null ? null : List.copyOf(query.getTags()),
-                query.getLimit());
+                query.getType(),
+                query.getBlueprintId(),
+                query.getLimit(),
+                query.getOffset());
     }
 
     private boolean persistentServerExistsWithBlueprint(String name, @Nullable String blueprintId) {
@@ -275,14 +251,14 @@ public class PersistentServerApiImpl implements PersistentServerApi {
                 options.getNetworkId(),
                 persistentServerId,
                 name,
-                null,
+                query != null && query.getType() != null ? ValidationUtil.serverTypeName(query.getType()) : null,
                 tags,
                 query != null ? query.getActive() : null,
                 null,
-                null,
+                query != null ? query.getBlueprintId() : null,
                 query != null ? query.getServerhostId() : null,
                 query != null ? query.getLimit() : null,
-                null);
+                query != null ? query.getOffset() : null);
     }
 
     @Override
@@ -316,13 +292,13 @@ public class PersistentServerApiImpl implements PersistentServerApi {
                             ValidationUtil.serverTypeName(effectiveType)));
                     apiRequest.setWorkflows(convertWorkflowsConfig(effectiveWorkflows));
 
-                    String createdBlueprintId = null;
+                    String blueprintId;
                     try {
-                        createdBlueprintId =
+                        blueprintId =
                                 inlineBlueprintSupport.createBlueprint(request.getName(), effectiveCreateBlueprint);
-                        SourceConfig effectiveSource = createdBlueprintId != null
+                        SourceConfig effectiveSource = blueprintId != null
                                 ? inlineBlueprintSupport.buildInlineBlueprintSource(
-                                        request.getSource(), createdBlueprintId)
+                                        request.getSource(), blueprintId)
                                 : request.getSource();
                         if (effectiveSource != null) {
                             apiRequest.setSource(convertSourceConfig(effectiveSource));
@@ -332,7 +308,6 @@ public class PersistentServerApiImpl implements PersistentServerApi {
                         try {
                             response = persistentServersApi.createPersistentServer(options.getNetworkId(), apiRequest);
                         } catch (ApiException e) {
-                            String blueprintId = createdBlueprintId;
                             throw inlineBlueprintSupport.rollBackAfterCreateFailure(
                                     "persistent server",
                                     blueprintId,
@@ -439,6 +414,45 @@ public class PersistentServerApiImpl implements PersistentServerApi {
     }
 
     @Override
+    public CompletableFuture<Group> convertToGroup(
+            String persistentServerId, List<DeploymentHost> hosts, ScalingConfig scaling) {
+        return CompletableFuture.supplyAsync(
+                () -> {
+                    Objects.requireNonNull(hosts, "hosts");
+                    GroupApiImpl.requireCompleteScaling(Objects.requireNonNull(scaling, "scaling"));
+                    try {
+                        ModelsConversionDeployment deployment = new ModelsConversionDeployment();
+                        deployment.setHosts(hosts.stream()
+                                .map(host -> {
+                                    ModelsDeploymentHost model = new ModelsDeploymentHost();
+                                    model.setName(host.getName());
+                                    model.setPriority(host.getPriority());
+                                    return model;
+                                })
+                                .collect(Collectors.toList()));
+
+                        ModelsConvertPersistentToGroupRequest request = new ModelsConvertPersistentToGroupRequest();
+                        request.setDeployment(deployment);
+                        request.setScaling(GroupApiImpl.convertScalingConfig(scaling));
+
+                        ModelsCreateServerGroupResponse response = persistentServersApi.convertPersistentToGroup(
+                                options.getNetworkId(), persistentServerId, request);
+
+                        cache.invalidate(QueryKey.of("persistentServer", persistentServerId));
+                        cache.invalidateAll(QueryKey.of("persistentServers"));
+                        cache.invalidateAll(QueryKey.of("persistentServer", "name"));
+                        cache.invalidateAll(QueryKey.of("groups"));
+                        cache.invalidateAll(QueryKey.of("group", "name"));
+
+                        return new GroupImpl(GroupApiImpl.toSummary(response));
+                    } catch (ApiException e) {
+                        throw ApiExceptions.from(e);
+                    }
+                },
+                executor);
+    }
+
+    @Override
     public CompletableFuture<Map<String, Object>> updatePersistentServerProperties(
             String id, Map<String, Object> properties) {
         return CompletableFuture.supplyAsync(
@@ -499,7 +513,7 @@ public class PersistentServerApiImpl implements PersistentServerApi {
         return result;
     }
 
-    private ModelsPersistentServerSummary toSummary(ModelsCreatePersistentServerResponse response) {
+    public static ModelsPersistentServerSummary toSummary(ModelsCreatePersistentServerResponse response) {
         ModelsPersistentServerSummary summary = new ModelsPersistentServerSummary();
         summary.setPersistentServerId(response.getPersistentServerId());
         summary.setName(response.getName());

@@ -1,25 +1,18 @@
 package app.simplecloud.api.internal.group;
 
-import app.simplecloud.api.group.DeploymentConfig;
-import app.simplecloud.api.group.DeploymentHost;
-import app.simplecloud.api.group.DeploymentStrategy;
-import app.simplecloud.api.group.GroupServerType;
-import app.simplecloud.api.group.ScaleDownConfig;
-import app.simplecloud.api.group.ScalingConfig;
-import app.simplecloud.api.group.ScalingMode;
-import app.simplecloud.api.group.SourceConfig;
-import app.simplecloud.api.group.SourceType;
-import app.simplecloud.api.group.WorkflowWhen;
-import app.simplecloud.api.group.WorkflowsConfig;
+import app.simplecloud.api.group.*;
+import app.simplecloud.api.server.ServerState;
 import app.simplecloud.api.web.models.ModelsServerGroupInfo;
+import app.simplecloud.api.web.models.ModelsServerGroupStats;
 import app.simplecloud.api.web.models.ModelsServerGroupSummary;
 import com.google.gson.Gson;
 import org.jetbrains.annotations.Nullable;
 
+import java.util.EnumMap;
 import java.util.List;
 import java.util.Map;
 
-public class GroupImpl implements app.simplecloud.api.group.Group {
+public class GroupImpl implements Group {
     private static final Gson GSON = new Gson();
     private final ModelsServerGroupSummary summaryDelegate;
     private final ModelsServerGroupInfo infoDelegate;
@@ -27,6 +20,7 @@ public class GroupImpl implements app.simplecloud.api.group.Group {
     private ScalingConfig scaling;
     private SourceConfig source;
     private WorkflowsConfig workflows;
+    private GroupStats stats;
 
     public GroupImpl(ModelsServerGroupSummary delegate) {
         this.summaryDelegate = delegate;
@@ -355,6 +349,31 @@ public class GroupImpl implements app.simplecloud.api.group.Group {
             result.setWhen(when);
         }
         return result;
+    }
+
+    @Override
+    @Nullable
+    public GroupStats getStats() {
+        if (stats == null && summaryDelegate != null && summaryDelegate.getStats() != null) {
+            ModelsServerGroupStats model = summaryDelegate.getStats();
+            Map<ServerState, Integer> byState = new EnumMap<>(ServerState.class);
+            if (model.getServersByState() != null) {
+                model.getServersByState().forEach((state, count) -> {
+                    if (state == null || count == null) {
+                        return;
+                    }
+                    try {
+                        byState.merge(ServerState.parse(state), count, Integer::sum);
+                    } catch (IllegalArgumentException ignored) {
+                    }
+                });
+            }
+            stats = new GroupStats(
+                    model.getTotalServers() != null ? model.getTotalServers() : 0,
+                    byState,
+                    model.getOnlinePlayers() != null ? model.getOnlinePlayers() : 0);
+        }
+        return stats;
     }
 
     private <T> T mapToModel(Map<String, Object> source, Class<T> type) {
