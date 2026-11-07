@@ -206,7 +206,9 @@ class PlayerApiImplTest {
         playersApi.connectResult = ModelsConnectResult.fromValue(controllerResult);
         PlayerApiImpl api = new PlayerApiImpl(options(), null, playersApi);
 
-        assertEquals(expected, api.connect(PLAYER_ID, "lobby-1").join());
+        CloudPlayer.ConnectResult result = api.connect(PLAYER_ID, "lobby-1").join();
+
+        assertEquals(expected, result);
     }
 
     @Test
@@ -214,29 +216,40 @@ class PlayerApiImplTest {
         FakePlayersApi playersApi = new FakePlayersApi();
         PlayerApiImpl api = new PlayerApiImpl(options(), null, playersApi);
 
-        assertEquals(CloudPlayer.ConnectResult.CONNECTION_FAILED, api.connect(PLAYER_ID, "lobby-1").join());
+        CloudPlayer.ConnectResult result = api.connect(PLAYER_ID, "lobby-1").join();
+
+        assertEquals(CloudPlayer.ConnectResult.CONNECTION_FAILED, result);
     }
 
     @Test
-    void connect_mapsNotFoundAnswers() {
-        FakePlayersApi offline = new FakePlayersApi();
-        offline.connectError = new ApiException(404, "Not Found", null, "{\"error\":\"Player is not online\"}");
-        FakePlayersApi unknownServer = new FakePlayersApi();
-        unknownServer.connectError = new ApiException(404, "Not Found", null, "{\"error\":\"Server not found\"}");
+    void connect_withPlayerOffline_answersPlayerNotFound() {
+        FakePlayersApi playersApi = new FakePlayersApi();
+        String playerOfflineBody = "{\"error\":\"Player is not online\"}";
+        playersApi.connectError = new ApiException(404, "Not Found", null, playerOfflineBody);
+        PlayerApiImpl api = new PlayerApiImpl(options(), null, playersApi);
 
-        CloudPlayer.ConnectResult offlineResult = new PlayerApiImpl(options(), null, offline)
-                .connect(PLAYER_ID, "lobby-1").join();
-        CloudPlayer.ConnectResult unknownServerResult = new PlayerApiImpl(options(), null, unknownServer)
-                .connect(PLAYER_ID, "lobby-1").join();
+        CloudPlayer.ConnectResult result = api.connect(PLAYER_ID, "lobby-1").join();
 
-        assertEquals(CloudPlayer.ConnectResult.PLAYER_NOT_FOUND, offlineResult);
-        assertEquals(CloudPlayer.ConnectResult.SERVER_NOT_FOUND, unknownServerResult);
+        assertEquals(CloudPlayer.ConnectResult.PLAYER_NOT_FOUND, result);
+    }
+
+    @Test
+    void connect_withUnknownServer_answersServerNotFound() {
+        FakePlayersApi playersApi = new FakePlayersApi();
+        String unknownServerBody = "{\"error\":\"Server not found\"}";
+        playersApi.connectError = new ApiException(404, "Not Found", null, unknownServerBody);
+        PlayerApiImpl api = new PlayerApiImpl(options(), null, playersApi);
+
+        CloudPlayer.ConnectResult result = api.connect(PLAYER_ID, "lobby-1").join();
+
+        assertEquals(CloudPlayer.ConnectResult.SERVER_NOT_FOUND, result);
     }
 
     @Test
     void connect_withAmbiguousName_completesWithConflict() {
         FakePlayersApi playersApi = new FakePlayersApi();
-        playersApi.connectError = new ApiException(409, "Conflict", null, "{\"error\":\"Ambiguous server name\"}");
+        String ambiguousNameBody = "{\"error\":\"Ambiguous server name\"}";
+        playersApi.connectError = new ApiException(409, "Conflict", null, ambiguousNameBody);
         PlayerApiImpl api = new PlayerApiImpl(options(), null, playersApi);
 
         CompletionException error = assertThrows(CompletionException.class, () -> api.connect(PLAYER_ID, "lobby-1").join());

@@ -219,8 +219,8 @@ public interface CloudPlayer extends Audience {
         CONNECTION_FAILED,
 
         /**
-         * The target exists, but none of its servers is available, so the player was not sent anywhere.
-         * Only connects through the controller answer this.
+         * The target exists, but has no available server, for example because it is still starting.
+         * The player was not sent anywhere. Only connects through the controller answer this.
          */
         NO_SERVER_AVAILABLE
     }
