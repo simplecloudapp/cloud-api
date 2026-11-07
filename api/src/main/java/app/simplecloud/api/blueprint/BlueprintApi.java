@@ -8,8 +8,6 @@ import java.util.concurrent.CompletableFuture;
 
 /**
  * API for managing blueprints.
- *
- * <p>Blueprints are not cached; every call asks the controller.
  */
 public interface BlueprintApi {
 

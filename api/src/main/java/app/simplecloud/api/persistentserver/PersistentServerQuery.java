@@ -1,6 +1,7 @@
 package app.simplecloud.api.persistentserver;
 
 import app.simplecloud.api.group.GroupServerType;
+import app.simplecloud.api.group.SourceType;
 import org.jetbrains.annotations.Nullable;
 
 import java.util.ArrayList;
@@ -15,6 +16,7 @@ public class PersistentServerQuery {
     private Boolean active;
     private String serverhostId;
     private GroupServerType type;
+    private SourceType sourceType;
     private String blueprintId;
     private Integer limit;
     private Integer offset;
@@ -32,6 +34,7 @@ public class PersistentServerQuery {
         copy.active = active;
         copy.serverhostId = serverhostId;
         copy.type = type;
+        copy.sourceType = sourceType;
         copy.blueprintId = blueprintId;
         copy.limit = limit;
         copy.offset = offset;
@@ -102,6 +105,22 @@ public class PersistentServerQuery {
      */
     public PersistentServerQuery filterByType(GroupServerType type) {
         this.type = type;
+        return this;
+    }
+
+    @Nullable
+    public SourceType getSourceType() {
+        return sourceType;
+    }
+
+    /**
+     * Filter by source type.
+     *
+     * @param sourceType the source type to filter by
+     * @return this query for chaining
+     */
+    public PersistentServerQuery filterBySourceType(SourceType sourceType) {
+        this.sourceType = sourceType;
         return this;
     }
 

@@ -1,6 +1,7 @@
 package app.simplecloud.api.internal.util;
 
 import app.simplecloud.api.group.GroupServerType;
+import app.simplecloud.api.group.ScalingConfig;
 
 import java.nio.charset.StandardCharsets;
 import java.util.regex.Pattern;
@@ -22,6 +23,13 @@ public final class ValidationUtil {
             throw new IllegalArgumentException("type must be SERVER or PROXY");
         }
         return type.name();
+    }
+
+    public static void requireCompleteScaling(ScalingConfig config) {
+        if (config.getScalingMode() == null || !config.hasMaxServers() || !config.hasPlayerThreshold()) {
+            throw new IllegalArgumentException(
+                    "scaling replaces the stored config as a whole, so scalingMode, maxServers and playerThreshold must be set");
+        }
     }
 
     public static boolean isPlayerName(String value) {

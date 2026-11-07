@@ -79,7 +79,7 @@ public class CloudApiImpl implements CloudApi {
         this.serverApi = new ServerApiImpl(options, queryCache, httpClient, executor);
         this.groupApi = new GroupApiImpl(options, queryCache, httpClient, executor);
         this.persistentServerApi = new PersistentServerApiImpl(options, queryCache, httpClient, executor);
-        this.blueprintApi = new BlueprintApiImpl(options, httpClient, executor);
+        this.blueprintApi = new BlueprintApiImpl(options, queryCache, httpClient, executor);
 
         // Setup event-based cache invalidation with debouncing
         if (cacheConfig.isEnabled() && cacheConfig.isAutoInvalidateOnEvents()) {

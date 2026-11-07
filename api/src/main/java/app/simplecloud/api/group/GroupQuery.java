@@ -11,6 +11,7 @@ public class GroupQuery {
 
     private String tag;
     private Boolean active;
+    private SourceType sourceType;
     private String blueprintId;
     private Integer limit;
     private Integer offset;
@@ -48,6 +49,16 @@ public class GroupQuery {
     }
 
     @Nullable
+    public SourceType getSourceType() {
+        return sourceType;
+    }
+
+    public GroupQuery filterBySourceType(@Nullable SourceType sourceType) {
+        this.sourceType = sourceType;
+        return this;
+    }
+
+    @Nullable
     public String getBlueprintId() {
         return blueprintId;
     }
@@ -68,6 +79,12 @@ public class GroupQuery {
         return limit;
     }
 
+    /**
+     * Limit the number of results.
+     *
+     * @param limit maximum number of results to return
+     * @return this query for chaining
+     */
     public GroupQuery limit(Integer limit) {
         this.limit = limit;
         return this;
@@ -103,6 +120,7 @@ public class GroupQuery {
         copy.type = type;
         copy.tag = tag;
         copy.active = active;
+        copy.sourceType = sourceType;
         copy.blueprintId = blueprintId;
         copy.limit = limit;
         copy.offset = offset;

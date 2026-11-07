@@ -240,7 +240,8 @@ public interface GroupApi {
      * Deletes a server group and its referenced blueprint, if present.
      *
      * <p>The controller refuses to delete a group that still has servers; the future then fails with
-     * {@link CloudApiException.Reason#CONFLICT}. Stop them first, for example with {@link #stopAllServers(String)}.
+     * {@link CloudApiException.Reason#CONFLICT}. This includes servers that are still stopping, so after
+     * {@link #stopAllServers(String)} retry once the stopped servers are gone.
      *
      * @param id the unique ID of the server group to delete
      * @return a CompletableFuture that completes when the group and its referenced blueprint are deleted

@@ -71,7 +71,7 @@ public class CacheEventListener {
         }
         long maxWaitLeftMs = TimeUnit.NANOSECONDS.toMillis(
                 firstPendingAtNanos + TimeUnit.MILLISECONDS.toNanos(debounceMs * MAX_WAIT_DEBOUNCE_FACTOR) - now);
-        long delayMs = Math.clamp(debounceMs, 0, maxWaitLeftMs);
+        long delayMs = Math.clamp(maxWaitLeftMs, 0, debounceMs);
         pendingFlush = scheduler.schedule(this::flush, delayMs, TimeUnit.MILLISECONDS);
     }
 
@@ -170,6 +170,16 @@ public class CacheEventListener {
             schedulePatternInvalidation(QueryKey.of("persistentServers"));
             schedulePatternInvalidation(QueryKey.of("persistentServer", "name"));
         }));
+
+        // Blueprint events
+        subscriptions.add(eventApi.blueprint().onCreated(event -> scheduleBlueprintInvalidation()));
+        subscriptions.add(eventApi.blueprint().onUpdated(event -> scheduleBlueprintInvalidation()));
+        subscriptions.add(eventApi.blueprint().onDeleted(event -> scheduleBlueprintInvalidation()));
+    }
+
+    private void scheduleBlueprintInvalidation() {
+        schedulePatternInvalidation(QueryKey.of("blueprints"));
+        schedulePatternInvalidation(QueryKey.of("blueprint"));
     }
 
     public void shutdown() {

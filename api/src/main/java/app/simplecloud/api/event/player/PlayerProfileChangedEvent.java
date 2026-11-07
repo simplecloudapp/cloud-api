@@ -30,7 +30,7 @@ public interface PlayerProfileChangedEvent {
     /**
      * Returns the profile before the change.
      *
-     * @return the old profile, or null if the controller sent none
+     * @return the old profile; the controller always sends it, null only if the message lacks it
      */
     @Nullable
     PlayerProfile getOldProfile();
@@ -38,7 +38,7 @@ public interface PlayerProfileChangedEvent {
     /**
      * Returns the profile after the change.
      *
-     * @return the new profile, or null if the controller sent none
+     * @return the new profile; the controller always sends it, null only if the message lacks it
      */
     @Nullable
     PlayerProfile getNewProfile();

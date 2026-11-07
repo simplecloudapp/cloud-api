@@ -3,15 +3,14 @@ package app.simplecloud.api.internal.blueprint;
 import app.simplecloud.api.CloudApiException;
 import app.simplecloud.api.CloudApiOptions;
 import app.simplecloud.api.blueprint.CreateBlueprintRequest;
-import app.simplecloud.api.blueprint.RuntimeConfig;
 import app.simplecloud.api.group.SourceConfig;
 import app.simplecloud.api.group.SourceType;
+import app.simplecloud.api.internal.util.RestModelMapper;
 import app.simplecloud.api.internal.web.ApiExceptions;
 import app.simplecloud.api.web.ApiException;
 import app.simplecloud.api.web.apis.BlueprintsApi;
 import app.simplecloud.api.web.models.ModelsCreateBlueprintRequest;
 import app.simplecloud.api.web.models.ModelsCreateBlueprintResponse;
-import app.simplecloud.api.web.models.ModelsRuntimeConfig;
 import app.simplecloud.api.web.models.ModelsSourceConfig;
 import org.jetbrains.annotations.Nullable;
 
@@ -187,19 +186,10 @@ public final class InlineBlueprintSupport {
         apiRequest.setWorkflowSteps(request.getWorkflowSteps());
 
         if (request.getRuntimeConfig() != null) {
-            apiRequest.setRuntimeConfig(toModel(request.getRuntimeConfig()));
+            apiRequest.setRuntimeConfig(RestModelMapper.toModel(request.getRuntimeConfig()));
         }
 
         return apiRequest;
-    }
-
-    public static ModelsRuntimeConfig toModel(RuntimeConfig runtimeConfig) {
-        ModelsRuntimeConfig apiRuntimeConfig = new ModelsRuntimeConfig();
-        if (runtimeConfig.getType() != null) {
-            apiRuntimeConfig.setType(runtimeConfig.getType().name().toLowerCase());
-        }
-        apiRuntimeConfig.setWith(runtimeConfig.getWith());
-        return apiRuntimeConfig;
     }
 
     private @Nullable String resolveServerUrl(CreateBlueprintRequest request) {

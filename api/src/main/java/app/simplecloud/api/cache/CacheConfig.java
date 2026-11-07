@@ -1,7 +1,6 @@
 package app.simplecloud.api.cache;
 
 import java.time.Duration;
-import java.util.Collections;
 import java.util.HashMap;
 import java.util.Map;
 
@@ -50,7 +49,7 @@ public class CacheConfig {
         this.enabled = builder.enabled;
         this.defaultStaleTime = builder.defaultStaleTime;
         this.defaultCacheTime = builder.defaultCacheTime;
-        this.entityConfigs = Collections.unmodifiableMap(new HashMap<>(builder.entityConfigs));
+        this.entityConfigs = Map.copyOf(builder.entityConfigs);
         this.autoInvalidateOnEvents = builder.autoInvalidateOnEvents;
         this.maxEntries = builder.maxEntries;
         this.eventDebounceTime = builder.eventDebounceTime;
@@ -114,7 +113,7 @@ public class CacheConfig {
         private boolean enabled = true;
         private Duration defaultStaleTime = Duration.ofSeconds(5);
         private Duration defaultCacheTime = Duration.ofMinutes(2);
-        private Map<EntityType, EntityCacheConfig> entityConfigs = createDefaultEntityConfigs();
+        private final Map<EntityType, EntityCacheConfig> entityConfigs = createDefaultEntityConfigs();
         private boolean autoInvalidateOnEvents = true;
         private int maxEntries = 500;
         private Duration eventDebounceTime = Duration.ofMillis(50);
@@ -141,6 +140,9 @@ public class CacheConfig {
             configs.put(
                     EntityType.PLAYER,
                     EntityCacheConfig.builder().staleTime(Duration.ofSeconds(5)).build());
+            configs.put(
+                    EntityType.BLUEPRINT,
+                    EntityCacheConfig.builder().staleTime(Duration.ofSeconds(10)).build());
             return configs;
         }
 

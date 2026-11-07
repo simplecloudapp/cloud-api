@@ -12,8 +12,8 @@ import app.simplecloud.api.group.SourceConfig;
 import app.simplecloud.api.group.WorkflowsConfig;
 import app.simplecloud.api.internal.blueprint.InlineBlueprintSupport;
 import app.simplecloud.api.internal.create.CreateRequestDefaults;
-import app.simplecloud.api.internal.group.GroupApiImpl;
 import app.simplecloud.api.internal.group.GroupImpl;
+import app.simplecloud.api.internal.util.RestModelMapper;
 import app.simplecloud.api.internal.util.ValidationUtil;
 import app.simplecloud.api.internal.web.ApiExceptions;
 import app.simplecloud.api.internal.workflow.WorkflowResults;
@@ -49,12 +49,12 @@ import org.jetbrains.annotations.Nullable;
 import java.time.Duration;
 import java.util.HashMap;
 import java.util.List;
+import java.util.Locale;
 import java.util.Map;
 import java.util.Objects;
 import java.util.Optional;
 import java.util.concurrent.CompletableFuture;
 import java.util.concurrent.Executor;
-import java.util.stream.Collectors;
 
 public class PersistentServerApiImpl implements PersistentServerApi {
     private static final Duration TRANSIENT_MISS_RETRY_DELAY = Duration.ofMillis(200);
@@ -171,6 +171,7 @@ public class PersistentServerApiImpl implements PersistentServerApi {
                 query.getServerhostId(),
                 query.getTags() == null ? null : List.copyOf(query.getTags()),
                 query.getType(),
+                query.getSourceType(),
                 query.getBlueprintId(),
                 query.getLimit(),
                 query.getOffset());
@@ -254,7 +255,7 @@ public class PersistentServerApiImpl implements PersistentServerApi {
                 query != null && query.getType() != null ? ValidationUtil.serverTypeName(query.getType()) : null,
                 tags,
                 query != null ? query.getActive() : null,
-                null,
+                query != null && query.getSourceType() != null ? query.getSourceType().name().toLowerCase(Locale.ROOT) : null,
                 query != null ? query.getBlueprintId() : null,
                 query != null ? query.getServerhostId() : null,
                 query != null ? query.getLimit() : null,
@@ -319,7 +320,7 @@ public class PersistentServerApiImpl implements PersistentServerApi {
                         cache.invalidateAll(QueryKey.of("persistentServers"));
                         cache.invalidateAll(QueryKey.of("persistentServer", "name"));
 
-                        return new PersistentServerImpl(toSummary(response));
+                        return new PersistentServerImpl(RestModelMapper.toSummary(response));
                     } catch (ApiException e) {
                         throw ApiExceptions.from(e);
                     }
@@ -418,8 +419,11 @@ public class PersistentServerApiImpl implements PersistentServerApi {
             String persistentServerId, List<DeploymentHost> hosts, ScalingConfig scaling) {
         return CompletableFuture.supplyAsync(
                 () -> {
+                    if (persistentServerId == null || persistentServerId.isBlank()) {
+                        throw new IllegalArgumentException("persistentServerId must not be blank");
+                    }
                     Objects.requireNonNull(hosts, "hosts");
-                    GroupApiImpl.requireCompleteScaling(Objects.requireNonNull(scaling, "scaling"));
+                    ValidationUtil.requireCompleteScaling(Objects.requireNonNull(scaling, "scaling"));
                     try {
                         ModelsConversionDeployment deployment = new ModelsConversionDeployment();
                         deployment.setHosts(hosts.stream()
@@ -429,11 +433,11 @@ public class PersistentServerApiImpl implements PersistentServerApi {
                                     model.setPriority(host.getPriority());
                                     return model;
                                 })
-                                .collect(Collectors.toList()));
+                                .toList());
 
                         ModelsConvertPersistentToGroupRequest request = new ModelsConvertPersistentToGroupRequest();
                         request.setDeployment(deployment);
-                        request.setScaling(GroupApiImpl.convertScalingConfig(scaling));
+                        request.setScaling(RestModelMapper.toModel(scaling));
 
                         ModelsCreateServerGroupResponse response = persistentServersApi.convertPersistentToGroup(
                                 options.getNetworkId(), persistentServerId, request);
@@ -444,7 +448,7 @@ public class PersistentServerApiImpl implements PersistentServerApi {
                         cache.invalidateAll(QueryKey.of("groups"));
                         cache.invalidateAll(QueryKey.of("group", "name"));
 
-                        return new GroupImpl(GroupApiImpl.toSummary(response));
+                        return new GroupImpl(RestModelMapper.toSummary(response));
                     } catch (ApiException e) {
                         throw ApiExceptions.from(e);
                     }
@@ -511,27 +515,6 @@ public class PersistentServerApiImpl implements PersistentServerApi {
         result.setBlueprint(config.getBlueprint());
         result.setImage(config.getImage());
         return result;
-    }
-
-    public static ModelsPersistentServerSummary toSummary(ModelsCreatePersistentServerResponse response) {
-        ModelsPersistentServerSummary summary = new ModelsPersistentServerSummary();
-        summary.setPersistentServerId(response.getPersistentServerId());
-        summary.setName(response.getName());
-        summary.setType(response.getType());
-        summary.setMinMemory(response.getMinMemory());
-        summary.setMaxMemory(response.getMaxMemory());
-        summary.setMaxPlayers(response.getMaxPlayers());
-        summary.setActive(response.getActive());
-        summary.setPriority(response.getPriority());
-        summary.setPlayerCount(response.getPlayerCount());
-        summary.setServerhostId(response.getServerhostId());
-        summary.setSource(response.getSource());
-        summary.setWorkflows(response.getWorkflows());
-        summary.setProperties(response.getProperties());
-        summary.setTags(response.getTags());
-        summary.setCreatedAt(response.getCreatedAt());
-        summary.setUpdatedAt(response.getUpdatedAt());
-        return summary;
     }
 
     private boolean sourceReferencesBlueprint(@Nullable ModelsSourceConfig source, String blueprintId) {

@@ -360,7 +360,7 @@ public interface PlayerApi {
      *
      * @param uniqueId the player's UUID
      * @param target where to send the player
-     * @return a future containing the result and the server the player was sent to
+     * @return a future containing the result and the server the controller last tried
      */
     CompletableFuture<ConnectResponse> connectTo(UUID uniqueId, ConnectTarget target);
 

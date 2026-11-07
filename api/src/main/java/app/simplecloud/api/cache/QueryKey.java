@@ -5,11 +5,6 @@ import java.util.Objects;
 
 /**
  * Identifies a cached query by a list of parts.
- *
- * <p>Keys are hierarchical: a key matches every key that starts with the same parts,
- * see {@link QueryCache#invalidateAll(QueryKey)}. The API uses {@code "server"}, {@code "group"} and
- * {@code "persistentServer"} as first part for single entities, and their plural for lists, for example
- * {@code QueryKey.of("server", serverId)} or {@code QueryKey.of("servers")}.
  */
 public final class QueryKey {
 
@@ -45,6 +40,7 @@ public final class QueryKey {
             case "group", "groups" -> EntityType.GROUP;
             case "persistentServer", "persistentServers" -> EntityType.PERSISTENT_SERVER;
             case "player", "players" -> EntityType.PLAYER;
+            case "blueprint", "blueprints" -> EntityType.BLUEPRINT;
             default -> null;
         };
     }

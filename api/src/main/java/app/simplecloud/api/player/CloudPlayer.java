@@ -111,7 +111,7 @@ public interface CloudPlayer extends Audience {
      * <p>See {@link PlayerApi#connectTo(UUID, ConnectTarget)} for when the future completes exceptionally.
      *
      * @param target where to send the player
-     * @return a future containing the result and the server the player was sent to
+     * @return a future containing the result and the server the controller last tried
      */
     CompletableFuture<ConnectResponse> connectTo(ConnectTarget target);
 
