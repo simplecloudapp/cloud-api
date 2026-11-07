@@ -396,7 +396,7 @@ public interface PlayerApi {
      * controller can't be reached or fails.
      *
      * @param uniqueId the player's UUID
-     * @param target where to send the player
+     * @param target where to send the player; its names and IDs must not be null
      * @return a future containing the result and the server the controller last tried
      */
     CompletableFuture<ConnectResponse> connectTo(UUID uniqueId, ConnectTarget target);
@@ -518,7 +518,9 @@ public interface PlayerApi {
      * @param selectionMode how the target server is chosen, or null for {@link ServerSelectionMode#RANDOM}
      * @return a future containing the connection result
      * @deprecated The name doesn't say whether it takes a group name or ID. Use
-     * {@link #connectToGroupByName(UUID, String, ServerSelectionMode)}.
+     * {@link #connectToGroupByName(UUID, String, ServerSelectionMode)}, which can also answer
+     * {@link CloudPlayer.ConnectResult#NO_SERVER_AVAILABLE}; this method answers
+     * {@link CloudPlayer.ConnectResult#SERVER_NOT_FOUND} instead, as it did before that value existed.
      */
     @Deprecated
     default CompletableFuture<CloudPlayer.ConnectResult> connectToGroup(
@@ -526,7 +528,8 @@ public interface PlayerApi {
             String groupName,
             @Nullable ServerSelectionMode selectionMode
     ) {
-        return connectToGroupByName(uniqueId, groupName, selectionMode);
+        return connectToGroupByName(uniqueId, groupName, selectionMode)
+                .thenApply(PlayerApi::toResultBeforeNoServerAvailable);
     }
 
     /**
@@ -537,11 +540,12 @@ public interface PlayerApi {
      * @param groupName the name of the target server group
      * @return a future containing the connection result
      * @deprecated The name doesn't say whether it takes a group name or ID. Use
-     * {@link #connectToGroupByName(UUID, String)}.
+     * {@link #connectToGroupByName(UUID, String)}; see
+     * {@link #connectToGroup(UUID, String, ServerSelectionMode)} for how the results differ.
      */
     @Deprecated
     default CompletableFuture<CloudPlayer.ConnectResult> connectToGroup(UUID uniqueId, String groupName) {
-        return connectToGroupByName(uniqueId, groupName);
+        return connectToGroup(uniqueId, groupName, ServerSelectionMode.RANDOM);
     }
 
     /**
@@ -552,13 +556,28 @@ public interface PlayerApi {
      * @param persistentServerId the UUID of the target persistent server
      * @return a future containing the connection result
      * @deprecated The name doesn't say that it takes an ID. Use
-     * {@link #connectToPersistentServerById(UUID, String)}.
+     * {@link #connectToPersistentServerById(UUID, String)}, which can also answer
+     * {@link CloudPlayer.ConnectResult#NO_SERVER_AVAILABLE}; this method answers
+     * {@link CloudPlayer.ConnectResult#SERVER_NOT_FOUND} instead, as it did before that value existed.
      */
     @Deprecated
     default CompletableFuture<CloudPlayer.ConnectResult> connectToPersistentServer(
             UUID uniqueId,
             String persistentServerId
     ) {
-        return connectToPersistentServerById(uniqueId, persistentServerId);
+        return connectToPersistentServerById(uniqueId, persistentServerId)
+                .thenApply(PlayerApi::toResultBeforeNoServerAvailable);
+    }
+
+    /**
+     * Turns {@link CloudPlayer.ConnectResult#NO_SERVER_AVAILABLE} into
+     * {@link CloudPlayer.ConnectResult#SERVER_NOT_FOUND} for the deprecated methods. Plugins built before
+     * that value existed may switch over the results without a default case, and would fail on it.
+     */
+    private static CloudPlayer.ConnectResult toResultBeforeNoServerAvailable(CloudPlayer.ConnectResult result) {
+        if (result == CloudPlayer.ConnectResult.NO_SERVER_AVAILABLE) {
+            return CloudPlayer.ConnectResult.SERVER_NOT_FOUND;
+        }
+        return result;
     }
 }

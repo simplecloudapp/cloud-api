@@ -355,6 +355,72 @@ class PlayerApiImplTest {
         assertEquals(CloudApiException.Reason.INVALID_REQUEST, cause.getReason());
     }
 
+    @Test
+    @SuppressWarnings("deprecation") // plugins built before NO_SERVER_AVAILABLE existed must never get it
+    void deprecatedControllerConnects_answerServerNotFoundInsteadOfNoServerAvailable() {
+        FakePlayersApi playersApi = new FakePlayersApi();
+        playersApi.connectResult = ModelsConnectResult.ConnectResultNoServerAvailable;
+        PlayerApiImpl api = new PlayerApiImpl(options(), null, playersApi);
+
+        CloudPlayer.ConnectResult groupResult = api.connectToGroup(PLAYER_ID, "lobby").join();
+        CloudPlayer.ConnectResult persistentResult = api.connectToPersistentServer(PLAYER_ID, PERSISTENT_SERVER_ID).join();
+        CloudPlayer.ConnectResult newGroupResult = api.connectToGroupByName(PLAYER_ID, "lobby").join();
+
+        assertEquals(CloudPlayer.ConnectResult.SERVER_NOT_FOUND, groupResult);
+        assertEquals(CloudPlayer.ConnectResult.SERVER_NOT_FOUND, persistentResult);
+        assertEquals(CloudPlayer.ConnectResult.NO_SERVER_AVAILABLE, newGroupResult);
+    }
+
+    @Test
+    @SuppressWarnings("deprecation") // the released CloudPlayer.connect must keep going straight to the proxy
+    void cloudPlayerConnect_sendsTheProxyNameToTheProxy() {
+        List<ConnectPlayerRequest> requests = new ArrayList<>();
+        FakeNatsConnection nats = FakeNatsConnection.answering((subject, data, timeout) -> {
+            requests.add(ConnectPlayerRequest.parseFrom(data));
+            return connectResponse(ConnectResult.CONNECT_RESULT_SUCCESS);
+        });
+        FakePlayersApi playersApi = new FakePlayersApi();
+        PlayerApiImpl api = new PlayerApiImpl(options(), nats.connection(), playersApi);
+        CloudPlayer player = cloudPlayer(api);
+
+        CloudPlayer.ConnectResult result = player.connect("lobby-1").join();
+
+        assertEquals(CloudPlayer.ConnectResult.SUCCESS, result);
+        assertEquals(List.of(expectedConnectRequest("lobby-1")), requests);
+        assertNull(playersApi.lastConnectRequest);
+    }
+
+    @Test
+    @SuppressWarnings("deprecation") // the released CloudPlayer connects through the controller keep their results
+    void cloudPlayerDeprecatedControllerConnects_sendTheirTargetAndAnswerServerNotFound() {
+        FakePlayersApi playersApi = new FakePlayersApi();
+        playersApi.connectResult = ModelsConnectResult.ConnectResultNoServerAvailable;
+        PlayerApiImpl api = new PlayerApiImpl(options(), null, playersApi);
+        CloudPlayer player = cloudPlayer(api);
+
+        CloudPlayer.ConnectResult groupResult = player.connectToGroup("lobby").join();
+        ModelsConnectPlayerRequest groupRequest = playersApi.lastConnectRequest;
+        CloudPlayer.ConnectResult persistentResult = player.connectToPersistentServer(PERSISTENT_SERVER_ID).join();
+        ModelsConnectPlayerRequest persistentRequest = playersApi.lastConnectRequest;
+
+        ModelsConnectPlayerRequest expectedGroupRequest = new ModelsConnectPlayerRequest();
+        expectedGroupRequest.setServerGroupName("lobby");
+        expectedGroupRequest.setSelectionMode("RANDOM");
+        ModelsConnectPlayerRequest expectedPersistentRequest = new ModelsConnectPlayerRequest();
+        expectedPersistentRequest.setPersistentServerId(PERSISTENT_SERVER_ID);
+        assertEquals(expectedGroupRequest, groupRequest);
+        assertEquals(expectedPersistentRequest, persistentRequest);
+        assertEquals(CloudPlayer.ConnectResult.SERVER_NOT_FOUND, groupResult);
+        assertEquals(CloudPlayer.ConnectResult.SERVER_NOT_FOUND, persistentResult);
+    }
+
+    private static CloudPlayer cloudPlayer(PlayerApiImpl api) {
+        return new CloudPlayerImpl(
+                api, null, "network", PLAYER_ID, "Philipp", "Philipp", "proxy-1", "lobby-1",
+                true, 0, null, null, null, null
+        );
+    }
+
     private static ConnectPlayerRequest expectedConnectRequest(String serverName) {
         return ConnectPlayerRequest.newBuilder()
                 .setPlayerId(PLAYER_ID.toString())

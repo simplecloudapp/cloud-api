@@ -6,10 +6,12 @@ import app.simplecloud.api.player.CloudPlayer;
 import app.simplecloud.api.player.ConnectResponse;
 import app.simplecloud.api.player.ConnectTarget;
 import app.simplecloud.api.player.PlayerApi;
+import app.simplecloud.api.player.ServerSelectionMode;
 import io.nats.client.Connection;
 import net.kyori.adventure.audience.Audience;
 import net.kyori.adventure.audience.ForwardingAudience;
 import net.kyori.adventure.text.Component;
+import org.jetbrains.annotations.Nullable;
 import org.jspecify.annotations.NonNull;
 
 import java.util.Collections;
@@ -148,7 +150,56 @@ public class CloudPlayerImpl implements CloudPlayer, ForwardingAudience.Single {
     }
 
     @Override
+    public CompletableFuture<ConnectResult> connectToServerByName(String serverName) {
+        return playerApi.connectToServerByName(uniqueId, serverName);
+    }
+
+    @Override
+    public CompletableFuture<ConnectResult> connectToServerById(String serverId) {
+        return playerApi.connectToServerById(uniqueId, serverId);
+    }
+
+    @Override
+    public CompletableFuture<ConnectResult> connectToGroupByName(String groupName, @Nullable ServerSelectionMode selectionMode) {
+        return playerApi.connectToGroupByName(uniqueId, groupName, selectionMode);
+    }
+
+    @Override
+    public CompletableFuture<ConnectResult> connectToGroupByName(String groupName) {
+        return playerApi.connectToGroupByName(uniqueId, groupName);
+    }
+
+    @Override
+    public CompletableFuture<ConnectResult> connectToPersistentServerById(String persistentServerId) {
+        return playerApi.connectToPersistentServerById(uniqueId, persistentServerId);
+    }
+
+    @Override
     public CompletableFuture<ConnectResult> connectDirect(String serverName) {
         return playerApi.connectDirect(uniqueId, serverName);
+    }
+
+    @Override
+    @Deprecated
+    public CompletableFuture<ConnectResult> connect(String serverName) {
+        return playerApi.connect(uniqueId, serverName);
+    }
+
+    @Override
+    @Deprecated
+    public CompletableFuture<ConnectResult> connectToGroup(String groupName, @Nullable ServerSelectionMode selectionMode) {
+        return playerApi.connectToGroup(uniqueId, groupName, selectionMode);
+    }
+
+    @Override
+    @Deprecated
+    public CompletableFuture<ConnectResult> connectToGroup(String groupName) {
+        return playerApi.connectToGroup(uniqueId, groupName);
+    }
+
+    @Override
+    @Deprecated
+    public CompletableFuture<ConnectResult> connectToPersistentServer(String persistentServerId) {
+        return playerApi.connectToPersistentServer(uniqueId, persistentServerId);
     }
 }

@@ -1,14 +1,12 @@
 package app.simplecloud.api.player;
 
-import org.jetbrains.annotations.Nullable;
-
 import java.util.Objects;
 
 /**
  * Where the controller should send a player, see {@link PlayerApi#connectTo(java.util.UUID, ConnectTarget)}.
  *
  * <p>There is one variant for each target the controller's connect request accepts. Each variant's name says
- * whether it holds a name or an ID, because both are strings.
+ * whether it holds a name or an ID, because both are strings. Names and IDs must not be null.
  */
 public sealed interface ConnectTarget {
 
@@ -41,9 +39,10 @@ public sealed interface ConnectTarget {
      * A server of a server group, with the group found by its name, matched case-insensitively.
      *
      * @param groupName the name of the server group
-     * @param selectionMode how the server is chosen; null means {@link ServerSelectionMode#RANDOM}
+     * @param selectionMode how the server is chosen; null when creating it means
+     *                      {@link ServerSelectionMode#RANDOM}, so the accessor never returns null
      */
-    record GroupName(String groupName, @Nullable ServerSelectionMode selectionMode) implements ConnectTarget {
+    record GroupName(String groupName, ServerSelectionMode selectionMode) implements ConnectTarget {
         public GroupName {
             Objects.requireNonNull(groupName, "groupName");
             selectionMode = selectionMode != null ? selectionMode : ServerSelectionMode.RANDOM;
@@ -54,9 +53,10 @@ public sealed interface ConnectTarget {
      * A server of a server group, with the group found by its ID.
      *
      * @param groupId the UUID of the server group
-     * @param selectionMode how the server is chosen; null means {@link ServerSelectionMode#RANDOM}
+     * @param selectionMode how the server is chosen; null when creating it means
+     *                      {@link ServerSelectionMode#RANDOM}, so the accessor never returns null
      */
-    record GroupId(String groupId, @Nullable ServerSelectionMode selectionMode) implements ConnectTarget {
+    record GroupId(String groupId, ServerSelectionMode selectionMode) implements ConnectTarget {
         public GroupId {
             Objects.requireNonNull(groupId, "groupId");
             selectionMode = selectionMode != null ? selectionMode : ServerSelectionMode.RANDOM;

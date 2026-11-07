@@ -132,7 +132,7 @@ public interface CloudPlayer extends Audience {
      * <p>See {@link PlayerApi#connectTo(UUID, ConnectTarget)} for the proxy's precondition, the results and
      * the failures.
      *
-     * @param target where to send the player
+     * @param target where to send the player; its names and IDs must not be null
      * @return a future containing the result and the server the controller last tried
      */
     CompletableFuture<ConnectResponse> connectTo(ConnectTarget target);
@@ -145,10 +145,7 @@ public interface CloudPlayer extends Audience {
      * @param serverName the cloud name of the target server
      * @return a future containing the connection result
      */
-    default CompletableFuture<ConnectResult> connectToServerByName(String serverName) {
-        ConnectTarget target = new ConnectTarget.ServerName(serverName);
-        return connectTo(target).thenApply(ConnectResponse::result);
-    }
+    CompletableFuture<ConnectResult> connectToServerByName(String serverName);
 
     /**
      * Connects the player to a server by its ID, through the controller.
@@ -158,10 +155,7 @@ public interface CloudPlayer extends Audience {
      * @param serverId the UUID of the target server
      * @return a future containing the connection result
      */
-    default CompletableFuture<ConnectResult> connectToServerById(String serverId) {
-        ConnectTarget target = new ConnectTarget.ServerId(serverId);
-        return connectTo(target).thenApply(ConnectResponse::result);
-    }
+    CompletableFuture<ConnectResult> connectToServerById(String serverId);
 
     /**
      * Connects the player to a server of the group with the given name, through the controller.
@@ -172,13 +166,7 @@ public interface CloudPlayer extends Audience {
      * @param selectionMode how the target server is chosen, or null for {@link ServerSelectionMode#RANDOM}
      * @return a future containing the connection result
      */
-    default CompletableFuture<ConnectResult> connectToGroupByName(
-            String groupName,
-            @Nullable ServerSelectionMode selectionMode
-    ) {
-        ConnectTarget target = new ConnectTarget.GroupName(groupName, selectionMode);
-        return connectTo(target).thenApply(ConnectResponse::result);
-    }
+    CompletableFuture<ConnectResult> connectToGroupByName(String groupName, @Nullable ServerSelectionMode selectionMode);
 
     /**
      * Connects the player to a random server of the group with the given name, through the controller.
@@ -186,9 +174,7 @@ public interface CloudPlayer extends Audience {
      * @param groupName the name of the target server group, matched case-insensitively
      * @return a future containing the connection result
      */
-    default CompletableFuture<ConnectResult> connectToGroupByName(String groupName) {
-        return connectToGroupByName(groupName, ServerSelectionMode.RANDOM);
-    }
+    CompletableFuture<ConnectResult> connectToGroupByName(String groupName);
 
     /**
      * Connects the player to the running server of a persistent server, through the controller.
@@ -198,10 +184,7 @@ public interface CloudPlayer extends Audience {
      * @param persistentServerId the UUID of the target persistent server
      * @return a future containing the connection result
      */
-    default CompletableFuture<ConnectResult> connectToPersistentServerById(String persistentServerId) {
-        ConnectTarget target = new ConnectTarget.PersistentServerId(persistentServerId);
-        return connectTo(target).thenApply(ConnectResponse::result);
-    }
+    CompletableFuture<ConnectResult> connectToPersistentServerById(String persistentServerId);
 
     /**
      * Connects the player to a server by the name the proxy registered it under.
@@ -220,58 +203,41 @@ public interface CloudPlayer extends Audience {
      *
      * @param serverName the name of the server on the proxy
      * @return a future containing the connection result
-     * @deprecated The name doesn't say which name it takes. Use {@link #connectToServerByName(String)} for
-     * the cloud name, or {@link #connectDirect(String)} for the proxy's name.
+     * @deprecated See {@link PlayerApi#connect(UUID, String)}.
      */
     @Deprecated
-    default CompletableFuture<ConnectResult> connect(String serverName) {
-        return connectDirect(serverName);
-    }
+    CompletableFuture<ConnectResult> connect(String serverName);
 
     /**
-     * Connects the player to a server of the group with the given name, like
-     * {@link #connectToGroupByName(String, ServerSelectionMode)}.
+     * Connects the player to a server of the group with the given name.
      *
      * @param groupName the name of the target server group
      * @param selectionMode how the target server is chosen, or null for {@link ServerSelectionMode#RANDOM}
      * @return a future containing the connection result
-     * @deprecated The name doesn't say whether it takes a group name or ID. Use
-     * {@link #connectToGroupByName(String, ServerSelectionMode)}.
+     * @deprecated See {@link PlayerApi#connectToGroup(UUID, String, ServerSelectionMode)}.
      */
     @Deprecated
-    default CompletableFuture<ConnectResult> connectToGroup(
-            String groupName,
-            @Nullable ServerSelectionMode selectionMode
-    ) {
-        return connectToGroupByName(groupName, selectionMode);
-    }
+    CompletableFuture<ConnectResult> connectToGroup(String groupName, @Nullable ServerSelectionMode selectionMode);
 
     /**
-     * Connects the player to a random server of the group with the given name, like
-     * {@link #connectToGroupByName(String)}.
+     * Connects the player to a random server of the group with the given name.
      *
      * @param groupName the name of the target server group
      * @return a future containing the connection result
-     * @deprecated The name doesn't say whether it takes a group name or ID. Use
-     * {@link #connectToGroupByName(String)}.
+     * @deprecated See {@link PlayerApi#connectToGroup(UUID, String)}.
      */
     @Deprecated
-    default CompletableFuture<ConnectResult> connectToGroup(String groupName) {
-        return connectToGroupByName(groupName);
-    }
+    CompletableFuture<ConnectResult> connectToGroup(String groupName);
 
     /**
-     * Connects the player to the running server of a persistent server, like
-     * {@link #connectToPersistentServerById(String)}.
+     * Connects the player to the running server of a persistent server.
      *
      * @param persistentServerId the UUID of the target persistent server
      * @return a future containing the connection result
-     * @deprecated The name doesn't say that it takes an ID. Use {@link #connectToPersistentServerById(String)}.
+     * @deprecated See {@link PlayerApi#connectToPersistentServer(UUID, String)}.
      */
     @Deprecated
-    default CompletableFuture<ConnectResult> connectToPersistentServer(String persistentServerId) {
-        return connectToPersistentServerById(persistentServerId);
-    }
+    CompletableFuture<ConnectResult> connectToPersistentServer(String persistentServerId);
 
     /**
      * Result of a player connection attempt.
