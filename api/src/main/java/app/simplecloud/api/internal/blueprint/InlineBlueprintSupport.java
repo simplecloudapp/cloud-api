@@ -17,9 +17,6 @@ import org.jetbrains.annotations.Nullable;
 
 import java.time.Duration;
 
-/**
- * Shared support for resources that create or delete a referenced blueprint as part of their lifecycle.
- */
 public final class InlineBlueprintSupport {
     private static final Duration DELETE_RETRY_DELAY = Duration.ofMillis(200);
     private static final int DELETE_MAX_ATTEMPTS = 3;
@@ -65,15 +62,18 @@ public final class InlineBlueprintSupport {
             return null;
         }
 
-        ModelsCreateBlueprintRequest apiRequest = convertCreateBlueprintRequest(blueprintName, request);
-        ModelsCreateBlueprintResponse response = blueprintsApi.createBlueprint(options.getNetworkId(), apiRequest);
-
-        String blueprintId = response.getBlueprintId();
+        String blueprintId = create(blueprintName, request).getBlueprintId();
         if (blueprintId == null || blueprintId.isBlank()) {
             throw new CloudApiException(
                     CloudApiException.Reason.UNKNOWN, "Controller returned blueprint without a blueprint ID");
         }
         return blueprintId;
+    }
+
+    public ModelsCreateBlueprintResponse create(String blueprintName, CreateBlueprintRequest request)
+            throws ApiException {
+        ModelsCreateBlueprintRequest apiRequest = convertCreateBlueprintRequest(blueprintName, request);
+        return blueprintsApi.createBlueprint(options.getNetworkId(), apiRequest);
     }
 
     public SourceConfig buildInlineBlueprintSource(@Nullable SourceConfig requestedSource, String blueprintId) {
@@ -121,15 +121,6 @@ public final class InlineBlueprintSupport {
         throw lastDeleteFailure;
     }
 
-    /**
-     * Deletes the inline blueprint after creating the resource that references it failed,
-     * and returns the exception the caller throws.
-     * Keeps the blueprint if the resource may have been created and either turns out to exist or can't be checked.
-     *
-     * @param resourceKind names the resource in the failure message, for example {@code "group"}
-     * @return the create failure converted to a {@link CloudApiException}, or a rollback failure wrapping it if
-     * the blueprint could not be deleted
-     */
     public CloudApiException rollBackAfterCreateFailure(
             String resourceKind,
             @Nullable String blueprintId,
@@ -195,17 +186,20 @@ public final class InlineBlueprintSupport {
         apiRequest.setSoftwareVersion(request.getSoftwareVersion());
         apiRequest.setWorkflowSteps(request.getWorkflowSteps());
 
-        RuntimeConfig runtimeConfig = request.getRuntimeConfig();
-        if (runtimeConfig != null) {
-            ModelsRuntimeConfig apiRuntimeConfig = new ModelsRuntimeConfig();
-            if (runtimeConfig.getType() != null) {
-                apiRuntimeConfig.setType(runtimeConfig.getType().name().toLowerCase());
-            }
-            apiRuntimeConfig.setWith(runtimeConfig.getWith());
-            apiRequest.setRuntimeConfig(apiRuntimeConfig);
+        if (request.getRuntimeConfig() != null) {
+            apiRequest.setRuntimeConfig(toModel(request.getRuntimeConfig()));
         }
 
         return apiRequest;
+    }
+
+    public static ModelsRuntimeConfig toModel(RuntimeConfig runtimeConfig) {
+        ModelsRuntimeConfig apiRuntimeConfig = new ModelsRuntimeConfig();
+        if (runtimeConfig.getType() != null) {
+            apiRuntimeConfig.setType(runtimeConfig.getType().name().toLowerCase());
+        }
+        apiRuntimeConfig.setWith(runtimeConfig.getWith());
+        return apiRuntimeConfig;
     }
 
     private @Nullable String resolveServerUrl(CreateBlueprintRequest request) {
@@ -261,9 +255,6 @@ public final class InlineBlueprintSupport {
         String resolve(CreateBlueprintRequest request);
     }
 
-    /**
-     * Checks whether the resource that references the inline blueprint exists.
-     */
     @FunctionalInterface
     public interface CreatedResourceCheck {
         boolean resourceExists();

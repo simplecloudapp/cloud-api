@@ -25,7 +25,7 @@ class BlueprintCreatedEventImpl implements BlueprintCreatedEvent {
     @Override
     public Blueprint getBlueprint() {
         throw new IllegalStateException(
-                "Blueprint data is not available in BlueprintCreatedEvent. Use CloudApi to fetch the blueprint.");
+                "Blueprint data is not available in BlueprintCreatedEvent. Use CloudApi.blueprint().getBlueprintById(blueprintId) to fetch the blueprint.");
     }
 
     @Override

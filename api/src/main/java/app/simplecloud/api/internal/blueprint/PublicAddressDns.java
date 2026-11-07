@@ -3,6 +3,7 @@ package app.simplecloud.api.internal.blueprint;
 import okhttp3.Dns;
 import okhttp3.HttpUrl;
 import org.jetbrains.annotations.Nullable;
+import org.jspecify.annotations.NonNull;
 
 import java.net.InetAddress;
 import java.net.UnknownHostException;
@@ -11,15 +12,7 @@ import java.util.List;
 import java.util.Objects;
 import java.util.regex.Pattern;
 
-/**
- * {@link Dns} that refuses to resolve hosts to non-public addresses.
- *
- * <p>Filtering at resolution time means the checked addresses are exactly the ones OkHttp connects to,
- * for the initial request and every redirect hop. OkHttp skips {@link Dns} for IP literals, so callers
- * must also check those with {@link #requirePublicLiteral(HttpUrl)}.
- */
 final class PublicAddressDns implements Dns {
-    // Same heuristic OkHttp uses to decide whether a host is an IP literal and bypasses Dns.
     private static final Pattern IP_LITERAL = Pattern.compile("([0-9a-fA-F]*:[0-9a-fA-F:.]*)|([\\d.]+)");
     private static final String OCTET = "(25[0-5]|2[0-4]\\d|1\\d\\d|[1-9]?\\d)";
     private static final Pattern DOTTED_QUAD = Pattern.compile(OCTET + "(\\." + OCTET + "){3}");
@@ -38,7 +31,7 @@ final class PublicAddressDns implements Dns {
     }
 
     @Override
-    public List<InetAddress> lookup(String hostname) throws UnknownHostException {
+    public @NonNull List<InetAddress> lookup(@NonNull String hostname) throws UnknownHostException {
         List<InetAddress> addresses = delegate.lookup(hostname);
         for (InetAddress address : addresses) {
             if (!isPublic(address)) {
@@ -54,8 +47,6 @@ final class PublicAddressDns implements Dns {
         if (!IP_LITERAL.matcher(host).matches()) {
             return;
         }
-        // HttpUrl only accepts valid IPv6 literals, but numeric hosts like "127.1" or "1.2.3.4.5" reach
-        // OkHttp's InetAddress.getByName unchanged and may hit system DNS. Only plain dotted quads are allowed.
         if (!host.contains(":") && !DOTTED_QUAD.matcher(host).matches()) {
             throw new UnknownHostException("Ambiguous numeric host " + host);
         }
@@ -101,12 +92,6 @@ final class PublicAddressDns implements Dns {
         return embedded == null || isPublic(embedded);
     }
 
-    /**
-     * Returns the IPv4 address carried inside IPv4-compatible (::/96), IPv4-mapped (::ffff:0:0/96),
-     * IPv4-translated (::ffff:0:0:0/96), NAT64 (64:ff9b::/96) or 6to4 (2002::/16) addresses.
-     * The JDK only converts IPv4-mapped literals to {@link java.net.Inet4Address}; resolver answers
-     * stay IPv6, and dual-stack sockets still connect to the embedded IPv4 address.
-     */
     private static @Nullable InetAddress embeddedIpv4(byte[] bytes) {
         if (startsWith(bytes, IPV4_COMPATIBLE_PREFIX)
                 || startsWith(bytes, IPV4_MAPPED_PREFIX)

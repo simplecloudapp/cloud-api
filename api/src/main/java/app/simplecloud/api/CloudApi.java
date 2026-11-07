@@ -1,5 +1,6 @@
 package app.simplecloud.api;
 
+import app.simplecloud.api.blueprint.BlueprintApi;
 import app.simplecloud.api.cache.QueryCache;
 import app.simplecloud.api.event.EventApi;
 import app.simplecloud.api.group.GroupApi;
@@ -69,6 +70,15 @@ public interface CloudApi extends AutoCloseable {
      * @return the persistent server API
      */
     PersistentServerApi persistentServer();
+
+    /**
+     * Returns the blueprint management API.
+     *
+     * <p>Use this to create, read, update, and delete blueprints.
+     *
+     * @return the blueprint API
+     */
+    BlueprintApi blueprint();
 
     /**
      * Returns the event subscription API.

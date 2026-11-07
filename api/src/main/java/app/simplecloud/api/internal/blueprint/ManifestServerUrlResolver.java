@@ -26,10 +26,6 @@ import java.util.concurrent.TimeUnit;
 
 /**
  * Resolves inline blueprint download links from the server version manifest.
- *
- * <p>The manifest URL is configurable, so the fetch is restricted to HTTPS and public addresses
- * (see {@link PublicAddressDns}). Redirects are followed manually so every hop is checked again,
- * and the body is capped before it is parsed.
  */
 final class ManifestServerUrlResolver implements InlineBlueprintSupport.ServerUrlResolver {
     static final int MAX_REDIRECTS = 5;
@@ -98,13 +94,13 @@ final class ManifestServerUrlResolver implements InlineBlueprintSupport.ServerUr
 
     private List<ManifestEntry> loadManifest() {
         CachedManifest current = cachedManifest;
-        if (current != null && !current.isExpired()) {
+        if (current != null && current.isExpired()) {
             return current.entries;
         }
 
         synchronized (this) {
             current = cachedManifest;
-            if (current != null && !current.isExpired()) {
+            if (current != null && current.isExpired()) {
                 return current.entries;
             }
 
@@ -173,9 +169,6 @@ final class ManifestServerUrlResolver implements InlineBlueprintSupport.ServerUr
         }
 
         ResponseBody body = response.body();
-        if (body == null) {
-            throw fetchFailure("empty response body");
-        }
 
         // Content-Length may be absent or lie, so also probe the stream for one byte past the limit.
         BufferedSource source = body.source();
@@ -231,19 +224,16 @@ final class ManifestServerUrlResolver implements InlineBlueprintSupport.ServerUr
         return normalized.isEmpty() ? null : normalized;
     }
 
-    private static final class CachedManifest {
-        private final List<ManifestEntry> entries;
-        private final Instant expiresAt;
+    private record CachedManifest(List<ManifestEntry> entries, Instant expiresAt) {
+            private CachedManifest(List<ManifestEntry> entries, Instant expiresAt) {
+                this.entries = List.copyOf(entries);
+                this.expiresAt = expiresAt;
+            }
 
-        private CachedManifest(List<ManifestEntry> entries, Instant expiresAt) {
-            this.entries = List.copyOf(entries);
-            this.expiresAt = expiresAt;
+            private boolean isExpired() {
+                return !Instant.now().isAfter(expiresAt);
+            }
         }
-
-        private boolean isExpired() {
-            return Instant.now().isAfter(expiresAt);
-        }
-    }
 
     private static final class ManifestEntry {
         private String name;

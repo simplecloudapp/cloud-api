@@ -25,7 +25,7 @@ class BlueprintUpdatedEventImpl implements BlueprintUpdatedEvent {
     @Override
     public Blueprint getBlueprint() {
         throw new IllegalStateException(
-                "Blueprint data is not available in BlueprintUpdatedEvent. Use CloudApi to fetch the blueprint.");
+                "Blueprint data is not available in BlueprintUpdatedEvent. Use CloudApi.blueprint().getBlueprintById(blueprintId) to fetch the blueprint.");
     }
 
     @Override
