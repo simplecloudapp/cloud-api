@@ -126,19 +126,25 @@ public interface CloudPlayer extends Audience {
     CompletableFuture<Void> kick(Component reason);
 
     /**
-     * Connects the player to the specified server.
+     * Connects the player to a server by its cloud name, through the controller.
      *
-     * <p>Today this targets the name the proxy registered the server under, exactly like
-     * {@link #connectDirect(String)}. In a later release it will take the cloud server name
-     * ({@code <group>-<number>} or the persistent server's name) and route through the controller, so it
-     * will only reach cloud-managed servers. Server IDs are not accepted.
+     * <p>See {@link PlayerApi#connect(UUID, String)} for the name, the results and the failures.
+     * To reach servers that are not managed by the cloud, use {@link #connectDirect(String)}.
      *
-     * <p>To reach servers that are not managed by the cloud, use {@link #connectDirect(String)}.
-     *
-     * @param serverName the name of the server to connect to
+     * @param serverName the cloud name of the target server
      * @return a future containing the connection result
      */
     CompletableFuture<ConnectResult> connect(String serverName);
+
+    /**
+     * Connects the player to a server by its ID, through the controller.
+     *
+     * <p>See {@link PlayerApi#connectByServerId(UUID, String)}.
+     *
+     * @param serverId the UUID of the target server
+     * @return a future containing the connection result
+     */
+    CompletableFuture<ConnectResult> connectByServerId(String serverId);
 
     /**
      * Connects the player to a server by the name the proxy registered it under.
@@ -152,10 +158,12 @@ public interface CloudPlayer extends Audience {
     CompletableFuture<ConnectResult> connectDirect(String serverName);
 
     /**
-     * Connects the player to a server of the given server group.
+     * Connects the player to a server of the given server group, through the controller.
      *
-     * @param groupName the name of the target server group
-     * @param selectionMode how the target server is chosen
+     * <p>See {@link PlayerApi#connectToGroup(UUID, String, ServerSelectionMode)}.
+     *
+     * @param groupName the name of the target server group, matched case-insensitively
+     * @param selectionMode how the target server is chosen, or null for {@link ServerSelectionMode#RANDOM}
      * @return a future containing the connection result
      */
     CompletableFuture<ConnectResult> connectToGroup(String groupName, ServerSelectionMode selectionMode);
@@ -171,9 +179,11 @@ public interface CloudPlayer extends Audience {
     }
 
     /**
-     * Connects the player to a persistent server.
+     * Connects the player to a persistent server by its ID, through the controller.
      *
-     * @param persistentServerId the ID of the target persistent server
+     * <p>See {@link PlayerApi#connectToPersistentServer(UUID, String)}.
+     *
+     * @param persistentServerId the UUID of the target persistent server
      * @return a future containing the connection result
      */
     CompletableFuture<ConnectResult> connectToPersistentServer(String persistentServerId);
@@ -188,7 +198,8 @@ public interface CloudPlayer extends Audience {
         SUCCESS,
 
         /**
-         * The target server was not found.
+         * The target does not exist, or the proxy does not know the server, typically because it has
+         * not registered it yet.
          */
         SERVER_NOT_FOUND,
 
@@ -205,6 +216,12 @@ public interface CloudPlayer extends Audience {
         /**
          * The connection failed for an unknown reason.
          */
-        CONNECTION_FAILED
+        CONNECTION_FAILED,
+
+        /**
+         * The target exists, but none of its servers is available, so the player was not sent anywhere.
+         * Only connects through the controller answer this.
+         */
+        NO_SERVER_AVAILABLE
     }
 }

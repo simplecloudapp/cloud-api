@@ -2,7 +2,7 @@ plugins {
     id("cloud-api.base-conventions") apply false
 }
 
-val baseVersion = "0.1.0-platform.61"
+val baseVersion = "0.1.0-platform.62"
 val commitHash = providers.environmentVariable("COMMIT_HASH").orNull
 val isSnapshot = commitHash != null
 

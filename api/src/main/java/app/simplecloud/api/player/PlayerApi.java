@@ -376,20 +376,34 @@ public interface PlayerApi {
     CompletableFuture<Boolean> kick(UUID uniqueId, @Nullable Component reason);
 
     /**
-     * Connects a player to a specific server.
+     * Connects a player to a server by its cloud name, through the controller.
      *
-     * <p>Today this targets the name the proxy registered the server under, exactly like
-     * {@link #connectDirect(UUID, String)}. In a later release it will take the cloud server name
-     * ({@code <group>-<number>} or the persistent server's name) and route through the controller, so it
-     * will only reach cloud-managed servers. Server IDs are not accepted.
+     * <p>The cloud name is {@code <group>-<number>} or the persistent server's name, matched
+     * case-insensitively. Server IDs are not accepted; use {@link #connectByServerId(UUID, String)}.
+     * To reach servers that are not managed by the cloud, use {@link #connectDirect(UUID, String)}.
      *
-     * <p>To reach servers that are not managed by the cloud, use {@link #connectDirect(UUID, String)}.
+     * <p>An unknown server answers {@link CloudPlayer.ConnectResult#SERVER_NOT_FOUND}, and a player who
+     * is not online answers {@link CloudPlayer.ConnectResult#PLAYER_NOT_FOUND}. The future completes
+     * exceptionally with a {@link app.simplecloud.api.CloudApiException} when a persistent server and a
+     * group server share the name ({@code CONFLICT}), or when the controller can't be reached or fails.
      *
      * @param uniqueId the player's UUID
-     * @param serverName the name of the target server
+     * @param serverName the cloud name of the target server
      * @return a future containing the connection result
      */
     CompletableFuture<CloudPlayer.ConnectResult> connect(UUID uniqueId, String serverName);
+
+    /**
+     * Connects a player to a server by its ID, through the controller.
+     *
+     * <p>Results and failures are the same as for {@link #connect(UUID, String)}. An ID that is not a
+     * UUID completes the future exceptionally ({@code INVALID_REQUEST}).
+     *
+     * @param uniqueId the player's UUID
+     * @param serverId the UUID of the target server
+     * @return a future containing the connection result
+     */
+    CompletableFuture<CloudPlayer.ConnectResult> connectByServerId(UUID uniqueId, String serverId);
 
     /**
      * Connects a player to a server by the name the proxy registered it under.
@@ -404,11 +418,15 @@ public interface PlayerApi {
     CompletableFuture<CloudPlayer.ConnectResult> connectDirect(UUID uniqueId, String serverName);
 
     /**
-     * Connects a player to a server of the given server group.
+     * Connects a player to a server of the given server group, through the controller.
+     *
+     * <p>A group without an available server answers
+     * {@link CloudPlayer.ConnectResult#NO_SERVER_AVAILABLE}. Other results and failures are the same as
+     * for {@link #connect(UUID, String)}.
      *
      * @param uniqueId the player's UUID
-     * @param groupName the name of the target server group
-     * @param selectionMode how the target server is chosen
+     * @param groupName the name of the target server group, matched case-insensitively
+     * @param selectionMode how the target server is chosen, or null for {@link ServerSelectionMode#RANDOM}
      * @return a future containing the connection result
      */
     CompletableFuture<CloudPlayer.ConnectResult> connectToGroup(UUID uniqueId, String groupName, ServerSelectionMode selectionMode);
@@ -425,10 +443,13 @@ public interface PlayerApi {
     }
 
     /**
-     * Connects a player to a persistent server.
+     * Connects a player to a persistent server by its ID, through the controller.
+     *
+     * <p>To connect by the persistent server's name, use {@link #connect(UUID, String)}. Results and
+     * failures are the same as for {@link #connectToGroup(UUID, String, ServerSelectionMode)}.
      *
      * @param uniqueId the player's UUID
-     * @param persistentServerId the ID of the target persistent server
+     * @param persistentServerId the UUID of the target persistent server
      * @return a future containing the connection result
      */
     CompletableFuture<CloudPlayer.ConnectResult> connectToPersistentServer(UUID uniqueId, String persistentServerId);
