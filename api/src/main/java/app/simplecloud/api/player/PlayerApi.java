@@ -379,22 +379,26 @@ public interface PlayerApi {
      * Connects a player to a server by its cloud name, through the controller.
      *
      * <p>The cloud name is {@code <group>-<number>} or the persistent server's name, matched
-     * case-insensitively. Server IDs are not accepted; use {@link #connectByServerId(UUID, String)}.
+     * case-insensitively. A server ID is treated as a name, so it answers
+     * {@link CloudPlayer.ConnectResult#SERVER_NOT_FOUND}; use {@link #connectByServerId(UUID, String)}.
      * To reach servers that are not managed by the cloud, use {@link #connectDirect(UUID, String)}.
      *
      * <p>The controller sends the player's proxy only the server ID. The proxy needs a plugin that maps
      * server IDs to its own server names in {@link app.simplecloud.api.proxy.ProxyServerNames}, such as
-     * server-connection {@code 1.2.0} or newer. Without one, every connect through the controller answers
-     * {@link CloudPlayer.ConnectResult#SERVER_NOT_FOUND}; {@link #connectDirect(UUID, String)} still works.
+     * server-connection {@code 1.2.0} or newer. Without one, the proxy answers
+     * {@link CloudPlayer.ConnectResult#SERVER_NOT_FOUND} for every server the controller sends it to;
+     * {@link #connectDirect(UUID, String)} still works.
      *
-     * <p>A target without a game server in state {@code AVAILABLE}, for example because the server is
-     * still starting or has stopped, answers {@link CloudPlayer.ConnectResult#NO_SERVER_AVAILABLE}. So
-     * does a proxy's name. An unknown server answers
+     * <p>A target without a game server in state {@code AVAILABLE} answers
+     * {@link CloudPlayer.ConnectResult#NO_SERVER_AVAILABLE}: for example a server that is still starting
+     * or is stopping, a persistent server that is not running, or a proxy such as {@code proxy-1},
+     * because a proxy is not a game server. An unknown server answers
      * {@link CloudPlayer.ConnectResult#SERVER_NOT_FOUND}, and a player who is not online answers
      * {@link CloudPlayer.ConnectResult#PLAYER_NOT_FOUND}. The future completes exceptionally with a
      * {@link app.simplecloud.api.CloudApiException} when the request is invalid ({@code INVALID_REQUEST},
      * for example an empty name), when a persistent server and a group server share the name
-     * ({@code CONFLICT}), or when the controller can't be reached or fails.
+     * ({@code CONFLICT}), when no proxy answers for the player, or when the controller can't be reached
+     * or fails.
      *
      * @param uniqueId the player's UUID
      * @param serverName the cloud name of the target server
