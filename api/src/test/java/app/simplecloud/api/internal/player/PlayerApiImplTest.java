@@ -399,19 +399,70 @@ class PlayerApiImplTest {
         CloudPlayer player = cloudPlayer(api);
 
         CloudPlayer.ConnectResult groupResult = player.connectToGroup("lobby").join();
-        ModelsConnectPlayerRequest groupRequest = playersApi.lastConnectRequest;
+        CloudPlayer.ConnectResult groupWithModeResult = player.connectToGroup("lobby", ServerSelectionMode.MAX_PLAYERS).join();
         CloudPlayer.ConnectResult persistentResult = player.connectToPersistentServer(PERSISTENT_SERVER_ID).join();
-        ModelsConnectPlayerRequest persistentRequest = playersApi.lastConnectRequest;
 
-        ModelsConnectPlayerRequest expectedGroupRequest = new ModelsConnectPlayerRequest();
-        expectedGroupRequest.setServerGroupName("lobby");
-        expectedGroupRequest.setSelectionMode("RANDOM");
-        ModelsConnectPlayerRequest expectedPersistentRequest = new ModelsConnectPlayerRequest();
-        expectedPersistentRequest.setPersistentServerId(PERSISTENT_SERVER_ID);
-        assertEquals(expectedGroupRequest, groupRequest);
-        assertEquals(expectedPersistentRequest, persistentRequest);
+        ModelsConnectPlayerRequest groupRequest = new ModelsConnectPlayerRequest();
+        groupRequest.setServerGroupName("lobby");
+        groupRequest.setSelectionMode("RANDOM");
+        ModelsConnectPlayerRequest groupWithModeRequest = new ModelsConnectPlayerRequest();
+        groupWithModeRequest.setServerGroupName("lobby");
+        groupWithModeRequest.setSelectionMode("MAX_PLAYERS");
+        ModelsConnectPlayerRequest persistentRequest = new ModelsConnectPlayerRequest();
+        persistentRequest.setPersistentServerId(PERSISTENT_SERVER_ID);
+        assertEquals(List.of(groupRequest, groupWithModeRequest, persistentRequest), playersApi.connectRequests);
         assertEquals(CloudPlayer.ConnectResult.SERVER_NOT_FOUND, groupResult);
+        assertEquals(CloudPlayer.ConnectResult.SERVER_NOT_FOUND, groupWithModeResult);
         assertEquals(CloudPlayer.ConnectResult.SERVER_NOT_FOUND, persistentResult);
+    }
+
+    @Test
+    void cloudPlayerControllerConnects_sendTheTargetTheirNameSays() {
+        FakePlayersApi playersApi = new FakePlayersApi();
+        playersApi.connectResult = ModelsConnectResult.ConnectResultSuccess;
+        PlayerApiImpl api = new PlayerApiImpl(options(), null, playersApi);
+        CloudPlayer player = cloudPlayer(api);
+        ConnectTarget groupIdTarget = new ConnectTarget.GroupId(GROUP_ID, ServerSelectionMode.FIRST);
+
+        player.connectTo(groupIdTarget).join();
+        player.connectToServerByName("lobby-1").join();
+        player.connectToServerById(SERVER_ID).join();
+        player.connectToGroupByName("lobby", ServerSelectionMode.MIN_PLAYERS).join();
+        player.connectToGroupByName("lobby").join();
+        player.connectToPersistentServerById(PERSISTENT_SERVER_ID).join();
+
+        ModelsConnectPlayerRequest byGroupId = new ModelsConnectPlayerRequest();
+        byGroupId.setServerGroupId(GROUP_ID);
+        byGroupId.setSelectionMode("FIRST");
+        ModelsConnectPlayerRequest byServerName = new ModelsConnectPlayerRequest();
+        byServerName.setServerName("lobby-1");
+        ModelsConnectPlayerRequest byServerId = new ModelsConnectPlayerRequest();
+        byServerId.setServerId(SERVER_ID);
+        ModelsConnectPlayerRequest byGroupNameWithMode = new ModelsConnectPlayerRequest();
+        byGroupNameWithMode.setServerGroupName("lobby");
+        byGroupNameWithMode.setSelectionMode("MIN_PLAYERS");
+        ModelsConnectPlayerRequest byGroupName = new ModelsConnectPlayerRequest();
+        byGroupName.setServerGroupName("lobby");
+        byGroupName.setSelectionMode("RANDOM");
+        ModelsConnectPlayerRequest byPersistentServerId = new ModelsConnectPlayerRequest();
+        byPersistentServerId.setPersistentServerId(PERSISTENT_SERVER_ID);
+        List<ModelsConnectPlayerRequest> expected = List.of(
+                byGroupId, byServerName, byServerId, byGroupNameWithMode, byGroupName, byPersistentServerId
+        );
+        assertEquals(expected, playersApi.connectRequests);
+    }
+
+    @Test
+    void connectToPersistentServerById_sendsOnlyThePersistentServerId() {
+        FakePlayersApi playersApi = new FakePlayersApi();
+        playersApi.connectResult = ModelsConnectResult.ConnectResultSuccess;
+        PlayerApiImpl api = new PlayerApiImpl(options(), null, playersApi);
+
+        api.connectToPersistentServerById(PLAYER_ID, PERSISTENT_SERVER_ID).join();
+
+        ModelsConnectPlayerRequest expected = new ModelsConnectPlayerRequest();
+        expected.setPersistentServerId(PERSISTENT_SERVER_ID);
+        assertEquals(expected, playersApi.lastConnectRequest);
     }
 
     private static CloudPlayer cloudPlayer(PlayerApiImpl api) {
@@ -464,6 +515,7 @@ class PlayerApiImplTest {
         private ApiException connectError;
         private String lastConnectPlayerId;
         private ModelsConnectPlayerRequest lastConnectRequest;
+        private final List<ModelsConnectPlayerRequest> connectRequests = new ArrayList<>();
 
         @Override
         public ModelsConnectPlayerResponse connectPlayer(
@@ -473,6 +525,7 @@ class PlayerApiImplTest {
         ) throws ApiException {
             lastConnectPlayerId = playerId;
             lastConnectRequest = modelsConnectPlayerRequest;
+            connectRequests.add(modelsConnectPlayerRequest);
             if (connectError != null) {
                 throw connectError;
             }

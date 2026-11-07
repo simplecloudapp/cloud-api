@@ -252,6 +252,8 @@ public interface CloudPlayer extends Audience {
          * The target does not exist, or the proxy does not know the server. A proxy does not know a
          * server it has not registered yet. For connects through the controller, it knows no server at
          * all when no plugin maps server IDs to its server names; see {@link PlayerApi#connectTo(UUID, ConnectTarget)}.
+         * The deprecated {@code connectToGroup} and {@code connectToPersistentServer} also answer this where
+         * the newer methods answer {@link #NO_SERVER_AVAILABLE}.
          */
         SERVER_NOT_FOUND,
 
@@ -273,7 +275,7 @@ public interface CloudPlayer extends Audience {
         /**
          * The target exists, but has no game server in state {@code AVAILABLE}, for example a server
          * that is still starting. The player was not sent anywhere. Only connects through the controller
-         * answer this; see {@link PlayerApi#connectTo(UUID, ConnectTarget)}.
+         * answer this, except the deprecated ones; see {@link PlayerApi#connectTo(UUID, ConnectTarget)}.
          */
         NO_SERVER_AVAILABLE
     }
