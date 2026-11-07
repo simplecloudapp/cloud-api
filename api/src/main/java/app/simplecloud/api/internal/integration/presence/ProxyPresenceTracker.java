@@ -5,9 +5,6 @@ import app.simplecloud.api.presence.ProxyPresencePlayer;
 import java.util.Map;
 import java.util.concurrent.ConcurrentHashMap;
 
-/**
- * Tracks stable per-player metadata needed for proxy presence reconciliation.
- */
 public final class ProxyPresenceTracker {
 
     private final String connectedProxyName;

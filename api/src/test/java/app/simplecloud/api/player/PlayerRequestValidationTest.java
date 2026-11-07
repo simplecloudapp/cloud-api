@@ -13,14 +13,15 @@ class PlayerRequestValidationTest {
     void queryLimitMustBeInRange() {
         assertThrows(IllegalArgumentException.class, () -> PlayerQuery.create().limit(0));
         assertThrows(IllegalArgumentException.class, () -> PlayerQuery.create().limit(PlayerQuery.MAX_LIMIT + 1));
-        assertEquals(PlayerQuery.MAX_LIMIT, PlayerQuery.create().limit(PlayerQuery.MAX_LIMIT).getLimit());
+        assertEquals(
+                PlayerQuery.MAX_LIMIT,
+                PlayerQuery.create().limit(PlayerQuery.MAX_LIMIT).getLimit());
     }
 
     @Test
     void queryRejectsNegativeValues() {
         assertThrows(IllegalArgumentException.class, () -> PlayerQuery.create().offset(-1));
-        assertThrows(
-                IllegalArgumentException.class, () -> PlayerQuery.create().filterByOnlineTimeSeconds(-1L, null));
+        assertThrows(IllegalArgumentException.class, () -> PlayerQuery.create().filterByOnlineTimeSeconds(-1L, null));
     }
 
     @Test
@@ -50,7 +51,9 @@ class PlayerRequestValidationTest {
 
     @Test
     void clientSettingsParseControllerValues() {
-        assertEquals(PlayerClientSettings.ChatMode.COMMANDS_ONLY, PlayerClientSettings.ChatMode.parse("CHAT_MODE_COMMANDS_ONLY"));
+        assertEquals(
+                PlayerClientSettings.ChatMode.COMMANDS_ONLY,
+                PlayerClientSettings.ChatMode.parse("CHAT_MODE_COMMANDS_ONLY"));
         assertEquals(PlayerClientSettings.MainHand.LEFT, PlayerClientSettings.MainHand.parse("left"));
         assertEquals(PlayerClientSettings.ChatMode.UNKNOWN, PlayerClientSettings.ChatMode.parse("something new"));
         assertEquals(PlayerClientSettings.MainHand.UNKNOWN, PlayerClientSettings.MainHand.parse(null));

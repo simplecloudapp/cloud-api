@@ -49,7 +49,7 @@ sourceSets {
 
 openApiGenerate {
     generatorName = "java"
-    inputSpec = isolated.rootProject.projectDirectory.file("hack/controller_spec.json").asFile.absolutePath
+    inputSpec = isolated.rootProject.projectDirectory.file("hack/controller_spec.json")
 
     outputDir = layout.buildDirectory.dir("generated")
 

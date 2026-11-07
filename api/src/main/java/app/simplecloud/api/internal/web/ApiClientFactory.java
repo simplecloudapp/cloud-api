@@ -24,6 +24,7 @@ public final class ApiClientFactory {
      */
     public static ApiClient create(CloudApiOptions options) {
         ApiClient client = new ResponseValidatingApiClient();
+        client.setBasePath(options.getControllerUrl());
         applyTimeouts(client, options);
         ApiKeyAuth credential = (ApiKeyAuth) client.getAuthentication("NetworkCredential");
         credential.setApiKey(options.getNetworkSecret());

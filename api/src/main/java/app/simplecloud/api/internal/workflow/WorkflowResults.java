@@ -1,5 +1,6 @@
 package app.simplecloud.api.internal.workflow;
 
+import app.simplecloud.api.internal.util.ValidationUtil;
 import app.simplecloud.api.web.models.ModelsExecuteManualWorkflowFailure;
 import app.simplecloud.api.web.models.ModelsExecuteManualWorkflowRequest;
 import app.simplecloud.api.web.models.ModelsExecutePersistentServerWorkflowResponse;
@@ -16,11 +17,8 @@ public final class WorkflowResults {
     private WorkflowResults() {}
 
     public static ModelsExecuteManualWorkflowRequest request(String workflowId) {
-        if (workflowId == null || workflowId.isBlank()) {
-            throw new IllegalArgumentException("workflowId must not be blank");
-        }
         ModelsExecuteManualWorkflowRequest request = new ModelsExecuteManualWorkflowRequest();
-        request.setWorkflowId(workflowId);
+        request.setWorkflowId(ValidationUtil.requireNotBlank(workflowId, "workflowId"));
         return request;
     }
 

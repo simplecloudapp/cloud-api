@@ -18,6 +18,13 @@ public final class ValidationUtil {
         return value != null && UUID_PATTERN.matcher(value).matches();
     }
 
+    public static String requireNotBlank(String value, String name) {
+        if (value == null || value.isBlank()) {
+            throw new IllegalArgumentException(name + " must not be blank");
+        }
+        return value;
+    }
+
     public static String serverTypeName(GroupServerType type) {
         if (type == GroupServerType.UNKNOWN_SERVER) {
             throw new IllegalArgumentException("type must be SERVER or PROXY");

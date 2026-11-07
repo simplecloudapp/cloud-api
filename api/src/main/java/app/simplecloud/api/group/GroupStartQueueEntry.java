@@ -13,8 +13,7 @@ public record GroupStartQueueEntry(
         @Nullable String serverGroupId,
         @Nullable String serverGroupName,
         List<GroupStartQueueItem> starts,
-        int totalStarts
-) {
+        int totalStarts) {
 
     public GroupStartQueueEntry {
         starts = List.copyOf(starts);

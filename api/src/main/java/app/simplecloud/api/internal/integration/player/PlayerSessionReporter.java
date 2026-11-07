@@ -51,40 +51,38 @@ public class PlayerSessionReporter {
      * Notifies the controller that a player logged in.
      */
     public CompletableFuture<LoginResult> reportLogin(PlayerLogin login) {
-        return inPlayerOrder(
-                login.playerId(),
-                () -> {
-                    try {
-                        PlayerLoginRequest.Builder builder = PlayerLoginRequest.newBuilder()
-                                .setUniqueId(login.playerId().toString())
-                                .setName(login.name())
-                                .setDisplayName(login.displayName())
-                                .setConnectedProxyName(login.connectedProxyName())
-                                .setAddressHash(login.addressHash())
-                                .setClientLanguage(login.clientLanguage())
-                                .setClientVersion(login.clientVersion())
-                                .setOnlineMode(login.onlineMode());
+        return inPlayerOrder(login.playerId(), () -> {
+            try {
+                PlayerLoginRequest.Builder builder = PlayerLoginRequest.newBuilder()
+                        .setUniqueId(login.playerId().toString())
+                        .setName(login.name())
+                        .setDisplayName(login.displayName())
+                        .setConnectedProxyName(login.connectedProxyName())
+                        .setAddressHash(login.addressHash())
+                        .setClientLanguage(login.clientLanguage())
+                        .setClientVersion(login.clientVersion())
+                        .setOnlineMode(login.onlineMode());
 
-                        if (login.texture() != null) builder.setTexture(login.texture());
+                if (login.texture() != null) builder.setTexture(login.texture());
 
-                        String subject = networkId + ".player.login";
-                        Message response =
-                                natsConnection.request(subject, builder.build().toByteArray(), REQUEST_TIMEOUT);
+                String subject = networkId + ".player.login";
+                Message response =
+                        natsConnection.request(subject, builder.build().toByteArray(), REQUEST_TIMEOUT);
 
-                        if (response == null) {
-                            return LoginResult.failure("Request timeout");
-                        }
+                if (response == null) {
+                    return LoginResult.failure("Request timeout");
+                }
 
-                        PlayerLoginResponse protoResponse = PlayerLoginResponse.parseFrom(response.getData());
-                        if (protoResponse.getSuccess()) {
-                            return LoginResult.success(protoResponse.getSessionId());
-                        } else {
-                            return LoginResult.failure(protoResponse.getErrorMessage());
-                        }
-                    } catch (Exception e) {
-                        return LoginResult.failure(e.getMessage());
-                    }
-                });
+                PlayerLoginResponse protoResponse = PlayerLoginResponse.parseFrom(response.getData());
+                if (protoResponse.getSuccess()) {
+                    return LoginResult.success(protoResponse.getSessionId());
+                } else {
+                    return LoginResult.failure(protoResponse.getErrorMessage());
+                }
+            } catch (Exception e) {
+                return LoginResult.failure(e.getMessage());
+            }
+        });
     }
 
     /**
@@ -92,33 +90,29 @@ public class PlayerSessionReporter {
      * Completes exceptionally if the controller rejects the request or no valid reply is received.
      */
     public CompletableFuture<Void> reportDisconnect(UUID playerId) {
-        return inPlayerOrder(
-                playerId,
-                () -> {
-                    try {
-                        PlayerDisconnectRequest request = PlayerDisconnectRequest.newBuilder()
-                                .setPlayerId(playerId.toString())
-                                .build();
+        return inPlayerOrder(playerId, () -> {
+            try {
+                PlayerDisconnectRequest request = PlayerDisconnectRequest.newBuilder()
+                        .setPlayerId(playerId.toString())
+                        .build();
 
-                        String subject = networkId + ".player.disconnect";
-                        Message response = natsConnection.request(subject, request.toByteArray(), REQUEST_TIMEOUT);
-                        if (response == null) {
-                            throw new TimeoutException(
-                                    "No controller reply within " + REQUEST_TIMEOUT.toSeconds() + " seconds");
-                        }
-                        if (!PlayerDisconnectResponse.parseFrom(response.getData())
-                                .getSuccess()) {
-                            throw new IllegalStateException("Controller rejected the disconnect request");
-                        }
-                        return null;
-                    } catch (Exception e) {
-                        if (e instanceof InterruptedException) {
-                            Thread.currentThread().interrupt();
-                        }
-                        throw new CompletionException(
-                                "Failed to disconnect player " + playerId + ": " + e.getMessage(), e);
-                    }
-                });
+                String subject = networkId + ".player.disconnect";
+                Message response = natsConnection.request(subject, request.toByteArray(), REQUEST_TIMEOUT);
+                if (response == null) {
+                    throw new TimeoutException(
+                            "No controller reply within " + REQUEST_TIMEOUT.toSeconds() + " seconds");
+                }
+                if (!PlayerDisconnectResponse.parseFrom(response.getData()).getSuccess()) {
+                    throw new IllegalStateException("Controller rejected the disconnect request");
+                }
+                return null;
+            } catch (Exception e) {
+                if (e instanceof InterruptedException) {
+                    Thread.currentThread().interrupt();
+                }
+                throw new CompletionException("Failed to disconnect player " + playerId + ": " + e.getMessage(), e);
+            }
+        });
     }
 
     /**
@@ -126,36 +120,32 @@ public class PlayerSessionReporter {
      * Completes exceptionally if the controller rejects the request or no valid reply is received.
      */
     public CompletableFuture<Void> reportServerSwitch(UUID playerId, String newServerName) {
-        return inPlayerOrder(
-                playerId,
-                () -> {
-                    try {
-                        PlayerServerSwitchRequest request = PlayerServerSwitchRequest.newBuilder()
-                                .setPlayerId(playerId.toString())
-                                .setNewServerName(newServerName)
-                                .build();
+        return inPlayerOrder(playerId, () -> {
+            try {
+                PlayerServerSwitchRequest request = PlayerServerSwitchRequest.newBuilder()
+                        .setPlayerId(playerId.toString())
+                        .setNewServerName(newServerName)
+                        .build();
 
-                        String subject = networkId + ".player.switch";
-                        Message response = natsConnection.request(subject, request.toByteArray(), REQUEST_TIMEOUT);
-                        if (response == null) {
-                            throw new TimeoutException(
-                                    "No controller reply within " + REQUEST_TIMEOUT.toSeconds() + " seconds");
-                        }
-                        if (!PlayerServerSwitchResponse.parseFrom(response.getData())
-                                .getSuccess()) {
-                            throw new IllegalStateException("Controller rejected the server-switch request");
-                        }
-                        return null;
-                    } catch (Exception e) {
-                        if (e instanceof InterruptedException) {
-                            Thread.currentThread().interrupt();
-                        }
-                        throw new CompletionException(
-                                "Failed to switch player " + playerId + " to server " + newServerName + ": "
-                                        + e.getMessage(),
-                                e);
-                    }
-                });
+                String subject = networkId + ".player.switch";
+                Message response = natsConnection.request(subject, request.toByteArray(), REQUEST_TIMEOUT);
+                if (response == null) {
+                    throw new TimeoutException(
+                            "No controller reply within " + REQUEST_TIMEOUT.toSeconds() + " seconds");
+                }
+                if (!PlayerServerSwitchResponse.parseFrom(response.getData()).getSuccess()) {
+                    throw new IllegalStateException("Controller rejected the server-switch request");
+                }
+                return null;
+            } catch (Exception e) {
+                if (e instanceof InterruptedException) {
+                    Thread.currentThread().interrupt();
+                }
+                throw new CompletionException(
+                        "Failed to switch player " + playerId + " to server " + newServerName + ": " + e.getMessage(),
+                        e);
+            }
+        });
     }
 
     private <T> CompletableFuture<T> inPlayerOrder(UUID playerId, Supplier<T> report) {

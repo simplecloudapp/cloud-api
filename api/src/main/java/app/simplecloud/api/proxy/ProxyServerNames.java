@@ -6,15 +6,6 @@ import java.util.concurrent.atomic.AtomicReference;
 
 /**
  * Maps server IDs to the names under which this proxy registered the servers.
- *
- * <p>The proxy uses it to resolve connect requests that target a server by ID. It is fed by the server
- * connection plugin, which registers the servers on the proxy and knows which ID belongs to which name.
- * Only Velocity and BungeeCord proxies handle connect requests, so it has no effect on other platforms.
- * Without a registration, connects by server ID answer
- * {@link app.simplecloud.api.player.CloudPlayer.ConnectResult#SERVER_NOT_FOUND}.
- *
- * <p>The registry is process-wide rather than tied to a {@code CloudApi} instance, because the connection
- * plugin creates its own instance. Only one registration is active at a time.
  */
 public final class ProxyServerNames {
 
@@ -54,14 +45,6 @@ public final class ProxyServerNames {
 
     /**
      * Finds the name under which this proxy registered a server.
-     *
-     * <p>It is called on the NATS dispatcher thread, concurrently with the code that registers servers,
-     * so it must be thread-safe, fast and must not throw. If it throws or returns {@code null}, the proxy
-     * answers {@link app.simplecloud.api.player.CloudPlayer.ConnectResult#CONNECTION_FAILED}.
-     *
-     * <p>Several servers can resolve to the same proxy name, and the last one registered replaces the
-     * others on the proxy. The lookup must only answer for the server that currently holds the name,
-     * otherwise a connect by ID lands on the wrong server.
      */
     @FunctionalInterface
     public interface Lookup {
@@ -84,10 +67,6 @@ public final class ProxyServerNames {
             this.lookup = lookup;
         }
 
-        /**
-         * Removes the lookup if this registration is still the current one. Does nothing if another
-         * registration replaced it or it was already closed.
-         */
         @Override
         public void close() {
             CURRENT_REGISTRATION.compareAndSet(this, null);

@@ -4,8 +4,6 @@ import build.buf.gen.simplecloud.controller.v2.ProxyPresencePlayerSnapshot;
 
 /**
  * Immutable player snapshot used for proxy presence reconciliation.
- *
- * <p>{@code null} strings are stored as empty strings, and a blank display name falls back to the name.
  */
 public final class ProxyPresencePlayer {
 

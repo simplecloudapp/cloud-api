@@ -8,12 +8,7 @@ import java.util.List;
  * Manual server-start queue state across all server groups.
  */
 public record GroupStartQueue(
-        int count,
-        int failedStarts,
-        List<GroupStartQueueEntry> items,
-        int queuedStarts,
-        int totalStarts
-) {
+        int count, int failedStarts, List<GroupStartQueueEntry> items, int queuedStarts, int totalStarts) {
     public GroupStartQueue {
         items = List.copyOf(items);
     }

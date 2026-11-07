@@ -1,6 +1,13 @@
 package app.simplecloud.api.internal.group;
 
-import app.simplecloud.api.group.*;
+import app.simplecloud.api.group.DeploymentConfig;
+import app.simplecloud.api.group.Group;
+import app.simplecloud.api.group.GroupServerType;
+import app.simplecloud.api.group.GroupStats;
+import app.simplecloud.api.group.ScalingConfig;
+import app.simplecloud.api.group.SourceConfig;
+import app.simplecloud.api.group.WorkflowsConfig;
+import app.simplecloud.api.internal.util.RestModelMapper;
 import app.simplecloud.api.server.ServerState;
 import app.simplecloud.api.web.models.ModelsServerGroupInfo;
 import app.simplecloud.api.web.models.ModelsServerGroupStats;
@@ -131,7 +138,7 @@ public class GroupImpl implements Group {
                 }
             }
             if (config != null) {
-                deployment = convertDeploymentConfig(config);
+                deployment = RestModelMapper.fromModel(config);
             }
         }
         return deployment;
@@ -151,7 +158,7 @@ public class GroupImpl implements Group {
                 }
             }
             if (config != null) {
-                scaling = convertScalingConfig(config);
+                scaling = RestModelMapper.fromModel(config);
             }
         }
         return scaling;
@@ -178,7 +185,7 @@ public class GroupImpl implements Group {
                 }
             }
             if (config != null) {
-                source = convertSourceConfig(config);
+                source = RestModelMapper.fromModel(config);
             }
         }
         return source;
@@ -198,7 +205,7 @@ public class GroupImpl implements Group {
                 }
             }
             if (config != null) {
-                workflows = convertWorkflowsConfig(config);
+                workflows = RestModelMapper.fromModel(config);
             }
         }
         return workflows;
@@ -268,89 +275,6 @@ public class GroupImpl implements Group {
         return updatedAt;
     }
 
-    private DeploymentConfig convertDeploymentConfig(app.simplecloud.api.web.models.ModelsDeploymentConfig config) {
-        DeploymentConfig result = new DeploymentConfig();
-        String strategyStr = config.getStrategy();
-        if (strategyStr != null) {
-            try {
-                result.setStrategy(DeploymentStrategy.valueOf(strategyStr.toUpperCase()));
-            } catch (IllegalArgumentException ignored) {
-            }
-        }
-        if (config.getHosts() != null) {
-            DeploymentHost[] hosts = config.getHosts().stream()
-                    .map(h -> {
-                        DeploymentHost host = new DeploymentHost();
-                        host.setName(h.getName());
-                        host.setPriority(h.getPriority() != null ? h.getPriority() : 0);
-                        return host;
-                    })
-                    .toArray(DeploymentHost[]::new);
-            result.setHosts(hosts);
-        }
-        return result;
-    }
-
-    private ScalingConfig convertScalingConfig(app.simplecloud.api.web.models.ModelsScalingConfig config) {
-        ScalingConfig result = new ScalingConfig();
-        result.setAvailableSlots(config.getAvailableSlots() != null ? config.getAvailableSlots() : 0);
-        result.setMaxServers(config.getMaxServers() != null ? config.getMaxServers() : 0);
-        result.setMinServers(config.getMinServers() != null ? config.getMinServers() : 0);
-        if (config.getPlayerThreshold() != null) {
-            result.setPlayerThreshold(config.getPlayerThreshold().doubleValue());
-        }
-        if (config.getScalingMode() != null) {
-            ScalingMode scalingMode = convertScalingMode(config.getScalingMode().getValue());
-            if (scalingMode != null) {
-                result.setScalingMode(scalingMode);
-            }
-        }
-        if (config.getScaleDown() != null) {
-            ScaleDownConfig scaleDown = new ScaleDownConfig();
-            scaleDown.setIdleTime(config.getScaleDown().getIdleTime());
-            if (config.getScaleDown().getIgnorePlayers() != null) {
-                scaleDown.setIgnorePlayers(config.getScaleDown().getIgnorePlayers());
-            }
-            result.setScaleDown(scaleDown);
-        }
-        return result;
-    }
-
-    @Nullable
-    private ScalingMode convertScalingMode(String scalingMode) {
-        return switch (scalingMode) {
-            case "SLOTS" -> ScalingMode.SLOTS;
-            case "SERVERS" -> ScalingMode.SERVERS;
-            default -> null;
-        };
-    }
-
-    private SourceConfig convertSourceConfig(app.simplecloud.api.web.models.ModelsSourceConfig config) {
-        SourceConfig result = new SourceConfig();
-        String typeStr = config.getType() == null ? null : config.getType().getValue();
-        if (typeStr != null) {
-            try {
-                result.setType(SourceType.valueOf(typeStr.toUpperCase()));
-            } catch (IllegalArgumentException ignored) {
-            }
-        }
-        result.setBlueprint(config.getBlueprint());
-        result.setImage(config.getImage());
-        return result;
-    }
-
-    private WorkflowsConfig convertWorkflowsConfig(app.simplecloud.api.web.models.ModelsWorkflowsConfig config) {
-        WorkflowsConfig result = new WorkflowsConfig();
-        result.setManual(config.getManual());
-        if (config.getWhen() != null) {
-            WorkflowWhen when = new WorkflowWhen();
-            when.setStart(config.getWhen().getStart());
-            when.setStop(config.getWhen().getStop());
-            result.setWhen(when);
-        }
-        return result;
-    }
-
     @Override
     @Nullable
     public GroupStats getStats() {
@@ -369,9 +293,9 @@ public class GroupImpl implements Group {
                 });
             }
             stats = new GroupStats(
-                    model.getTotalServers() != null ? model.getTotalServers() : 0,
+                    RestModelMapper.orZero(model.getTotalServers()),
                     byState,
-                    model.getOnlinePlayers() != null ? model.getOnlinePlayers() : 0);
+                    RestModelMapper.orZero(model.getOnlinePlayers()));
         }
         return stats;
     }

@@ -23,24 +23,26 @@ class ManifestServerUrlResolverTest {
     void manifestIsNotFetchedWithoutSoftwareAndVersion() {
         ManifestServerUrlResolver resolver = resolver("not a url");
 
-        assertNull(resolver.resolve(CreateBlueprintRequest.builder().minecraftVersion("1.21.4").build()));
-        assertNull(resolver.resolve(CreateBlueprintRequest.builder().serverSoftware("paper").build()));
+        assertNull(resolver.resolve(
+                CreateBlueprintRequest.builder().minecraftVersion("1.21.4").build()));
+        assertNull(resolver.resolve(
+                CreateBlueprintRequest.builder().serverSoftware("paper").build()));
     }
 
     @Test
     void plainHttpManifestIsRefused() {
-        CloudApiException exception =
-                assertThrows(CloudApiException.class, () -> resolver("http://example.com/manifest.json")
-                        .resolve(PAPER));
+        CloudApiException exception = assertThrows(
+                CloudApiException.class,
+                () -> resolver("http://example.com/manifest.json").resolve(PAPER));
 
         assertEquals(CloudApiException.Reason.UNAVAILABLE, exception.getReason());
     }
 
     @Test
     void manifestOnPrivateAddressIsRefused() {
-        CloudApiException exception =
-                assertThrows(CloudApiException.class, () -> resolver("https://127.0.0.1/manifest.json")
-                        .resolve(PAPER));
+        CloudApiException exception = assertThrows(
+                CloudApiException.class,
+                () -> resolver("https://127.0.0.1/manifest.json").resolve(PAPER));
 
         assertEquals(CloudApiException.Reason.UNAVAILABLE, exception.getReason());
     }

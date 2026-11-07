@@ -10,5 +10,5 @@ import org.jetbrains.annotations.Nullable;
  *                   when no server was picked (for example {@link CloudPlayer.ConnectResult#NO_SERVER_AVAILABLE}
  *                   or {@link CloudPlayer.ConnectResult#PLAYER_NOT_FOUND})
  */
-public record ConnectResponse(CloudPlayer.ConnectResult result, @Nullable String serverName) {
-}
+public record ConnectResponse(
+        CloudPlayer.ConnectResult result, @Nullable String serverName) {}

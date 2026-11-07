@@ -17,9 +17,6 @@ import java.util.concurrent.atomic.AtomicBoolean;
 import java.util.logging.Level;
 import java.util.logging.Logger;
 
-/**
- * Responds to controller presence-compare requests for a single proxy.
- */
 public final class ProxyPresenceResponder {
 
     private static final Logger LOGGER = Logger.getLogger(ProxyPresenceResponder.class.getName());

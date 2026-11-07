@@ -29,13 +29,11 @@ class GroupApiImplTest {
 
     private static final String GROUP_ID = "0b6e2c4a-7d1f-4e3b-9a5c-2f8d6e1b3c7a";
     private static final String BLUEPRINT_ID = "5a1c9e2b-3d4f-4a6b-8c7d-9e0f1a2b3c4d";
-    private static final String GROUP_JSON =
-            """
+    private static final String GROUP_JSON = """
             {"server_group_id": "%s", "name": "lobby", "type": "SERVER", "max_players": 50,
              "scaling": {"min_servers": 1, "max_servers": 3, "scaling_mode": "SLOTS"},
              "source": {"type": "blueprint", "blueprint": "%s"}}
-            """
-                    .formatted(GROUP_ID, BLUEPRINT_ID);
+            """.formatted(GROUP_ID, BLUEPRINT_ID);
 
     private ControllerServer controller;
     private GroupApi api;
@@ -83,14 +81,16 @@ class GroupApiImplTest {
         assertEquals(50, body.get("max_players").getAsInt());
         assertTrue(body.get("active").getAsBoolean());
         assertEquals(single("lobby"), body.getAsJsonArray("tags"));
-        assertEquals("blacklist", body.getAsJsonObject("deployment").get("strategy").getAsString());
+        assertEquals(
+                "blacklist", body.getAsJsonObject("deployment").get("strategy").getAsString());
 
         JsonObject scaling = body.getAsJsonObject("scaling");
         assertEquals(0, scaling.get("min_servers").getAsInt());
         assertEquals(1, scaling.get("max_servers").getAsInt());
         assertEquals(0.75, scaling.get("player_threshold").getAsDouble());
         assertEquals("SLOTS", scaling.get("scaling_mode").getAsString());
-        assertEquals("3m", scaling.getAsJsonObject("scale_down").get("idle_time").getAsString());
+        assertEquals(
+                "3m", scaling.getAsJsonObject("scale_down").get("idle_time").getAsString());
 
         JsonObject when = body.getAsJsonObject("workflows").getAsJsonObject("when");
         assertEquals(single("internal/setup"), when.getAsJsonArray("start"));
@@ -109,10 +109,15 @@ class GroupApiImplTest {
         assertEquals("/v0/blueprints", blueprintRequest.getRequestUrl().encodedPath());
         JsonObject blueprint = ControllerServer.body(blueprintRequest);
         assertEquals("lobby", blueprint.get("name").getAsString());
-        assertEquals("https://example.com/paper.jar", blueprint.get("server_url").getAsString());
+        assertEquals(
+                "https://example.com/paper.jar", blueprint.get("server_url").getAsString());
         assertEquals(
                 "21",
-                blueprint.getAsJsonObject("runtime_config").getAsJsonObject("with").get("version").getAsString());
+                blueprint
+                        .getAsJsonObject("runtime_config")
+                        .getAsJsonObject("with")
+                        .get("version")
+                        .getAsString());
 
         RecordedRequest groupRequest = controller.takeRequest();
         assertEquals("/v0/server-groups", groupRequest.getRequestUrl().encodedPath());
@@ -126,8 +131,8 @@ class GroupApiImplTest {
         controller.respond(400, "{\"error\": \"name already taken\"}");
         controller.respond(200, "{}");
 
-        CloudApiException failure = failure(
-                api.createGroup(new CreateGroupRequest("lobby").setCreateBlueprint(paperBlueprint())));
+        CloudApiException failure =
+                failure(api.createGroup(new CreateGroupRequest("lobby").setCreateBlueprint(paperBlueprint())));
 
         assertEquals(CloudApiException.Reason.INVALID_REQUEST, failure.getReason());
         controller.takeRequest();
@@ -141,10 +146,12 @@ class GroupApiImplTest {
     void createGroupRejectsInlineBlueprintCombinedWithImage() {
         CreateGroupRequest request = new CreateGroupRequest("lobby")
                 .setCreateBlueprint(paperBlueprint())
-                .setSource(SourceConfig.builder().image("ghcr.io/example/lobby:latest").build());
+                .setSource(SourceConfig.builder()
+                        .image("ghcr.io/example/lobby:latest")
+                        .build());
 
-        CompletionException exception =
-                assertThrows(CompletionException.class, () -> api.createGroup(request).join());
+        CompletionException exception = assertThrows(
+                CompletionException.class, () -> api.createGroup(request).join());
 
         assertInstanceOf(IllegalArgumentException.class, exception.getCause());
         assertEquals(0, controller.requestCount());

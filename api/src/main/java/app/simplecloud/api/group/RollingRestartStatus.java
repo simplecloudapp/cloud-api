@@ -7,4 +7,5 @@ import org.jetbrains.annotations.Nullable;
  *
  * @see GroupApi#getRollingRestartStatus(String)
  */
-public record RollingRestartStatus(String serverGroupId, boolean active, @Nullable String startedAt) { }
+public record RollingRestartStatus(
+        String serverGroupId, boolean active, @Nullable String startedAt) {}

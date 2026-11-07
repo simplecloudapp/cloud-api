@@ -2,8 +2,6 @@ package app.simplecloud.api.runtime;
 
 /**
  * Resolves the runtime identity exposed by SimpleCloud environment variables.
- *
- * <p>All methods return an empty string if the variable is not set, for example outside a cloud-managed server.
  */
 public final class SimpleCloudRuntime {
 

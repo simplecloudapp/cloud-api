@@ -5,25 +5,19 @@ import io.nats.client.ConnectionListener;
 import io.nats.client.impl.ErrorListenerLoggerImpl;
 
 import java.io.IOException;
-import java.net.SocketException;
+import java.util.concurrent.TimeoutException;
 import java.util.logging.Level;
 import java.util.logging.Logger;
 
-/**
- * Presents recoverable NATS connection changes without making them look like
- * application failures. All other asynchronous client errors retain jnats'
- * default logging behavior.
- */
 final class SimpleCloudNatsListener extends ErrorListenerLoggerImpl implements ConnectionListener {
 
     private static final Logger LOGGER = Logger.getLogger(SimpleCloudNatsListener.class.getName());
-    private static final String READ_CHANNEL_CLOSED = "Read channel closed.";
-    private static final String CONNECTION_RESET = "Connection reset";
+    private static final String MAX_PINGS_EXCEEDED = "Max outgoing Ping count exceeded";
 
     @Override
     public void exceptionOccurred(Connection connection, Exception exception) {
-        if (isRoutineChannelClosure(exception)) {
-            LOGGER.log(Level.FINE, "NATS transport channel closed; the client will reconnect automatically");
+        if (isTransportFailure(exception)) {
+            LOGGER.log(Level.FINE, "NATS connection lost; the client will reconnect automatically", exception);
             return;
         }
 
@@ -35,16 +29,15 @@ final class SimpleCloudNatsListener extends ErrorListenerLoggerImpl implements C
         switch (event) {
             case DISCONNECTED -> LOGGER.fine("NATS connection interrupted; reconnecting automatically");
             case RECONNECTED -> LOGGER.fine("NATS connection restored");
-            default -> {
-                // The connection manager already reports initial connections,
-                // permanent closures, and subscription rebinding.
-            }
+            default -> {}
         }
     }
 
-    static boolean isRoutineChannelClosure(Exception exception) {
+    static boolean isTransportFailure(Exception exception) {
         return exception instanceof IOException
-                && (READ_CHANNEL_CLOSED.equals(exception.getMessage())
-                        || exception instanceof SocketException && CONNECTION_RESET.equals(exception.getMessage()));
+                || exception instanceof TimeoutException
+                || exception instanceof IllegalStateException
+                        && exception.getMessage() != null
+                        && exception.getMessage().startsWith(MAX_PINGS_EXCEEDED);
     }
 }

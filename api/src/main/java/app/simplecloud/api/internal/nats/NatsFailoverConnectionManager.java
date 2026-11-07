@@ -86,7 +86,7 @@ public final class NatsFailoverConnectionManager {
                 connection.close();
             } catch (InterruptedException e) {
                 Thread.currentThread().interrupt();
-                LOGGER.log(Level.WARNING, "Interrupted while closing the NATS connection", e);
+                LOGGER.log(Level.FINE, "Interrupted while closing the NATS connection", e);
             }
         }
     }
@@ -181,18 +181,18 @@ public final class NatsFailoverConnectionManager {
                 return;
             } catch (InterruptedException e) {
                 Thread.currentThread().interrupt();
-                LOGGER.log(Level.WARNING, "Interrupted while reconnecting NATS", e);
+                LOGGER.log(Level.FINE, "Interrupted while reconnecting NATS", e);
                 return;
             } catch (Exception e) {
                 String connectionDescription = initialConnection ? "initial NATS connection" : "new NATS connection";
-                LOGGER.warning("Failed to establish " + connectionDescription + ", retrying in "
+                LOGGER.fine("Failed to establish " + connectionDescription + ", retrying in "
                         + Duration.ofMillis(backoffMillis) + ": " + e.getMessage());
                 try {
                     Thread.sleep(backoffMillis);
                 } catch (InterruptedException interruptedException) {
                     Thread.currentThread().interrupt();
                     LOGGER.log(
-                            Level.WARNING,
+                            Level.FINE,
                             "Interrupted while waiting for next NATS reconnect retry",
                             interruptedException);
                     return;

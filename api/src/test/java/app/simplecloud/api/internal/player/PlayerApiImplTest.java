@@ -33,8 +33,7 @@ class PlayerApiImplTest {
     private static final UUID PLAYER_ID = UUID.fromString("069a79f4-44e9-4726-a5be-fca90e38aaf5");
     private static final String SERVER_ID = "6f1c2a51-0c8e-4f0a-9d55-3b8e1f6c2d10";
     private static final String GROUP_ID = "1b2e7c3d-5a64-4e2f-8c1d-9a0b3c4d5e6f";
-    private static final String PLAYER_JSON =
-            """
+    private static final String PLAYER_JSON = """
             {"id": "069a79f4-44e9-4726-a5be-fca90e38aaf5", "name": "Steve", "online": true,
              "connected_server_name": "lobby-1", "online_time_seconds": 3600, "properties": {"rank": "admin"}}
             """;
@@ -83,7 +82,8 @@ class PlayerApiImplTest {
     void getFailsWithNotFoundForUnknownPlayer() {
         controller.respond(404, "{\"error\": \"Player not found\"}");
 
-        assertEquals(CloudApiException.Reason.NOT_FOUND, failure(api.get(PLAYER_ID)).getReason());
+        assertEquals(
+                CloudApiException.Reason.NOT_FOUND, failure(api.get(PLAYER_ID)).getReason());
     }
 
     @Test
@@ -125,35 +125,44 @@ class PlayerApiImplTest {
 
         RecordedRequest request = controller.takeRequest();
         assertEquals("/v0/players/connect", request.getRequestUrl().encodedPath());
-        assertEquals("lobby-1", ControllerServer.body(request).get("server_name").getAsString());
+        assertEquals(
+                "lobby-1", ControllerServer.body(request).get("server_name").getAsString());
     }
 
     @Test
     void connectReportsOfflinePlayerAsPlayerNotFound() {
         controller.respond(404, "{\"error\": \"Player is not online\"}");
 
-        assertEquals(CloudPlayer.ConnectResult.PLAYER_NOT_FOUND, api.connect(PLAYER_ID, "lobby-1").join());
+        assertEquals(
+                CloudPlayer.ConnectResult.PLAYER_NOT_FOUND,
+                api.connect(PLAYER_ID, "lobby-1").join());
     }
 
     @Test
     void connectReportsUnknownServerAsServerNotFound() {
         controller.respond(404, "{\"error\": \"Server not found\"}");
 
-        assertEquals(CloudPlayer.ConnectResult.SERVER_NOT_FOUND, api.connect(PLAYER_ID, "lobby-9").join());
+        assertEquals(
+                CloudPlayer.ConnectResult.SERVER_NOT_FOUND,
+                api.connect(PLAYER_ID, "lobby-9").join());
     }
 
     @Test
     void connectFailsWhenNameIsAmbiguous() {
         controller.respond(409, "{\"error\": \"Server name is ambiguous\"}");
 
-        assertEquals(CloudApiException.Reason.CONFLICT, failure(api.connect(PLAYER_ID, "lobby")).getReason());
+        assertEquals(
+                CloudApiException.Reason.CONFLICT,
+                failure(api.connect(PLAYER_ID, "lobby")).getReason());
     }
 
     @Test
     void connectToServerSendsServerIdOnly() {
         controller.respond(200, "{\"success\": true, \"result\": \"SUCCESS\", \"server_name\": \"lobby-1\"}");
 
-        assertEquals(CloudPlayer.ConnectResult.SUCCESS, api.connectToServer(PLAYER_ID, SERVER_ID).join());
+        assertEquals(
+                CloudPlayer.ConnectResult.SUCCESS,
+                api.connectToServer(PLAYER_ID, SERVER_ID).join());
 
         JsonObject body = ControllerServer.body(controller.takeRequest());
         assertEquals(SERVER_ID, body.get("server_id").getAsString());
@@ -177,11 +186,13 @@ class PlayerApiImplTest {
     @Test
     void connectToReportsNoServerWithoutServerName() {
         controller.respond(
-                200, "{\"success\": false, \"result\": \"NO_SERVER_AVAILABLE\", \"message\": \"Target server not found\"}");
+                200,
+                "{\"success\": false, \"result\": \"NO_SERVER_AVAILABLE\", \"message\": \"Target server not found\"}");
 
         assertEquals(
                 new ConnectResponse(CloudPlayer.ConnectResult.NO_SERVER_AVAILABLE, null),
-                api.connectTo(PLAYER_ID, new ConnectTarget.GroupName("lobby", null)).join());
+                api.connectTo(PLAYER_ID, new ConnectTarget.GroupName("lobby", null))
+                        .join());
     }
 
     @Test
@@ -206,9 +217,7 @@ class PlayerApiImplTest {
 
     @Test
     void updateClientSettingsOnlySendsFieldsThatAreSet() {
-        controller.respond(
-                200,
-                """
+        controller.respond(200, """
                 {"success": true, "settings": {"locale": "de_DE", "view_distance": 8, "chat_mode": "CHAT_MODE_ENABLED"}}
                 """);
 
@@ -233,8 +242,9 @@ class PlayerApiImplTest {
 
     @Test
     void sessionPagingIsValidatedBeforeAskingController() {
-        CompletionException exception =
-                assertThrows(CompletionException.class, () -> api.getSessions(PLAYER_ID, 101, 0).join());
+        CompletionException exception = assertThrows(
+                CompletionException.class,
+                () -> api.getSessions(PLAYER_ID, 101, 0).join());
 
         assertInstanceOf(IllegalArgumentException.class, exception.getCause());
         assertEquals(0, controller.requestCount());

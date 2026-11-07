@@ -15,6 +15,7 @@ import app.simplecloud.api.internal.create.CreateRequestDefaults;
 import app.simplecloud.api.internal.group.GroupImpl;
 import app.simplecloud.api.internal.util.RestModelMapper;
 import app.simplecloud.api.internal.util.ValidationUtil;
+import app.simplecloud.api.internal.web.ApiCalls;
 import app.simplecloud.api.internal.web.ApiExceptions;
 import app.simplecloud.api.internal.workflow.WorkflowResults;
 import app.simplecloud.api.persistentserver.CreatePersistentServerRequest;
@@ -30,19 +31,12 @@ import app.simplecloud.api.web.models.ModelsConversionDeployment;
 import app.simplecloud.api.web.models.ModelsConvertPersistentToGroupRequest;
 import app.simplecloud.api.web.models.ModelsCreatePersistentServerRequest;
 import app.simplecloud.api.web.models.ModelsCreatePersistentServerResponse;
-import app.simplecloud.api.web.models.ModelsCreateServerGroupResponse;
-import app.simplecloud.api.web.models.ModelsDeploymentHost;
 import app.simplecloud.api.web.models.ModelsDeletePropertiesRequest;
-import app.simplecloud.api.web.models.ModelsDeletePropertiesResponse;
-import app.simplecloud.api.web.models.ModelsExecutePersistentServerWorkflowResponse;
 import app.simplecloud.api.web.models.ModelsListPersistentServersResponse;
 import app.simplecloud.api.web.models.ModelsPatchPersistentServerRequest;
 import app.simplecloud.api.web.models.ModelsPatchPropertiesRequest;
-import app.simplecloud.api.web.models.ModelsPatchPropertiesResponse;
 import app.simplecloud.api.web.models.ModelsPersistentServerSummary;
 import app.simplecloud.api.web.models.ModelsSourceConfig;
-import app.simplecloud.api.web.models.ModelsWorkflowWhen;
-import app.simplecloud.api.web.models.ModelsWorkflowsConfig;
 import app.simplecloud.api.workflow.WorkflowExecutionResult;
 import org.jetbrains.annotations.Nullable;
 
@@ -55,6 +49,11 @@ import java.util.Objects;
 import java.util.Optional;
 import java.util.concurrent.CompletableFuture;
 import java.util.concurrent.Executor;
+import java.util.function.Predicate;
+
+import static app.simplecloud.api.internal.util.RestModelMapper.toModel;
+import static app.simplecloud.api.internal.util.RestModelMapper.toSummary;
+import static app.simplecloud.api.internal.util.ValidationUtil.requireNotBlank;
 
 public class PersistentServerApiImpl implements PersistentServerApi {
     private static final Duration TRANSIENT_MISS_RETRY_DELAY = Duration.ofMillis(200);
@@ -68,24 +67,10 @@ public class PersistentServerApiImpl implements PersistentServerApi {
     private final Executor executor;
 
     public PersistentServerApiImpl(CloudApiOptions options, QueryCache cache, ApiClient httpClient, Executor executor) {
-        this(
-                options,
-                cache,
-                createPersistentServersApi(options, httpClient),
-                new InlineBlueprintSupport(options, createBlueprintsApi(options, httpClient)),
-                executor);
-    }
-
-    private PersistentServerApiImpl(
-            CloudApiOptions options,
-            QueryCache cache,
-            PersistentServersApi persistentServersApi,
-            InlineBlueprintSupport inlineBlueprintSupport,
-            Executor executor) {
         this.options = options;
         this.cache = cache;
-        this.persistentServersApi = persistentServersApi;
-        this.inlineBlueprintSupport = inlineBlueprintSupport;
+        this.persistentServersApi = new PersistentServersApi(httpClient);
+        this.inlineBlueprintSupport = new InlineBlueprintSupport(options, new BlueprintsApi(httpClient));
         this.createRequestDefaults = new CreateRequestDefaults();
         this.executor = executor;
     }
@@ -102,11 +87,11 @@ public class PersistentServerApiImpl implements PersistentServerApi {
         if (!ValidationUtil.isUuid(id)) {
             return CompletableFuture.completedFuture(Optional.empty());
         }
-        QueryKey key = QueryKey.of("persistentServer", id);
 
         return cache.fetchWithTransientMissRecovery(
-                        key,
-                        () -> fetchPersistentServerByIdFromController(id),
+                        QueryKey.of("persistentServer", id),
+                        () -> fetchSinglePersistentServer(
+                                id, null, summary -> id.equals(summary.getPersistentServerId())),
                         Objects::isNull,
                         TRANSIENT_MISS_RETRY_DELAY,
                         TRANSIENT_MISS_MAX_RETRIES)
@@ -122,11 +107,9 @@ public class PersistentServerApiImpl implements PersistentServerApi {
 
     @Override
     public CompletableFuture<Optional<PersistentServer>> findPersistentServerByName(String name) {
-        QueryKey key = QueryKey.of("persistentServer", "name", name);
-
         return cache.fetchWithTransientMissRecovery(
-                        key,
-                        () -> fetchPersistentServerByNameFromController(name),
+                        QueryKey.of("persistentServer", "name", name),
+                        () -> fetchSinglePersistentServer(null, name, summary -> name.equals(summary.getName())),
                         Objects::isNull,
                         TRANSIENT_MISS_RETRY_DELAY,
                         TRANSIENT_MISS_MAX_RETRIES)
@@ -137,27 +120,14 @@ public class PersistentServerApiImpl implements PersistentServerApi {
     public CompletableFuture<List<PersistentServer>> getAllPersistentServers(
             @Nullable PersistentServerQuery requestedQuery) {
         PersistentServerQuery query = requestedQuery == null ? null : requestedQuery.copy();
-        QueryKey key = buildQueryKey(query);
 
         return cache.fetch(
-                key,
-                () -> CompletableFuture.supplyAsync(
-                        () -> {
-                            try {
-                                ModelsListPersistentServersResponse response = executeQuery(query, null, null);
-                                List<ModelsPersistentServerSummary> servers = response.getPersistentServers();
-                                if (servers == null) {
-                                    return List.of();
-                                }
-
-                                return servers.stream()
-                                        .<PersistentServer>map(PersistentServerImpl::new)
-                                        .toList();
-                            } catch (ApiException e) {
-                                throw ApiExceptions.from(e);
-                            }
-                        },
-                        executor));
+                buildQueryKey(query),
+                () -> ApiCalls.supplyAsync(
+                        executor,
+                        () -> listPersistentServers(query, null, null).stream()
+                                .<PersistentServer>map(PersistentServerImpl::new)
+                                .toList()));
     }
 
     private QueryKey buildQueryKey(@Nullable PersistentServerQuery query) {
@@ -177,344 +147,210 @@ public class PersistentServerApiImpl implements PersistentServerApi {
                 query.getOffset());
     }
 
-    private boolean persistentServerExistsWithBlueprint(String name, @Nullable String blueprintId) {
-        if (blueprintId == null) {
-            return false;
-        }
-
-        try {
-            ModelsListPersistentServersResponse response = executeQuery(null, null, name);
-            List<ModelsPersistentServerSummary> servers = response.getPersistentServers();
-            if (servers == null) {
-                return false;
-            }
-
-            return servers.stream()
-                    .anyMatch(summary -> name.equals(summary.getName())
-                            && sourceReferencesBlueprint(summary.getSource(), blueprintId));
-        } catch (ApiException e) {
-            throw ApiExceptions.from(e);
-        }
-    }
-
-    private CompletableFuture<PersistentServer> fetchPersistentServerByIdFromController(String id) {
-        return CompletableFuture.supplyAsync(
-                () -> {
-                    try {
-                        ModelsListPersistentServersResponse response = executeQuery(null, id, null);
-                        List<ModelsPersistentServerSummary> servers = response.getPersistentServers();
-                        if (servers == null) {
-                            return null;
-                        }
-
-                        return servers.stream()
-                                .filter(summary -> id.equals(summary.getPersistentServerId()))
-                                .findFirst()
-                                .<PersistentServer>map(PersistentServerImpl::new)
-                                .orElse(null);
-                    } catch (ApiException e) {
-                        throw ApiExceptions.from(e);
-                    }
-                },
-                executor);
-    }
-
-    private CompletableFuture<PersistentServer> fetchPersistentServerByNameFromController(String name) {
-        return CompletableFuture.supplyAsync(
-                () -> {
-                    try {
-                        ModelsListPersistentServersResponse response = executeQuery(null, null, name);
-                        List<ModelsPersistentServerSummary> servers = response.getPersistentServers();
-                        if (servers == null) {
-                            return null;
-                        }
-
-                        return servers.stream()
-                                .filter(summary -> name.equals(summary.getName()))
-                                .findFirst()
-                                .<PersistentServer>map(PersistentServerImpl::new)
-                                .orElse(null);
-                    } catch (ApiException e) {
-                        throw ApiExceptions.from(e);
-                    }
-                },
-                executor);
-    }
-
-    private ModelsListPersistentServersResponse executeQuery(
+    private List<ModelsPersistentServerSummary> listPersistentServers(
             @Nullable PersistentServerQuery query, @Nullable String persistentServerId, @Nullable String name)
             throws ApiException {
         String tags =
                 query == null || query.getTags() == null || query.getTags().isEmpty()
                         ? null
                         : String.join(",", query.getTags());
-        return persistentServersApi.listPersistentServers(
+        ModelsListPersistentServersResponse response = persistentServersApi.listPersistentServers(
                 options.getNetworkId(),
                 persistentServerId,
                 name,
                 query != null && query.getType() != null ? ValidationUtil.serverTypeName(query.getType()) : null,
                 tags,
                 query != null ? query.getActive() : null,
-                query != null && query.getSourceType() != null ? query.getSourceType().name().toLowerCase(Locale.ROOT) : null,
+                query != null && query.getSourceType() != null
+                        ? query.getSourceType().name().toLowerCase(Locale.ROOT)
+                        : null,
                 query != null ? query.getBlueprintId() : null,
                 query != null ? query.getServerhostId() : null,
                 query != null ? query.getLimit() : null,
                 query != null ? query.getOffset() : null);
+        List<ModelsPersistentServerSummary> servers = response.getPersistentServers();
+        return servers == null ? List.of() : servers;
+    }
+
+    private CompletableFuture<PersistentServer> fetchSinglePersistentServer(
+            @Nullable String id, @Nullable String name, Predicate<ModelsPersistentServerSummary> filter) {
+        return ApiCalls.supplyAsync(
+                executor,
+                () -> listPersistentServers(null, id, name).stream()
+                        .filter(filter)
+                        .findFirst()
+                        .<PersistentServer>map(PersistentServerImpl::new)
+                        .orElse(null));
+    }
+
+    private boolean persistentServerExistsWithBlueprint(String name, @Nullable String blueprintId) {
+        if (blueprintId == null) {
+            return false;
+        }
+        return ApiCalls.execute(() -> listPersistentServers(null, null, name).stream()
+                .anyMatch(summary ->
+                        name.equals(summary.getName()) && sourceReferencesBlueprint(summary.getSource(), blueprintId)));
     }
 
     @Override
     public CompletableFuture<PersistentServer> createPersistentServer(CreatePersistentServerRequest request) {
-        return CompletableFuture.supplyAsync(
-                () -> {
-                    WorkflowsConfig effectiveWorkflows = createRequestDefaults.defaultWorkflows(request.getWorkflows());
-                    CreateBlueprintRequest effectiveCreateBlueprint = createRequestDefaults.defaultInlineBlueprint(
-                            request.getCreateBlueprint(), effectiveWorkflows);
-                    GroupServerType effectiveType = createRequestDefaults.defaultType(request.getType());
-                    int effectiveMaxPlayers = createRequestDefaults.defaultMaxPlayers(request.getMaxPlayers());
-                    boolean effectiveActive = createRequestDefaults.defaultActive(request.getActive());
-                    Map<String, Object> effectiveProperties =
-                            createRequestDefaults.defaultProperties(request.getProperties());
-                    List<String> effectiveTags =
-                            createRequestDefaults.defaultTags(request.getName(), request.getTags());
+        return ApiCalls.supplyAsync(executor, () -> {
+            WorkflowsConfig effectiveWorkflows = createRequestDefaults.defaultWorkflows(request.getWorkflows());
+            CreateBlueprintRequest effectiveCreateBlueprint =
+                    createRequestDefaults.defaultInlineBlueprint(request.getCreateBlueprint(), effectiveWorkflows);
+            GroupServerType effectiveType = createRequestDefaults.defaultType(request.getType());
 
-                    inlineBlueprintSupport.validateInlineBlueprintSource(effectiveCreateBlueprint, request.getSource());
+            inlineBlueprintSupport.validateInlineBlueprintSource(effectiveCreateBlueprint, request.getSource());
 
-                    ModelsCreatePersistentServerRequest apiRequest = new ModelsCreatePersistentServerRequest();
-                    apiRequest.setName(request.getName());
-                    apiRequest.setMinMemory(request.getMinMemory());
-                    apiRequest.setMaxMemory(request.getMaxMemory());
-                    apiRequest.setMaxPlayers(effectiveMaxPlayers);
-                    apiRequest.setActive(effectiveActive);
-                    apiRequest.setPriority(request.getPriority());
-                    apiRequest.setServerhostId(request.getServerhostId());
-                    apiRequest.setProperties(effectiveProperties);
-                    apiRequest.setTags(effectiveTags);
-                    apiRequest.setType(ModelsCreatePersistentServerRequest.TypeEnum.valueOf(
-                            ValidationUtil.serverTypeName(effectiveType)));
-                    apiRequest.setWorkflows(convertWorkflowsConfig(effectiveWorkflows));
+            ModelsCreatePersistentServerRequest apiRequest = new ModelsCreatePersistentServerRequest();
+            apiRequest.setName(request.getName());
+            apiRequest.setMinMemory(request.getMinMemory());
+            apiRequest.setMaxMemory(request.getMaxMemory());
+            apiRequest.setMaxPlayers(createRequestDefaults.defaultMaxPlayers(request.getMaxPlayers()));
+            apiRequest.setActive(createRequestDefaults.defaultActive(request.getActive()));
+            apiRequest.setPriority(request.getPriority());
+            apiRequest.setServerhostId(request.getServerhostId());
+            apiRequest.setProperties(createRequestDefaults.defaultProperties(request.getProperties()));
+            apiRequest.setTags(createRequestDefaults.defaultTags(request.getName(), request.getTags()));
+            apiRequest.setType(
+                    ModelsCreatePersistentServerRequest.TypeEnum.valueOf(ValidationUtil.serverTypeName(effectiveType)));
+            apiRequest.setWorkflows(toModel(effectiveWorkflows));
 
-                    String blueprintId;
-                    try {
-                        blueprintId =
-                                inlineBlueprintSupport.createBlueprint(request.getName(), effectiveCreateBlueprint);
-                        SourceConfig effectiveSource = blueprintId != null
-                                ? inlineBlueprintSupport.buildInlineBlueprintSource(
-                                        request.getSource(), blueprintId)
-                                : request.getSource();
-                        if (effectiveSource != null) {
-                            apiRequest.setSource(convertSourceConfig(effectiveSource));
-                        }
+            String blueprintId = inlineBlueprintSupport.createBlueprint(request.getName(), effectiveCreateBlueprint);
+            SourceConfig effectiveSource = blueprintId != null
+                    ? inlineBlueprintSupport.buildInlineBlueprintSource(request.getSource(), blueprintId)
+                    : request.getSource();
+            if (effectiveSource != null) {
+                apiRequest.setSource(toModel(effectiveSource));
+            }
 
-                        ModelsCreatePersistentServerResponse response;
-                        try {
-                            response = persistentServersApi.createPersistentServer(options.getNetworkId(), apiRequest);
-                        } catch (ApiException e) {
-                            throw inlineBlueprintSupport.rollBackAfterCreateFailure(
-                                    "persistent server",
-                                    blueprintId,
-                                    e,
-                                    () -> persistentServerExistsWithBlueprint(request.getName(), blueprintId));
-                        }
+            ModelsCreatePersistentServerResponse response;
+            try {
+                response = persistentServersApi.createPersistentServer(options.getNetworkId(), apiRequest);
+            } catch (ApiException e) {
+                throw inlineBlueprintSupport.rollBackAfterCreateFailure(
+                        "persistent server",
+                        blueprintId,
+                        e,
+                        () -> persistentServerExistsWithBlueprint(request.getName(), blueprintId));
+            }
 
-                        // Invalidate list caches (new persistent server created)
-                        cache.invalidateAll(QueryKey.of("persistentServers"));
-                        cache.invalidateAll(QueryKey.of("persistentServer", "name"));
-
-                        return new PersistentServerImpl(RestModelMapper.toSummary(response));
-                    } catch (ApiException e) {
-                        throw ApiExceptions.from(e);
-                    }
-                },
-                executor);
+            invalidatePersistentServers(null);
+            return new PersistentServerImpl(toSummary(response));
+        });
     }
 
     @Override
     public CompletableFuture<PersistentServer> updatePersistentServer(
             String id, UpdatePersistentServerRequest request) {
-        return CompletableFuture.supplyAsync(
-                () -> {
-                    try {
-                        ModelsPatchPersistentServerRequest apiRequest = new ModelsPatchPersistentServerRequest();
-                        apiRequest.setName(request.getName());
-                        apiRequest.setMinMemory(request.getMinMemory());
-                        apiRequest.setMaxMemory(request.getMaxMemory());
-                        apiRequest.setMaxPlayers(request.getMaxPlayers());
-                        apiRequest.setActive(request.getActive());
-                        apiRequest.setPriority(request.getPriority());
-                        apiRequest.setServerhostId(request.getServerhostId());
-                        apiRequest.setProperties(request.getProperties());
-                        apiRequest.setTags(request.getTags());
+        return ApiCalls.supplyAsync(executor, () -> {
+            ModelsPatchPersistentServerRequest apiRequest = new ModelsPatchPersistentServerRequest();
+            apiRequest.setName(request.getName());
+            apiRequest.setMinMemory(request.getMinMemory());
+            apiRequest.setMaxMemory(request.getMaxMemory());
+            apiRequest.setMaxPlayers(request.getMaxPlayers());
+            apiRequest.setActive(request.getActive());
+            apiRequest.setPriority(request.getPriority());
+            apiRequest.setServerhostId(request.getServerhostId());
+            apiRequest.setProperties(request.getProperties());
+            apiRequest.setTags(request.getTags());
+            if (request.getType() != null) {
+                apiRequest.setType(ModelsPatchPersistentServerRequest.TypeEnum.valueOf(
+                        ValidationUtil.serverTypeName(request.getType())));
+            }
+            if (request.getSource() != null) {
+                apiRequest.setSource(toModel(request.getSource()));
+            }
+            if (request.getWorkflows() != null) {
+                apiRequest.setWorkflows(toModel(request.getWorkflows()));
+            }
 
-                        if (request.getType() != null) {
-                            apiRequest.setType(ModelsPatchPersistentServerRequest.TypeEnum.valueOf(
-                                    ValidationUtil.serverTypeName(request.getType())));
-                        }
-                        if (request.getSource() != null) {
-                            apiRequest.setSource(convertSourceConfig(request.getSource()));
-                        }
-                        if (request.getWorkflows() != null) {
-                            apiRequest.setWorkflows(convertWorkflowsConfig(request.getWorkflows()));
-                        }
-
-                        persistentServersApi.patchPersistentServer(options.getNetworkId(), id, apiRequest);
-
-                        // Invalidate cache before re-fetching
-                        cache.invalidate(QueryKey.of("persistentServer", id));
-                        cache.invalidateAll(QueryKey.of("persistentServers"));
-                        cache.invalidateAll(QueryKey.of("persistentServer", "name"));
-
-                        // Re-fetch to get the updated object
-                        return getPersistentServerById(id).join();
-                    } catch (ApiException e) {
-                        throw ApiExceptions.from(e);
-                    }
-                },
-                executor);
+            persistentServersApi.patchPersistentServer(options.getNetworkId(), id, apiRequest);
+            invalidatePersistentServers(id);
+            return getPersistentServerById(id).join();
+        });
     }
 
     @Override
     public CompletableFuture<Void> deletePersistentServer(String id) {
-        return CompletableFuture.runAsync(
-                () -> {
-                    try {
-                        String blueprintId = findAttachedBlueprintId(id);
-
-                        persistentServersApi.deletePersistentServer(options.getNetworkId(), id);
-
-                        // Invalidate this persistent server and list caches
-                        cache.invalidate(QueryKey.of("persistentServer", id));
-                        cache.invalidateAll(QueryKey.of("persistentServers"));
-                        cache.invalidateAll(QueryKey.of("persistentServer", "name"));
-
-                        inlineBlueprintSupport.deleteBlueprint(blueprintId);
-                    } catch (ApiException e) {
-                        throw ApiExceptions.from(e);
-                    }
-                },
-                executor);
+        return ApiCalls.runAsync(executor, () -> {
+            String blueprintId = findAttachedBlueprintId(id);
+            persistentServersApi.deletePersistentServer(options.getNetworkId(), id);
+            invalidatePersistentServers(id);
+            inlineBlueprintSupport.deleteBlueprint(blueprintId);
+        });
     }
 
     @Override
     public CompletableFuture<WorkflowExecutionResult> executeWorkflow(String id, String workflowId) {
-        return CompletableFuture.supplyAsync(
-                () -> {
-                    if (id == null || id.isBlank()) {
-                        throw new IllegalArgumentException("id must not be blank");
-                    }
-
-                    try {
-                        ModelsExecutePersistentServerWorkflowResponse response =
-                                persistentServersApi.executePersistentServerWorkflow(
-                                        options.getNetworkId(), id, WorkflowResults.request(workflowId));
-                        return WorkflowResults.fromPersistentServer(workflowId, response);
-                    } catch (ApiException e) {
-                        throw ApiExceptions.from(e);
-                    }
-                },
-                executor);
+        return ApiCalls.supplyAsync(
+                executor,
+                () -> WorkflowResults.fromPersistentServer(
+                        workflowId,
+                        persistentServersApi.executePersistentServerWorkflow(
+                                options.getNetworkId(),
+                                requireNotBlank(id, "id"),
+                                WorkflowResults.request(workflowId))));
     }
 
     @Override
     public CompletableFuture<Group> convertToGroup(
             String persistentServerId, List<DeploymentHost> hosts, ScalingConfig scaling) {
-        return CompletableFuture.supplyAsync(
-                () -> {
-                    if (persistentServerId == null || persistentServerId.isBlank()) {
-                        throw new IllegalArgumentException("persistentServerId must not be blank");
-                    }
-                    Objects.requireNonNull(hosts, "hosts");
-                    ValidationUtil.requireCompleteScaling(Objects.requireNonNull(scaling, "scaling"));
-                    try {
-                        ModelsConversionDeployment deployment = new ModelsConversionDeployment();
-                        deployment.setHosts(hosts.stream()
-                                .map(host -> {
-                                    ModelsDeploymentHost model = new ModelsDeploymentHost();
-                                    model.setName(host.getName());
-                                    model.setPriority(host.getPriority());
-                                    return model;
-                                })
-                                .toList());
+        return ApiCalls.supplyAsync(executor, () -> {
+            String id = requireNotBlank(persistentServerId, "persistentServerId");
+            Objects.requireNonNull(hosts, "hosts");
+            ValidationUtil.requireCompleteScaling(Objects.requireNonNull(scaling, "scaling"));
 
-                        ModelsConvertPersistentToGroupRequest request = new ModelsConvertPersistentToGroupRequest();
-                        request.setDeployment(deployment);
-                        request.setScaling(RestModelMapper.toModel(scaling));
+            ModelsConversionDeployment deployment = new ModelsConversionDeployment();
+            deployment.setHosts(hosts.stream().map(RestModelMapper::toModel).toList());
 
-                        ModelsCreateServerGroupResponse response = persistentServersApi.convertPersistentToGroup(
-                                options.getNetworkId(), persistentServerId, request);
+            ModelsConvertPersistentToGroupRequest request = new ModelsConvertPersistentToGroupRequest();
+            request.setDeployment(deployment);
+            request.setScaling(toModel(scaling));
 
-                        cache.invalidate(QueryKey.of("persistentServer", persistentServerId));
-                        cache.invalidateAll(QueryKey.of("persistentServers"));
-                        cache.invalidateAll(QueryKey.of("persistentServer", "name"));
-                        cache.invalidateAll(QueryKey.of("groups"));
-                        cache.invalidateAll(QueryKey.of("group", "name"));
+            Group group = new GroupImpl(
+                    toSummary(persistentServersApi.convertPersistentToGroup(options.getNetworkId(), id, request)));
 
-                        return new GroupImpl(RestModelMapper.toSummary(response));
-                    } catch (ApiException e) {
-                        throw ApiExceptions.from(e);
-                    }
-                },
-                executor);
+            invalidatePersistentServers(id);
+            cache.invalidateAll(QueryKey.of("groups"));
+            cache.invalidateAll(QueryKey.of("group", "name"));
+            return group;
+        });
     }
 
     @Override
     public CompletableFuture<Map<String, Object>> updatePersistentServerProperties(
             String id, Map<String, Object> properties) {
-        return CompletableFuture.supplyAsync(
-                () -> {
-                    try {
-                        ModelsPatchPropertiesRequest request = new ModelsPatchPropertiesRequest();
-                        request.setProperties(properties);
-
-                        ModelsPatchPropertiesResponse response = persistentServersApi.patchPersistentServerProperties(
-                                options.getNetworkId(), id, request);
-
-                        // Invalidate persistent server cache (properties changed)
-                        cache.invalidate(QueryKey.of("persistentServer", id));
-                        cache.invalidateAll(QueryKey.of("persistentServers"));
-                        cache.invalidateAll(QueryKey.of("persistentServer", "name"));
-
-                        Map<String, Object> result = response.getProperties();
-                        return result != null ? result : new HashMap<>();
-                    } catch (ApiException e) {
-                        throw ApiExceptions.from(e);
-                    }
-                },
-                executor);
+        return ApiCalls.supplyAsync(executor, () -> {
+            ModelsPatchPropertiesRequest request = new ModelsPatchPropertiesRequest();
+            request.setProperties(properties);
+            Map<String, Object> result = persistentServersApi
+                    .patchPersistentServerProperties(options.getNetworkId(), id, request)
+                    .getProperties();
+            invalidatePersistentServers(id);
+            return result != null ? result : new HashMap<>();
+        });
     }
 
     @Override
     public CompletableFuture<Map<String, Object>> deletePersistentServerProperties(String id, List<String> keys) {
-        return CompletableFuture.supplyAsync(
-                () -> {
-                    try {
-                        ModelsDeletePropertiesRequest request = new ModelsDeletePropertiesRequest();
-                        request.setKeys(keys);
-
-                        ModelsDeletePropertiesResponse response = persistentServersApi.deletePersistentServerProperties(
-                                options.getNetworkId(), id, request);
-
-                        // Invalidate persistent server cache (properties changed)
-                        cache.invalidate(QueryKey.of("persistentServer", id));
-                        cache.invalidateAll(QueryKey.of("persistentServers"));
-                        cache.invalidateAll(QueryKey.of("persistentServer", "name"));
-
-                        Map<String, Object> result = response.getProperties();
-                        return result != null ? result : new HashMap<>();
-                    } catch (ApiException e) {
-                        throw ApiExceptions.from(e);
-                    }
-                },
-                executor);
+        return ApiCalls.supplyAsync(executor, () -> {
+            ModelsDeletePropertiesRequest request = new ModelsDeletePropertiesRequest();
+            request.setKeys(keys);
+            Map<String, Object> result = persistentServersApi
+                    .deletePersistentServerProperties(options.getNetworkId(), id, request)
+                    .getProperties();
+            invalidatePersistentServers(id);
+            return result != null ? result : new HashMap<>();
+        });
     }
 
-    private ModelsSourceConfig convertSourceConfig(SourceConfig config) {
-        ModelsSourceConfig result = new ModelsSourceConfig();
-        if (config.getType() != null) {
-            result.setType(ModelsSourceConfig.TypeEnum.valueOf(config.getType().name()));
+    private void invalidatePersistentServers(@Nullable String id) {
+        if (id != null) {
+            cache.invalidate(QueryKey.of("persistentServer", id));
         }
-        result.setBlueprint(config.getBlueprint());
-        result.setImage(config.getImage());
-        return result;
+        cache.invalidateAll(QueryKey.of("persistentServers"));
+        cache.invalidateAll(QueryKey.of("persistentServer", "name"));
     }
 
     private boolean sourceReferencesBlueprint(@Nullable ModelsSourceConfig source, String blueprintId) {
@@ -523,44 +359,12 @@ public class PersistentServerApiImpl implements PersistentServerApi {
 
     @Nullable
     private String findAttachedBlueprintId(String persistentServerId) throws ApiException {
-        ModelsListPersistentServersResponse response = executeQuery(null, persistentServerId, null);
-        List<ModelsPersistentServerSummary> servers = response.getPersistentServers();
-        if (servers == null) {
-            return null;
-        }
-
-        return servers.stream()
+        return listPersistentServers(null, persistentServerId, null).stream()
                 .filter(server -> persistentServerId.equals(server.getPersistentServerId()))
                 .map(ModelsPersistentServerSummary::getSource)
                 .map(inlineBlueprintSupport::getReferencedBlueprintId)
                 .filter(Objects::nonNull)
                 .findFirst()
                 .orElse(null);
-    }
-
-    private ModelsWorkflowsConfig convertWorkflowsConfig(WorkflowsConfig config) {
-        ModelsWorkflowsConfig result = new ModelsWorkflowsConfig();
-        result.setManual(config.getManual());
-
-        if (config.getWhen() != null) {
-            ModelsWorkflowWhen when = new ModelsWorkflowWhen();
-            when.setStart(config.getWhen().getStart());
-            when.setStop(config.getWhen().getStop());
-            result.setWhen(when);
-        }
-
-        return result;
-    }
-
-    private static PersistentServersApi createPersistentServersApi(CloudApiOptions options, ApiClient httpClient) {
-        PersistentServersApi api = new PersistentServersApi(httpClient);
-        api.setCustomBaseUrl(options.getControllerUrl());
-        return api;
-    }
-
-    private static BlueprintsApi createBlueprintsApi(CloudApiOptions options, ApiClient httpClient) {
-        BlueprintsApi api = new BlueprintsApi(httpClient);
-        api.setCustomBaseUrl(options.getControllerUrl());
-        return api;
     }
 }

@@ -142,7 +142,9 @@ public class CacheConfig {
                     EntityCacheConfig.builder().staleTime(Duration.ofSeconds(5)).build());
             configs.put(
                     EntityType.BLUEPRINT,
-                    EntityCacheConfig.builder().staleTime(Duration.ofSeconds(10)).build());
+                    EntityCacheConfig.builder()
+                            .staleTime(Duration.ofSeconds(10))
+                            .build());
             return configs;
         }
 

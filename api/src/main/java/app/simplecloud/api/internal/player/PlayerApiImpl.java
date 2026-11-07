@@ -3,6 +3,7 @@ package app.simplecloud.api.internal.player;
 import app.simplecloud.api.CloudApiException;
 import app.simplecloud.api.CloudApiOptions;
 import app.simplecloud.api.internal.util.ValidationUtil;
+import app.simplecloud.api.internal.web.ApiCalls;
 import app.simplecloud.api.internal.web.ApiClientFactory;
 import app.simplecloud.api.internal.web.ApiExceptions;
 import app.simplecloud.api.player.CloudPlayer;
@@ -95,7 +96,6 @@ public class PlayerApiImpl implements PlayerApi {
         this.options = options;
         this.natsConnection = natsConnection;
         this.playersApi = playersApi;
-        this.playersApi.setCustomBaseUrl(options.getControllerUrl());
         this.executor = executor;
     }
 
@@ -465,15 +465,14 @@ public class PlayerApiImpl implements PlayerApi {
                         Thread.currentThread().interrupt();
                         return CloudPlayer.ConnectResult.CONNECTION_FAILED;
                     } catch (Exception e) {
-                        LOGGER.log(Level.WARNING, "Failed to connect player " + uniqueId + " to " + serverName, e);
+                        LOGGER.log(Level.FINE, "Failed to connect player " + uniqueId + " to " + serverName, e);
                         return CloudPlayer.ConnectResult.CONNECTION_FAILED;
                     }
                 },
                 executor);
     }
 
-    private CompletableFuture<ConnectResponse> connectViaController(
-            UUID uniqueId, ModelsConnectPlayerRequest request) {
+    private CompletableFuture<ConnectResponse> connectViaController(UUID uniqueId, ModelsConnectPlayerRequest request) {
         return CompletableFuture.supplyAsync(
                 () -> {
                     try {
@@ -606,19 +605,11 @@ public class PlayerApiImpl implements PlayerApi {
         return properties != null ? properties : new HashMap<>();
     }
 
-    private <T> CompletableFuture<T> call(ApiCall<T> call) {
-        return CompletableFuture.supplyAsync(
-                () -> {
-                    try {
-                        return call.execute();
-                    } catch (ApiException e) {
-                        throw ApiExceptions.from(e);
-                    }
-                },
-                executor);
+    private <T> CompletableFuture<T> call(ApiCalls.Call<T> call) {
+        return ApiCalls.supplyAsync(executor, call);
     }
 
-    private <T> CompletableFuture<Optional<T>> callOrEmptyIfNotFound(ApiCall<T> call) {
+    private <T> CompletableFuture<Optional<T>> callOrEmptyIfNotFound(ApiCalls.Call<T> call) {
         return CompletableFuture.supplyAsync(
                 () -> {
                     try {
@@ -659,10 +650,5 @@ public class PlayerApiImpl implements PlayerApi {
 
     private static long toOnlineTimeSeconds(Integer onlineTimeSeconds) {
         return onlineTimeSeconds != null ? onlineTimeSeconds.longValue() : 0L;
-    }
-
-    @FunctionalInterface
-    private interface ApiCall<T> {
-        T execute() throws ApiException;
     }
 }

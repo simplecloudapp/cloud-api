@@ -42,8 +42,7 @@ class ApiExceptionsTest {
 
     @Test
     void unreachableControllerIsUnavailable() {
-        CloudApiException exception =
-                ApiExceptions.from(new ApiException(new IOException("Connection refused")));
+        CloudApiException exception = ApiExceptions.from(new ApiException(new IOException("Connection refused")));
 
         assertEquals(CloudApiException.Reason.UNAVAILABLE, exception.getReason());
         assertEquals("Controller unreachable: Connection refused", exception.getMessage());

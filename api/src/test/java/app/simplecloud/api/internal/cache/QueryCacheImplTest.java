@@ -109,7 +109,8 @@ class QueryCacheImplTest {
         cache.shutdown();
         cache = new QueryCacheImpl(CacheConfig.builder()
                 .entityConfig(
-                        EntityType.SERVER, EntityCacheConfig.builder().enabled(false).build())
+                        EntityType.SERVER,
+                        EntityCacheConfig.builder().enabled(false).build())
                 .build());
         AtomicInteger calls = new AtomicInteger();
 
@@ -156,7 +157,10 @@ class QueryCacheImplTest {
 
         cache.set(KEY, "new");
 
-        assertSame("new", cache.fetch(KEY, () -> CompletableFuture.completedFuture("fetched")).join());
+        assertSame(
+                "new",
+                cache.fetch(KEY, () -> CompletableFuture.completedFuture("fetched"))
+                        .join());
     }
 
     private static <T> CompletableFuture<T> completed(AtomicInteger calls, T value) {

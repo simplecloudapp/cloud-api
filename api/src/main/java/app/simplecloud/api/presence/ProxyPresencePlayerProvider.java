@@ -12,8 +12,6 @@ public interface ProxyPresencePlayerProvider {
     /**
      * Returns the players currently connected through this proxy.
      *
-     * <p>Called on a background thread, so the implementation must be thread-safe. {@code null} entries are ignored.
-     *
      * @return the connected players
      */
     Collection<ProxyPresencePlayer> getProxyPresencePlayers();

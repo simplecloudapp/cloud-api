@@ -11,10 +11,6 @@ import java.util.Set;
 import java.util.concurrent.CompletableFuture;
 import java.util.function.Supplier;
 
-/**
- * A no-op cache implementation used when caching is disabled.
- * All operations pass through to the underlying fetcher without caching.
- */
 public class NoOpQueryCache implements QueryCache {
 
     @Override
