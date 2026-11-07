@@ -6,12 +6,13 @@ import app.simplecloud.api.internal.web.ApiClients;
 import app.simplecloud.api.internal.web.ApiErrors;
 import app.simplecloud.api.internal.web.Identifiers;
 import app.simplecloud.api.player.CloudPlayer;
+import app.simplecloud.api.player.ConnectResponse;
+import app.simplecloud.api.player.ConnectTarget;
 import app.simplecloud.api.player.PlayerApi;
 import app.simplecloud.api.player.PlayerClientSettings;
 import app.simplecloud.api.player.PlayerProfile;
 import app.simplecloud.api.player.PlayerQuery;
 import app.simplecloud.api.player.PlayerSession;
-import app.simplecloud.api.player.ServerSelectionMode;
 import app.simplecloud.api.player.UpdateClientSettingsRequest;
 import app.simplecloud.api.web.ApiException;
 import app.simplecloud.api.web.ApiClient;
@@ -449,16 +450,8 @@ public class PlayerApiImpl implements PlayerApi {
     }
     
     @Override
-    public CompletableFuture<CloudPlayer.ConnectResult> connect(UUID uniqueId, String serverName) {
-        ModelsConnectPlayerRequest request = new ModelsConnectPlayerRequest();
-        request.setServerName(serverName);
-        return connectViaController(uniqueId, request);
-    }
-
-    @Override
-    public CompletableFuture<CloudPlayer.ConnectResult> connectByServerId(UUID uniqueId, String serverId) {
-        ModelsConnectPlayerRequest request = new ModelsConnectPlayerRequest();
-        request.setServerId(serverId);
+    public CompletableFuture<ConnectResponse> connectTo(UUID uniqueId, ConnectTarget target) {
+        ModelsConnectPlayerRequest request = toConnectRequest(target);
         return connectViaController(uniqueId, request);
     }
 
@@ -491,26 +484,26 @@ public class PlayerApiImpl implements PlayerApi {
         }, executor);
     }
 
-    @Override
-    public CompletableFuture<CloudPlayer.ConnectResult> connectToGroup(
-            UUID uniqueId,
-            String groupName,
-            ServerSelectionMode selectionMode
-    ) {
+    private static ModelsConnectPlayerRequest toConnectRequest(ConnectTarget target) {
         ModelsConnectPlayerRequest request = new ModelsConnectPlayerRequest();
-        request.setServerGroupName(groupName);
-        request.setSelectionMode((selectionMode != null ? selectionMode : ServerSelectionMode.RANDOM).name());
-        return connectViaController(uniqueId, request);
+        switch (target) {
+            case ConnectTarget.ServerName serverName -> request.setServerName(serverName.serverName());
+            case ConnectTarget.ServerId serverId -> request.setServerId(serverId.serverId());
+            case ConnectTarget.GroupName groupName -> {
+                request.setServerGroupName(groupName.groupName());
+                request.setSelectionMode(groupName.selectionMode().name());
+            }
+            case ConnectTarget.GroupId groupId -> {
+                request.setServerGroupId(groupId.groupId());
+                request.setSelectionMode(groupId.selectionMode().name());
+            }
+            case ConnectTarget.PersistentServerId persistentServerId ->
+                    request.setPersistentServerId(persistentServerId.persistentServerId());
+        }
+        return request;
     }
 
-    @Override
-    public CompletableFuture<CloudPlayer.ConnectResult> connectToPersistentServer(UUID uniqueId, String persistentServerId) {
-        ModelsConnectPlayerRequest request = new ModelsConnectPlayerRequest();
-        request.setPersistentServerId(persistentServerId);
-        return connectViaController(uniqueId, request);
-    }
-
-    private CompletableFuture<CloudPlayer.ConnectResult> connectViaController(UUID uniqueId, ModelsConnectPlayerRequest request) {
+    private CompletableFuture<ConnectResponse> connectViaController(UUID uniqueId, ModelsConnectPlayerRequest request) {
         return CompletableFuture.supplyAsync(() -> {
             try {
                 ModelsConnectPlayerResponse response = playersApi.connectPlayer(
@@ -518,12 +511,15 @@ public class PlayerApiImpl implements PlayerApi {
                         uniqueId.toString(),
                         request
                 );
-                return toConnectResult(response);
+                CloudPlayer.ConnectResult result = toConnectResult(response);
+                String serverName = response != null ? response.getServerName() : null;
+                return new ConnectResponse(result, serverName);
             } catch (ApiException e) {
                 if (e.getCode() == 404) {
-                    return isPlayerNotOnline(e)
+                    CloudPlayer.ConnectResult result = isPlayerNotOnline(e)
                             ? CloudPlayer.ConnectResult.PLAYER_NOT_FOUND
                             : CloudPlayer.ConnectResult.SERVER_NOT_FOUND;
+                    return new ConnectResponse(result, null);
                 }
                 throw ApiErrors.from(e);
             }
@@ -535,7 +531,7 @@ public class PlayerApiImpl implements PlayerApi {
         return body != null && body.contains("Player is not online");
     }
 
-    static CloudPlayer.ConnectResult toConnectResult(ModelsConnectPlayerResponse response) {
+    private static CloudPlayer.ConnectResult toConnectResult(ModelsConnectPlayerResponse response) {
         if (response == null || response.getResult() == null) {
             return CloudPlayer.ConnectResult.CONNECTION_FAILED;
         }

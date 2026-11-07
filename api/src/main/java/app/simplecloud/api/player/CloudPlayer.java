@@ -2,6 +2,7 @@ package app.simplecloud.api.player;
 
 import net.kyori.adventure.audience.Audience;
 import net.kyori.adventure.text.Component;
+import org.jetbrains.annotations.Nullable;
 
 import java.util.Map;
 import java.util.UUID;
@@ -28,7 +29,7 @@ import java.util.concurrent.CompletableFuture;
  * ));
  *
  * // Connect to another server
- * player.connect("lobby-1").thenAccept(result -> {
+ * player.connectToServerByName("lobby-1").thenAccept(result -> {
  *     if (result == ConnectResult.SUCCESS) {
  *         System.out.println("Player connected!");
  *     }
@@ -126,25 +127,81 @@ public interface CloudPlayer extends Audience {
     CompletableFuture<Void> kick(Component reason);
 
     /**
+     * Connects the player through the controller, which resolves the target to one server.
+     *
+     * <p>See {@link PlayerApi#connectTo(UUID, ConnectTarget)} for the proxy's precondition, the results and
+     * the failures.
+     *
+     * @param target where to send the player
+     * @return a future containing the result and the server the controller last tried
+     */
+    CompletableFuture<ConnectResponse> connectTo(ConnectTarget target);
+
+    /**
      * Connects the player to a server by its cloud name, through the controller.
      *
-     * <p>See {@link PlayerApi#connect(UUID, String)} for the name, the results and the failures.
-     * To reach servers that are not managed by the cloud, use {@link #connectDirect(String)}.
+     * <p>See {@link PlayerApi#connectToServerByName(UUID, String)}.
      *
      * @param serverName the cloud name of the target server
      * @return a future containing the connection result
      */
-    CompletableFuture<ConnectResult> connect(String serverName);
+    default CompletableFuture<ConnectResult> connectToServerByName(String serverName) {
+        ConnectTarget target = new ConnectTarget.ServerName(serverName);
+        return connectTo(target).thenApply(ConnectResponse::result);
+    }
 
     /**
      * Connects the player to a server by its ID, through the controller.
      *
-     * <p>See {@link PlayerApi#connectByServerId(UUID, String)}.
+     * <p>See {@link PlayerApi#connectToServerById(UUID, String)}.
      *
      * @param serverId the UUID of the target server
      * @return a future containing the connection result
      */
-    CompletableFuture<ConnectResult> connectByServerId(String serverId);
+    default CompletableFuture<ConnectResult> connectToServerById(String serverId) {
+        ConnectTarget target = new ConnectTarget.ServerId(serverId);
+        return connectTo(target).thenApply(ConnectResponse::result);
+    }
+
+    /**
+     * Connects the player to a server of the group with the given name, through the controller.
+     *
+     * <p>See {@link PlayerApi#connectToGroupByName(UUID, String, ServerSelectionMode)}.
+     *
+     * @param groupName the name of the target server group, matched case-insensitively
+     * @param selectionMode how the target server is chosen, or null for {@link ServerSelectionMode#RANDOM}
+     * @return a future containing the connection result
+     */
+    default CompletableFuture<ConnectResult> connectToGroupByName(
+            String groupName,
+            @Nullable ServerSelectionMode selectionMode
+    ) {
+        ConnectTarget target = new ConnectTarget.GroupName(groupName, selectionMode);
+        return connectTo(target).thenApply(ConnectResponse::result);
+    }
+
+    /**
+     * Connects the player to a random server of the group with the given name, through the controller.
+     *
+     * @param groupName the name of the target server group, matched case-insensitively
+     * @return a future containing the connection result
+     */
+    default CompletableFuture<ConnectResult> connectToGroupByName(String groupName) {
+        return connectToGroupByName(groupName, ServerSelectionMode.RANDOM);
+    }
+
+    /**
+     * Connects the player to the running server of a persistent server, through the controller.
+     *
+     * <p>See {@link PlayerApi#connectToPersistentServerById(UUID, String)}.
+     *
+     * @param persistentServerId the UUID of the target persistent server
+     * @return a future containing the connection result
+     */
+    default CompletableFuture<ConnectResult> connectToPersistentServerById(String persistentServerId) {
+        ConnectTarget target = new ConnectTarget.PersistentServerId(persistentServerId);
+        return connectTo(target).thenApply(ConnectResponse::result);
+    }
 
     /**
      * Connects the player to a server by the name the proxy registered it under.
@@ -158,35 +215,63 @@ public interface CloudPlayer extends Audience {
     CompletableFuture<ConnectResult> connectDirect(String serverName);
 
     /**
-     * Connects the player to a server of the given server group, through the controller.
+     * Connects the player to a server by the name the proxy registered it under, exactly like
+     * {@link #connectDirect(String)}.
      *
-     * <p>See {@link PlayerApi#connectToGroup(UUID, String, ServerSelectionMode)}.
-     *
-     * @param groupName the name of the target server group, matched case-insensitively
-     * @param selectionMode how the target server is chosen, or null for {@link ServerSelectionMode#RANDOM}
+     * @param serverName the name of the server on the proxy
      * @return a future containing the connection result
+     * @deprecated The name doesn't say which name it takes. Use {@link #connectToServerByName(String)} for
+     * the cloud name, or {@link #connectDirect(String)} for the proxy's name.
      */
-    CompletableFuture<ConnectResult> connectToGroup(String groupName, ServerSelectionMode selectionMode);
-
-    /**
-     * Connects the player to a random server of the given server group.
-     *
-     * @param groupName the name of the target server group
-     * @return a future containing the connection result
-     */
-    default CompletableFuture<ConnectResult> connectToGroup(String groupName) {
-        return connectToGroup(groupName, ServerSelectionMode.RANDOM);
+    @Deprecated
+    default CompletableFuture<ConnectResult> connect(String serverName) {
+        return connectDirect(serverName);
     }
 
     /**
-     * Connects the player to a persistent server by its ID, through the controller.
+     * Connects the player to a server of the group with the given name, like
+     * {@link #connectToGroupByName(String, ServerSelectionMode)}.
      *
-     * <p>See {@link PlayerApi#connectToPersistentServer(UUID, String)}.
+     * @param groupName the name of the target server group
+     * @param selectionMode how the target server is chosen, or null for {@link ServerSelectionMode#RANDOM}
+     * @return a future containing the connection result
+     * @deprecated The name doesn't say whether it takes a group name or ID. Use
+     * {@link #connectToGroupByName(String, ServerSelectionMode)}.
+     */
+    @Deprecated
+    default CompletableFuture<ConnectResult> connectToGroup(
+            String groupName,
+            @Nullable ServerSelectionMode selectionMode
+    ) {
+        return connectToGroupByName(groupName, selectionMode);
+    }
+
+    /**
+     * Connects the player to a random server of the group with the given name, like
+     * {@link #connectToGroupByName(String)}.
+     *
+     * @param groupName the name of the target server group
+     * @return a future containing the connection result
+     * @deprecated The name doesn't say whether it takes a group name or ID. Use
+     * {@link #connectToGroupByName(String)}.
+     */
+    @Deprecated
+    default CompletableFuture<ConnectResult> connectToGroup(String groupName) {
+        return connectToGroupByName(groupName);
+    }
+
+    /**
+     * Connects the player to the running server of a persistent server, like
+     * {@link #connectToPersistentServerById(String)}.
      *
      * @param persistentServerId the UUID of the target persistent server
      * @return a future containing the connection result
+     * @deprecated The name doesn't say that it takes an ID. Use {@link #connectToPersistentServerById(String)}.
      */
-    CompletableFuture<ConnectResult> connectToPersistentServer(String persistentServerId);
+    @Deprecated
+    default CompletableFuture<ConnectResult> connectToPersistentServer(String persistentServerId) {
+        return connectToPersistentServerById(persistentServerId);
+    }
 
     /**
      * Result of a player connection attempt.
@@ -200,7 +285,7 @@ public interface CloudPlayer extends Audience {
         /**
          * The target does not exist, or the proxy does not know the server. A proxy does not know a
          * server it has not registered yet. For connects through the controller, it knows no server at
-         * all when no plugin maps server IDs to its server names; see {@link PlayerApi#connect(UUID, String)}.
+         * all when no plugin maps server IDs to its server names; see {@link PlayerApi#connectTo(UUID, ConnectTarget)}.
          */
         SERVER_NOT_FOUND,
 
@@ -222,7 +307,7 @@ public interface CloudPlayer extends Audience {
         /**
          * The target exists, but has no game server in state {@code AVAILABLE}, for example a server
          * that is still starting. The player was not sent anywhere. Only connects through the controller
-         * answer this; see {@link PlayerApi#connect(UUID, String)}.
+         * answer this; see {@link PlayerApi#connectTo(UUID, ConnectTarget)}.
          */
         NO_SERVER_AVAILABLE
     }

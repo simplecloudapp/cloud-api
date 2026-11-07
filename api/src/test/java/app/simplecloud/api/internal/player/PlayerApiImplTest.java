@@ -4,6 +4,9 @@ import app.simplecloud.api.CloudApiException;
 import app.simplecloud.api.CloudApiOptions;
 import app.simplecloud.api.internal.nats.FakeNatsConnection;
 import app.simplecloud.api.player.CloudPlayer;
+import app.simplecloud.api.player.ConnectResponse;
+import app.simplecloud.api.player.ConnectTarget;
+import app.simplecloud.api.player.ServerSelectionMode;
 import app.simplecloud.api.web.ApiException;
 import app.simplecloud.api.web.apis.PlayersApi;
 import app.simplecloud.api.web.models.ModelsConnectPlayerRequest;
@@ -34,6 +37,8 @@ class PlayerApiImplTest {
 
     private static final UUID PLAYER_ID = UUID.fromString("11111111-1111-1111-1111-111111111111");
     private static final String SERVER_ID = "22222222-2222-2222-2222-222222222222";
+    private static final String GROUP_ID = "33333333-3333-3333-3333-333333333333";
+    private static final String PERSISTENT_SERVER_ID = "44444444-4444-4444-4444-444444444444";
     private static final String CONNECT_SUBJECT = "network.player." + PLAYER_ID + ".connect";
 
     @Test
@@ -152,12 +157,33 @@ class PlayerApiImplTest {
     }
 
     @Test
-    void connect_sendsOnlyTheCloudServerNameToTheController() {
+    @SuppressWarnings("deprecation") // the released connect must keep sending the proxy's name to the proxy
+    void connect_sendsTheSameRequestAsConnectDirect() {
+        List<String> subjects = new ArrayList<>();
+        List<ConnectPlayerRequest> requests = new ArrayList<>();
+        FakeNatsConnection nats = FakeNatsConnection.answering((subject, data, timeout) -> {
+            subjects.add(subject);
+            requests.add(ConnectPlayerRequest.parseFrom(data));
+            return connectResponse(ConnectResult.CONNECT_RESULT_SERVER_NOT_FOUND);
+        });
+        FakePlayersApi playersApi = new FakePlayersApi();
+        PlayerApiImpl api = new PlayerApiImpl(options(), nats.connection(), playersApi);
+
+        CloudPlayer.ConnectResult result = api.connect(PLAYER_ID, "lobby-2").join();
+
+        assertEquals(CloudPlayer.ConnectResult.SERVER_NOT_FOUND, result);
+        assertEquals(List.of(CONNECT_SUBJECT), subjects);
+        assertEquals(List.of(expectedConnectRequest("lobby-2")), requests);
+        assertNull(playersApi.lastConnectRequest);
+    }
+
+    @Test
+    void connectToServerByName_sendsOnlyTheCloudServerNameToTheController() {
         FakePlayersApi playersApi = new FakePlayersApi();
         playersApi.connectResult = ModelsConnectResult.ConnectResultSuccess;
         PlayerApiImpl api = new PlayerApiImpl(options(), null, playersApi);
 
-        CloudPlayer.ConnectResult result = api.connect(PLAYER_ID, "lobby-2").join();
+        CloudPlayer.ConnectResult result = api.connectToServerByName(PLAYER_ID, "lobby-2").join();
 
         assertEquals(CloudPlayer.ConnectResult.SUCCESS, result);
         assertEquals(PLAYER_ID.toString(), playersApi.lastConnectPlayerId);
@@ -167,12 +193,12 @@ class PlayerApiImplTest {
     }
 
     @Test
-    void connectByServerId_sendsOnlyTheServerIdToTheController() {
+    void connectToServerById_sendsOnlyTheServerIdToTheController() {
         FakePlayersApi playersApi = new FakePlayersApi();
         playersApi.connectResult = ModelsConnectResult.ConnectResultSuccess;
         PlayerApiImpl api = new PlayerApiImpl(options(), null, playersApi);
 
-        api.connectByServerId(PLAYER_ID, SERVER_ID).join();
+        api.connectToServerById(PLAYER_ID, SERVER_ID).join();
 
         ModelsConnectPlayerRequest expected = new ModelsConnectPlayerRequest();
         expected.setServerId(SERVER_ID);
@@ -180,17 +206,74 @@ class PlayerApiImplTest {
     }
 
     @Test
-    void connectToGroup_sendsTheGroupNameAndRandomWithoutSelectionMode() {
+    void connectToGroupByName_sendsTheGroupNameAndRandomWithoutSelectionMode() {
         FakePlayersApi playersApi = new FakePlayersApi();
         playersApi.connectResult = ModelsConnectResult.ConnectResultSuccess;
         PlayerApiImpl api = new PlayerApiImpl(options(), null, playersApi);
 
-        api.connectToGroup(PLAYER_ID, "lobby", null).join();
+        api.connectToGroupByName(PLAYER_ID, "lobby", null).join();
 
         ModelsConnectPlayerRequest expected = new ModelsConnectPlayerRequest();
         expected.setServerGroupName("lobby");
         expected.setSelectionMode("RANDOM");
         assertEquals(expected, playersApi.lastConnectRequest);
+    }
+
+    @Test
+    @SuppressWarnings("deprecation") // the released connectToGroup must send the group name in the name field
+    void connectToGroup_sendsTheGroupNameAndSelectionMode() {
+        FakePlayersApi playersApi = new FakePlayersApi();
+        playersApi.connectResult = ModelsConnectResult.ConnectResultSuccess;
+        PlayerApiImpl api = new PlayerApiImpl(options(), null, playersApi);
+
+        api.connectToGroup(PLAYER_ID, "lobby", ServerSelectionMode.MIN_PLAYERS).join();
+
+        ModelsConnectPlayerRequest expected = new ModelsConnectPlayerRequest();
+        expected.setServerGroupName("lobby");
+        expected.setSelectionMode("MIN_PLAYERS");
+        assertEquals(expected, playersApi.lastConnectRequest);
+    }
+
+    @Test
+    void connectTo_withGroupId_sendsTheGroupIdAndSelectionMode() {
+        FakePlayersApi playersApi = new FakePlayersApi();
+        playersApi.connectResult = ModelsConnectResult.ConnectResultSuccess;
+        PlayerApiImpl api = new PlayerApiImpl(options(), null, playersApi);
+        ConnectTarget target = new ConnectTarget.GroupId(GROUP_ID, ServerSelectionMode.FIRST);
+
+        api.connectTo(PLAYER_ID, target).join();
+
+        ModelsConnectPlayerRequest expected = new ModelsConnectPlayerRequest();
+        expected.setServerGroupId(GROUP_ID);
+        expected.setSelectionMode("FIRST");
+        assertEquals(expected, playersApi.lastConnectRequest);
+    }
+
+    @Test
+    @SuppressWarnings("deprecation") // the released connectToPersistentServer must keep sending the ID
+    void connectToPersistentServer_sendsOnlyThePersistentServerId() {
+        FakePlayersApi playersApi = new FakePlayersApi();
+        playersApi.connectResult = ModelsConnectResult.ConnectResultSuccess;
+        PlayerApiImpl api = new PlayerApiImpl(options(), null, playersApi);
+
+        api.connectToPersistentServer(PLAYER_ID, PERSISTENT_SERVER_ID).join();
+
+        ModelsConnectPlayerRequest expected = new ModelsConnectPlayerRequest();
+        expected.setPersistentServerId(PERSISTENT_SERVER_ID);
+        assertEquals(expected, playersApi.lastConnectRequest);
+    }
+
+    @Test
+    void connectTo_returnsTheServerTheControllerTried() {
+        FakePlayersApi playersApi = new FakePlayersApi();
+        playersApi.connectResult = ModelsConnectResult.ConnectResultSuccess;
+        playersApi.connectServerName = "lobby-3";
+        PlayerApiImpl api = new PlayerApiImpl(options(), null, playersApi);
+        ConnectTarget target = new ConnectTarget.GroupName("lobby", null);
+
+        ConnectResponse response = api.connectTo(PLAYER_ID, target).join();
+
+        assertEquals(new ConnectResponse(CloudPlayer.ConnectResult.SUCCESS, "lobby-3"), response);
     }
 
     @ParameterizedTest
@@ -201,71 +284,72 @@ class PlayerApiImplTest {
             "SERVER_NOT_FOUND, SERVER_NOT_FOUND",
             "FAILED, CONNECTION_FAILED",
     })
-    void connect_mapsTheControllerResult(String controllerResult, CloudPlayer.ConnectResult expected) {
+    void connectToServerByName_mapsTheControllerResult(String controllerResult, CloudPlayer.ConnectResult expected) {
         FakePlayersApi playersApi = new FakePlayersApi();
         playersApi.connectResult = ModelsConnectResult.fromValue(controllerResult);
         PlayerApiImpl api = new PlayerApiImpl(options(), null, playersApi);
 
-        CloudPlayer.ConnectResult result = api.connect(PLAYER_ID, "lobby-1").join();
+        CloudPlayer.ConnectResult result = api.connectToServerByName(PLAYER_ID, "lobby-1").join();
 
         assertEquals(expected, result);
     }
 
     @Test
-    void connect_withoutControllerResult_failsConnection() {
+    void connectToServerByName_withoutControllerResult_failsConnection() {
         FakePlayersApi playersApi = new FakePlayersApi();
         PlayerApiImpl api = new PlayerApiImpl(options(), null, playersApi);
 
-        CloudPlayer.ConnectResult result = api.connect(PLAYER_ID, "lobby-1").join();
+        CloudPlayer.ConnectResult result = api.connectToServerByName(PLAYER_ID, "lobby-1").join();
 
         assertEquals(CloudPlayer.ConnectResult.CONNECTION_FAILED, result);
     }
 
     @Test
-    void connect_withPlayerOffline_answersPlayerNotFound() {
+    void connectTo_withPlayerOffline_answersPlayerNotFoundWithoutServer() {
         FakePlayersApi playersApi = new FakePlayersApi();
         String playerOfflineBody = "{\"error\":\"Player is not online\"}";
         playersApi.connectError = new ApiException(404, "Not Found", null, playerOfflineBody);
         PlayerApiImpl api = new PlayerApiImpl(options(), null, playersApi);
+        ConnectTarget target = new ConnectTarget.ServerName("lobby-1");
 
-        CloudPlayer.ConnectResult result = api.connect(PLAYER_ID, "lobby-1").join();
+        ConnectResponse response = api.connectTo(PLAYER_ID, target).join();
 
-        assertEquals(CloudPlayer.ConnectResult.PLAYER_NOT_FOUND, result);
+        assertEquals(new ConnectResponse(CloudPlayer.ConnectResult.PLAYER_NOT_FOUND, null), response);
     }
 
     @Test
-    void connect_withUnknownServer_answersServerNotFound() {
+    void connectToServerByName_withUnknownServer_answersServerNotFound() {
         FakePlayersApi playersApi = new FakePlayersApi();
         String unknownServerBody = "{\"error\":\"Server not found\"}";
         playersApi.connectError = new ApiException(404, "Not Found", null, unknownServerBody);
         PlayerApiImpl api = new PlayerApiImpl(options(), null, playersApi);
 
-        CloudPlayer.ConnectResult result = api.connect(PLAYER_ID, "lobby-1").join();
+        CloudPlayer.ConnectResult result = api.connectToServerByName(PLAYER_ID, "lobby-1").join();
 
         assertEquals(CloudPlayer.ConnectResult.SERVER_NOT_FOUND, result);
     }
 
     @Test
-    void connect_withAmbiguousName_completesWithConflict() {
+    void connectToServerByName_withAmbiguousName_completesWithConflict() {
         FakePlayersApi playersApi = new FakePlayersApi();
         String ambiguousNameBody = "{\"error\":\"Ambiguous server name\"}";
         playersApi.connectError = new ApiException(409, "Conflict", null, ambiguousNameBody);
         PlayerApiImpl api = new PlayerApiImpl(options(), null, playersApi);
 
-        CompletionException error = assertThrows(CompletionException.class, () -> api.connect(PLAYER_ID, "lobby-1").join());
+        CompletionException error = assertThrows(CompletionException.class, () -> api.connectToServerByName(PLAYER_ID, "lobby-1").join());
 
         CloudApiException cause = assertInstanceOf(CloudApiException.class, error.getCause());
         assertEquals(CloudApiException.Reason.CONFLICT, cause.getReason());
     }
 
     @Test
-    void connectByServerId_withInvalidId_completesWithInvalidRequest() {
+    void connectToServerById_withInvalidId_completesWithInvalidRequest() {
         FakePlayersApi playersApi = new FakePlayersApi();
         String invalidIdBody = "{\"error\":\"server_id must be a valid UUID\"}";
         playersApi.connectError = new ApiException(400, "Bad Request", null, invalidIdBody);
         PlayerApiImpl api = new PlayerApiImpl(options(), null, playersApi);
 
-        CompletionException error = assertThrows(CompletionException.class, () -> api.connectByServerId(PLAYER_ID, "lobby-1").join());
+        CompletionException error = assertThrows(CompletionException.class, () -> api.connectToServerById(PLAYER_ID, "lobby-1").join());
 
         CloudApiException cause = assertInstanceOf(CloudApiException.class, error.getCause());
         assertEquals(CloudApiException.Reason.INVALID_REQUEST, cause.getReason());
@@ -310,6 +394,7 @@ class PlayerApiImplTest {
         private String lastPatchPlayerId;
         private ModelsPatchPlayerRequest lastPatchRequest;
         private ModelsConnectResult connectResult;
+        private String connectServerName;
         private ApiException connectError;
         private String lastConnectPlayerId;
         private ModelsConnectPlayerRequest lastConnectRequest;
@@ -327,6 +412,7 @@ class PlayerApiImplTest {
             }
             ModelsConnectPlayerResponse response = new ModelsConnectPlayerResponse();
             response.setResult(connectResult);
+            response.setServerName(connectServerName);
             return response;
         }
 
