@@ -410,7 +410,8 @@ public interface PlayerApi {
      * Connects a player to a server by its ID, through the controller.
      *
      * <p>Results, failures and the proxy's precondition are the same as for
-     * {@link #connect(UUID, String)}. An ID that is not a UUID is an invalid request.
+     * {@link #connect(UUID, String)}, except {@code CONFLICT}, which only a name can cause. An ID that
+     * is not a UUID is an invalid request.
      *
      * @param uniqueId the player's UUID
      * @param serverId the UUID of the target server
@@ -434,7 +435,7 @@ public interface PlayerApi {
      * Connects a player to a server of the given server group, through the controller.
      *
      * <p>Results, failures and the proxy's precondition are the same as for
-     * {@link #connect(UUID, String)}.
+     * {@link #connect(UUID, String)}, except {@code CONFLICT}, which only a server name can cause.
      *
      * @param uniqueId the player's UUID
      * @param groupName the name of the target server group, matched case-insensitively
@@ -458,7 +459,8 @@ public interface PlayerApi {
      * Connects a player to a persistent server by its ID, through the controller.
      *
      * <p>To connect by the persistent server's name, use {@link #connect(UUID, String)}. Results,
-     * failures and the proxy's precondition are the same as for {@link #connect(UUID, String)}.
+     * failures and the proxy's precondition are the same as for {@link #connect(UUID, String)}, except
+     * {@code CONFLICT}, which only a name can cause. An ID that is not a UUID is an invalid request.
      *
      * @param uniqueId the player's UUID
      * @param persistentServerId the UUID of the target persistent server
