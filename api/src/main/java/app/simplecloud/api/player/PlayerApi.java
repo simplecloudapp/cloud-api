@@ -382,8 +382,14 @@ public interface PlayerApi {
      * case-insensitively. Server IDs are not accepted; use {@link #connectByServerId(UUID, String)}.
      * To reach servers that are not managed by the cloud, use {@link #connectDirect(UUID, String)}.
      *
-     * <p>A server that exists but is not available, for example because it is still starting, answers
-     * {@link CloudPlayer.ConnectResult#NO_SERVER_AVAILABLE}. An unknown server answers
+     * <p>The controller sends the player's proxy only the server ID. The proxy needs a plugin that maps
+     * server IDs to its own server names in {@link app.simplecloud.api.proxy.ProxyServerNames}, such as
+     * server-connection {@code 1.2.0} or newer. Without one, every connect through the controller answers
+     * {@link CloudPlayer.ConnectResult#SERVER_NOT_FOUND}; {@link #connectDirect(UUID, String)} still works.
+     *
+     * <p>A target without a game server in state {@code AVAILABLE}, for example because the server is
+     * still starting or has stopped, answers {@link CloudPlayer.ConnectResult#NO_SERVER_AVAILABLE}. So
+     * does a proxy's name. An unknown server answers
      * {@link CloudPlayer.ConnectResult#SERVER_NOT_FOUND}, and a player who is not online answers
      * {@link CloudPlayer.ConnectResult#PLAYER_NOT_FOUND}. The future completes exceptionally with a
      * {@link app.simplecloud.api.CloudApiException} when the request is invalid ({@code INVALID_REQUEST},
@@ -399,8 +405,8 @@ public interface PlayerApi {
     /**
      * Connects a player to a server by its ID, through the controller.
      *
-     * <p>Results and failures are the same as for {@link #connect(UUID, String)}. An ID that is not a
-     * UUID is an invalid request.
+     * <p>Results, failures and the proxy's precondition are the same as for
+     * {@link #connect(UUID, String)}. An ID that is not a UUID is an invalid request.
      *
      * @param uniqueId the player's UUID
      * @param serverId the UUID of the target server
@@ -423,8 +429,8 @@ public interface PlayerApi {
     /**
      * Connects a player to a server of the given server group, through the controller.
      *
-     * <p>Results and failures are the same as for {@link #connect(UUID, String)}: a group without an
-     * available server answers {@link CloudPlayer.ConnectResult#NO_SERVER_AVAILABLE}.
+     * <p>Results, failures and the proxy's precondition are the same as for
+     * {@link #connect(UUID, String)}.
      *
      * @param uniqueId the player's UUID
      * @param groupName the name of the target server group, matched case-insensitively
@@ -447,9 +453,8 @@ public interface PlayerApi {
     /**
      * Connects a player to a persistent server by its ID, through the controller.
      *
-     * <p>To connect by the persistent server's name, use {@link #connect(UUID, String)}. Results and
-     * failures are the same as for {@link #connect(UUID, String)}: a persistent server that is not
-     * running answers {@link CloudPlayer.ConnectResult#NO_SERVER_AVAILABLE}.
+     * <p>To connect by the persistent server's name, use {@link #connect(UUID, String)}. Results,
+     * failures and the proxy's precondition are the same as for {@link #connect(UUID, String)}.
      *
      * @param uniqueId the player's UUID
      * @param persistentServerId the UUID of the target persistent server

@@ -258,6 +258,19 @@ class PlayerApiImplTest {
         assertEquals(CloudApiException.Reason.CONFLICT, cause.getReason());
     }
 
+    @Test
+    void connectByServerId_withInvalidId_completesWithInvalidRequest() {
+        FakePlayersApi playersApi = new FakePlayersApi();
+        String invalidIdBody = "{\"error\":\"server_id must be a valid UUID\"}";
+        playersApi.connectError = new ApiException(400, "Bad Request", null, invalidIdBody);
+        PlayerApiImpl api = new PlayerApiImpl(options(), null, playersApi);
+
+        CompletionException error = assertThrows(CompletionException.class, () -> api.connectByServerId(PLAYER_ID, "lobby-1").join());
+
+        CloudApiException cause = assertInstanceOf(CloudApiException.class, error.getCause());
+        assertEquals(CloudApiException.Reason.INVALID_REQUEST, cause.getReason());
+    }
+
     private static ConnectPlayerRequest expectedConnectRequest(String serverName) {
         return ConnectPlayerRequest.newBuilder()
                 .setPlayerId(PLAYER_ID.toString())

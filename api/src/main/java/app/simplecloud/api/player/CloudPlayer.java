@@ -198,8 +198,9 @@ public interface CloudPlayer extends Audience {
         SUCCESS,
 
         /**
-         * The target does not exist, or the proxy does not know the server, typically because it has
-         * not registered it yet.
+         * The target does not exist, or the proxy does not know the server. A proxy does not know a
+         * server it has not registered yet, and, for connects through the controller, any server when
+         * no plugin maps server IDs to its server names (see {@link PlayerApi#connect(UUID, String)}).
          */
         SERVER_NOT_FOUND,
 
@@ -219,8 +220,9 @@ public interface CloudPlayer extends Audience {
         CONNECTION_FAILED,
 
         /**
-         * The target exists, but has no available server, for example because it is still starting.
-         * The player was not sent anywhere. Only connects through the controller answer this.
+         * The target exists, but has no game server in state {@code AVAILABLE}, for example because the
+         * server is still starting or has stopped. The player was not sent anywhere. Only connects
+         * through the controller answer this.
          */
         NO_SERVER_AVAILABLE
     }
