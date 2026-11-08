@@ -37,12 +37,12 @@ class PlayerServerSwitchEventImpl implements PlayerServerSwitchEvent {
 
     @Override
     public String getPreviousServerName() {
-        return PlayerEventModelMapper.emptyToNull(delegate.getPreviousServerId());
+        return PlayerEventModelMapper.emptyToNull(delegate.getPreviousServerName());
     }
 
     @Override
     public String getNewServerName() {
-        return delegate.getNewServerId();
+        return delegate.getNewServerName();
     }
 
     @Override
