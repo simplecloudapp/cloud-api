@@ -23,6 +23,7 @@ public class GroupImpl implements Group {
     private static final Gson GSON = new Gson();
     private final ModelsServerGroupSummary summaryDelegate;
     private final ModelsServerGroupInfo infoDelegate;
+    private final GroupResources infoResources;
     private DeploymentConfig deployment;
     private ScalingConfig scaling;
     private SourceConfig source;
@@ -32,11 +33,17 @@ public class GroupImpl implements Group {
     public GroupImpl(ModelsServerGroupSummary delegate) {
         this.summaryDelegate = delegate;
         this.infoDelegate = null;
+        this.infoResources = GroupResources.NONE;
     }
 
     public GroupImpl(ModelsServerGroupInfo delegate) {
+        this(delegate, GroupResources.NONE);
+    }
+
+    public GroupImpl(ModelsServerGroupInfo delegate, GroupResources resources) {
         this.summaryDelegate = null;
         this.infoDelegate = delegate;
+        this.infoResources = resources;
     }
 
     @Override
@@ -78,7 +85,7 @@ public class GroupImpl implements Group {
         if (summaryDelegate != null) {
             return summaryDelegate.getMinMemory();
         }
-        return null;
+        return infoResources.minMemory();
     }
 
     @Override
@@ -87,7 +94,7 @@ public class GroupImpl implements Group {
         if (summaryDelegate != null) {
             return summaryDelegate.getMaxMemory();
         }
-        return null;
+        return infoResources.maxMemory();
     }
 
     @Override
@@ -96,7 +103,7 @@ public class GroupImpl implements Group {
         if (summaryDelegate != null) {
             return summaryDelegate.getMaxPlayers();
         }
-        return null;
+        return infoResources.maxPlayers();
     }
 
     @Override
@@ -105,7 +112,7 @@ public class GroupImpl implements Group {
         if (summaryDelegate != null) {
             return summaryDelegate.getActive();
         }
-        return null;
+        return infoResources.active();
     }
 
     @Override
@@ -114,7 +121,7 @@ public class GroupImpl implements Group {
         if (summaryDelegate != null) {
             return summaryDelegate.getPriority();
         }
-        return null;
+        return infoResources.priority();
     }
 
     @Override
@@ -237,14 +244,7 @@ public class GroupImpl implements Group {
         } else if (infoDelegate != null) {
             typeStr = infoDelegate.getType();
         }
-        if (typeStr == null) {
-            throw new IllegalStateException("Group type is null");
-        }
-        try {
-            return GroupServerType.valueOf(typeStr);
-        } catch (IllegalArgumentException e) {
-            throw new IllegalStateException("Invalid group type: " + typeStr, e);
-        }
+        return GroupServerType.parse(typeStr);
     }
 
     @Override

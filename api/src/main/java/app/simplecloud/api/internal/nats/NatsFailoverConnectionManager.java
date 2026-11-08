@@ -41,6 +41,7 @@ public final class NatsFailoverConnectionManager {
     private final AtomicReference<Connection> connectionRef;
     private final Connection connectionProxy;
     private final List<DispatcherProxyState> dispatchers = new CopyOnWriteArrayList<>();
+    private final List<Runnable> reconnectListeners = new CopyOnWriteArrayList<>();
     private final Object bindLock = new Object();
     private boolean shutdown;
     private final AtomicBoolean reconnecting = new AtomicBoolean(false);
@@ -55,7 +56,7 @@ public final class NatsFailoverConnectionManager {
         this.networkId = networkId;
         this.networkSecret = networkSecret;
         this.failoverReconnectAfter = failoverReconnectAfter == null ? Duration.ofSeconds(30) : failoverReconnectAfter;
-        this.natsListener = new SimpleCloudNatsListener();
+        this.natsListener = new SimpleCloudNatsListener(this::notifyReconnected);
 
         this.connectionRef = new AtomicReference<>(null);
         this.connectionProxy = createConnectionProxy();
@@ -71,6 +72,20 @@ public final class NatsFailoverConnectionManager {
 
     public Connection getConnection() {
         return connectionProxy;
+    }
+
+    public void addReconnectListener(Runnable listener) {
+        reconnectListeners.add(listener);
+    }
+
+    private void notifyReconnected() {
+        for (Runnable listener : reconnectListeners) {
+            try {
+                listener.run();
+            } catch (RuntimeException e) {
+                LOGGER.log(Level.FINE, "NATS reconnect listener failed", e);
+            }
+        }
     }
 
     public void shutdown() {
@@ -168,7 +183,6 @@ public final class NatsFailoverConnectionManager {
                     }
                     oldConnection = connectionRef.getAndSet(newConnection);
                 }
-                // Draining flushes the old connection, which blocks while it is down, so it must not hold bindLock.
                 drainQuietly(previousDispatchers);
                 if (oldConnection != null && oldConnection != newConnection) {
                     oldConnection.close();
@@ -177,6 +191,7 @@ public final class NatsFailoverConnectionManager {
                     LOGGER.fine("Initial NATS connection established");
                 } else {
                     LOGGER.info("Successfully established a new NATS connection after forced failover reconnect");
+                    notifyReconnected();
                 }
                 return;
             } catch (InterruptedException e) {
@@ -450,7 +465,6 @@ public final class NatsFailoverConnectionManager {
         }
 
         private void unsubscribe(Object[] args) {
-            // Holds bindLock so a concurrent rebind cannot pair the old dispatcher with the new subscription.
             synchronized (bindLock) {
                 if (!active.compareAndSet(true, false)) {
                     return;

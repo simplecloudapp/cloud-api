@@ -185,14 +185,7 @@ public class PersistentServerImpl implements PersistentServer {
         } else if (infoDelegate != null) {
             typeStr = infoDelegate.getType();
         }
-        if (typeStr == null) {
-            throw new IllegalStateException("Persistent server type is null");
-        }
-        try {
-            return GroupServerType.valueOf(typeStr);
-        } catch (IllegalArgumentException e) {
-            throw new IllegalStateException("Invalid persistent server type: " + typeStr, e);
-        }
+        return GroupServerType.parse(typeStr);
     }
 
     @Override

@@ -15,6 +15,8 @@ import java.util.Map;
  * start workflow {@code internal/setup}, stop workflow {@code internal/cleanup} and manual workflows
  * {@code default/backup} and {@code default/copy-to-template}.
  *
+ * <p>A blueprint created inline with {@code createBlueprint} gets the name of the group. Blueprint names are
+ * unique per network, so creating the group fails if a blueprint with that name already exists.
  */
 public class CreateGroupRequest {
     private final String name;

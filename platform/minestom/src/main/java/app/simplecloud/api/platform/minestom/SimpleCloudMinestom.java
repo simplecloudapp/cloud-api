@@ -5,7 +5,6 @@ import app.simplecloud.api.internal.CloudApiImpl;
 import app.simplecloud.api.internal.integration.adventure.AdventureIntegration;
 import app.simplecloud.api.platform.shared.PlayerSynchronizer;
 import app.simplecloud.api.platform.shared.player.OnlinePlayerTracker;
-import app.simplecloud.api.runtime.SimpleCloudRuntime;
 import net.minestom.server.MinecraftServer;
 import net.minestom.server.entity.Player;
 import net.minestom.server.event.Event;
@@ -30,10 +29,7 @@ public final class SimpleCloudMinestom {
     private SimpleCloudMinestom(CloudApiImpl cloudApi) {
         this.cloudApi = cloudApi;
 
-        String serverId = SimpleCloudRuntime.serverId();
-        String groupName = SimpleCloudRuntime.groupName();
-        this.adventureIntegration = new AdventureIntegration(
-                cloudApi, new MinestomPlayerAudiences(), serverId, groupName.isBlank() ? serverId : groupName);
+        this.adventureIntegration = new AdventureIntegration(cloudApi, new MinestomPlayerAudiences());
         this.playerSynchronizer = new PlayerSynchronizer(cloudApi, onlinePlayerTracker);
     }
 
@@ -94,6 +90,7 @@ public final class SimpleCloudMinestom {
         });
         node.addListener(PlayerDisconnectEvent.class, event -> {
             onlinePlayerTracker.remove(event.getPlayer().getUuid());
+            adventureIntegration.forgetPlayer(event.getPlayer().getUuid());
             playerSynchronizer.updatePlayerCount();
         });
         MinecraftServer.getGlobalEventHandler().addChild(node);

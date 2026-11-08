@@ -1,9 +1,9 @@
 package app.simplecloud.api.internal.event.player;
 
 import app.simplecloud.api.event.player.PlayerProfileChangedEvent;
+import app.simplecloud.api.internal.util.ProtoConversionUtil;
 import app.simplecloud.api.player.PlayerProfile;
 
-import java.time.Instant;
 import java.util.UUID;
 
 class PlayerProfileChangedEventImpl implements PlayerProfileChangedEvent {
@@ -25,7 +25,7 @@ class PlayerProfileChangedEventImpl implements PlayerProfileChangedEvent {
 
     @Override
     public String getTimestamp() {
-        return Instant.ofEpochMilli(delegate.getTimestamp()).toString();
+        return ProtoConversionUtil.epochMillisToIso(delegate.getTimestamp());
     }
 
     @Override

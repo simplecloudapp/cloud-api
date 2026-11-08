@@ -1,8 +1,14 @@
-package app.simplecloud.api.internal.event.server;
+package app.simplecloud.api.internal.event;
 
+import app.simplecloud.api.blueprint.Blueprint;
+import app.simplecloud.api.group.Group;
+import app.simplecloud.api.internal.blueprint.BlueprintImpl;
+import app.simplecloud.api.internal.group.GroupImpl;
+import app.simplecloud.api.internal.group.GroupResources;
 import app.simplecloud.api.internal.persistentserver.PersistentServerImpl;
 import app.simplecloud.api.internal.server.ServerImpl;
 import app.simplecloud.api.internal.util.ProtoConversionUtil;
+import app.simplecloud.api.persistentserver.PersistentServer;
 import app.simplecloud.api.server.Server;
 import app.simplecloud.api.web.models.ModelsBlueprintInfo;
 import app.simplecloud.api.web.models.ModelsPersistentServerInfo;
@@ -13,6 +19,7 @@ import app.simplecloud.api.web.models.ModelsSourceInfo;
 import app.simplecloud.api.web.models.ModelsWorkflowWhen;
 import app.simplecloud.api.web.models.ModelsWorkflowsConfig;
 import build.buf.gen.simplecloud.controller.v2.BaseServerConfig;
+import build.buf.gen.simplecloud.controller.v2.BlueprintConfig;
 import build.buf.gen.simplecloud.controller.v2.PersistentServerConfig;
 import build.buf.gen.simplecloud.controller.v2.ServerGroupConfig;
 import build.buf.gen.simplecloud.controller.v2.ServerRuntimeInfo;
@@ -20,8 +27,6 @@ import build.buf.gen.simplecloud.controller.v2.ServerState;
 import com.google.gson.Gson;
 import org.jetbrains.annotations.Nullable;
 
-import java.lang.reflect.Method;
-import java.time.Instant;
 import java.util.ArrayList;
 import java.util.HashMap;
 import java.util.LinkedHashMap;
@@ -29,12 +34,32 @@ import java.util.List;
 import java.util.Locale;
 import java.util.Map;
 
-final class ServerEventModelMapper {
+public final class ControllerEventModelMapper {
     private static final Gson GSON = new Gson();
 
-    private ServerEventModelMapper() {}
+    private ControllerEventModelMapper() {}
 
-    static Server mapServer(
+    public static Group mapGroup(String serverGroupId, ServerGroupConfig config, long timestamp) {
+        return new GroupImpl(toGroupInfo(serverGroupId, config, timestamp), toGroupResources(config.getBaseConfig()));
+    }
+
+    public static PersistentServer mapPersistentServer(
+            String persistentServerId,
+            PersistentServerConfig config,
+            @Nullable ServerRuntimeInfo runtimeInfo,
+            long timestamp) {
+        return new PersistentServerImpl(toPersistentServerInfo(persistentServerId, config, runtimeInfo, timestamp));
+    }
+
+    public static Blueprint mapBlueprint(BlueprintConfig config, long timestamp) {
+        ModelsBlueprintInfo info = toBlueprintInfo(config);
+        String eventTimestamp = ProtoConversionUtil.epochSecondsToIso(timestamp);
+        info.setCreatedAt(eventTimestamp);
+        info.setUpdatedAt(eventTimestamp);
+        return BlueprintImpl.fromInfo(info);
+    }
+
+    public static Server mapServer(
             String networkId,
             String serverId,
             String serverGroupId,
@@ -48,7 +73,7 @@ final class ServerEventModelMapper {
         ModelsServerSummary summary = new ModelsServerSummary();
         summary.setNetworkId(networkId);
         summary.setServerId(serverId);
-        String eventTimestamp = toIsoTimestamp(timestamp);
+        String eventTimestamp = ProtoConversionUtil.epochSecondsToIso(timestamp);
         summary.setCreatedAt(eventTimestamp);
         summary.setUpdatedAt(eventTimestamp);
         if (serverGroupId != null && !serverGroupId.isBlank()) {
@@ -64,7 +89,9 @@ final class ServerEventModelMapper {
         ServerImpl server = new ServerImpl(summary);
 
         if (groupConfig != null && groupConfig.hasBaseConfig()) {
-            summary.setServerGroup(toGroupInfo(serverGroupId, groupConfig, timestamp));
+            ModelsServerGroupInfo group = toGroupInfo(serverGroupId, groupConfig, timestamp);
+            summary.setServerGroup(group);
+            server.setGroup(new GroupImpl(group, toGroupResources(groupConfig.getBaseConfig())));
         }
         if (persistentServerConfig != null && persistentServerConfig.hasBaseConfig()) {
             ModelsPersistentServerInfo persistentServer =
@@ -102,7 +129,7 @@ final class ServerEventModelMapper {
             if (!runtimeInfo.getServerhostId().isBlank()) {
                 summary.setServerhostId(runtimeInfo.getServerhostId());
             }
-            summary.setPlayerCount(getRuntimePlayerCount(runtimeInfo));
+            summary.setPlayerCount(runtimeInfo.getPlayerCount());
         } else {
             summary.setPlayerCount(0);
             if (config != null) {
@@ -136,10 +163,19 @@ final class ServerEventModelMapper {
         group.setDeploymentConfig(toDeploymentConfig(config));
         group.setScalingConfig(toScalingConfig(config));
         group.setWorkflowsConfig(toWorkflowsMap(base.getWorkflows()));
-        group.setCreatedAt(toIsoTimestamp(timestamp));
-        group.setUpdatedAt(toIsoTimestamp(timestamp));
+        group.setCreatedAt(ProtoConversionUtil.epochSecondsToIso(timestamp));
+        group.setUpdatedAt(ProtoConversionUtil.epochSecondsToIso(timestamp));
 
         return group;
+    }
+
+    private static GroupResources toGroupResources(BaseServerConfig base) {
+        return new GroupResources(
+                base.getMinMemory(),
+                base.getMaxMemory(),
+                base.getMaxPlayers(),
+                base.getActive(),
+                base.hasPriority() ? base.getPriority() : null);
     }
 
     private static ModelsPersistentServerInfo toPersistentServerInfo(
@@ -170,40 +206,17 @@ final class ServerEventModelMapper {
             persistent.setServerhostId(serverhostId);
         }
 
-        persistent.setCreatedAt(toIsoTimestamp(timestamp));
-        persistent.setUpdatedAt(toIsoTimestamp(timestamp));
+        persistent.setCreatedAt(ProtoConversionUtil.epochSecondsToIso(timestamp));
+        persistent.setUpdatedAt(ProtoConversionUtil.epochSecondsToIso(timestamp));
         return persistent;
-    }
-
-    private static int getRuntimePlayerCount(@Nullable ServerRuntimeInfo runtimeInfo) {
-        if (runtimeInfo == null) {
-            return 0;
-        }
-        return getRuntimeIntField(runtimeInfo, "getPlayerCount", 0);
     }
 
     private static int getRuntimeMaxPlayers(
             @Nullable ServerRuntimeInfo runtimeInfo, @Nullable BaseServerConfig config) {
-        if (runtimeInfo != null) {
-            int runtimeMaxPlayers = getRuntimeIntField(runtimeInfo, "getMaxPlayers", -1);
-            if (runtimeMaxPlayers >= 0) {
-                return runtimeMaxPlayers;
-            }
+        if (runtimeInfo != null && runtimeInfo.getMaxPlayers() > 0) {
+            return runtimeInfo.getMaxPlayers();
         }
         return config != null ? config.getMaxPlayers() : 0;
-    }
-
-    private static int getRuntimeIntField(ServerRuntimeInfo runtimeInfo, String getterName, int fallback) {
-        try {
-            Method getter = runtimeInfo.getClass().getMethod(getterName);
-            Object value = getter.invoke(runtimeInfo);
-            if (value instanceof Number number) {
-                return number.intValue();
-            }
-        } catch (ReflectiveOperationException ignored) {
-            // Older proto versions do not expose these runtime fields.
-        }
-        return fallback;
     }
 
     private static Map<String, Object> convertProperties(Map<String, String> properties) {
@@ -226,11 +239,7 @@ final class ServerEventModelMapper {
         if (!config.hasDeployment()) {
             return null;
         }
-        String name = config.getDeployment().getStrategy().name();
-        if (name.startsWith("DEPLOYMENT_STRATEGY_")) {
-            return name.substring("DEPLOYMENT_STRATEGY_".length());
-        }
-        return name;
+        return ProtoConversionUtil.enumName(config.getDeployment().getStrategy(), "DEPLOYMENT_STRATEGY_");
     }
 
     private static Map<String, Object> toDeploymentConfig(ServerGroupConfig config) {
@@ -268,7 +277,10 @@ final class ServerEventModelMapper {
         scaling.put("max_servers", protoScaling.getMaxServers());
         scaling.put("available_slots", protoScaling.getAvailableSlots());
         scaling.put("player_threshold", protoScaling.getPlayerThreshold());
-        scaling.put("scaling_mode", toScalingMode(protoScaling.getScalingMode()));
+        String scalingMode = toScalingMode(protoScaling.getScalingMode());
+        if (scalingMode != null) {
+            scaling.put("scaling_mode", scalingMode);
+        }
 
         if (protoScaling.hasScaleDown()) {
             Map<String, Object> scaleDown = new LinkedHashMap<>();
@@ -280,15 +292,10 @@ final class ServerEventModelMapper {
         return scaling;
     }
 
+    @Nullable
     private static String toScalingMode(build.buf.gen.simplecloud.controller.v2.ScalingMode mode) {
-        String name = mode.name();
-        if (name.startsWith("SCALING_MODE_")) {
-            name = name.substring("SCALING_MODE_".length());
-        }
-        if ("SERVER".equals(name)) {
-            return "SERVERS";
-        }
-        return name;
+        String name = ProtoConversionUtil.enumName(mode, "SCALING_MODE_");
+        return "SERVER".equals(name) ? "SERVERS" : name;
     }
 
     private static ModelsSourceConfig toSourceConfig(
@@ -347,12 +354,21 @@ final class ServerEventModelMapper {
         ModelsBlueprintInfo result = new ModelsBlueprintInfo();
         result.setId(blueprint.getBlueprintId());
         result.setName(blueprint.getName());
-        result.setConfigurator(blueprint.getConfigurator());
-        result.setMinecraftVersion(blueprint.getMinecraftVersion());
-        result.setServerSoftware(blueprint.getServerSoftware());
-        result.setServerUrl(blueprint.getServerUrl());
-        result.setSoftwareVersion(blueprint.getSoftwareVersion());
+        result.setConfigurator(ProtoConversionUtil.emptyToNull(blueprint.getConfigurator()));
+        result.setMinecraftVersion(ProtoConversionUtil.emptyToNull(blueprint.getMinecraftVersion()));
+        result.setServerSoftware(ProtoConversionUtil.emptyToNull(blueprint.getServerSoftware()));
+        result.setServerUrl(ProtoConversionUtil.emptyToNull(blueprint.getServerUrl()));
+        result.setSoftwareVersion(ProtoConversionUtil.emptyToNull(blueprint.getSoftwareVersion()));
         result.setWorkflowSteps(new ArrayList<>(blueprint.getWorkflowStepsList()));
+        if (blueprint.hasRuntime()) {
+            Map<String, Object> runtime = new LinkedHashMap<>();
+            String type = ProtoConversionUtil.enumName(blueprint.getRuntime().getType(), "RUNTIME_TYPE_");
+            if (type != null) {
+                runtime.put("type", type.toLowerCase(Locale.ROOT));
+            }
+            runtime.put("with", convertProperties(blueprint.getRuntime().getWithMap()));
+            result.setRuntimeConfig(runtime);
+        }
         return result;
     }
 
@@ -392,9 +408,5 @@ final class ServerEventModelMapper {
             workflows.put("when", when);
         }
         return workflows;
-    }
-
-    private static String toIsoTimestamp(long timestamp) {
-        return Instant.ofEpochSecond(timestamp).toString();
     }
 }

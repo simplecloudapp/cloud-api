@@ -17,10 +17,12 @@ import app.simplecloud.api.internal.nats.NatsFailoverConnectionManager;
 import app.simplecloud.api.internal.persistentserver.PersistentServerApiImpl;
 import app.simplecloud.api.internal.player.PlayerApiImpl;
 import app.simplecloud.api.internal.server.ServerApiImpl;
+import app.simplecloud.api.internal.stats.StatsApiImpl;
 import app.simplecloud.api.internal.web.ApiClientFactory;
 import app.simplecloud.api.persistentserver.PersistentServerApi;
 import app.simplecloud.api.player.PlayerApi;
 import app.simplecloud.api.server.ServerApi;
+import app.simplecloud.api.stats.StatsApi;
 import app.simplecloud.api.web.ApiClient;
 import io.nats.client.Connection;
 
@@ -49,6 +51,7 @@ public class CloudApiImpl implements CloudApi {
     private final GroupApi groupApi;
     private final PersistentServerApi persistentServerApi;
     private final BlueprintApi blueprintApi;
+    private final StatsApi statsApi;
     private final EventApi eventApi;
     private final PlayerApi playerApi;
     private final ExecutorService executor = Executors.newVirtualThreadPerTaskExecutor();
@@ -80,12 +83,14 @@ public class CloudApiImpl implements CloudApi {
         this.groupApi = new GroupApiImpl(options, queryCache, httpClient, executor);
         this.persistentServerApi = new PersistentServerApiImpl(options, queryCache, httpClient, executor);
         this.blueprintApi = new BlueprintApiImpl(options, queryCache, httpClient, executor);
+        this.statsApi = new StatsApiImpl(options, httpClient, executor);
 
         // Setup event-based cache invalidation with debouncing
         if (cacheConfig.isEnabled() && cacheConfig.isAutoInvalidateOnEvents()) {
             long debounceMs = cacheConfig.getEventDebounceTime().toMillis();
             EventApi cacheEvents = new EventApiImpl(natsClient, options.getNetworkId(), playerApi);
             this.cacheEventListener = new CacheEventListener(queryCache, cacheEvents, debounceMs);
+            natsConnectionManager.addReconnectListener(queryCache::clear);
         } else {
             this.cacheEventListener = null;
         }
@@ -109,6 +114,11 @@ public class CloudApiImpl implements CloudApi {
     @Override
     public BlueprintApi blueprint() {
         return blueprintApi;
+    }
+
+    @Override
+    public StatsApi stats() {
+        return statsApi;
     }
 
     @Override

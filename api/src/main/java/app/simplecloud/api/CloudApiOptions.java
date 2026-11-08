@@ -9,8 +9,7 @@ import java.util.regex.Pattern;
 /**
  * Connection settings for {@link CloudApi}.
  *
- * <p>Values that aren't set on the builder are read from environment variables,
- * see {@link CloudApi#create()}.
+ * <p>Values that aren't set on the builder are read from environment variables.
  */
 public class CloudApiOptions {
 
@@ -71,41 +70,22 @@ public class CloudApiOptions {
         return networkSecret;
     }
 
-    /**
-     * Returns the manifest URL used to resolve software versions to download URLs
-     * when inline blueprints omit {@code serverUrl}.
-     */
     public String getServerVersionManifestUrl() {
         return serverVersionManifestUrl;
     }
 
-    /**
-     * Returns the cache configuration.
-     *
-     * @return the cache configuration
-     */
     public CacheConfig getCacheConfig() {
         return cacheConfig;
     }
 
-    /**
-     * Returns the HTTP connect timeout for the controller REST client.
-     */
     public Duration getHttpConnectTimeout() {
         return httpConnectTimeout;
     }
 
-    /**
-     * Returns the HTTP read timeout for the controller REST client. Prevents
-     * requests from hanging indefinitely when the controller is unresponsive.
-     */
     public Duration getHttpReadTimeout() {
         return httpReadTimeout;
     }
 
-    /**
-     * Returns the HTTP write timeout for the controller REST client.
-     */
     public Duration getHttpWriteTimeout() {
         return httpWriteTimeout;
     }

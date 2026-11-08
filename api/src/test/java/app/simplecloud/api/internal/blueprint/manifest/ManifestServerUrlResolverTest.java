@@ -1,4 +1,4 @@
-package app.simplecloud.api.internal.blueprint;
+package app.simplecloud.api.internal.blueprint.manifest;
 
 import app.simplecloud.api.CloudApiException;
 import app.simplecloud.api.blueprint.CreateBlueprintRequest;

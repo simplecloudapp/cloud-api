@@ -1,10 +1,10 @@
 package app.simplecloud.api.internal.event.server;
 
 import app.simplecloud.api.event.server.ServerStoppedEvent;
+import app.simplecloud.api.internal.event.ControllerEventModelMapper;
+import app.simplecloud.api.internal.util.ProtoConversionUtil;
 import app.simplecloud.api.server.Server;
 import org.jetbrains.annotations.Nullable;
-
-import java.time.Instant;
 
 class ServerStoppedEventImpl implements ServerStoppedEvent {
     private final build.buf.gen.simplecloud.controller.v2.ServerStoppedEvent delegate;
@@ -35,7 +35,7 @@ class ServerStoppedEventImpl implements ServerStoppedEvent {
             if (!delegate.hasConfig() && !delegate.hasGroupConfig() && !delegate.hasPersistentServerConfig()) {
                 throw new IllegalStateException("Server data is not available in ServerStoppedEvent");
             }
-            server = ServerEventModelMapper.mapServer(
+            server = ControllerEventModelMapper.mapServer(
                     delegate.getNetworkId(),
                     delegate.getServerId(),
                     delegate.getServerGroupId(),
@@ -71,6 +71,6 @@ class ServerStoppedEventImpl implements ServerStoppedEvent {
 
     @Override
     public String getTimestamp() {
-        return Instant.ofEpochSecond(delegate.getTimestamp()).toString();
+        return ProtoConversionUtil.epochSecondsToIso(delegate.getTimestamp());
     }
 }

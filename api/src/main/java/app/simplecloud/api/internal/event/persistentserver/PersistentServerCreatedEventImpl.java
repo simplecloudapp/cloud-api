@@ -1,12 +1,14 @@
 package app.simplecloud.api.internal.event.persistentserver;
 
 import app.simplecloud.api.event.persistentserver.PersistentServerCreatedEvent;
+import app.simplecloud.api.internal.event.ControllerEventModelMapper;
+import app.simplecloud.api.internal.util.ProtoConversionUtil;
+import app.simplecloud.api.persistentserver.PersistentServer;
 import org.jetbrains.annotations.Nullable;
-
-import java.time.Instant;
 
 class PersistentServerCreatedEventImpl implements PersistentServerCreatedEvent {
     private final build.buf.gen.simplecloud.controller.v2.PersistentServerCreatedEvent delegate;
+    private PersistentServer persistentServer;
 
     PersistentServerCreatedEventImpl(build.buf.gen.simplecloud.controller.v2.PersistentServerCreatedEvent delegate) {
         this.delegate = delegate;
@@ -33,7 +35,22 @@ class PersistentServerCreatedEventImpl implements PersistentServerCreatedEvent {
     }
 
     @Override
+    public PersistentServer getPersistentServer() {
+        if (persistentServer == null) {
+            if (!delegate.hasConfig() || !delegate.getConfig().hasBaseConfig()) {
+                throw new IllegalStateException("Persistent server data is not available in PersistentServerCreatedEvent");
+            }
+            persistentServer = ControllerEventModelMapper.mapPersistentServer(
+                    delegate.getPersistentServerId(),
+                    delegate.getConfig(),
+                    null,
+                    delegate.getTimestamp());
+        }
+        return persistentServer;
+    }
+
+    @Override
     public String getTimestamp() {
-        return Instant.ofEpochSecond(delegate.getTimestamp()).toString();
+        return ProtoConversionUtil.epochSecondsToIso(delegate.getTimestamp());
     }
 }

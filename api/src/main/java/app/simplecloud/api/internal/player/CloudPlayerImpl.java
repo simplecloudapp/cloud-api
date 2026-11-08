@@ -50,7 +50,7 @@ public class CloudPlayerImpl implements CloudPlayer, ForwardingAudience.Single {
             String lastSeen,
             Map<String, String> properties) {
         this.playerApi = playerApi;
-        this.audience = RemoteAudience.builder(natsConnection, networkId).forPlayer(uniqueId);
+        this.audience = RemoteAudience.forPlayer(natsConnection, networkId, uniqueId);
         this.uniqueId = uniqueId;
         this.name = name;
         this.displayName = displayName;

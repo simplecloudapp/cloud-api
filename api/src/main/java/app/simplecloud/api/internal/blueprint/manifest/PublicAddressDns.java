@@ -1,4 +1,4 @@
-package app.simplecloud.api.internal.blueprint;
+package app.simplecloud.api.internal.blueprint.manifest;
 
 import okhttp3.Dns;
 import okhttp3.HttpUrl;

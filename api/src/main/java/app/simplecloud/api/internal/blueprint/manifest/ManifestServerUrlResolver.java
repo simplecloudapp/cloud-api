@@ -1,8 +1,9 @@
-package app.simplecloud.api.internal.blueprint;
+package app.simplecloud.api.internal.blueprint.manifest;
 
 import app.simplecloud.api.CloudApiException;
 import app.simplecloud.api.CloudApiOptions;
 import app.simplecloud.api.blueprint.CreateBlueprintRequest;
+import app.simplecloud.api.internal.blueprint.BlueprintProvisioner;
 import com.google.gson.Gson;
 import com.google.gson.JsonParseException;
 import com.google.gson.reflect.TypeToken;
@@ -25,9 +26,9 @@ import java.util.Objects;
 import java.util.concurrent.TimeUnit;
 
 /**
- * Resolves inline blueprint download links from the server version manifest.
+ * Resolves links from the server version manifest.
  */
-final class ManifestServerUrlResolver implements InlineBlueprintSupport.ServerUrlResolver {
+public final class ManifestServerUrlResolver implements BlueprintProvisioner.ServerUrlResolver {
     static final int MAX_REDIRECTS = 5;
     static final long MAX_MANIFEST_BYTES = 1024 * 1024;
 
@@ -43,7 +44,7 @@ final class ManifestServerUrlResolver implements InlineBlueprintSupport.ServerUr
 
     private volatile CachedManifest cachedManifest;
 
-    ManifestServerUrlResolver(CloudApiOptions options) {
+    public ManifestServerUrlResolver(CloudApiOptions options) {
         this(
                 options.getServerVersionManifestUrl(),
                 new OkHttpClient.Builder()
@@ -56,11 +57,6 @@ final class ManifestServerUrlResolver implements InlineBlueprintSupport.ServerUr
                 new Gson());
     }
 
-    /**
-     * Address filtering is the caller's responsibility via the client's {@link Dns};
-     * redirects are always disabled so {@link #fetchManifest()} can check each hop.
-     * An invalid URL only fails once the manifest is needed, so unrelated SDK features keep working.
-     */
     ManifestServerUrlResolver(String manifestUrl, OkHttpClient httpClient, Duration fetchTimeout, Gson gson) {
         this.manifestUrl =
                 HttpUrl.parse(Objects.requireNonNull(manifestUrl, "manifestUrl").trim());
@@ -83,10 +79,10 @@ final class ManifestServerUrlResolver implements InlineBlueprintSupport.ServerUr
         }
 
         return loadManifest().stream()
-                .filter(entry -> softwareName.equalsIgnoreCase(normalize(entry.name)))
-                .flatMap(entry -> safeList(entry.downloadLinks).stream())
-                .filter(downloadLink -> version.equals(normalize(downloadLink.version)))
-                .map(downloadLink -> normalize(downloadLink.link))
+                .filter(entry -> softwareName.equalsIgnoreCase(normalize(entry.name())))
+                .flatMap(entry -> safeList(entry.downloadLinks()).stream())
+                .filter(downloadLink -> version.equals(normalize(downloadLink.version())))
+                .map(downloadLink -> normalize(downloadLink.link()))
                 .filter(Objects::nonNull)
                 .findFirst()
                 .orElse(null);
@@ -94,14 +90,14 @@ final class ManifestServerUrlResolver implements InlineBlueprintSupport.ServerUr
 
     private List<ManifestEntry> loadManifest() {
         CachedManifest current = cachedManifest;
-        if (current != null && current.isExpired()) {
-            return current.entries;
+        if (current != null && current.isFresh()) {
+            return current.entries();
         }
 
         synchronized (this) {
             current = cachedManifest;
-            if (current != null && current.isExpired()) {
-                return current.entries;
+            if (current != null && current.isFresh()) {
+                return current.entries();
             }
 
             List<ManifestEntry> fetchedManifest = fetchManifest();
@@ -116,7 +112,6 @@ final class ManifestServerUrlResolver implements InlineBlueprintSupport.ServerUr
             throw fetchFailure("invalid URL");
         }
 
-        // The per-read timeouts don't bound a slow trickle across several hops while the cache lock is held.
         Instant deadline = Instant.now().plus(fetchTimeout);
         try {
             for (int redirects = 0; ; redirects++) {
@@ -170,7 +165,6 @@ final class ManifestServerUrlResolver implements InlineBlueprintSupport.ServerUr
 
         ResponseBody body = response.body();
 
-        // Content-Length may be absent or lie, so also probe the stream for one byte past the limit.
         BufferedSource source = body.source();
         if (body.contentLength() > MAX_MANIFEST_BYTES || source.request(MAX_MANIFEST_BYTES + 1)) {
             throw fetchFailure("response exceeds " + MAX_MANIFEST_BYTES + " bytes");
@@ -225,23 +219,16 @@ final class ManifestServerUrlResolver implements InlineBlueprintSupport.ServerUr
     }
 
     private record CachedManifest(List<ManifestEntry> entries, Instant expiresAt) {
-        private CachedManifest(List<ManifestEntry> entries, Instant expiresAt) {
-            this.entries = List.copyOf(entries);
-            this.expiresAt = expiresAt;
+        private CachedManifest {
+            entries = List.copyOf(entries);
         }
 
-        private boolean isExpired() {
+        private boolean isFresh() {
             return !Instant.now().isAfter(expiresAt);
         }
     }
 
-    private static final class ManifestEntry {
-        private String name;
-        private List<ManifestDownloadLink> downloadLinks;
-    }
+    private record ManifestEntry(@Nullable String name, @Nullable List<ManifestDownloadLink> downloadLinks) {}
 
-    private static final class ManifestDownloadLink {
-        private String version;
-        private String link;
-    }
+    private record ManifestDownloadLink(@Nullable String version, @Nullable String link) {}
 }

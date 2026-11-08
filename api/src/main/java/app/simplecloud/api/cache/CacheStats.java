@@ -2,67 +2,16 @@ package app.simplecloud.api.cache;
 
 /**
  * Cache statistics for monitoring and debugging.
+ *
+ * @param hitCount lookups answered from a fresh entry
+ * @param missCount lookups that had to fetch from the controller
+ * @param staleHitCount lookups answered from a stale entry while it was refreshed
+ * @param evictionCount entries removed from the cache
+ * @param entryCount entries currently in the cache
+ * @param hitRate share of lookups answered from the cache, from 0 to 1
  */
-public final class CacheStats {
-
-    private final long hitCount;
-    private final long missCount;
-    private final long staleHitCount;
-    private final long evictionCount;
-    private final long entryCount;
-    private final double hitRate;
-
-    public CacheStats(
-            long hitCount, long missCount, long staleHitCount, long evictionCount, long entryCount, double hitRate) {
-        this.hitCount = hitCount;
-        this.missCount = missCount;
-        this.staleHitCount = staleHitCount;
-        this.evictionCount = evictionCount;
-        this.entryCount = entryCount;
-        this.hitRate = hitRate;
-    }
-
-    /**
-     * Returns the number of cache hits (fresh data returned).
-     */
-    public long getHitCount() {
-        return hitCount;
-    }
-
-    /**
-     * Returns the number of cache misses (network request required).
-     */
-    public long getMissCount() {
-        return missCount;
-    }
-
-    /**
-     * Returns the number of stale hits (stale data returned with background refresh).
-     */
-    public long getStaleHitCount() {
-        return staleHitCount;
-    }
-
-    /**
-     * Returns the number of evictions.
-     */
-    public long getEvictionCount() {
-        return evictionCount;
-    }
-
-    /**
-     * Returns the current number of entries in the cache.
-     */
-    public long getEntryCount() {
-        return entryCount;
-    }
-
-    /**
-     * Returns the cache hit rate (0.0 to 1.0).
-     */
-    public double getHitRate() {
-        return hitRate;
-    }
+public record CacheStats(
+        long hitCount, long missCount, long staleHitCount, long evictionCount, long entryCount, double hitRate) {
 
     @Override
     public String toString() {

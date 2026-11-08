@@ -49,9 +49,6 @@ public class PlayerCommandHandler {
         this.proxyPlayers = proxyPlayers;
     }
 
-    /**
-     * Starts listening for kick and connect requests.
-     */
     public void start() {
         if (!running.compareAndSet(false, true)) return;
 
@@ -60,9 +57,6 @@ public class PlayerCommandHandler {
         requestDispatcher.subscribe(networkId + ".player.*.connect", this::handleConnectRequest);
     }
 
-    /**
-     * Stops listening for kick and connect requests.
-     */
     public void stop() {
         if (!running.compareAndSet(true, false)) return;
 
@@ -77,7 +71,6 @@ public class PlayerCommandHandler {
             KickPlayerRequest request = KickPlayerRequest.parseFrom(msg.getData());
             UUID playerId = UUID.fromString(request.getPlayerId());
             Optional<ProxyPlayer> player = proxyPlayers.findPlayer(playerId);
-            // Every proxy receives the request; only the proxy holding the player answers.
             if (player.isEmpty()) return;
 
             Component reason = parseKickReason(request);
@@ -113,7 +106,6 @@ public class PlayerCommandHandler {
             ConnectPlayerRequest request = ConnectPlayerRequest.parseFrom(msg.getData());
             UUID playerId = UUID.fromString(request.getPlayerId());
             Optional<ProxyPlayer> player = proxyPlayers.findPlayer(playerId);
-            // Every proxy receives the request; only the proxy holding the player answers.
             if (player.isEmpty()) return;
 
             Optional<String> proxyServerName = proxyServerNameOf(request);
@@ -136,10 +128,6 @@ public class PlayerCommandHandler {
         }
     }
 
-    /**
-     * Returns the name under which this proxy registered the requested server.
-     * A server ID is mapped through {@link ProxyServerNames}; if both an ID and a name are set, the ID wins.
-     */
     private static Optional<String> proxyServerNameOf(ConnectPlayerRequest request) {
         if (request.getServerId().isEmpty()) {
             return Optional.of(request.getServerName());

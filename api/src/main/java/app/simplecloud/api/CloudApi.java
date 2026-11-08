@@ -8,6 +8,7 @@ import app.simplecloud.api.internal.CloudApiImpl;
 import app.simplecloud.api.persistentserver.PersistentServerApi;
 import app.simplecloud.api.player.PlayerApi;
 import app.simplecloud.api.server.ServerApi;
+import app.simplecloud.api.stats.StatsApi;
 
 /**
  * Main entry point for the SimpleCloud API.
@@ -23,7 +24,7 @@ public interface CloudApi extends AutoCloseable {
      *   <li>SIMPLECLOUD_NETWORK_SECRET (default: "")</li>
      *   <li>SIMPLECLOUD_NATS_URL (default: "wss://nats.simplecloud.app:443")</li>
      *   <li>SIMPLECLOUD_NATS_FAILOVER_RECONNECT_AFTER (default: "30s")</li>
-     *   <li>SIMPLECLOUD_CONTROLLER_URL (default: "<a href="https://controller.simplecloud.app">...</a>")</li>
+     *   <li>SIMPLECLOUD_CONTROLLER_URL (default: "<a href="https://controller.simplecloud.app">https://controller.simplecloud.app</a>")</li>
      * </ul>
      *
      * @return a new CloudApi instance
@@ -65,7 +66,6 @@ public interface CloudApi extends AutoCloseable {
      * Returns the persistent server management API.
      *
      * <p>Use this to create, read, update, and delete persistent servers.
-     * Persistent servers are long-lived server instances that maintain state across restarts.
      *
      * @return the persistent server API
      */
@@ -81,10 +81,18 @@ public interface CloudApi extends AutoCloseable {
     BlueprintApi blueprint();
 
     /**
+     * Returns the statistics API.
+     *
+     * <p>Use this to read network wide counts of servers, players and resources.
+     *
+     * @return the statistics API
+     */
+    StatsApi stats();
+
+    /**
      * Returns the event subscription API.
      *
-     * <p>Use this to subscribe to real-time events for groups, servers,
-     * persistent servers, and blueprints.
+     * <p>Use this to subscribe to real-time events for groups, servers, persistent servers, and blueprints.
      *
      * @return the event API
      */

@@ -14,6 +14,12 @@ final class SimpleCloudNatsListener extends ErrorListenerLoggerImpl implements C
     private static final Logger LOGGER = Logger.getLogger(SimpleCloudNatsListener.class.getName());
     private static final String MAX_PINGS_EXCEEDED = "Max outgoing Ping count exceeded";
 
+    private final Runnable onReconnected;
+
+    SimpleCloudNatsListener(Runnable onReconnected) {
+        this.onReconnected = onReconnected;
+    }
+
     @Override
     public void exceptionOccurred(Connection connection, Exception exception) {
         if (isTransportFailure(exception)) {
@@ -28,7 +34,10 @@ final class SimpleCloudNatsListener extends ErrorListenerLoggerImpl implements C
     public void connectionEvent(Connection connection, Events event) {
         switch (event) {
             case DISCONNECTED -> LOGGER.fine("NATS connection interrupted; reconnecting automatically");
-            case RECONNECTED -> LOGGER.fine("NATS connection restored");
+            case RECONNECTED -> {
+                LOGGER.fine("NATS connection restored");
+                onReconnected.run();
+            }
             default -> {}
         }
     }

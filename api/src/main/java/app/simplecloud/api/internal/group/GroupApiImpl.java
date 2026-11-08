@@ -2,6 +2,7 @@ package app.simplecloud.api.internal.group;
 
 import app.simplecloud.api.CloudApiOptions;
 import app.simplecloud.api.blueprint.CreateBlueprintRequest;
+import app.simplecloud.api.cache.EntityType;
 import app.simplecloud.api.cache.QueryCache;
 import app.simplecloud.api.cache.QueryKey;
 import app.simplecloud.api.group.CreateGroupRequest;
@@ -17,7 +18,7 @@ import app.simplecloud.api.group.RollingRestartStatus;
 import app.simplecloud.api.group.SourceConfig;
 import app.simplecloud.api.group.UpdateGroupRequest;
 import app.simplecloud.api.group.WorkflowsConfig;
-import app.simplecloud.api.internal.blueprint.InlineBlueprintSupport;
+import app.simplecloud.api.internal.blueprint.BlueprintProvisioner;
 import app.simplecloud.api.internal.create.CreateRequestDefaults;
 import app.simplecloud.api.internal.persistentserver.PersistentServerImpl;
 import app.simplecloud.api.internal.util.ValidationUtil;
@@ -44,6 +45,7 @@ import app.simplecloud.api.web.models.ModelsRollingRestartStatusResponse;
 import app.simplecloud.api.web.models.ModelsServerGroupStartQueueEntry;
 import app.simplecloud.api.web.models.ModelsServerGroupSummary;
 import app.simplecloud.api.web.models.ModelsSourceConfig;
+import app.simplecloud.api.web.models.ModelsUpdatePropertiesRequest;
 import app.simplecloud.api.workflow.WorkflowExecutionResult;
 import org.jetbrains.annotations.Nullable;
 
@@ -69,7 +71,7 @@ public class GroupApiImpl implements GroupApi {
 
     private final CloudApiOptions options;
     private final ServerGroupsApi serverGroupsApi;
-    private final InlineBlueprintSupport inlineBlueprintSupport;
+    private final BlueprintProvisioner blueprintProvisioner;
     private final CreateRequestDefaults createRequestDefaults;
     private final QueryCache cache;
     private final Executor executor;
@@ -78,7 +80,7 @@ public class GroupApiImpl implements GroupApi {
         this.options = options;
         this.cache = cache;
         this.serverGroupsApi = new ServerGroupsApi(httpClient);
-        this.inlineBlueprintSupport = new InlineBlueprintSupport(options, new BlueprintsApi(httpClient));
+        this.blueprintProvisioner = new BlueprintProvisioner(options, cache, new BlueprintsApi(httpClient));
         this.createRequestDefaults = new CreateRequestDefaults();
         this.executor = executor;
     }
@@ -197,10 +199,11 @@ public class GroupApiImpl implements GroupApi {
     }
 
     @Override
-    public CompletableFuture<Optional<Group>> findGroupById(String id) {
-        if (!ValidationUtil.isUuid(id)) {
+    public CompletableFuture<Optional<Group>> findGroupById(String requestedId) {
+        if (!ValidationUtil.isUuid(requestedId)) {
             return CompletableFuture.completedFuture(Optional.empty());
         }
+        String id = ValidationUtil.normalizeUuid(requestedId);
 
         return cache.fetchWithTransientMissRecovery(
                         QueryKey.of("group", id),
@@ -287,7 +290,7 @@ public class GroupApiImpl implements GroupApi {
                     createRequestDefaults.defaultInlineBlueprint(request.getCreateBlueprint(), effectiveWorkflows);
             GroupServerType effectiveType = createRequestDefaults.defaultType(request.getType());
 
-            inlineBlueprintSupport.validateInlineBlueprintSource(effectiveCreateBlueprint, request.getSource());
+            blueprintProvisioner.validateInlineBlueprintSource(effectiveCreateBlueprint, request.getSource());
 
             ModelsCreateServerGroupRequest apiRequest = new ModelsCreateServerGroupRequest();
             apiRequest.setName(request.getName());
@@ -304,9 +307,9 @@ public class GroupApiImpl implements GroupApi {
             apiRequest.setScaling(toModel(createRequestDefaults.defaultGroupScaling(request.getScaling())));
             apiRequest.setWorkflows(toModel(effectiveWorkflows));
 
-            String blueprintId = inlineBlueprintSupport.createBlueprint(request.getName(), effectiveCreateBlueprint);
+            String blueprintId = blueprintProvisioner.createBlueprint(request.getName(), effectiveCreateBlueprint);
             SourceConfig effectiveSource = blueprintId != null
-                    ? inlineBlueprintSupport.buildInlineBlueprintSource(request.getSource(), blueprintId)
+                    ? blueprintProvisioner.buildInlineBlueprintSource(request.getSource(), blueprintId)
                     : request.getSource();
             if (effectiveSource != null) {
                 apiRequest.setSource(toModel(effectiveSource));
@@ -316,7 +319,7 @@ public class GroupApiImpl implements GroupApi {
             try {
                 response = serverGroupsApi.createServerGroup(options.getNetworkId(), apiRequest);
             } catch (ApiException e) {
-                throw inlineBlueprintSupport.rollBackAfterCreateFailure(
+                throw blueprintProvisioner.rollBackAfterCreateFailure(
                         "group", blueprintId, e, () -> groupExistsWithBlueprint(request.getName(), blueprintId));
             }
 
@@ -358,8 +361,7 @@ public class GroupApiImpl implements GroupApi {
             Group group =
                     new GroupImpl(toSummary(serverGroupsApi.patchServerGroup(options.getNetworkId(), id, apiRequest)));
 
-            invalidateGroups(null);
-            cache.set(QueryKey.of("group", id), group);
+            invalidateGroupAndServers(id);
             return group;
         });
     }
@@ -371,9 +373,9 @@ public class GroupApiImpl implements GroupApi {
     @Nullable
     private String findAttachedBlueprintId(String groupId) throws ApiException {
         return listGroups(null, groupId, null).stream()
-                .filter(group -> groupId.equals(group.getServerGroupId()))
+                .filter(group -> groupId.equalsIgnoreCase(group.getServerGroupId()))
                 .map(ModelsServerGroupSummary::getSource)
-                .map(inlineBlueprintSupport::getReferencedBlueprintId)
+                .map(blueprintProvisioner::getReferencedBlueprintId)
                 .filter(Objects::nonNull)
                 .findFirst()
                 .orElse(null);
@@ -384,8 +386,8 @@ public class GroupApiImpl implements GroupApi {
         return ApiCalls.runAsync(executor, () -> {
             String blueprintId = findAttachedBlueprintId(id);
             serverGroupsApi.deleteServerGroup(options.getNetworkId(), id);
-            invalidateGroups(id);
-            inlineBlueprintSupport.deleteBlueprint(blueprintId);
+            invalidateGroupAndServers(id);
+            blueprintProvisioner.deleteBlueprint(blueprintId);
         });
     }
 
@@ -407,6 +409,18 @@ public class GroupApiImpl implements GroupApi {
     }
 
     @Override
+    public CompletableFuture<Map<String, Object>> setGroupProperties(String id, Map<String, Object> properties) {
+        return ApiCalls.supplyAsync(executor, () -> {
+            ModelsUpdatePropertiesRequest request = new ModelsUpdatePropertiesRequest();
+            request.setProperties(properties);
+            Map<String, Object> result =
+                    serverGroupsApi.updateServerGroupProperties(options.getNetworkId(), id, request).getProperties();
+            invalidateGroupAndServers(id);
+            return result != null ? result : new HashMap<>();
+        });
+    }
+
+    @Override
     public CompletableFuture<Map<String, Object>> updateGroupProperties(String id, Map<String, Object> properties) {
         return ApiCalls.supplyAsync(executor, () -> {
             ModelsPatchPropertiesRequest request = new ModelsPatchPropertiesRequest();
@@ -414,7 +428,7 @@ public class GroupApiImpl implements GroupApi {
             Map<String, Object> result = serverGroupsApi
                     .patchServerGroupProperties(options.getNetworkId(), id, request)
                     .getProperties();
-            invalidateGroups(id);
+            invalidateGroupAndServers(id);
             return result != null ? result : new HashMap<>();
         });
     }
@@ -427,9 +441,14 @@ public class GroupApiImpl implements GroupApi {
             Map<String, Object> result = serverGroupsApi
                     .deleteServerGroupProperties(options.getNetworkId(), id, request)
                     .getProperties();
-            invalidateGroups(id);
+            invalidateGroupAndServers(id);
             return result != null ? result : new HashMap<>();
         });
+    }
+
+    private void invalidateGroupAndServers(String id) {
+        invalidateGroups(id);
+        cache.invalidateByType(EntityType.SERVER);
     }
 
     private void invalidateGroups(@Nullable String id) {

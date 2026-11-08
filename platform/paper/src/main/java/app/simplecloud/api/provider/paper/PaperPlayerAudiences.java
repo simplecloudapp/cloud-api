@@ -5,7 +5,6 @@ import org.bukkit.Bukkit;
 import org.bukkit.entity.Player;
 import org.bukkit.plugin.Plugin;
 
-import java.util.List;
 import java.util.UUID;
 
 final class PaperPlayerAudiences implements PlayerAudiences {
@@ -21,16 +20,6 @@ final class PaperPlayerAudiences implements PlayerAudiences {
         Bukkit.getGlobalRegionScheduler().execute(plugin, () -> {
             Player player = Bukkit.getPlayer(playerId);
             if (player != null) {
-                run(player, action);
-            }
-        });
-    }
-
-    @Override
-    public void runForAllPlayers(PlayerAction action) {
-        Bukkit.getGlobalRegionScheduler().execute(plugin, () -> {
-            List<Player> players = List.copyOf(Bukkit.getOnlinePlayers());
-            for (Player player : players) {
                 run(player, action);
             }
         });

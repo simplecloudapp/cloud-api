@@ -1,9 +1,9 @@
 package app.simplecloud.api.internal.event.player;
 
 import app.simplecloud.api.event.player.PlayerClientSettingsUpdatedEvent;
+import app.simplecloud.api.internal.util.ProtoConversionUtil;
 import app.simplecloud.api.player.PlayerClientSettings;
 
-import java.time.Instant;
 import java.util.UUID;
 
 class PlayerClientSettingsUpdatedEventImpl implements PlayerClientSettingsUpdatedEvent {
@@ -26,12 +26,12 @@ class PlayerClientSettingsUpdatedEventImpl implements PlayerClientSettingsUpdate
 
     @Override
     public String getTimestamp() {
-        return Instant.ofEpochMilli(delegate.getTimestamp()).toString();
+        return ProtoConversionUtil.epochMillisToIso(delegate.getTimestamp());
     }
 
     @Override
     public String getSessionId() {
-        return PlayerEventModelMapper.emptyToNull(delegate.getSessionId());
+        return ProtoConversionUtil.emptyToNull(delegate.getSessionId());
     }
 
     @Override

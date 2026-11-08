@@ -98,7 +98,7 @@ public class QueryCacheImpl implements QueryCache {
     @Override
     @SuppressWarnings("unchecked")
     public <T> CompletableFuture<T> fetch(QueryKey key, Supplier<CompletableFuture<T>> fetcher) {
-        if (isCachingEnabled(key)) {
+        if (isCacheBypassed(key)) {
             return fetcher.get();
         }
 
@@ -135,7 +135,7 @@ public class QueryCacheImpl implements QueryCache {
             Predicate<T> isTransientMiss,
             Duration retryDelay,
             int maxRetries) {
-        if (isCachingEnabled(key)) {
+        if (isCacheBypassed(key)) {
             return QueryCache.super.fetchWithTransientMissRecovery(
                     key, fetcher, isTransientMiss, retryDelay, maxRetries);
         }
@@ -173,7 +173,7 @@ public class QueryCacheImpl implements QueryCache {
                         key, fetcher, isTransientMiss, retryDelay, retriesRemaining - 1, retriedResult));
     }
 
-    private boolean isCachingEnabled(QueryKey key) {
+    private boolean isCacheBypassed(QueryKey key) {
         if (!config.isEnabled()) {
             return true;
         }
@@ -223,7 +223,6 @@ public class QueryCacheImpl implements QueryCache {
     }
 
     private <T> void triggerBackgroundRevalidation(QueryKey key, Supplier<CompletableFuture<T>> fetcher) {
-        // Only revalidate if not already revalidating
         if (inFlightRequests.containsKey(key)) {
             return;
         }

@@ -163,7 +163,11 @@ public interface Server {
     /**
      * Returns the blueprint this server was created from.
      *
-     * @return the blueprint, or null if not available
+     * <p>Only group servers carry their blueprint. For a persistent server, read the blueprint ID from
+     * {@code getPersistentServer().getSource()} and fetch it with
+     * {@link app.simplecloud.api.blueprint.BlueprintApi#getBlueprintById(String)}.
+     *
+     * @return the blueprint, or null for persistent servers and for groups that run from an image
      */
     @Nullable
     Blueprint getBlueprint();

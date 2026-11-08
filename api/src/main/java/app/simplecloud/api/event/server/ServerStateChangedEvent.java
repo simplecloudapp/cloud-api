@@ -25,16 +25,16 @@ public interface ServerStateChangedEvent {
     /**
      * Returns the previous state of the server.
      *
-     * @return the old state
-     * @throws IllegalStateException if old state is not available
+     * @return the old state, or {@link ServerState#UNKNOWN_STATE} if the controller sent none (currently
+     *     the case for {@code STOPPED})
      */
     ServerState getOldState();
 
     /**
      * Returns the new state of the server.
      *
-     * @return the new state
-     * @throws IllegalStateException if new state is not available
+     * @return the new state, or {@link ServerState#UNKNOWN_STATE} if the controller sent none (currently
+     *     the case for {@code STOPPED})
      */
     ServerState getNewState();
 

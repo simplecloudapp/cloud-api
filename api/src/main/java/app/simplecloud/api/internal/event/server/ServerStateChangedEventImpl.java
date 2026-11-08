@@ -1,11 +1,10 @@
 package app.simplecloud.api.internal.event.server;
 
 import app.simplecloud.api.event.server.ServerStateChangedEvent;
+import app.simplecloud.api.internal.event.ControllerEventModelMapper;
 import app.simplecloud.api.internal.util.ProtoConversionUtil;
 import app.simplecloud.api.server.Server;
 import app.simplecloud.api.server.ServerState;
-
-import java.time.Instant;
 
 class ServerStateChangedEventImpl implements ServerStateChangedEvent {
     private final build.buf.gen.simplecloud.controller.v2.ServerStateChangedEvent delegate;
@@ -28,19 +27,13 @@ class ServerStateChangedEventImpl implements ServerStateChangedEvent {
     @Override
     public ServerState getOldState() {
         ServerState state = ProtoConversionUtil.convertServerState(delegate.getOldState());
-        if (state == null) {
-            throw new IllegalStateException("Old state is not available in ServerStateChangedEvent");
-        }
-        return state;
+        return state != null ? state : ServerState.UNKNOWN_STATE;
     }
 
     @Override
     public ServerState getNewState() {
         ServerState state = ProtoConversionUtil.convertServerState(delegate.getNewState());
-        if (state == null) {
-            throw new IllegalStateException("New state is not available in ServerStateChangedEvent");
-        }
-        return state;
+        return state != null ? state : ServerState.UNKNOWN_STATE;
     }
 
     @Override
@@ -49,7 +42,7 @@ class ServerStateChangedEventImpl implements ServerStateChangedEvent {
             if (!delegate.hasConfig() && !delegate.hasGroupConfig() && !delegate.hasPersistentServerConfig()) {
                 throw new IllegalStateException("Server data is not available in ServerStateChangedEvent");
             }
-            server = ServerEventModelMapper.mapServer(
+            server = ControllerEventModelMapper.mapServer(
                     delegate.getNetworkId(),
                     delegate.getServerId(),
                     delegate.getServerGroupId(),
@@ -66,6 +59,6 @@ class ServerStateChangedEventImpl implements ServerStateChangedEvent {
 
     @Override
     public String getTimestamp() {
-        return Instant.ofEpochSecond(delegate.getTimestamp()).toString();
+        return ProtoConversionUtil.epochSecondsToIso(delegate.getTimestamp());
     }
 }

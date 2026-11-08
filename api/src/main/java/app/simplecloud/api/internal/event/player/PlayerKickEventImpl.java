@@ -1,13 +1,13 @@
 package app.simplecloud.api.internal.event.player;
 
 import app.simplecloud.api.event.player.PlayerKickEvent;
+import app.simplecloud.api.internal.util.ProtoConversionUtil;
 import app.simplecloud.api.player.CloudPlayer;
 import app.simplecloud.api.player.PlayerApi;
 import io.nats.client.Connection;
 import net.kyori.adventure.text.Component;
 import net.kyori.adventure.text.serializer.gson.GsonComponentSerializer;
 
-import java.time.Instant;
 import java.util.UUID;
 
 class PlayerKickEventImpl implements PlayerKickEvent {
@@ -37,12 +37,12 @@ class PlayerKickEventImpl implements PlayerKickEvent {
 
     @Override
     public String getTimestamp() {
-        return Instant.ofEpochMilli(delegate.getTimestamp()).toString();
+        return ProtoConversionUtil.epochMillisToIso(delegate.getTimestamp());
     }
 
     @Override
     public String getServerName() {
-        return PlayerEventModelMapper.emptyToNull(delegate.getServerId());
+        return ProtoConversionUtil.emptyToNull(delegate.getServerId());
     }
 
     @Override

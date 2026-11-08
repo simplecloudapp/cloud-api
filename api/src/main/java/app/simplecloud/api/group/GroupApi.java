@@ -18,7 +18,7 @@ public interface GroupApi {
     /**
      * Retrieves the current server-start queue for all server groups.
      *
-     * @return a CompletableFuture that completes with the aggregated queue state
+     * @return a future that completes with the aggregated queue state
      */
     CompletableFuture<GroupStartQueue> getServerStartQueue();
 
@@ -31,7 +31,7 @@ public interface GroupApi {
      * {@link GroupStartQueueItemStatus#FAILED}, see {@link #getServerStartQueue()}.
      *
      * @param serverGroupId the server group ID
-     * @return a CompletableFuture that completes when the start request was accepted
+     * @return a future that completes when the start request was accepted
      */
     CompletableFuture<Void> requestServerStart(String serverGroupId);
 
@@ -39,7 +39,7 @@ public interface GroupApi {
      * Requests one server start for the provided group.
      *
      * @param group the target group
-     * @return a CompletableFuture that completes when the start request was accepted
+     * @return a future that completes when the start request was accepted
      * @see #requestServerStart(String)
      */
     default CompletableFuture<Void> requestServerStart(Group group) {
@@ -50,7 +50,7 @@ public interface GroupApi {
      * Clears all queued starts for one server group.
      *
      * @param serverGroupId the server group ID
-     * @return a CompletableFuture that completes when the queue was cleared
+     * @return a future that completes when the queue was cleared
      */
     CompletableFuture<Void> clearServerStartQueue(String serverGroupId);
 
@@ -58,7 +58,7 @@ public interface GroupApi {
      * Clears all queued starts for the provided group.
      *
      * @param group the target group
-     * @return a CompletableFuture that completes when the queue was cleared
+     * @return a future that completes when the queue was cleared
      */
     default CompletableFuture<Void> clearServerStartQueue(Group group) {
         return clearServerStartQueue(group.getServerGroupId());
@@ -68,7 +68,7 @@ public interface GroupApi {
      * Sends a stop command to all running servers of a server group.
      *
      * @param serverGroupId the server group ID
-     * @return a CompletableFuture that completes with the number of servers that were told to stop
+     * @return a future that completes with the number of servers that were told to stop
      */
     CompletableFuture<Integer> stopAllServers(String serverGroupId);
 
@@ -76,7 +76,7 @@ public interface GroupApi {
      * Sends a stop command to all running servers of the provided group.
      *
      * @param group the target group
-     * @return a CompletableFuture that completes with the number of servers that were told to stop
+     * @return a future that completes with the number of servers that were told to stop
      */
     default CompletableFuture<Integer> stopAllServers(Group group) {
         return stopAllServers(group.getServerGroupId());
@@ -89,7 +89,7 @@ public interface GroupApi {
      * {@link CloudApiException.Reason#INVALID_REQUEST}.
      *
      * @param serverGroupId the server group ID
-     * @return a CompletableFuture that completes when the rolling restart was started
+     * @return a future that completes when the rolling restart was started
      */
     CompletableFuture<Void> startRollingRestart(String serverGroupId);
 
@@ -97,7 +97,7 @@ public interface GroupApi {
      * Starts a rolling restart for the provided group.
      *
      * @param group the target group
-     * @return a CompletableFuture that completes when the rolling restart was started
+     * @return a future that completes when the rolling restart was started
      * @see #startRollingRestart(String)
      */
     default CompletableFuture<Void> startRollingRestart(Group group) {
@@ -108,7 +108,7 @@ public interface GroupApi {
      * Retrieves whether a rolling restart is running for a server group.
      *
      * @param serverGroupId the server group ID
-     * @return a CompletableFuture that completes with the rolling restart status
+     * @return a future that completes with the rolling restart status
      */
     CompletableFuture<RollingRestartStatus> getRollingRestartStatus(String serverGroupId);
 
@@ -116,7 +116,7 @@ public interface GroupApi {
      * Retrieves whether a rolling restart is running for the provided group.
      *
      * @param group the target group
-     * @return a CompletableFuture that completes with the rolling restart status
+     * @return a future that completes with the rolling restart status
      */
     default CompletableFuture<RollingRestartStatus> getRollingRestartStatus(Group group) {
         return getRollingRestartStatus(group.getServerGroupId());
@@ -126,7 +126,7 @@ public interface GroupApi {
      * Cancels the running rolling restart of a server group.
      *
      * @param serverGroupId the server group ID
-     * @return a CompletableFuture that completes when the rolling restart was cancelled
+     * @return a future that completes when the rolling restart was cancelled
      */
     CompletableFuture<Void> cancelRollingRestart(String serverGroupId);
 
@@ -134,7 +134,7 @@ public interface GroupApi {
      * Cancels the running rolling restart of the provided group.
      *
      * @param group the target group
-     * @return a CompletableFuture that completes when the rolling restart was cancelled
+     * @return a future that completes when the rolling restart was cancelled
      */
     default CompletableFuture<Void> cancelRollingRestart(Group group) {
         return cancelRollingRestart(group.getServerGroupId());
@@ -145,7 +145,7 @@ public interface GroupApi {
      *
      * @param serverGroupId the server group ID
      * @param workflowId the ID of the manual workflow
-     * @return a CompletableFuture that completes with the result per server
+     * @return a future that completes with the result per server
      */
     CompletableFuture<WorkflowExecutionResult> executeWorkflow(String serverGroupId, String workflowId);
 
@@ -154,7 +154,7 @@ public interface GroupApi {
      *
      * @param group the target group
      * @param workflowId the ID of the manual workflow
-     * @return a CompletableFuture that completes with the result per server
+     * @return a future that completes with the result per server
      */
     default CompletableFuture<WorkflowExecutionResult> executeWorkflow(Group group, String workflowId) {
         return executeWorkflow(group.getServerGroupId(), workflowId);
@@ -164,7 +164,7 @@ public interface GroupApi {
      * Retrieves a server group by its name.
      *
      * @param name the name of the server group
-     * @return a CompletableFuture that completes with the group, or fails with a
+     * @return a future that completes with the group, or fails with a
      * {@link CloudApiException} ({@link CloudApiException.Reason#NOT_FOUND}) if it does not exist
      */
     CompletableFuture<Group> getGroupByName(String name);
@@ -173,7 +173,7 @@ public interface GroupApi {
      * Finds a server group by its name.
      *
      * @param name the name of the server group
-     * @return a CompletableFuture that completes with the group, or an empty Optional if it does not exist
+     * @return a future that completes with the group, or an empty Optional if it does not exist
      */
     CompletableFuture<Optional<Group>> findGroupByName(String name);
 
@@ -181,7 +181,7 @@ public interface GroupApi {
      * Retrieves a server group by its unique identifier.
      *
      * @param id the unique ID of the server group
-     * @return a CompletableFuture that completes with the group, or fails with a
+     * @return a future that completes with the group, or fails with a
      * {@link CloudApiException} ({@link CloudApiException.Reason#NOT_FOUND}) if it does not exist
      */
     CompletableFuture<Group> getGroupById(String id);
@@ -192,7 +192,7 @@ public interface GroupApi {
      * <p>An ID that isn't a UUID returns an empty Optional without asking the controller.
      *
      * @param id the unique ID of the server group
-     * @return a CompletableFuture that completes with the group, or an empty Optional if it does not exist
+     * @return a future that completes with the group, or an empty Optional if it does not exist
      */
     CompletableFuture<Optional<Group>> findGroupById(String id);
 
@@ -200,14 +200,14 @@ public interface GroupApi {
      * Retrieves all server groups, optionally filtered by a query.
      *
      * @param query optional filters and paging, see {@link GroupQuery}
-     * @return a CompletableFuture that completes with a list of matching groups
+     * @return a future that completes with a list of matching groups
      */
     CompletableFuture<List<Group>> getAllGroups(@Nullable GroupQuery query);
 
     /**
      * Retrieves all server groups without any filtering.
      *
-     * @return a CompletableFuture that completes with a list of all groups
+     * @return a future that completes with a list of all groups
      */
     default CompletableFuture<List<Group>> getAllGroups() {
         return getAllGroups(null);
@@ -217,7 +217,7 @@ public interface GroupApi {
      * Creates a new server group.
      *
      * @param request the configuration for the new server group
-     * @return a CompletableFuture that completes with the created group
+     * @return a future that completes with the created group
      */
     CompletableFuture<Group> createGroup(CreateGroupRequest request);
 
@@ -232,7 +232,7 @@ public interface GroupApi {
      *
      * @param id      the unique ID of the server group to update
      * @param request the updated configuration
-     * @return a CompletableFuture that completes with the updated group
+     * @return a future that completes with the updated group
      */
     CompletableFuture<Group> updateGroup(String id, UpdateGroupRequest request);
 
@@ -244,7 +244,7 @@ public interface GroupApi {
      * {@link #stopAllServers(String)} retry once the stopped servers are gone.
      *
      * @param id the unique ID of the server group to delete
-     * @return a CompletableFuture that completes when the group and its referenced blueprint are deleted
+     * @return a future that completes when the group and its referenced blueprint are deleted
      */
     CompletableFuture<Void> deleteGroup(String id);
 
@@ -258,16 +258,28 @@ public interface GroupApi {
      *
      * @param serverGroupId the ID of the group to convert
      * @param serverhostId the ID of the serverhost the persistent server runs on
-     * @return a CompletableFuture that completes with the new persistent server
+     * @return a future that completes with the new persistent server
      */
     CompletableFuture<PersistentServer> convertToPersistentServer(String serverGroupId, String serverhostId);
+
+    /**
+     * Replaces all properties of a group.
+     *
+     * <p>Keys not contained in {@code properties} are removed. Use
+     * {@link #updateGroupProperties(String, Map)} to merge instead.
+     *
+     * @param id the unique ID of the server group
+     * @param properties the new properties
+     * @return a future that completes with the stored properties
+     */
+    CompletableFuture<Map<String, Object>> setGroupProperties(String id, Map<String, Object> properties);
 
     /**
      * Updates group properties by merging with existing properties (deep merge).
      *
      * @param id the unique ID of the server group
      * @param properties the properties to merge
-     * @return a CompletableFuture that completes with the updated properties
+     * @return a future that completes with the updated properties
      */
     CompletableFuture<Map<String, Object>> updateGroupProperties(String id, Map<String, Object> properties);
 
@@ -277,7 +289,7 @@ public interface GroupApi {
      * @param id the unique ID of the server group
      * @param key the property key to update
      * @param value the property value to set
-     * @return a CompletableFuture that completes with the updated properties
+     * @return a future that completes with the updated properties
      */
     default CompletableFuture<Map<String, Object>> updateGroupProperty(String id, String key, Object value) {
         return updateGroupProperties(id, Map.of(key, value));
@@ -288,7 +300,7 @@ public interface GroupApi {
      *
      * @param id the unique ID of the server group
      * @param keys the property keys to delete
-     * @return a CompletableFuture that completes with the remaining properties
+     * @return a future that completes with the remaining properties
      */
     CompletableFuture<Map<String, Object>> deleteGroupProperties(String id, List<String> keys);
 
@@ -297,7 +309,7 @@ public interface GroupApi {
      *
      * @param id the unique ID of the server group
      * @param key the property key to delete
-     * @return a CompletableFuture that completes with the remaining properties
+     * @return a future that completes with the remaining properties
      */
     default CompletableFuture<Map<String, Object>> deleteGroupProperty(String id, String key) {
         return deleteGroupProperties(id, List.of(key));

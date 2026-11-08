@@ -3,12 +3,15 @@ package app.simplecloud.api.internal.server;
 import app.simplecloud.api.base.ServerBase;
 import app.simplecloud.api.blueprint.Blueprint;
 import app.simplecloud.api.group.Group;
+import app.simplecloud.api.internal.blueprint.BlueprintImpl;
 import app.simplecloud.api.internal.group.GroupImpl;
 import app.simplecloud.api.internal.persistentserver.PersistentServerImpl;
 import app.simplecloud.api.persistentserver.PersistentServer;
 import app.simplecloud.api.server.Server;
 import app.simplecloud.api.server.ServerState;
+import app.simplecloud.api.web.models.ModelsServerGroupInfo;
 import app.simplecloud.api.web.models.ModelsServerSummary;
+import app.simplecloud.api.web.models.ModelsSourceInfo;
 import org.jetbrains.annotations.Nullable;
 
 import java.math.BigDecimal;
@@ -22,6 +25,10 @@ public class ServerImpl implements Server {
 
     public ServerImpl(ModelsServerSummary delegate) {
         this.delegate = delegate;
+    }
+
+    public void setGroup(Group group) {
+        this.group = group;
     }
 
     public void setPersistentServer(PersistentServer persistentServer) {
@@ -142,7 +149,7 @@ public class ServerImpl implements Server {
             throw new IllegalStateException("Server state is null");
         }
         try {
-            return ServerState.parse(stateStr);
+            return ServerState.parse(stateStr.toString());
         } catch (IllegalArgumentException e) {
             return ServerState.UNKNOWN_STATE;
         }
@@ -181,7 +188,14 @@ public class ServerImpl implements Server {
     @Override
     @Nullable
     public Blueprint getBlueprint() {
-        return null;
+        if (blueprint == null) {
+            ModelsServerGroupInfo serverGroup = delegate.getServerGroup();
+            ModelsSourceInfo source = serverGroup != null ? serverGroup.getSource() : null;
+            if (source != null && source.getBlueprint() != null) {
+                blueprint = BlueprintImpl.fromInfo(source.getBlueprint());
+            }
+        }
+        return blueprint;
     }
 
     @Override

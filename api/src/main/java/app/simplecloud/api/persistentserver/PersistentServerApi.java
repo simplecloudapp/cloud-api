@@ -22,7 +22,7 @@ public interface PersistentServerApi {
      * Retrieves a persistent server by its unique identifier.
      *
      * @param id the unique ID of the persistent server
-     * @return a CompletableFuture that completes with the persistent server, or fails with a
+     * @return a future that completes with the persistent server, or fails with a
      * {@link CloudApiException} ({@link CloudApiException.Reason#NOT_FOUND}) if it does not exist
      */
     CompletableFuture<PersistentServer> getPersistentServerById(String id);
@@ -33,7 +33,7 @@ public interface PersistentServerApi {
      * <p>An ID that isn't a UUID returns an empty Optional without asking the controller.
      *
      * @param id the unique ID of the persistent server
-     * @return a CompletableFuture that completes with the persistent server, or an empty Optional if it does not exist
+     * @return a future that completes with the persistent server, or an empty Optional if it does not exist
      */
     CompletableFuture<Optional<PersistentServer>> findPersistentServerById(String id);
 
@@ -41,7 +41,7 @@ public interface PersistentServerApi {
      * Retrieves a persistent server by its name.
      *
      * @param name the name of the persistent server
-     * @return a CompletableFuture that completes with the persistent server, or fails with a
+     * @return a future that completes with the persistent server, or fails with a
      * {@link CloudApiException} ({@link CloudApiException.Reason#NOT_FOUND}) if it does not exist
      */
     CompletableFuture<PersistentServer> getPersistentServerByName(String name);
@@ -50,7 +50,7 @@ public interface PersistentServerApi {
      * Finds a persistent server by its name.
      *
      * @param name the name of the persistent server
-     * @return a CompletableFuture that completes with the persistent server, or an empty Optional if it does not exist
+     * @return a future that completes with the persistent server, or an empty Optional if it does not exist
      */
     CompletableFuture<Optional<PersistentServer>> findPersistentServerByName(String name);
 
@@ -58,14 +58,14 @@ public interface PersistentServerApi {
      * Retrieves all persistent servers, optionally filtered by a query.
      *
      * @param query optional query parameters to filter results
-     * @return a CompletableFuture that completes with a list of matching persistent servers
+     * @return a future that completes with a list of matching persistent servers
      */
     CompletableFuture<List<PersistentServer>> getAllPersistentServers(@Nullable PersistentServerQuery query);
 
     /**
      * Retrieves all persistent servers without any filtering.
      *
-     * @return a CompletableFuture that completes with a list of all persistent servers
+     * @return a future that completes with a list of all persistent servers
      */
     default CompletableFuture<List<PersistentServer>> getAllPersistentServers() {
         return getAllPersistentServers(null);
@@ -75,7 +75,7 @@ public interface PersistentServerApi {
      * Creates a new persistent server.
      *
      * @param request the configuration for the new persistent server
-     * @return a CompletableFuture that completes with the created persistent server
+     * @return a future that completes with the created persistent server
      */
     CompletableFuture<PersistentServer> createPersistentServer(CreatePersistentServerRequest request);
 
@@ -87,7 +87,7 @@ public interface PersistentServerApi {
      *
      * @param id      the unique ID of the persistent server to update
      * @param request the updated configuration
-     * @return a CompletableFuture that completes with the updated persistent server
+     * @return a future that completes with the updated persistent server
      */
     CompletableFuture<PersistentServer> updatePersistentServer(String id, UpdatePersistentServerRequest request);
 
@@ -95,7 +95,7 @@ public interface PersistentServerApi {
      * Deletes a persistent server and its referenced blueprint, if present.
      *
      * @param id the unique ID of the persistent server to delete
-     * @return a CompletableFuture that completes when the persistent server and its referenced blueprint are deleted
+     * @return a future that completes when the persistent server and its referenced blueprint are deleted
      */
     CompletableFuture<Void> deletePersistentServer(String id);
 
@@ -104,7 +104,7 @@ public interface PersistentServerApi {
      *
      * @param id the unique ID of the persistent server
      * @param workflowId the ID of the manual workflow
-     * @return a CompletableFuture that completes with the result per server
+     * @return a future that completes with the result per server
      */
     CompletableFuture<WorkflowExecutionResult> executeWorkflow(String id, String workflowId);
 
@@ -118,17 +118,29 @@ public interface PersistentServerApi {
      * @param persistentServerId the ID of the persistent server to convert
      * @param hosts the hosts the group may run on; an empty list allows all hosts
      * @param scaling the complete scaling config of the group, see {@link GroupApi#updateGroup}
-     * @return a CompletableFuture that completes with the new group
+     * @return a future that completes with the new group
      */
     CompletableFuture<Group> convertToGroup(
             String persistentServerId, List<DeploymentHost> hosts, ScalingConfig scaling);
+
+    /**
+     * Replaces all properties of a persistent server.
+     *
+     * <p>Keys not contained in {@code properties} are removed. Use
+     * {@link #updatePersistentServerProperties(String, Map)} to merge instead.
+     *
+     * @param id the unique ID of the persistent server
+     * @param properties the new properties
+     * @return a future that completes with the stored properties
+     */
+    CompletableFuture<Map<String, Object>> setPersistentServerProperties(String id, Map<String, Object> properties);
 
     /**
      * Updates persistent server properties by merging with existing properties (deep merge).
      *
      * @param id the unique ID of the persistent server
      * @param properties the properties to merge
-     * @return a CompletableFuture that completes with the updated properties
+     * @return a future that completes with the updated properties
      */
     CompletableFuture<Map<String, Object>> updatePersistentServerProperties(String id, Map<String, Object> properties);
 
@@ -138,7 +150,7 @@ public interface PersistentServerApi {
      * @param id the unique ID of the persistent server
      * @param key the property key to update
      * @param value the property value to set
-     * @return a CompletableFuture that completes with the updated properties
+     * @return a future that completes with the updated properties
      */
     default CompletableFuture<Map<String, Object>> updatePersistentServerProperty(String id, String key, Object value) {
         return updatePersistentServerProperties(id, Map.of(key, value));
@@ -149,7 +161,7 @@ public interface PersistentServerApi {
      *
      * @param id the unique ID of the persistent server
      * @param keys the property keys to delete
-     * @return a CompletableFuture that completes with the remaining properties
+     * @return a future that completes with the remaining properties
      */
     CompletableFuture<Map<String, Object>> deletePersistentServerProperties(String id, List<String> keys);
 
@@ -158,7 +170,7 @@ public interface PersistentServerApi {
      *
      * @param id the unique ID of the persistent server
      * @param key the property key to delete
-     * @return a CompletableFuture that completes with the remaining properties
+     * @return a future that completes with the remaining properties
      */
     default CompletableFuture<Map<String, Object>> deletePersistentServerProperty(String id, String key) {
         return deletePersistentServerProperties(id, List.of(key));

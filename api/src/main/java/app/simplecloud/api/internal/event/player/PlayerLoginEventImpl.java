@@ -1,11 +1,11 @@
 package app.simplecloud.api.internal.event.player;
 
 import app.simplecloud.api.event.player.PlayerLoginEvent;
+import app.simplecloud.api.internal.util.ProtoConversionUtil;
 import app.simplecloud.api.player.CloudPlayer;
 import app.simplecloud.api.player.PlayerApi;
 import io.nats.client.Connection;
 
-import java.time.Instant;
 import java.util.UUID;
 
 class PlayerLoginEventImpl implements PlayerLoginEvent {
@@ -35,19 +35,19 @@ class PlayerLoginEventImpl implements PlayerLoginEvent {
 
     @Override
     public String getTimestamp() {
-        return Instant.ofEpochMilli(delegate.getTimestamp()).toString();
+        return ProtoConversionUtil.epochMillisToIso(delegate.getTimestamp());
     }
 
     @Override
     public String getProxyName() {
-        return PlayerEventModelMapper.emptyToNull(delegate.getProxyServerId());
+        return ProtoConversionUtil.emptyToNull(delegate.getProxyServerId());
     }
 
     @Override
     public String getSessionId() {
-        String sessionId = PlayerEventModelMapper.emptyToNull(delegate.getSessionId());
+        String sessionId = ProtoConversionUtil.emptyToNull(delegate.getSessionId());
         if (sessionId == null && delegate.hasConfig()) {
-            return PlayerEventModelMapper.emptyToNull(delegate.getConfig().getSessionId());
+            return ProtoConversionUtil.emptyToNull(delegate.getConfig().getSessionId());
         }
         return sessionId;
     }

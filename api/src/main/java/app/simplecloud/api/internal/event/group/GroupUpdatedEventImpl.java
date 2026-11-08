@@ -2,12 +2,13 @@ package app.simplecloud.api.internal.event.group;
 
 import app.simplecloud.api.event.group.GroupUpdatedEvent;
 import app.simplecloud.api.group.Group;
+import app.simplecloud.api.internal.event.ControllerEventModelMapper;
+import app.simplecloud.api.internal.util.ProtoConversionUtil;
 import build.buf.gen.simplecloud.controller.v2.ServerGroupUpdatedEvent;
-
-import java.time.Instant;
 
 class GroupUpdatedEventImpl implements GroupUpdatedEvent {
     private final ServerGroupUpdatedEvent delegate;
+    private Group group;
 
     GroupUpdatedEventImpl(ServerGroupUpdatedEvent delegate) {
         this.delegate = delegate;
@@ -25,12 +26,18 @@ class GroupUpdatedEventImpl implements GroupUpdatedEvent {
 
     @Override
     public Group getGroup() {
-        throw new IllegalStateException(
-                "Group data is not available in GroupUpdatedEvent. Use CloudApi.group().getGroupById(serverGroupId) to fetch the group.");
+        if (group == null) {
+            if (!delegate.hasConfig() || !delegate.getConfig().hasBaseConfig()) {
+                throw new IllegalStateException("Group data is not available in GroupUpdatedEvent");
+            }
+            group = ControllerEventModelMapper.mapGroup(
+                    delegate.getServerGroupId(), delegate.getConfig(), delegate.getTimestamp());
+        }
+        return group;
     }
 
     @Override
     public String getTimestamp() {
-        return Instant.ofEpochSecond(delegate.getTimestamp()).toString();
+        return ProtoConversionUtil.epochSecondsToIso(delegate.getTimestamp());
     }
 }

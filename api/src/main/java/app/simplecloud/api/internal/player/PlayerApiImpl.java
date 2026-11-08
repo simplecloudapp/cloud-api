@@ -4,7 +4,6 @@ import app.simplecloud.api.CloudApiException;
 import app.simplecloud.api.CloudApiOptions;
 import app.simplecloud.api.internal.util.ValidationUtil;
 import app.simplecloud.api.internal.web.ApiCalls;
-import app.simplecloud.api.internal.web.ApiClientFactory;
 import app.simplecloud.api.internal.web.ApiExceptions;
 import app.simplecloud.api.player.CloudPlayer;
 import app.simplecloud.api.player.ConnectResponse;
@@ -53,17 +52,20 @@ import java.time.Duration;
 import java.time.Instant;
 import java.time.OffsetDateTime;
 import java.time.ZoneOffset;
-import java.util.ArrayList;
-import java.util.HashMap;
-import java.util.List;
-import java.util.Map;
+
 import java.util.Optional;
 import java.util.UUID;
+import java.util.List;
+import java.util.ArrayList;
+import java.util.Map;
+import java.util.HashMap;
+import java.util.Objects;
 import java.util.concurrent.CompletableFuture;
 import java.util.concurrent.Executor;
-import java.util.concurrent.ForkJoinPool;
 import java.util.logging.Level;
 import java.util.logging.Logger;
+
+import static app.simplecloud.api.internal.util.ProtoConversionUtil.emptyToNull;
 
 public class PlayerApiImpl implements PlayerApi {
 
@@ -76,20 +78,8 @@ public class PlayerApiImpl implements PlayerApi {
     private final PlayersApi playersApi;
     private final Executor executor;
 
-    public PlayerApiImpl(CloudApiOptions options, Connection natsConnection) {
-        this(options, natsConnection, ApiClientFactory.create(options));
-    }
-
-    public PlayerApiImpl(CloudApiOptions options, Connection natsConnection, ApiClient httpClient) {
-        this(options, natsConnection, httpClient, ForkJoinPool.commonPool());
-    }
-
     public PlayerApiImpl(CloudApiOptions options, Connection natsConnection, ApiClient httpClient, Executor executor) {
         this(options, natsConnection, new PlayersApi(httpClient), executor);
-    }
-
-    PlayerApiImpl(CloudApiOptions options, Connection natsConnection, PlayersApi playersApi) {
-        this(options, natsConnection, playersApi, ForkJoinPool.commonPool());
     }
 
     PlayerApiImpl(CloudApiOptions options, Connection natsConnection, PlayersApi playersApi, Executor executor) {
@@ -215,7 +205,6 @@ public class PlayerApiImpl implements PlayerApi {
     @Override
     public CompletableFuture<CloudPlayer> setOnlineTimeSeconds(UUID uniqueId, long seconds) {
         return call(() -> {
-            // Validated inside the call, so an out-of-range value fails the returned future.
             int controllerSeconds = toControllerOnlineTimeSeconds(seconds);
             ModelsPatchPlayerRequest request = new ModelsPatchPlayerRequest().onlineTimeSeconds(controllerSeconds);
             return patchPlayer(uniqueId, request);
@@ -426,11 +415,11 @@ public class PlayerApiImpl implements PlayerApi {
             case ConnectTarget.ServerId t -> request.setServerId(t.serverId());
             case ConnectTarget.GroupName t -> {
                 request.setServerGroupName(t.groupName());
-                request.setSelectionMode(t.selectionMode().name());
+                request.setSelectionMode(Objects.requireNonNull(t.selectionMode()).name());
             }
             case ConnectTarget.GroupId t -> {
                 request.setServerGroupId(t.groupId());
-                request.setSelectionMode(t.selectionMode().name());
+                request.setSelectionMode(Objects.requireNonNull(t.selectionMode()).name());
             }
             case ConnectTarget.PersistentServer t -> request.setPersistentServerId(t.persistentServerId());
         }
@@ -536,7 +525,7 @@ public class PlayerApiImpl implements PlayerApi {
                 this,
                 natsConnection,
                 options.getNetworkId(),
-                UUID.fromString(player.getId()),
+                UUID.fromString(Objects.requireNonNull(player.getId())),
                 player.getName(),
                 player.getDisplayName(),
                 player.getConnectedProxyName(),
@@ -550,33 +539,27 @@ public class PlayerApiImpl implements PlayerApi {
     }
 
     private PlayerProfile convertProfile(ModelsPlayerProfileResponse response) {
-        PlayerProfile result = new PlayerProfile();
-        result.setId(response.getId());
-        result.setPlayerId(UUID.fromString(response.getPlayerId()));
-        result.setName(response.getName());
-        result.setTexture(emptyToNull(response.getTexture()));
-        result.setCreatedAt(response.getCreatedAt());
-        return result;
+        return new PlayerProfile(
+                response.getId(),
+                UUID.fromString(Objects.requireNonNull(response.getPlayerId())),
+                response.getName(),
+                emptyToNull(response.getTexture()),
+                response.getCreatedAt());
     }
 
     private PlayerSession convertSession(
             ModelsPlayerSessionResponse response, @Nullable ModelsPlayerClientSettingsResponse settings) {
-        PlayerSession result = new PlayerSession();
-        result.setId(response.getId());
-        result.setNetworkId(response.getNetworkId());
-        result.setPlayerId(UUID.fromString(response.getPlayerId()));
-        result.setAddressHash(emptyToNull(response.getAddressHash()));
-        result.setClientVersion(response.getClientVersion() != null ? response.getClientVersion() : 0);
-        result.setOnlineMode(Boolean.TRUE.equals(response.getOnlineMode()));
-        result.setLoginTime(response.getLoginTime());
-        result.setLogoutTime(emptyToNull(response.getLogoutTime()));
-        if (response.getDurationSeconds() != null) {
-            result.setDurationSeconds(response.getDurationSeconds().longValue());
-        }
-        if (settings != null) {
-            result.setClientSettings(convertClientSettings(settings));
-        }
-        return result;
+        return new PlayerSession(
+                response.getId(),
+                response.getNetworkId(),
+                UUID.fromString(Objects.requireNonNull(response.getPlayerId())),
+                emptyToNull(response.getAddressHash()),
+                response.getClientVersion() != null ? response.getClientVersion() : 0,
+                Boolean.TRUE.equals(response.getOnlineMode()),
+                response.getLoginTime(),
+                emptyToNull(response.getLogoutTime()),
+                response.getDurationSeconds() != null ? response.getDurationSeconds().longValue() : null,
+                settings != null ? convertClientSettings(settings) : null);
     }
 
     private PlayerClientSettings convertClientSettings(ModelsPlayerClientSettingsResponse response) {
@@ -589,10 +572,6 @@ public class PlayerApiImpl implements PlayerApi {
         result.setClientListingAllowed(Boolean.TRUE.equals(response.getClientListingAllowed()));
         result.setSkinParts(response.getSkinParts());
         return result;
-    }
-
-    private static String emptyToNull(String value) {
-        return value == null || value.isEmpty() ? null : value;
     }
 
     private Map<String, String> fetchPlayerProperties(UUID uniqueId) throws ApiException {

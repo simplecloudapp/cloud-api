@@ -4,27 +4,28 @@ import app.simplecloud.api.group.GroupServerType;
 import org.jetbrains.annotations.Nullable;
 
 import java.util.ArrayList;
-import java.util.Arrays;
 import java.util.List;
+import java.util.Objects;
 
 /**
  * Filters and sorting for {@link ServerApi#getAllServers(ServerQuery)}.
  *
  * <p>Filter methods that take several values match any of them, and repeated calls add to the earlier values.
+ * Filter values must not be null.
  *
  * <p>The server group type, name and tag filters also match persistent servers with that type, name or tag.
  */
 public class ServerQuery {
     private List<String> serverGroupIds;
     private List<ServerState> states;
-    private String serverhostId;
-    private String persistentServerId;
+    private List<String> serverhostIds;
+    private List<String> persistentServerIds;
     private List<GroupServerType> serverGroupTypes;
     private List<String> serverGroupNames;
     private List<String> serverGroupTags;
     private List<Integer> numericalIds;
-    private String sortBy;
-    private String sortOrder;
+    private SortField sortBy;
+    private SortOrder sortOrder;
     private Integer limit;
     private Integer offset;
 
@@ -39,8 +40,8 @@ public class ServerQuery {
         ServerQuery copy = new ServerQuery();
         copy.serverGroupIds = copyList(serverGroupIds);
         copy.states = copyList(states);
-        copy.serverhostId = serverhostId;
-        copy.persistentServerId = persistentServerId;
+        copy.serverhostIds = copyList(serverhostIds);
+        copy.persistentServerIds = copyList(persistentServerIds);
         copy.serverGroupTypes = copyList(serverGroupTypes);
         copy.serverGroupNames = copyList(serverGroupNames);
         copy.serverGroupTags = copyList(serverGroupTags);
@@ -56,6 +57,15 @@ public class ServerQuery {
         return list == null ? null : new ArrayList<>(list);
     }
 
+    @SafeVarargs
+    private static <T> List<T> addAll(@Nullable List<T> target, String filter, T... values) {
+        List<T> result = target == null ? new ArrayList<>() : target;
+        for (T value : values) {
+            result.add(Objects.requireNonNull(value, filter + " must not contain null"));
+        }
+        return result;
+    }
+
     @Nullable
     public List<String> getServerGroupIds() {
         return serverGroupIds;
@@ -68,10 +78,7 @@ public class ServerQuery {
      * @return this query for chaining
      */
     public ServerQuery filterByServerGroupId(String... serverGroupIds) {
-        if (this.serverGroupIds == null) {
-            this.serverGroupIds = new ArrayList<>();
-        }
-        this.serverGroupIds.addAll(Arrays.asList(serverGroupIds));
+        this.serverGroupIds = addAll(this.serverGroupIds, "serverGroupIds", serverGroupIds);
         return this;
     }
 
@@ -85,44 +92,47 @@ public class ServerQuery {
      *
      * @param states the states to filter by (e.g., RUNNING, STARTING)
      * @return this query for chaining
+     * @throws IllegalArgumentException if a state is {@link ServerState#UNKNOWN_STATE}
      */
     public ServerQuery filterByState(ServerState... states) {
-        if (this.states == null) {
-            this.states = new ArrayList<>();
+        for (ServerState state : states) {
+            if (state == ServerState.UNKNOWN_STATE) {
+                throw new IllegalArgumentException("UNKNOWN_STATE cannot be used as a filter");
+            }
         }
-        this.states.addAll(Arrays.asList(states));
+        this.states = addAll(this.states, "states", states);
         return this;
     }
 
     @Nullable
-    public String getServerhostId() {
-        return serverhostId;
+    public List<String> getServerhostIds() {
+        return serverhostIds;
     }
 
     /**
-     * Filter by serverhost ID.
+     * Filter by one or more serverhost IDs.
      *
-     * @param serverhostId the serverhost ID to filter by
+     * @param serverhostIds the serverhost IDs to filter by
      * @return this query for chaining
      */
-    public ServerQuery filterByServerhostId(String serverhostId) {
-        this.serverhostId = serverhostId;
+    public ServerQuery filterByServerhostId(String... serverhostIds) {
+        this.serverhostIds = addAll(this.serverhostIds, "serverhostIds", serverhostIds);
         return this;
     }
 
     @Nullable
-    public String getPersistentServerId() {
-        return persistentServerId;
+    public List<String> getPersistentServerIds() {
+        return persistentServerIds;
     }
 
     /**
-     * Filter by persistent server ID.
+     * Filter by one or more persistent server IDs.
      *
-     * @param persistentServerId the persistent server ID to filter by
+     * @param persistentServerIds the persistent server IDs to filter by
      * @return this query for chaining
      */
-    public ServerQuery filterByPersistentServerId(String persistentServerId) {
-        this.persistentServerId = persistentServerId;
+    public ServerQuery filterByPersistentServerId(String... persistentServerIds) {
+        this.persistentServerIds = addAll(this.persistentServerIds, "persistentServerIds", persistentServerIds);
         return this;
     }
 
@@ -136,12 +146,15 @@ public class ServerQuery {
      *
      * @param types the server group types to filter by (e.g., SERVER, PROXY)
      * @return this query for chaining
+     * @throws IllegalArgumentException if a type is {@link GroupServerType#UNKNOWN_SERVER}
      */
     public ServerQuery filterByServerGroupType(GroupServerType... types) {
-        if (this.serverGroupTypes == null) {
-            this.serverGroupTypes = new ArrayList<>();
+        for (GroupServerType type : types) {
+            if (type == GroupServerType.UNKNOWN_SERVER) {
+                throw new IllegalArgumentException("UNKNOWN_SERVER cannot be used as a filter");
+            }
         }
-        this.serverGroupTypes.addAll(Arrays.asList(types));
+        this.serverGroupTypes = addAll(this.serverGroupTypes, "types", types);
         return this;
     }
 
@@ -157,10 +170,7 @@ public class ServerQuery {
      * @return this query for chaining
      */
     public ServerQuery filterByServerGroupName(String... names) {
-        if (this.serverGroupNames == null) {
-            this.serverGroupNames = new ArrayList<>();
-        }
-        this.serverGroupNames.addAll(Arrays.asList(names));
+        this.serverGroupNames = addAll(this.serverGroupNames, "names", names);
         return this;
     }
 
@@ -177,10 +187,7 @@ public class ServerQuery {
      * @return this query for chaining
      */
     public ServerQuery filterByServerGroupTags(String... tags) {
-        if (this.serverGroupTags == null) {
-            this.serverGroupTags = new ArrayList<>();
-        }
-        this.serverGroupTags.addAll(Arrays.asList(tags));
+        this.serverGroupTags = addAll(this.serverGroupTags, "tags", tags);
         return this;
     }
 
@@ -196,41 +203,38 @@ public class ServerQuery {
      * @return this query for chaining
      */
     public ServerQuery filterByNumericalId(Integer... numericalIds) {
-        if (this.numericalIds == null) {
-            this.numericalIds = new ArrayList<>();
-        }
-        this.numericalIds.addAll(Arrays.asList(numericalIds));
+        this.numericalIds = addAll(this.numericalIds, "numericalIds", numericalIds);
         return this;
     }
 
     @Nullable
-    public String getSortBy() {
+    public SortField getSortBy() {
         return sortBy;
     }
 
     /**
      * Set the field to sort by.
      *
-     * @param sortBy the field name (e.g., "created_at", "updated_at", "numerical_id", "state")
+     * @param sortBy the field to sort by
      * @return this query for chaining
      */
-    public ServerQuery sortBy(String sortBy) {
+    public ServerQuery sortBy(SortField sortBy) {
         this.sortBy = sortBy;
         return this;
     }
 
     @Nullable
-    public String getSortOrder() {
+    public SortOrder getSortOrder() {
         return sortOrder;
     }
 
     /**
-     * Set the sort order.
+     * Set the sort order. The controller sorts ascending if none is set.
      *
-     * @param sortOrder "asc" for ascending or "desc" for descending
+     * @param sortOrder the sort order
      * @return this query for chaining
      */
-    public ServerQuery sortOrder(String sortOrder) {
+    public ServerQuery sortOrder(SortOrder sortOrder) {
         this.sortOrder = sortOrder;
         return this;
     }
@@ -274,5 +278,37 @@ public class ServerQuery {
      */
     public static ServerQuery create() {
         return new ServerQuery();
+    }
+
+    public enum SortField {
+        CREATED_AT("created_at"),
+        UPDATED_AT("updated_at"),
+        NUMERICAL_ID("numerical_id"),
+        STATE("state");
+
+        private final String value;
+
+        SortField(String value) {
+            this.value = value;
+        }
+
+        public String getValue() {
+            return value;
+        }
+    }
+
+    public enum SortOrder {
+        ASC("asc"),
+        DESC("desc");
+
+        private final String value;
+
+        SortOrder(String value) {
+            this.value = value;
+        }
+
+        public String getValue() {
+            return value;
+        }
     }
 }

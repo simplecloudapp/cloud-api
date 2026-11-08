@@ -4,6 +4,7 @@ import app.simplecloud.api.group.GroupServerType;
 import app.simplecloud.api.group.ScalingConfig;
 
 import java.nio.charset.StandardCharsets;
+import java.util.Locale;
 import java.util.regex.Pattern;
 
 public final class ValidationUtil {
@@ -16,6 +17,10 @@ public final class ValidationUtil {
 
     public static boolean isUuid(String value) {
         return value != null && UUID_PATTERN.matcher(value).matches();
+    }
+
+    public static String normalizeUuid(String value) {
+        return value.toLowerCase(Locale.ROOT);
     }
 
     public static String requireNotBlank(String value, String name) {

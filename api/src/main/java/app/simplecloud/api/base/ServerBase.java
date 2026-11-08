@@ -87,7 +87,8 @@ public interface ServerBase {
     /**
      * Returns the type (SERVER or PROXY).
      *
-     * @return the server type
+     * @return the server type, or {@link GroupServerType#UNKNOWN_SERVER} if the controller sent none or one
+     *     this version doesn't know
      */
     GroupServerType getType();
 

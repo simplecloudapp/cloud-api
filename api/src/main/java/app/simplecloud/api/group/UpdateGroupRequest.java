@@ -8,8 +8,16 @@ import java.util.Map;
 /**
  * Request object for {@link GroupApi#updateGroup(String, UpdateGroupRequest)}.
  *
- * <p>Only fields that are set are changed. Nested configurations replace the stored ones as a whole,
- * and no create defaults are applied.
+ * <p>Only fields that are set are changed, and no create defaults are applied.
+ *
+ * <ul>
+ *   <li>{@code deployment}, {@code scaling} and {@code workflows} replace the stored configuration as a whole.
+ *   <li>{@code source} is merged: fields that are not set keep their stored value.
+ *   <li>{@code properties} are merged into the stored properties. To remove keys use
+ *       {@link GroupApi#deleteGroupProperties(String, java.util.List)}, to replace all of them use
+ *       {@link GroupApi#setGroupProperties(String, Map)}.
+ *   <li>{@code tags} replace the stored tags; an empty list removes all tags.
+ * </ul>
  */
 public class UpdateGroupRequest {
     private String name;

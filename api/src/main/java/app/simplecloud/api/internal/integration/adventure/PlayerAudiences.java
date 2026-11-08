@@ -14,11 +14,6 @@ public interface PlayerAudiences {
      */
     void runForPlayer(UUID playerId, PlayerAction action);
 
-    /**
-     * Runs the action once for every player on this server.
-     */
-    void runForAllPlayers(PlayerAction action);
-
     @FunctionalInterface
     interface PlayerAction {
 

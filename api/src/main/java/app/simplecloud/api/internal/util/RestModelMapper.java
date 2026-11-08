@@ -25,6 +25,7 @@ import app.simplecloud.api.web.models.ModelsScalingMode;
 import app.simplecloud.api.web.models.ModelsServerGroupSummary;
 import app.simplecloud.api.web.models.ModelsSourceConfig;
 import app.simplecloud.api.web.models.ModelsUpdateBlueprintResponse;
+import app.simplecloud.api.web.models.ModelsUpdatePersistentServerResponse;
 import app.simplecloud.api.web.models.ModelsUpdateServerGroupResponse;
 import app.simplecloud.api.web.models.ModelsWorkflowWhen;
 import app.simplecloud.api.web.models.ModelsWorkflowsConfig;
@@ -84,6 +85,27 @@ public final class RestModelMapper {
     }
 
     public static ModelsPersistentServerSummary toSummary(ModelsCreatePersistentServerResponse response) {
+        ModelsPersistentServerSummary summary = new ModelsPersistentServerSummary();
+        summary.setPersistentServerId(response.getPersistentServerId());
+        summary.setName(response.getName());
+        summary.setType(response.getType());
+        summary.setMinMemory(response.getMinMemory());
+        summary.setMaxMemory(response.getMaxMemory());
+        summary.setMaxPlayers(response.getMaxPlayers());
+        summary.setActive(response.getActive());
+        summary.setPriority(response.getPriority());
+        summary.setPlayerCount(response.getPlayerCount());
+        summary.setServerhostId(response.getServerhostId());
+        summary.setSource(response.getSource());
+        summary.setWorkflows(response.getWorkflows());
+        summary.setProperties(response.getProperties());
+        summary.setTags(response.getTags());
+        summary.setCreatedAt(response.getCreatedAt());
+        summary.setUpdatedAt(response.getUpdatedAt());
+        return summary;
+    }
+
+    public static ModelsPersistentServerSummary toSummary(ModelsUpdatePersistentServerResponse response) {
         ModelsPersistentServerSummary summary = new ModelsPersistentServerSummary();
         summary.setPersistentServerId(response.getPersistentServerId());
         summary.setName(response.getName());
@@ -181,8 +203,8 @@ public final class RestModelMapper {
 
     public static ModelsDeploymentHost toModel(DeploymentHost host) {
         ModelsDeploymentHost result = new ModelsDeploymentHost();
-        result.setName(host.getName());
-        result.setPriority(host.getPriority());
+        result.setName(host.name());
+        result.setPriority(host.priority());
         return result;
     }
 
@@ -219,12 +241,7 @@ public final class RestModelMapper {
         }
         if (config.getHosts() != null) {
             result.setHosts(config.getHosts().stream()
-                    .map(model -> {
-                        DeploymentHost host = new DeploymentHost();
-                        host.setName(model.getName());
-                        host.setPriority(orZero(model.getPriority()));
-                        return host;
-                    })
+                    .map(model -> new DeploymentHost(model.getName(), orZero(model.getPriority())))
                     .toArray(DeploymentHost[]::new));
         }
         return result;

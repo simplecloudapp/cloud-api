@@ -6,6 +6,7 @@ import app.simplecloud.api.group.CreateGroupRequest;
 import app.simplecloud.api.group.Group;
 import app.simplecloud.api.group.GroupApi;
 import app.simplecloud.api.group.GroupServerType;
+import app.simplecloud.api.group.ScalingConfig;
 import app.simplecloud.api.group.ScalingMode;
 import app.simplecloud.api.group.SourceConfig;
 import app.simplecloud.api.internal.ControllerServer;
@@ -22,6 +23,7 @@ import java.util.concurrent.CompletionException;
 
 import static org.junit.jupiter.api.Assertions.assertEquals;
 import static org.junit.jupiter.api.Assertions.assertInstanceOf;
+import static org.junit.jupiter.api.Assertions.assertNotNull;
 import static org.junit.jupiter.api.Assertions.assertThrows;
 import static org.junit.jupiter.api.Assertions.assertTrue;
 
@@ -57,10 +59,14 @@ class GroupApiImplTest {
 
         assertEquals(GROUP_ID, group.getServerGroupId());
         assertEquals(GroupServerType.SERVER, group.getType());
-        assertEquals(1, group.getScaling().getMinServers());
-        assertEquals(ScalingMode.SLOTS, group.getScaling().getScalingMode());
-        assertEquals(BLUEPRINT_ID, group.getSource().getBlueprint());
-        assertEquals("lobby", controller.takeRequest().getRequestUrl().queryParameter("name"));
+        ScalingConfig scaling = group.getScaling();
+        assertNotNull(scaling);
+        assertEquals(1, scaling.getMinServers());
+        assertEquals(ScalingMode.SLOTS, scaling.getScalingMode());
+        SourceConfig source = group.getSource();
+        assertNotNull(source);
+        assertEquals(BLUEPRINT_ID, source.getBlueprint());
+        assertEquals("lobby", ControllerServer.url(controller.takeRequest()).queryParameter("name"));
     }
 
     @Test
@@ -106,7 +112,7 @@ class GroupApiImplTest {
                 .join();
 
         RecordedRequest blueprintRequest = controller.takeRequest();
-        assertEquals("/v0/blueprints", blueprintRequest.getRequestUrl().encodedPath());
+        assertEquals("/v0/blueprints", ControllerServer.url(blueprintRequest).encodedPath());
         JsonObject blueprint = ControllerServer.body(blueprintRequest);
         assertEquals("lobby", blueprint.get("name").getAsString());
         assertEquals(
@@ -120,7 +126,7 @@ class GroupApiImplTest {
                         .getAsString());
 
         RecordedRequest groupRequest = controller.takeRequest();
-        assertEquals("/v0/server-groups", groupRequest.getRequestUrl().encodedPath());
+        assertEquals("/v0/server-groups", ControllerServer.url(groupRequest).encodedPath());
         JsonObject source = ControllerServer.body(groupRequest).getAsJsonObject("source");
         assertEquals(BLUEPRINT_ID, source.get("blueprint").getAsString());
     }
@@ -139,7 +145,7 @@ class GroupApiImplTest {
         controller.takeRequest();
         RecordedRequest delete = controller.takeRequest();
         assertEquals("DELETE", delete.getMethod());
-        assertEquals(BLUEPRINT_ID, delete.getRequestUrl().queryParameter("blueprint_id"));
+        assertEquals(BLUEPRINT_ID, ControllerServer.url(delete).queryParameter("blueprint_id"));
     }
 
     @Test
@@ -167,11 +173,11 @@ class GroupApiImplTest {
 
         assertEquals("GET", controller.takeRequest().getMethod());
         RecordedRequest deleteGroup = controller.takeRequest();
-        assertEquals("/v0/server-groups", deleteGroup.getRequestUrl().encodedPath());
+        assertEquals("/v0/server-groups", ControllerServer.url(deleteGroup).encodedPath());
         assertEquals("DELETE", deleteGroup.getMethod());
         RecordedRequest deleteBlueprint = controller.takeRequest();
-        assertEquals("/v0/blueprints", deleteBlueprint.getRequestUrl().encodedPath());
-        assertEquals(BLUEPRINT_ID, deleteBlueprint.getRequestUrl().queryParameter("blueprint_id"));
+        assertEquals("/v0/blueprints", ControllerServer.url(deleteBlueprint).encodedPath());
+        assertEquals(BLUEPRINT_ID, ControllerServer.url(deleteBlueprint).queryParameter("blueprint_id"));
     }
 
     @Test
@@ -181,7 +187,9 @@ class GroupApiImplTest {
         CloudApiException failure = failure(api.startRollingRestart(GROUP_ID));
 
         assertEquals(CloudApiException.Reason.INVALID_REQUEST, failure.getReason());
-        assertTrue(failure.getMessage().contains("rolling restart requires SLOTS scaling"));
+        String message = failure.getMessage();
+        assertNotNull(message);
+        assertTrue(message.contains("rolling restart requires SLOTS scaling"));
     }
 
     private static CreateBlueprintRequest paperBlueprint() {

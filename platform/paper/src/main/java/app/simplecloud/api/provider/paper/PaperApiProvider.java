@@ -5,7 +5,6 @@ import app.simplecloud.api.internal.CloudApiImpl;
 import app.simplecloud.api.internal.integration.adventure.AdventureIntegration;
 import app.simplecloud.api.platform.shared.PlayerSynchronizer;
 import app.simplecloud.api.platform.shared.player.OnlinePlayerTracker;
-import app.simplecloud.api.runtime.SimpleCloudRuntime;
 import org.bukkit.Bukkit;
 import org.bukkit.entity.Player;
 import org.bukkit.plugin.java.JavaPlugin;
@@ -20,11 +19,7 @@ public class PaperApiProvider extends JavaPlugin {
     public void onEnable() {
         this.cloudApi = (CloudApiImpl) CloudApi.create();
 
-        String serverId = SimpleCloudRuntime.serverId();
-        String groupName = SimpleCloudRuntime.groupName();
-
-        this.adventureIntegration = new AdventureIntegration(
-                cloudApi, new PaperPlayerAudiences(this), serverId, groupName.isBlank() ? serverId : groupName);
+        this.adventureIntegration = new AdventureIntegration(cloudApi, new PaperPlayerAudiences(this));
         adventureIntegration.start();
 
         this.initializePlayerSynchronizer();
@@ -52,7 +47,7 @@ public class PaperApiProvider extends JavaPlugin {
                 Bukkit.getOnlinePlayers().stream().map(Player::getUniqueId).toList());
         this.playerSynchronizer = new PlayerSynchronizer(cloudApi, onlinePlayerTracker);
         Bukkit.getPluginManager()
-                .registerEvents(new PlayerConnectionListener(onlinePlayerTracker, playerSynchronizer), this);
+                .registerEvents(new PlayerConnectionListener(onlinePlayerTracker, playerSynchronizer, adventureIntegration), this);
         playerSynchronizer.start();
         playerSynchronizer.updatePlayerCount();
     }

@@ -46,13 +46,6 @@ public final class QueryKey {
     }
 
     /**
-     * Returns the key parts.
-     */
-    public Object[] getParts() {
-        return parts.clone();
-    }
-
-    /**
      * Checks if this key matches or is a parent of the given key.
      * Used for invalidation patterns.
      *

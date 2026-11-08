@@ -1,9 +1,9 @@
 package app.simplecloud.api.internal.event.server;
 
 import app.simplecloud.api.event.server.ServerStartedEvent;
+import app.simplecloud.api.internal.event.ControllerEventModelMapper;
+import app.simplecloud.api.internal.util.ProtoConversionUtil;
 import app.simplecloud.api.server.Server;
-
-import java.time.Instant;
 
 class ServerStartedEventImpl implements ServerStartedEvent {
     private final build.buf.gen.simplecloud.controller.v2.ServerStartedEvent delegate;
@@ -34,7 +34,7 @@ class ServerStartedEventImpl implements ServerStartedEvent {
             if (!delegate.hasConfig() && !delegate.hasGroupConfig() && !delegate.hasPersistentServerConfig()) {
                 throw new IllegalStateException("Server data is not available in ServerStartedEvent");
             }
-            server = ServerEventModelMapper.mapServer(
+            server = ControllerEventModelMapper.mapServer(
                     delegate.getNetworkId(),
                     delegate.getServerId(),
                     delegate.getServerGroupId(),
@@ -51,6 +51,6 @@ class ServerStartedEventImpl implements ServerStartedEvent {
 
     @Override
     public String getTimestamp() {
-        return Instant.ofEpochSecond(delegate.getTimestamp()).toString();
+        return ProtoConversionUtil.epochSecondsToIso(delegate.getTimestamp());
     }
 }

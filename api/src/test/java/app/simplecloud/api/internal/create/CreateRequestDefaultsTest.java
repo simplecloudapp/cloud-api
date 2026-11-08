@@ -6,6 +6,7 @@ import app.simplecloud.api.blueprint.RuntimeType;
 import app.simplecloud.api.group.ScaleDownConfig;
 import app.simplecloud.api.group.ScalingConfig;
 import app.simplecloud.api.group.ScalingMode;
+import app.simplecloud.api.group.WorkflowWhen;
 import app.simplecloud.api.group.WorkflowsConfig;
 import org.junit.jupiter.api.Test;
 
@@ -14,6 +15,7 @@ import java.util.Map;
 
 import static org.junit.jupiter.api.Assertions.assertEquals;
 import static org.junit.jupiter.api.Assertions.assertFalse;
+import static org.junit.jupiter.api.Assertions.assertNotNull;
 import static org.junit.jupiter.api.Assertions.assertNull;
 import static org.junit.jupiter.api.Assertions.assertThrows;
 import static org.junit.jupiter.api.Assertions.assertTrue;
@@ -30,8 +32,10 @@ class CreateRequestDefaultsTest {
         assertEquals(1, scaling.getMaxServers());
         assertEquals(0.75, scaling.getPlayerThreshold());
         assertEquals(ScalingMode.SLOTS, scaling.getScalingMode());
-        assertEquals("3m", scaling.getScaleDown().getIdleTime());
-        assertTrue(scaling.getScaleDown().isIgnorePlayers());
+        ScaleDownConfig scaleDown = scaling.getScaleDown();
+        assertNotNull(scaleDown);
+        assertEquals("3m", scaleDown.getIdleTime());
+        assertTrue(scaleDown.isIgnorePlayers());
     }
 
     @Test
@@ -48,8 +52,10 @@ class CreateRequestDefaultsTest {
         assertEquals(5, scaling.getMaxServers());
         assertEquals(0.5, scaling.getPlayerThreshold());
         assertEquals(ScalingMode.SERVERS, scaling.getScalingMode());
-        assertFalse(scaling.getScaleDown().isIgnorePlayers());
-        assertEquals("3m", scaling.getScaleDown().getIdleTime());
+        ScaleDownConfig scaleDown = scaling.getScaleDown();
+        assertNotNull(scaleDown);
+        assertFalse(scaleDown.isIgnorePlayers());
+        assertEquals("3m", scaleDown.getIdleTime());
     }
 
     @Test
@@ -77,8 +83,10 @@ class CreateRequestDefaultsTest {
                 WorkflowsConfig.builder().manual(List.of("custom/backup")).build());
 
         assertEquals(List.of("custom/backup"), workflows.getManual());
-        assertEquals(List.of("internal/setup"), workflows.getWhen().getStart());
-        assertEquals(List.of("internal/cleanup"), workflows.getWhen().getStop());
+        WorkflowWhen when = workflows.getWhen();
+        assertNotNull(when);
+        assertEquals(List.of("internal/setup"), when.getStart());
+        assertEquals(List.of("internal/cleanup"), when.getStop());
     }
 
     @Test
@@ -93,9 +101,12 @@ class CreateRequestDefaultsTest {
                 defaults.defaultWorkflows(null));
 
         RuntimeConfig runtime = blueprint.getRuntimeConfig();
+        assertNotNull(runtime);
         assertEquals(RuntimeType.JAVA, runtime.getType());
-        assertEquals("17", runtime.getWith().get("version"));
-        assertEquals(List.of("nogui"), runtime.getWith().get("args"));
+        Map<String, Object> with = runtime.getWith();
+        assertNotNull(with);
+        assertEquals("17", with.get("version"));
+        assertEquals(List.of("nogui"), with.get("args"));
         assertEquals(List.of("internal/setup"), blueprint.getWorkflowSteps());
     }
 

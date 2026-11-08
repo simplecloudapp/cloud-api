@@ -1,45 +1,30 @@
 package app.simplecloud.api.internal.util;
 
 import app.simplecloud.api.server.ServerState;
+import org.jetbrains.annotations.Nullable;
+
+import java.time.Instant;
 
 /**
- * Utility class for converting protobuf enums to API models.
+ * Utility class for converting protobuf values to API models.
  */
 public final class ProtoConversionUtil {
 
     private ProtoConversionUtil() {}
 
-    public static String convertServerStateToString(build.buf.gen.simplecloud.controller.v2.ServerState protoState) {
-        if (protoState == null) {
-            return null;
-        }
-
-        String name = protoState.name();
-        if (name == null || name.isEmpty() || name.equals("UNRECOGNIZED") || name.endsWith("_UNSPECIFIED")) {
-            return null;
-        }
-
-        if (name.startsWith("SERVER_STATE_")) {
-            return name.substring("SERVER_STATE_".length());
-        }
-
-        return name;
+    @Nullable
+    public static String convertServerStateToString(
+            @Nullable build.buf.gen.simplecloud.controller.v2.ServerState protoState) {
+        return enumName(protoState, "SERVER_STATE_");
     }
 
-    public static ServerState convertServerState(build.buf.gen.simplecloud.controller.v2.ServerState protoState) {
-        if (protoState == null) {
+    @Nullable
+    public static ServerState convertServerState(
+            @Nullable build.buf.gen.simplecloud.controller.v2.ServerState protoState) {
+        String name = convertServerStateToString(protoState);
+        if (name == null) {
             return null;
         }
-
-        String name = protoState.name();
-        if (name == null || name.isEmpty() || name.equals("UNRECOGNIZED")) {
-            return null;
-        }
-
-        if (name.startsWith("SERVER_STATE_")) {
-            name = name.substring("SERVER_STATE_".length());
-        }
-
         try {
             return ServerState.valueOf(name);
         } catch (IllegalArgumentException e) {
@@ -47,45 +32,51 @@ public final class ProtoConversionUtil {
         }
     }
 
-    public static String convertServerTypeToString(build.buf.gen.simplecloud.controller.v2.ServerType protoType) {
-        if (protoType == null) {
-            return null;
-        }
-
-        String name = protoType.name();
-        if (name == null || name.isEmpty() || name.equals("UNRECOGNIZED")) {
-            return null;
-        }
-
-        if (name.startsWith("SERVER_TYPE_")) {
-            return name.substring("SERVER_TYPE_".length());
-        }
-
-        return name;
+    @Nullable
+    public static String convertServerTypeToString(
+            @Nullable build.buf.gen.simplecloud.controller.v2.ServerType protoType) {
+        return enumName(protoType, "SERVER_TYPE_");
     }
 
-    public static String convertChatModeToString(build.buf.gen.simplecloud.player.v2.ChatMode protoChatMode) {
-        return convertPlayerEnumToString(protoChatMode, "CHAT_MODE_");
+    @Nullable
+    public static String convertChatModeToString(
+            @Nullable build.buf.gen.simplecloud.player.v2.ChatMode protoChatMode) {
+        return enumName(protoChatMode, "CHAT_MODE_");
     }
 
-    public static String convertMainHandToString(build.buf.gen.simplecloud.player.v2.MainHand protoMainHand) {
-        return convertPlayerEnumToString(protoMainHand, "MAIN_HAND_");
+    @Nullable
+    public static String convertMainHandToString(
+            @Nullable build.buf.gen.simplecloud.player.v2.MainHand protoMainHand) {
+        return enumName(protoMainHand, "MAIN_HAND_");
     }
 
-    private static String convertPlayerEnumToString(Enum<?> protoEnum, String prefix) {
+    public static String epochSecondsToIso(long epochSeconds) {
+        return Instant.ofEpochSecond(epochSeconds).toString();
+    }
+
+    public static String epochMillisToIso(long epochMillis) {
+        return Instant.ofEpochMilli(epochMillis).toString();
+    }
+
+    @Nullable
+    public static String optionalEpochMillisToIso(long epochMillis) {
+        return epochMillis > 0 ? epochMillisToIso(epochMillis) : null;
+    }
+
+    @Nullable
+    public static String emptyToNull(@Nullable String value) {
+        return value == null || value.isEmpty() ? null : value;
+    }
+
+    @Nullable
+    public static String enumName(@Nullable Enum<?> protoEnum, String prefix) {
         if (protoEnum == null) {
             return null;
         }
-
         String name = protoEnum.name();
         if (name.isEmpty() || name.equals("UNRECOGNIZED") || name.endsWith("_UNSPECIFIED")) {
             return null;
         }
-
-        if (name.startsWith(prefix)) {
-            return name.substring(prefix.length());
-        }
-
-        return name;
+        return name.startsWith(prefix) ? name.substring(prefix.length()) : name;
     }
 }

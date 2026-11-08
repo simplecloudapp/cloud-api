@@ -1,11 +1,11 @@
 package app.simplecloud.api.internal.event.player;
 
 import app.simplecloud.api.event.player.PlayerServerSwitchEvent;
+import app.simplecloud.api.internal.util.ProtoConversionUtil;
 import app.simplecloud.api.player.CloudPlayer;
 import app.simplecloud.api.player.PlayerApi;
 import io.nats.client.Connection;
 
-import java.time.Instant;
 import java.util.UUID;
 
 class PlayerServerSwitchEventImpl implements PlayerServerSwitchEvent {
@@ -35,12 +35,12 @@ class PlayerServerSwitchEventImpl implements PlayerServerSwitchEvent {
 
     @Override
     public String getTimestamp() {
-        return Instant.ofEpochMilli(delegate.getTimestamp()).toString();
+        return ProtoConversionUtil.epochMillisToIso(delegate.getTimestamp());
     }
 
     @Override
     public String getPreviousServerName() {
-        return PlayerEventModelMapper.emptyToNull(delegate.getPreviousServerId());
+        return ProtoConversionUtil.emptyToNull(delegate.getPreviousServerId());
     }
 
     @Override

@@ -5,6 +5,7 @@ import app.simplecloud.api.blueprint.Blueprint;
 import app.simplecloud.api.blueprint.BlueprintApi;
 import app.simplecloud.api.blueprint.CreateBlueprintRequest;
 import app.simplecloud.api.blueprint.UpdateBlueprintRequest;
+import app.simplecloud.api.cache.EntityType;
 import app.simplecloud.api.cache.QueryCache;
 import app.simplecloud.api.cache.QueryKey;
 import app.simplecloud.api.internal.util.RestModelMapper;
@@ -27,7 +28,7 @@ public class BlueprintApiImpl implements BlueprintApi {
 
     private final CloudApiOptions options;
     private final BlueprintsApi blueprintsApi;
-    private final InlineBlueprintSupport inlineBlueprintSupport;
+    private final BlueprintProvisioner blueprintProvisioner;
     private final QueryCache cache;
     private final Executor executor;
 
@@ -35,7 +36,7 @@ public class BlueprintApiImpl implements BlueprintApi {
         this.options = options;
         this.cache = cache;
         this.blueprintsApi = new BlueprintsApi(httpClient);
-        this.inlineBlueprintSupport = new InlineBlueprintSupport(options, blueprintsApi);
+        this.blueprintProvisioner = new BlueprintProvisioner(options, cache, blueprintsApi);
         this.executor = executor;
     }
 
@@ -47,7 +48,7 @@ public class BlueprintApiImpl implements BlueprintApi {
                     List<ModelsBlueprintSummary> blueprints =
                             blueprintsApi.listBlueprints(options.getNetworkId()).getBlueprints();
                     return blueprints == null
-                            ? List.<Blueprint>of()
+                            ? List.of()
                             : blueprints.stream()
                                     .<Blueprint>map(BlueprintImpl::new)
                                     .toList();
@@ -63,7 +64,7 @@ public class BlueprintApiImpl implements BlueprintApi {
 
     @Override
     public CompletableFuture<Optional<Blueprint>> findBlueprintById(String id) {
-        return findFirst(blueprint -> Objects.equals(id, blueprint.getBlueprintId()));
+        return findFirst(blueprint -> id != null && id.equalsIgnoreCase(blueprint.getBlueprintId()));
     }
 
     @Override
@@ -83,10 +84,7 @@ public class BlueprintApiImpl implements BlueprintApi {
         return ApiCalls.supplyAsync(executor, () -> {
             Objects.requireNonNull(name, "name");
             Objects.requireNonNull(request, "request");
-            Blueprint blueprint =
-                    new BlueprintImpl(RestModelMapper.toSummary(inlineBlueprintSupport.create(name, request)));
-            cache.invalidateAll(ALL_BLUEPRINTS);
-            return blueprint;
+            return new BlueprintImpl(RestModelMapper.toSummary(blueprintProvisioner.create(name, request)));
         });
     }
 
@@ -106,7 +104,8 @@ public class BlueprintApiImpl implements BlueprintApi {
             }
             Blueprint blueprint = new BlueprintImpl(
                     RestModelMapper.toSummary(blueprintsApi.patchBlueprint(options.getNetworkId(), id, apiRequest)));
-            cache.invalidateAll(ALL_BLUEPRINTS);
+            blueprintProvisioner.invalidateBlueprints();
+            cache.invalidateByType(EntityType.SERVER);
             return blueprint;
         });
     }
@@ -115,7 +114,7 @@ public class BlueprintApiImpl implements BlueprintApi {
     public CompletableFuture<Void> deleteBlueprint(String id) {
         return ApiCalls.runAsync(executor, () -> {
             blueprintsApi.deleteBlueprint(options.getNetworkId(), id);
-            cache.invalidateAll(ALL_BLUEPRINTS);
+            blueprintProvisioner.invalidateBlueprints();
         });
     }
 

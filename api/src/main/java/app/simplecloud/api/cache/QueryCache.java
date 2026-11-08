@@ -35,7 +35,7 @@ public interface QueryCache {
      * @param key the query key
      * @param fetcher the function to fetch fresh data from the network
      * @param <T> the data type
-     * @return a CompletableFuture with the data (from cache or network)
+     * @return a future with the data (from cache or network)
      */
     <T> CompletableFuture<T> fetch(QueryKey key, Supplier<CompletableFuture<T>> fetcher);
 
@@ -52,7 +52,7 @@ public interface QueryCache {
      * @param retryDelay delay between retries
      * @param maxRetries maximum number of direct retries after the initial fetch
      * @param <T> the data type
-     * @return a CompletableFuture with the resolved data
+     * @return a future with the resolved data
      */
     default <T> CompletableFuture<T> fetchWithTransientMissRecovery(
             QueryKey key,

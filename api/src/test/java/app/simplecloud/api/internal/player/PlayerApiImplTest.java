@@ -66,8 +66,8 @@ class PlayerApiImplTest {
         assertEquals(Map.of("rank", "admin"), player.getProperties());
 
         RecordedRequest request = controller.takeRequest();
-        assertEquals("/v0/players/id", request.getRequestUrl().encodedPath());
-        assertEquals(PLAYER_ID.toString(), request.getRequestUrl().queryParameter("player_id"));
+        assertEquals("/v0/players/id", ControllerServer.url(request).encodedPath());
+        assertEquals(PLAYER_ID.toString(), ControllerServer.url(request).queryParameter("player_id"));
         assertEquals(ControllerServer.NETWORK_ID, request.getHeader("X-Network-ID"));
     }
 
@@ -107,7 +107,7 @@ class PlayerApiImplTest {
                 .join();
 
         assertEquals(1, players.size());
-        HttpUrl url = controller.takeRequest().getRequestUrl();
+        HttpUrl url = ControllerServer.url(controller.takeRequest());
         assertEquals("true", url.queryParameter("online"));
         assertEquals("ste", url.queryParameter("search"));
         assertEquals("online_time_seconds", url.queryParameter("sort_by"));
@@ -124,7 +124,7 @@ class PlayerApiImplTest {
                 api.connect(PLAYER_ID, "lobby-1").join());
 
         RecordedRequest request = controller.takeRequest();
-        assertEquals("/v0/players/connect", request.getRequestUrl().encodedPath());
+        assertEquals("/v0/players/connect", ControllerServer.url(request).encodedPath());
         assertEquals(
                 "lobby-1", ControllerServer.body(request).get("server_name").getAsString());
     }

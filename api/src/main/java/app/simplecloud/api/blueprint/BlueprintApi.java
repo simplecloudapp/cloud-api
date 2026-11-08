@@ -14,7 +14,7 @@ public interface BlueprintApi {
     /**
      * Retrieves all blueprints of the network.
      *
-     * @return a CompletableFuture that completes with all blueprints
+     * @return a future that completes with all blueprints
      */
     CompletableFuture<List<Blueprint>> getAllBlueprints();
 
@@ -22,7 +22,7 @@ public interface BlueprintApi {
      * Retrieves a blueprint by its ID.
      *
      * @param id the blueprint ID
-     * @return a CompletableFuture that completes with the blueprint, or fails with a
+     * @return a future that completes with the blueprint, or fails with a
      * {@link CloudApiException} ({@link CloudApiException.Reason#NOT_FOUND}) if it does not exist
      */
     CompletableFuture<Blueprint> getBlueprintById(String id);
@@ -31,7 +31,7 @@ public interface BlueprintApi {
      * Finds a blueprint by its ID.
      *
      * @param id the blueprint ID
-     * @return a CompletableFuture that completes with the blueprint, or an empty Optional if it does not exist
+     * @return a future that completes with the blueprint, or an empty Optional if it does not exist
      */
     CompletableFuture<Optional<Blueprint>> findBlueprintById(String id);
 
@@ -39,7 +39,7 @@ public interface BlueprintApi {
      * Retrieves a blueprint by its name.
      *
      * @param name the blueprint name
-     * @return a CompletableFuture that completes with the blueprint, or fails with a
+     * @return a future that completes with the blueprint, or fails with a
      * {@link CloudApiException} ({@link CloudApiException.Reason#NOT_FOUND}) if it does not exist
      */
     CompletableFuture<Blueprint> getBlueprintByName(String name);
@@ -48,7 +48,7 @@ public interface BlueprintApi {
      * Finds a blueprint by its name.
      *
      * @param name the blueprint name
-     * @return a CompletableFuture that completes with the blueprint, or an empty Optional if it does not exist
+     * @return a future that completes with the blueprint, or an empty Optional if it does not exist
      */
     CompletableFuture<Optional<Blueprint>> findBlueprintByName(String name);
 
@@ -60,7 +60,7 @@ public interface BlueprintApi {
      *
      * @param name the name of the new blueprint
      * @param request the blueprint configuration
-     * @return a CompletableFuture that completes with the created blueprint
+     * @return a future that completes with the created blueprint
      */
     CompletableFuture<Blueprint> createBlueprint(String name, CreateBlueprintRequest request);
 
@@ -69,7 +69,7 @@ public interface BlueprintApi {
      *
      * @param id the blueprint ID
      * @param request the fields to change
-     * @return a CompletableFuture that completes with the updated blueprint
+     * @return a future that completes with the updated blueprint
      */
     CompletableFuture<Blueprint> updateBlueprint(String id, UpdateBlueprintRequest request);
 
@@ -80,7 +80,7 @@ public interface BlueprintApi {
      * future then fails with {@link CloudApiException.Reason#CONFLICT}.
      *
      * @param id the blueprint ID
-     * @return a CompletableFuture that completes when the blueprint is deleted
+     * @return a future that completes when the blueprint is deleted
      */
     CompletableFuture<Void> deleteBlueprint(String id);
 }

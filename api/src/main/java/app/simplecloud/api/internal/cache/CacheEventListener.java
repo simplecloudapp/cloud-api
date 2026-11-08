@@ -56,6 +56,11 @@ public class CacheEventListener {
         scheduleFlush();
     }
 
+    private void scheduleServerInvalidation() {
+        schedulePatternInvalidation(QueryKey.of("servers"));
+        schedulePatternInvalidation(QueryKey.of("server"));
+    }
+
     private void scheduleGroupStatsInvalidation() {
         schedulePatternInvalidation(QueryKey.of("groups"));
         schedulePatternInvalidation(QueryKey.of("group"));
@@ -130,12 +135,14 @@ public class CacheEventListener {
         }));
 
         subscriptions.add(eventApi.group().onUpdated(event -> {
+            scheduleServerInvalidation();
             scheduleInvalidation(QueryKey.of("group", event.getServerGroupId()));
             schedulePatternInvalidation(QueryKey.of("groups"));
             schedulePatternInvalidation(QueryKey.of("group", "name"));
         }));
 
         subscriptions.add(eventApi.group().onDeleted(event -> {
+            scheduleServerInvalidation();
             scheduleInvalidation(QueryKey.of("group", event.getServerGroupId()));
             schedulePatternInvalidation(QueryKey.of("groups"));
             schedulePatternInvalidation(QueryKey.of("group", "name"));
@@ -160,12 +167,14 @@ public class CacheEventListener {
         }));
 
         subscriptions.add(eventApi.persistentServer().onUpdated(event -> {
+            scheduleServerInvalidation();
             scheduleInvalidation(QueryKey.of("persistentServer", event.getPersistentServerId()));
             schedulePatternInvalidation(QueryKey.of("persistentServers"));
             schedulePatternInvalidation(QueryKey.of("persistentServer", "name"));
         }));
 
         subscriptions.add(eventApi.persistentServer().onDeleted(event -> {
+            scheduleServerInvalidation();
             scheduleInvalidation(QueryKey.of("persistentServer", event.getPersistentServerId()));
             schedulePatternInvalidation(QueryKey.of("persistentServers"));
             schedulePatternInvalidation(QueryKey.of("persistentServer", "name"));
@@ -173,8 +182,14 @@ public class CacheEventListener {
 
         // Blueprint events
         subscriptions.add(eventApi.blueprint().onCreated(event -> scheduleBlueprintInvalidation()));
-        subscriptions.add(eventApi.blueprint().onUpdated(event -> scheduleBlueprintInvalidation()));
-        subscriptions.add(eventApi.blueprint().onDeleted(event -> scheduleBlueprintInvalidation()));
+        subscriptions.add(eventApi.blueprint().onUpdated(event -> {
+            scheduleBlueprintInvalidation();
+            scheduleServerInvalidation();
+        }));
+        subscriptions.add(eventApi.blueprint().onDeleted(event -> {
+            scheduleBlueprintInvalidation();
+            scheduleServerInvalidation();
+        }));
     }
 
     private void scheduleBlueprintInvalidation() {

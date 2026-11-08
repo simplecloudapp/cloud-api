@@ -1,9 +1,8 @@
 package app.simplecloud.api.internal.event.persistentserver;
 
 import app.simplecloud.api.event.persistentserver.PersistentServerDeletedEvent;
+import app.simplecloud.api.internal.util.ProtoConversionUtil;
 import org.jetbrains.annotations.Nullable;
-
-import java.time.Instant;
 
 class PersistentServerDeletedEventImpl implements PersistentServerDeletedEvent {
     private final build.buf.gen.simplecloud.controller.v2.PersistentServerDeletedEvent delegate;
@@ -31,6 +30,6 @@ class PersistentServerDeletedEventImpl implements PersistentServerDeletedEvent {
 
     @Override
     public String getTimestamp() {
-        return Instant.ofEpochSecond(delegate.getTimestamp()).toString();
+        return ProtoConversionUtil.epochSecondsToIso(delegate.getTimestamp());
     }
 }

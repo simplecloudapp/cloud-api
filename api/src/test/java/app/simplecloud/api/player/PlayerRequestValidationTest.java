@@ -2,9 +2,11 @@ package app.simplecloud.api.player;
 
 import org.junit.jupiter.api.Test;
 
+import java.util.List;
 import java.util.UUID;
 
 import static org.junit.jupiter.api.Assertions.assertEquals;
+import static org.junit.jupiter.api.Assertions.assertNotNull;
 import static org.junit.jupiter.api.Assertions.assertThrows;
 
 class PlayerRequestValidationTest {
@@ -31,8 +33,12 @@ class PlayerRequestValidationTest {
 
         copy.filterByPlayerId(UUID.randomUUID());
 
-        assertEquals(1, original.getPlayerIds().size());
-        assertEquals(2, copy.getPlayerIds().size());
+        List<UUID> originalIds = original.getPlayerIds();
+        List<UUID> copyIds = copy.getPlayerIds();
+        assertNotNull(originalIds);
+        assertNotNull(copyIds);
+        assertEquals(1, originalIds.size());
+        assertEquals(2, copyIds.size());
     }
 
     @Test

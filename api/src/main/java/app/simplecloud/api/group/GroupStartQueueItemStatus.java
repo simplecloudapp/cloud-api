@@ -2,6 +2,8 @@ package app.simplecloud.api.group;
 
 import org.jetbrains.annotations.Nullable;
 
+import java.util.Locale;
+
 /**
  * Status of one persisted manual server-start queue item.
  */
@@ -31,7 +33,7 @@ public enum GroupStartQueueItemStatus {
         if (value == null || value.isBlank()) {
             return UNKNOWN;
         }
-        return switch (value.toLowerCase()) {
+        return switch (value.toLowerCase(Locale.ROOT)) {
             case "pending" -> PENDING;
             case "failed" -> FAILED;
             default -> UNKNOWN;

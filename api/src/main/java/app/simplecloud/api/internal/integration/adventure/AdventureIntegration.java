@@ -26,7 +26,6 @@ import build.buf.gen.simplecloud.adventure.v1.TitleTimes;
 import io.nats.client.Connection;
 import io.nats.client.Dispatcher;
 import io.nats.client.Message;
-import io.nats.client.MessageHandler;
 import net.kyori.adventure.bossbar.BossBar;
 import net.kyori.adventure.inventory.Book;
 import net.kyori.adventure.key.Key;
@@ -36,6 +35,7 @@ import net.kyori.adventure.text.Component;
 import net.kyori.adventure.text.serializer.gson.GsonComponentSerializer;
 import net.kyori.adventure.title.Title;
 import net.kyori.adventure.title.TitlePart;
+import org.intellij.lang.annotations.Subst;
 
 import java.time.Duration;
 import java.util.List;
@@ -69,62 +69,29 @@ public class AdventureIntegration {
     private final Connection natsConnection;
     private final String networkId;
     private final PlayerAudiences playerAudiences;
-    private final String serverId;
-    private final String groupName;
 
     private final AtomicBoolean running = new AtomicBoolean(false);
     private final Map<String, Map<UUID, BossBar>> activeBossBars = new ConcurrentHashMap<>();
 
     private Dispatcher dispatcher;
 
-    /**
-     * Creates an integration for actions sent to a player on this server, to this server, or to its group.
-     */
-    public AdventureIntegration(
-            CloudApiImpl cloudApi, PlayerAudiences playerAudiences, String serverId, String groupName) {
-        this(cloudApi.getNatsConnection(), cloudApi.getNetworkId(), playerAudiences, serverId, groupName);
-    }
-
-    AdventureIntegration(
-            Connection natsConnection,
-            String networkId,
-            PlayerAudiences playerAudiences,
-            String serverId,
-            String groupName) {
-        this.natsConnection = natsConnection;
-        this.networkId = networkId;
+    public AdventureIntegration(CloudApiImpl cloudApi, PlayerAudiences playerAudiences) {
+        this.natsConnection = cloudApi.getNatsConnection();
+        this.networkId = cloudApi.getNetworkId();
         this.playerAudiences = playerAudiences;
-        this.serverId = serverId;
-        this.groupName = groupName;
     }
 
-    /**
-     * Starts listening for adventure actions.
-     */
     public void start() {
         if (!running.compareAndSet(false, true)) return;
 
         dispatcher = natsConnection.createDispatcher(null);
 
         String playerPrefix = networkId + ".adventure.player.*.";
-        subscribeActions(playerPrefix, this::handlePlayerMessage);
-
-        String serverPrefix = networkId + ".adventure.server." + serverId + ".";
-        subscribeActions(serverPrefix, this::handleBroadcastMessage);
-
-        String groupPrefix = networkId + ".adventure.group." + groupName + ".";
-        subscribeActions(groupPrefix, this::handleBroadcastMessage);
-    }
-
-    private void subscribeActions(String prefix, MessageHandler handler) {
         for (String action : ACTIONS) {
-            dispatcher.subscribe(prefix + action, handler);
+            dispatcher.subscribe(playerPrefix + action, this::handlePlayerMessage);
         }
     }
 
-    /**
-     * Stops listening for adventure actions.
-     */
     public void stop() {
         if (!running.compareAndSet(true, false)) return;
 
@@ -138,6 +105,11 @@ public class AdventureIntegration {
         activeBossBars.clear();
     }
 
+    public void forgetPlayer(UUID playerId) {
+        activeBossBars.values().forEach(perPlayerBossBars -> perPlayerBossBars.remove(playerId));
+        activeBossBars.values().removeIf(Map::isEmpty);
+    }
+
     private void handlePlayerMessage(Message msg) {
         UUID playerId = extractPlayerId(msg.getSubject());
         if (playerId == null) return;
@@ -145,19 +117,10 @@ public class AdventureIntegration {
         PlayerAction action = prepareAction(extractAction(msg.getSubject()), msg);
         if (action == null) return;
 
-        // Every server receives player actions; only the server holding the player runs them.
         playerAudiences.runForPlayer(playerId, action);
     }
 
-    private void handleBroadcastMessage(Message msg) {
-        PlayerAction action = prepareAction(extractAction(msg.getSubject()), msg);
-        if (action == null) return;
-
-        playerAudiences.runForAllPlayers(action);
-    }
-
     private UUID extractPlayerId(String subject) {
-        // Subject pattern: {networkId}.adventure.player.{uuid}.{action}
         String[] parts = subject.split("\\.");
         if (parts.length < 2) return null;
         try {
@@ -293,9 +256,13 @@ public class AdventureIntegration {
         return GsonComponentSerializer.gson().deserialize(component.getJson());
     }
 
+    private static Key soundKey(@Subst("ui.button.click") String sound) {
+        return Key.key(sound);
+    }
+
     private Sound convertSound(AdventureSound protoSound) {
         return Sound.sound(
-                Key.key(protoSound.getSound()),
+                soundKey(protoSound.getSound()),
                 convertSoundSource(protoSound.getSource()),
                 protoSound.getVolume(),
                 protoSound.getPitch());
@@ -303,7 +270,7 @@ public class AdventureIntegration {
 
     private SoundStop convertSoundStop(SendStopSoundRequest request) {
         if (request.hasSound()) {
-            return SoundStop.named(Key.key(request.getSound()));
+            return SoundStop.named(soundKey(request.getSound()));
         }
         if (request.hasSource()) {
             return SoundStop.source(convertSoundSource(request.getSource()));

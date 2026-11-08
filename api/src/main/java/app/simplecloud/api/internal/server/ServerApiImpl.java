@@ -8,9 +8,11 @@ import app.simplecloud.api.internal.util.ValidationUtil;
 import app.simplecloud.api.internal.web.ApiCalls;
 import app.simplecloud.api.internal.web.ApiExceptions;
 import app.simplecloud.api.internal.workflow.WorkflowResults;
+import app.simplecloud.api.runtime.SimpleCloudRuntime;
 import app.simplecloud.api.server.Server;
 import app.simplecloud.api.server.ServerApi;
 import app.simplecloud.api.server.ServerQuery;
+import app.simplecloud.api.server.ServerState;
 import app.simplecloud.api.server.UpdateServerRequest;
 import app.simplecloud.api.web.ApiClient;
 import app.simplecloud.api.web.ApiException;
@@ -22,6 +24,7 @@ import app.simplecloud.api.web.models.ModelsPatchServerRequest;
 import app.simplecloud.api.web.models.ModelsPatchServerResponse;
 import app.simplecloud.api.web.models.ModelsSendCommandRequest;
 import app.simplecloud.api.web.models.ModelsServerSummary;
+import app.simplecloud.api.web.models.ModelsUpdatePropertiesRequest;
 import app.simplecloud.api.workflow.WorkflowExecutionResult;
 import org.jetbrains.annotations.NotNull;
 import org.jetbrains.annotations.Nullable;
@@ -29,18 +32,16 @@ import org.jetbrains.annotations.Nullable;
 import java.time.Duration;
 import java.util.HashMap;
 import java.util.List;
-import java.util.Locale;
 import java.util.Map;
 import java.util.Objects;
 import java.util.Optional;
 import java.util.concurrent.CompletableFuture;
 import java.util.concurrent.Executor;
-import java.util.logging.Logger;
 
+import static app.simplecloud.api.internal.util.QueryParams.joinOrNull;
 import static app.simplecloud.api.internal.util.ValidationUtil.requireNotBlank;
 
 public class ServerApiImpl implements ServerApi {
-    private static final Logger LOGGER = Logger.getLogger(ServerApiImpl.class.getName());
     private static final Duration TRANSIENT_MISS_RETRY_DELAY = Duration.ofMillis(200);
     private static final int TRANSIENT_MISS_MAX_RETRIES = 2;
 
@@ -64,10 +65,11 @@ public class ServerApiImpl implements ServerApi {
     }
 
     @Override
-    public CompletableFuture<Optional<Server>> findServerById(String id) {
-        if (!ValidationUtil.isUuid(id)) {
+    public CompletableFuture<Optional<Server>> findServerById(String requestedId) {
+        if (!ValidationUtil.isUuid(requestedId)) {
             return CompletableFuture.completedFuture(Optional.empty());
         }
+        String id = ValidationUtil.normalizeUuid(requestedId);
         QueryKey key = QueryKey.of("server", id);
 
         return cache.fetchWithTransientMissRecovery(
@@ -119,24 +121,15 @@ public class ServerApiImpl implements ServerApi {
         ServerQuery query = requestedQuery == null ? null : requestedQuery.copy();
         QueryKey key = buildQueryKey(query);
 
-        CompletableFuture<List<Server>> future;
         if (isExactServerLookup(query)) {
-            future = cache.fetchWithTransientMissRecovery(
+            return cache.fetchWithTransientMissRecovery(
                     key,
                     () -> fetchServersFromController(query),
                     List::isEmpty,
                     TRANSIENT_MISS_RETRY_DELAY,
                     TRANSIENT_MISS_MAX_RETRIES);
-        } else {
-            future = cache.fetch(key, () -> fetchServersFromController(query));
         }
-
-        return future.thenApply(servers -> {
-            if (debugEmptyServerResultsEnabled() && servers.isEmpty()) {
-                logEmptyServerResult(query, key);
-            }
-            return servers;
-        });
+        return cache.fetch(key, () -> fetchServersFromController(query));
     }
 
     private CompletableFuture<List<Server>> fetchServersFromController(@Nullable ServerQuery query) {
@@ -163,7 +156,9 @@ public class ServerApiImpl implements ServerApi {
 
         return fetchServersFromController(query)
                 .thenApply(servers -> servers.stream()
-                        .filter(server -> server.getNumericalId() == numericalId)
+                        .filter(server -> server.getServerGroupId() != null
+                                && !server.getServerGroupId().isEmpty()
+                                && server.getNumericalId() == numericalId)
                         .findFirst()
                         .orElse(null));
     }
@@ -174,12 +169,12 @@ public class ServerApiImpl implements ServerApi {
                 && hasExactlyOneValue(query.getNumericalIds())
                 && isNullOrEmpty(query.getServerGroupIds())
                 && isNullOrEmpty(query.getStates())
-                && isBlank(query.getServerhostId())
-                && isBlank(query.getPersistentServerId())
+                && isNullOrEmpty(query.getServerhostIds())
+                && isNullOrEmpty(query.getPersistentServerIds())
                 && isNullOrEmpty(query.getServerGroupTypes())
                 && isNullOrEmpty(query.getServerGroupTags())
-                && isBlank(query.getSortBy())
-                && isBlank(query.getSortOrder());
+                && query.getSortBy() == null
+                && query.getSortOrder() == null;
     }
 
     private boolean hasExactlyOneValue(@Nullable List<?> values) {
@@ -188,10 +183,6 @@ public class ServerApiImpl implements ServerApi {
 
     private boolean isNullOrEmpty(@Nullable List<?> values) {
         return values == null || values.isEmpty();
-    }
-
-    private boolean isBlank(@Nullable String value) {
-        return value == null || value.isBlank();
     }
 
     private QueryKey buildQueryKey(@Nullable ServerQuery query) {
@@ -203,8 +194,8 @@ public class ServerApiImpl implements ServerApi {
                 "query",
                 snapshot(query.getServerGroupIds()),
                 snapshot(query.getStates()),
-                query.getServerhostId(),
-                query.getPersistentServerId(),
+                snapshot(query.getServerhostIds()),
+                snapshot(query.getPersistentServerIds()),
                 snapshot(query.getServerGroupTypes()),
                 snapshot(query.getServerGroupNames()),
                 snapshot(query.getServerGroupTags()),
@@ -219,128 +210,24 @@ public class ServerApiImpl implements ServerApi {
         return values == null ? null : List.copyOf(values);
     }
 
-    private void logEmptyServerResult(@Nullable ServerQuery query, QueryKey key) {
-        LOGGER.fine(() -> "getAllServers returned an empty result"
-                + " [runtimeServer=" + runtimeServerName()
-                + ", uniqueId=" + envValue("SIMPLECLOUD_UNIQUE_ID")
-                + ", group=" + envValue("SIMPLECLOUD_GROUP")
-                + ", numericalId=" + envValue("SIMPLECLOUD_NUMERICAL_ID")
-                + ", component=" + (options.getComponent() == null ? "" : options.getComponent())
-                + ", controllerUrl=" + options.getControllerUrl()
-                + ", cacheKey=" + key
-                + ", query=" + describeQuery(query)
-                + "]");
-    }
-
-    private String describeQuery(@Nullable ServerQuery query) {
-        if (query == null) {
-            return "null";
-        }
-
-        return "{serverGroupIds=" + query.getServerGroupIds()
-                + ", states=" + query.getStates()
-                + ", serverhostId=" + query.getServerhostId()
-                + ", persistentServerId=" + query.getPersistentServerId()
-                + ", serverGroupTypes=" + query.getServerGroupTypes()
-                + ", serverGroupNames=" + query.getServerGroupNames()
-                + ", serverGroupTags=" + query.getServerGroupTags()
-                + ", numericalIds=" + query.getNumericalIds()
-                + ", sortBy=" + query.getSortBy()
-                + ", sortOrder=" + query.getSortOrder()
-                + "}";
-    }
-
-    private boolean debugEmptyServerResultsEnabled() {
-        return switch (envValue("SIMPLECLOUD_CLOUD_API_DEBUG").toLowerCase(Locale.ROOT)) {
-            case "true", "1", "yes", "on" -> true;
-            default -> false;
-        };
-    }
-
-    private String runtimeServerName() {
-        String groupName = envValue("SIMPLECLOUD_GROUP");
-        String numericalId = envValue("SIMPLECLOUD_NUMERICAL_ID");
-        if (!groupName.isBlank() && !numericalId.isBlank()) {
-            return groupName + "-" + numericalId;
-        }
-        if (!groupName.isBlank()) {
-            return groupName;
-        }
-        return envValue("SIMPLECLOUD_UNIQUE_ID");
-    }
-
-    private String envValue(String key) {
-        String value = System.getenv(key);
-        return value == null ? "" : value.trim();
-    }
-
     private List<ModelsServerSummary> listServers(@Nullable ServerQuery query, @Nullable String serverId)
             throws ApiException {
-        String serverGroupId = null;
-        if (query != null
-                && query.getServerGroupIds() != null
-                && !query.getServerGroupIds().isEmpty()) {
-            serverGroupId = String.join(",", query.getServerGroupIds());
-        }
-
-        String state = null;
-        if (query != null && query.getStates() != null && !query.getStates().isEmpty()) {
-            state = query.getStates().stream().map(Enum::name).collect(java.util.stream.Collectors.joining(","));
-        }
-
-        String serverhostId = query != null ? query.getServerhostId() : null;
-        String persistentServerId = query != null ? query.getPersistentServerId() : null;
-
-        String serverGroupType = null;
-        if (query != null
-                && query.getServerGroupTypes() != null
-                && !query.getServerGroupTypes().isEmpty()) {
-            serverGroupType = query.getServerGroupTypes().stream()
-                    .map(Enum::name)
-                    .collect(java.util.stream.Collectors.joining(","));
-        }
-
-        String serverGroupName = null;
-        if (query != null
-                && query.getServerGroupNames() != null
-                && !query.getServerGroupNames().isEmpty()) {
-            serverGroupName = String.join(",", query.getServerGroupNames());
-        }
-
-        String serverGroupTags = null;
-        if (query != null
-                && query.getServerGroupTags() != null
-                && !query.getServerGroupTags().isEmpty()) {
-            serverGroupTags = String.join(",", query.getServerGroupTags());
-        }
-
-        String numericalIds = null;
-        if (query != null
-                && query.getNumericalIds() != null
-                && !query.getNumericalIds().isEmpty()) {
-            numericalIds = query.getNumericalIds().stream()
-                    .map(Object::toString)
-                    .collect(java.util.stream.Collectors.joining(","));
-        }
-
-        String sortBy = query != null ? query.getSortBy() : null;
-        String sortOrder = query != null ? query.getSortOrder() : null;
-
+        ServerQuery q = query == null ? ServerQuery.create() : query;
         ModelsListServersResponse response = serversApi.listServers(
                 options.getNetworkId(),
                 serverId,
-                serverGroupId,
-                state,
-                serverhostId,
-                persistentServerId,
-                serverGroupType,
-                serverGroupName,
-                serverGroupTags,
-                numericalIds,
-                sortBy,
-                sortOrder,
-                query != null ? query.getLimit() : null,
-                query != null ? query.getOffset() : null);
+                joinOrNull(q.getServerGroupIds()),
+                joinOrNull(q.getStates()),
+                joinOrNull(q.getServerhostIds()),
+                joinOrNull(q.getPersistentServerIds()),
+                joinOrNull(q.getServerGroupTypes()),
+                joinOrNull(q.getServerGroupNames()),
+                joinOrNull(q.getServerGroupTags()),
+                joinOrNull(q.getNumericalIds()),
+                q.getSortBy() != null ? q.getSortBy().getValue() : null,
+                q.getSortOrder() != null ? q.getSortOrder().getValue() : null,
+                q.getLimit(),
+                q.getOffset());
         List<ModelsServerSummary> servers = response.getServers();
         return servers == null ? List.of() : servers;
     }
@@ -408,6 +295,9 @@ public class ServerApiImpl implements ServerApi {
         patchRequest.setMaxPlayers(request.getMaxPlayers());
         patchRequest.setMinMemory(request.getMinMemory());
         patchRequest.setProperties(request.getProperties());
+        if (request.getState() == ServerState.UNKNOWN_STATE) {
+            throw new IllegalArgumentException("UNKNOWN_STATE cannot be set as server state");
+        }
         if (request.getState() != null) {
             patchRequest.setState(ModelsPatchServerRequest.StateEnum.valueOf(
                     request.getState().name()));
@@ -417,12 +307,24 @@ public class ServerApiImpl implements ServerApi {
 
     @Override
     public CompletableFuture<Server> getCurrentServer() {
-        String serverId = System.getenv("SIMPLECLOUD_UNIQUE_ID");
-        if (serverId == null || serverId.isEmpty()) {
+        String serverId = SimpleCloudRuntime.serverId();
+        if (serverId.isEmpty()) {
             return CompletableFuture.failedFuture(
                     new IllegalStateException("SIMPLECLOUD_UNIQUE_ID environment variable is not set"));
         }
         return getServerById(serverId);
+    }
+
+    @Override
+    public CompletableFuture<Map<String, Object>> setServerProperties(String id, Map<String, Object> properties) {
+        return ApiCalls.supplyAsync(executor, () -> {
+            ModelsUpdatePropertiesRequest request = new ModelsUpdatePropertiesRequest();
+            request.setProperties(properties);
+            Map<String, Object> result =
+                    serversApi.updateServerProperties(options.getNetworkId(), id, request).getProperties();
+            invalidateServers(id);
+            return result != null ? result : new HashMap<>();
+        });
     }
 
     @Override

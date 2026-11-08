@@ -1,7 +1,5 @@
 package app.simplecloud.api.internal.integration.adventure;
 
-import app.simplecloud.api.CloudApi;
-import app.simplecloud.api.internal.CloudApiImpl;
 import build.buf.gen.simplecloud.adventure.v1.AdventureBook;
 import build.buf.gen.simplecloud.adventure.v1.AdventureBossBar;
 import build.buf.gen.simplecloud.adventure.v1.AdventureComponent;
@@ -43,7 +41,7 @@ import java.util.WeakHashMap;
 
 /**
  * An Adventure Audience implementation that sends all actions via NATS
- * to be handled by the target (player, server, or group).
+ * to the server the target player is connected to.
  */
 public class RemoteAudience implements Audience {
 
@@ -57,40 +55,8 @@ public class RemoteAudience implements Audience {
         this.subjectPrefix = subjectPrefix;
     }
 
-    public static Builder builder(Connection natsConnection, String networkId) {
-        return new Builder(natsConnection, networkId);
-    }
-
-    public static Builder builder(CloudApi cloudApi) {
-        if (!(cloudApi instanceof CloudApiImpl impl)) {
-            throw new IllegalArgumentException("CloudApi must be an instance of CloudApiImpl");
-        }
-        return new Builder(impl.getNatsConnection(), cloudApi.getNetworkId());
-    }
-
-    public static class Builder {
-        private final Connection natsConnection;
-        private final String networkId;
-
-        private Builder(Connection natsConnection, String networkId) {
-            this.natsConnection = natsConnection;
-            this.networkId = networkId;
-        }
-
-        public RemoteAudience forPlayer(UUID playerUUID) {
-            String subjectPrefix = networkId + ".adventure.player." + playerUUID + ".";
-            return new RemoteAudience(natsConnection, subjectPrefix);
-        }
-
-        public RemoteAudience forServer(String serverId) {
-            String subjectPrefix = networkId + ".adventure.server." + serverId + ".";
-            return new RemoteAudience(natsConnection, subjectPrefix);
-        }
-
-        public RemoteAudience forGroup(String groupName) {
-            String subjectPrefix = networkId + ".adventure.group." + groupName + ".";
-            return new RemoteAudience(natsConnection, subjectPrefix);
-        }
+    public static RemoteAudience forPlayer(Connection natsConnection, String networkId, UUID playerId) {
+        return new RemoteAudience(natsConnection, networkId + ".adventure.player." + playerId + ".");
     }
 
     private void publish(String action, byte[] data) {

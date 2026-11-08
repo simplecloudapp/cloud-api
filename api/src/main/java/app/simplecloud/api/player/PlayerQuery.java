@@ -147,16 +147,14 @@ public class PlayerQuery {
      *
      * @param min the minimum in seconds, or null
      * @param max the maximum in seconds, or null
-     * @return this query
      * @throws IllegalArgumentException if a bound is negative
      */
-    public PlayerQuery filterByOnlineTimeSeconds(@Nullable Long min, @Nullable Long max) {
+    public void filterByOnlineTimeSeconds(@Nullable Long min, @Nullable Long max) {
         if ((min != null && min < 0) || (max != null && max < 0)) {
             throw new IllegalArgumentException("online time bounds must be >= 0");
         }
         this.onlineTimeSecondsMin = min;
         this.onlineTimeSecondsMax = max;
-        return this;
     }
 
     /**

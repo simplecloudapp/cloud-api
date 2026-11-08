@@ -11,8 +11,15 @@ import java.util.Map;
 /**
  * Request to update an existing persistent server.
  *
- * <p>Only fields that are set are changed. A {@code workflows} configuration replaces the stored one
- * as a whole, and no create defaults are applied.
+ * <p>Only fields that are set are changed, and no create defaults are applied.
+ *
+ * <ul>
+ *   <li>{@code workflows} replaces the stored configuration as a whole.
+ *   <li>{@code properties} are merged into the stored properties. To remove keys use
+ *       {@link PersistentServerApi#deletePersistentServerProperties(String, List)}, to replace all of them use
+ *       {@link PersistentServerApi#setPersistentServerProperties(String, Map)}.
+ *   <li>{@code tags} replace the stored tags; an empty list removes all tags.
+ * </ul>
  */
 public class UpdatePersistentServerRequest {
     private final String name;

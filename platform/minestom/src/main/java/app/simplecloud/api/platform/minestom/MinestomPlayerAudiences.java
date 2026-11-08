@@ -16,13 +16,6 @@ final class MinestomPlayerAudiences implements PlayerAudiences {
         }
     }
 
-    @Override
-    public void runForAllPlayers(PlayerAction action) {
-        for (Player player : MinecraftServer.getConnectionManager().getOnlinePlayers()) {
-            run(player, action);
-        }
-    }
-
     private void run(Player player, PlayerAction action) {
         player.scheduleNextTick(_ -> action.run(player.getUuid(), player));
     }

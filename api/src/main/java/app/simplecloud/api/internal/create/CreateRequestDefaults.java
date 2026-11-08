@@ -167,13 +167,7 @@ public final class CreateRequestDefaults {
 
         DeploymentHost[] copy = new DeploymentHost[hosts.length];
         for (int i = 0; i < hosts.length; i++) {
-            DeploymentHost source = hosts[i];
-            copy[i] = source == null
-                    ? DeploymentHost.builder().build()
-                    : DeploymentHost.builder()
-                            .name(source.getName())
-                            .priority(source.getPriority())
-                            .build();
+            copy[i] = hosts[i] == null ? new DeploymentHost(null, 0) : hosts[i];
         }
         return copy;
     }

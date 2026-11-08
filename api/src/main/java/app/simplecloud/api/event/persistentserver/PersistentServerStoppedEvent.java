@@ -1,5 +1,6 @@
 package app.simplecloud.api.event.persistentserver;
 
+import app.simplecloud.api.persistentserver.PersistentServer;
 import org.jetbrains.annotations.Nullable;
 
 /**
@@ -51,6 +52,14 @@ public interface PersistentServerStoppedEvent {
      */
     @Nullable
     String getReason();
+
+    /**
+     * Returns the persistent server as sent with this event.
+     *
+     * @return the persistent server
+     * @throws IllegalStateException if persistent server data is not available
+     */
+    PersistentServer getPersistentServer();
 
     /**
      * Returns the timestamp when this event occurred (ISO 8601 format).

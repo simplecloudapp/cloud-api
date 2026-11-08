@@ -1,10 +1,9 @@
 package app.simplecloud.api.internal.event.group;
 
 import app.simplecloud.api.event.group.GroupDeletedEvent;
+import app.simplecloud.api.internal.util.ProtoConversionUtil;
 import build.buf.gen.simplecloud.controller.v2.ServerGroupDeletedEvent;
 import org.jetbrains.annotations.Nullable;
-
-import java.time.Instant;
 
 class GroupDeletedEventImpl implements GroupDeletedEvent {
     private final ServerGroupDeletedEvent delegate;
@@ -32,6 +31,6 @@ class GroupDeletedEventImpl implements GroupDeletedEvent {
 
     @Override
     public String getTimestamp() {
-        return Instant.ofEpochSecond(delegate.getTimestamp()).toString();
+        return ProtoConversionUtil.epochSecondsToIso(delegate.getTimestamp());
     }
 }

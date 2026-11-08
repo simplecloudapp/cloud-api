@@ -3,8 +3,11 @@ package app.simplecloud.api.internal.blueprint;
 import app.simplecloud.api.CloudApiException;
 import app.simplecloud.api.CloudApiOptions;
 import app.simplecloud.api.blueprint.CreateBlueprintRequest;
+import app.simplecloud.api.cache.QueryCache;
+import app.simplecloud.api.cache.QueryKey;
 import app.simplecloud.api.group.SourceConfig;
 import app.simplecloud.api.group.SourceType;
+import app.simplecloud.api.internal.blueprint.manifest.ManifestServerUrlResolver;
 import app.simplecloud.api.internal.util.RestModelMapper;
 import app.simplecloud.api.internal.web.ApiExceptions;
 import app.simplecloud.api.web.ApiException;
@@ -16,23 +19,28 @@ import org.jetbrains.annotations.Nullable;
 
 import java.time.Duration;
 
-public final class InlineBlueprintSupport {
+public final class BlueprintProvisioner {
     private static final Duration DELETE_RETRY_DELAY = Duration.ofMillis(200);
     private static final int DELETE_MAX_ATTEMPTS = 3;
     private static final Duration RECONCILE_RETRY_DELAY = Duration.ofMillis(200);
     private static final int RECONCILE_MAX_ATTEMPTS = 3;
 
     private final CloudApiOptions options;
+    private final QueryCache cache;
     private final BlueprintsApi blueprintsApi;
     private final ServerUrlResolver serverUrlResolver;
 
-    public InlineBlueprintSupport(CloudApiOptions options, BlueprintsApi blueprintsApi) {
-        this(options, blueprintsApi, new ManifestServerUrlResolver(options));
+    public BlueprintProvisioner(CloudApiOptions options, QueryCache cache, BlueprintsApi blueprintsApi) {
+        this(options, cache, blueprintsApi, new ManifestServerUrlResolver(options));
     }
 
-    public InlineBlueprintSupport(
-            CloudApiOptions options, BlueprintsApi blueprintsApi, ServerUrlResolver serverUrlResolver) {
+    public BlueprintProvisioner(
+            CloudApiOptions options,
+            QueryCache cache,
+            BlueprintsApi blueprintsApi,
+            ServerUrlResolver serverUrlResolver) {
         this.options = options;
+        this.cache = cache;
         this.blueprintsApi = blueprintsApi;
         this.serverUrlResolver = serverUrlResolver;
     }
@@ -72,7 +80,14 @@ public final class InlineBlueprintSupport {
     public ModelsCreateBlueprintResponse create(String blueprintName, CreateBlueprintRequest request)
             throws ApiException {
         ModelsCreateBlueprintRequest apiRequest = convertCreateBlueprintRequest(blueprintName, request);
-        return blueprintsApi.createBlueprint(options.getNetworkId(), apiRequest);
+        ModelsCreateBlueprintResponse response = blueprintsApi.createBlueprint(options.getNetworkId(), apiRequest);
+        invalidateBlueprints();
+        return response;
+    }
+
+    public void invalidateBlueprints() {
+        cache.invalidateAll(QueryKey.of("blueprints"));
+        cache.invalidateAll(QueryKey.of("blueprint"));
     }
 
     public SourceConfig buildInlineBlueprintSource(@Nullable SourceConfig requestedSource, String blueprintId) {
@@ -101,10 +116,12 @@ public final class InlineBlueprintSupport {
         for (int attempt = 1; attempt <= DELETE_MAX_ATTEMPTS; attempt++) {
             try {
                 blueprintsApi.deleteBlueprint(options.getNetworkId(), normalizedBlueprintId);
+                invalidateBlueprints();
                 return;
             } catch (ApiException deleteFailure) {
                 int statusCode = deleteFailure.getCode();
                 if (statusCode == 404 || statusCode == 409) {
+                    invalidateBlueprints();
                     return;
                 }
                 if (!isRetryable(statusCode)) {
