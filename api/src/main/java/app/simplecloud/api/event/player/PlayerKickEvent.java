@@ -48,11 +48,10 @@ public interface PlayerKickEvent {
     /**
      * Returns the player as reported by the controller with this event.
      *
-     * <p>This is a minimal snapshot: only the ID, name, display name, online time and the server the
-     * player was on are set. The connected proxy, properties, session and first/last seen are missing,
-     * so load the player through {@link app.simplecloud.api.player.PlayerApi} when you need them.
+     * <p>This is the full player record the controller loaded just before the kick, including the proxy and
+     * server the player was on, properties, session and first/last seen.
      *
-     * @return the player, or null if the controller sent no player data
+     * @return the player, or null if the controller could not load the player
      */
     @Nullable
     CloudPlayer getPlayer();

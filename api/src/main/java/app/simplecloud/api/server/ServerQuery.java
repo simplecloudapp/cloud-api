@@ -92,7 +92,7 @@ public class ServerQuery {
     /**
      * Filter by one or more server states.
      *
-     * @param states the states to filter by (e.g., RUNNING, STARTING)
+     * @param states the states to filter by (e.g., AVAILABLE, STARTING)
      * @return this query for chaining
      * @throws IllegalArgumentException if a state is {@link ServerState#UNKNOWN_STATE}
      */

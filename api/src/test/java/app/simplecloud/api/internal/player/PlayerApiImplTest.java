@@ -116,6 +116,17 @@ class PlayerApiImplTest {
     }
 
     @Test
+    void listPageReturnsTotal() {
+        controller.respond(200, "{\"players\": [" + PLAYER_JSON + "], \"count\": 1, \"total\": 42}");
+
+        var page = api.listPage(PlayerQuery.create().limit(1)).join();
+
+        assertEquals(1, page.items().size());
+        assertEquals(42, page.total());
+        assertTrue(page.hasMore(0));
+    }
+
+    @Test
     void connectSendsServerNameAndMapsResult() {
         controller.respond(200, "{\"success\": false, \"result\": \"ALREADY_CONNECTED\"}");
 

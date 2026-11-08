@@ -23,6 +23,20 @@ public interface ServerStateChangedEvent {
     String getServerId();
 
     /**
+     * Returns the server group ID this server belongs to.
+     *
+     * @return the server group ID, or an empty string for a persistent server's server
+     */
+    String getServerGroupId();
+
+    /**
+     * Returns the persistent server ID this server belongs to.
+     *
+     * @return the persistent server ID, or an empty string for a group server
+     */
+    String getPersistentServerId();
+
+    /**
      * Returns the previous state of the server.
      *
      * @return the old state, or {@link ServerState#UNKNOWN_STATE} if the controller sent none (currently

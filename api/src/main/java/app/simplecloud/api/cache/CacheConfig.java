@@ -120,7 +120,7 @@ public class CacheConfig {
 
         private static Map<EntityType, EntityCacheConfig> createDefaultEntityConfigs() {
             Map<EntityType, EntityCacheConfig> configs = new HashMap<>();
-            // Servers: 3 seconds - metrics (CPU, memory, player count) may update without events
+            // Servers: 3 seconds - metrics (CPU, memory) may update without events
             configs.put(
                     EntityType.SERVER,
                     EntityCacheConfig.builder().staleTime(Duration.ofSeconds(3)).build());

@@ -81,9 +81,10 @@ public final class CreateRequestDefaults {
                 .build();
     }
 
-    public ScalingConfig defaultGroupScaling(@Nullable ScalingConfig scaling) {
+    public ScalingConfig defaultGroupScaling(@Nullable ScalingConfig scaling, int maxPlayers) {
         if (scaling == null) {
             return ScalingConfig.builder()
+                    .availableSlots(maxPlayers)
                     .minServers(0)
                     .maxServers(DEFAULT_MAX_SERVERS)
                     .playerThreshold(DEFAULT_PLAYER_THRESHOLD)
@@ -97,12 +98,19 @@ public final class CreateRequestDefaults {
             throw new IllegalArgumentException("playerThreshold must be greater than 0 and at most 1");
         }
 
+        ScalingMode scalingMode = scaling.getScalingMode() != null ? scaling.getScalingMode() : ScalingMode.SLOTS;
+        int availableSlots = scalingMode == ScalingMode.SLOTS
+                        && scaling.getAvailableSlots() <= 0
+                        && scaling.getMinServers() <= 0
+                ? maxPlayers
+                : scaling.getAvailableSlots();
+
         return ScalingConfig.builder()
-                .availableSlots(scaling.getAvailableSlots())
+                .availableSlots(availableSlots)
                 .minServers(scaling.getMinServers())
                 .maxServers(scaling.hasMaxServers() ? scaling.getMaxServers() : DEFAULT_MAX_SERVERS)
                 .playerThreshold(playerThreshold)
-                .scalingMode(scaling.getScalingMode() != null ? scaling.getScalingMode() : ScalingMode.SLOTS)
+                .scalingMode(scalingMode)
                 .scaleDown(defaultScaleDown(scaling.getScaleDown()))
                 .build();
     }

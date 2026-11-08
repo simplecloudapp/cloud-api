@@ -29,6 +29,7 @@ Changes since `0.1.0-platform.61`.
 - `connectToGroup(...)`: use `connectToGroupByName(...)`.
 - `connectToPersistentServer(id)`: use `connectToPersistentServerById(id)`.
 - `ServerQuery.sortBy(String)` and `sortOrder(String)`: use the `SortField` and `SortOrder` overloads.
+- `GroupQuery.getTag()`: use `getTags()`.
 
 ### Added
 
@@ -49,6 +50,10 @@ Changes since `0.1.0-platform.61`.
   - paging with `offset`, plus `limit` on `ServerQuery`
   - new filters for active state, source type, blueprint and type
   - `copy()`
+  - `GroupQuery.filterByTags(String...)`
+- `PlayerApi.listPage`, `getProfilePage` and `getSessionPage` return a `Page` with the total count.
+- `CreateGroupRequest` and `CreatePersistentServerRequest` take `plugins` (`PluginReference`) and `pluginCollectionIds`.
+- Server events expose `getPersistentServerId()`, and `ServerStateChangedEvent` also exposes `getServerGroupId()`.
 - Minestom platform.
 
 ### Fixed
@@ -57,3 +62,7 @@ Changes since `0.1.0-platform.61`.
 - Player session changes are reported in order.
 - Proxy connects time out instead of hanging.
 - Group scaling updates no longer apply create defaults.
+- Groups created with default `SLOTS` scaling now start servers. Missing `availableSlots` defaults to the max players.
+- The cache refreshes player counts on player login, disconnect and server switch, and refreshes persistent servers on their server's events.
+- Updates called with an upper-case ID no longer leave stale cache entries.
+- `connectDirect` reports an unreachable player after 10 seconds instead of 30.

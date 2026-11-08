@@ -3,7 +3,11 @@ package app.simplecloud.api.event.server;
 import app.simplecloud.api.server.Server;
 
 /**
- * Event fired when a server instance starts.
+ * Event fired when the start of a server instance was acknowledged.
+ *
+ * <p>The server is then in {@link app.simplecloud.api.server.ServerState#PREPARING} and not ready for players yet.
+ * This event can arrive after later state changes. To know when a server is ready, listen for a
+ * {@link ServerStateChangedEvent} with {@link app.simplecloud.api.server.ServerState#AVAILABLE}.
  */
 public interface ServerStartedEvent {
 
@@ -27,6 +31,13 @@ public interface ServerStartedEvent {
      * @return the server group ID, or an empty string for a persistent server's server
      */
     String getServerGroupId();
+
+    /**
+     * Returns the persistent server ID this server belongs to.
+     *
+     * @return the persistent server ID, or an empty string for a group server
+     */
+    String getPersistentServerId();
 
     /**
      * Returns the started server instance with complete configuration and runtime information.

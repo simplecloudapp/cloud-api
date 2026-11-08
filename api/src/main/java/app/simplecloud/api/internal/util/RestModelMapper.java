@@ -11,6 +11,7 @@ import app.simplecloud.api.group.SourceConfig;
 import app.simplecloud.api.group.SourceType;
 import app.simplecloud.api.group.WorkflowWhen;
 import app.simplecloud.api.group.WorkflowsConfig;
+import app.simplecloud.api.plugin.PluginReference;
 import app.simplecloud.api.web.models.ModelsBlueprintSummary;
 import app.simplecloud.api.web.models.ModelsCreateBlueprintResponse;
 import app.simplecloud.api.web.models.ModelsCreatePersistentServerResponse;
@@ -18,6 +19,7 @@ import app.simplecloud.api.web.models.ModelsCreateServerGroupResponse;
 import app.simplecloud.api.web.models.ModelsDeploymentConfig;
 import app.simplecloud.api.web.models.ModelsDeploymentHost;
 import app.simplecloud.api.web.models.ModelsPersistentServerSummary;
+import app.simplecloud.api.web.models.ModelsPluginReferenceInput;
 import app.simplecloud.api.web.models.ModelsRuntimeConfig;
 import app.simplecloud.api.web.models.ModelsScaleDownConfig;
 import app.simplecloud.api.web.models.ModelsScalingConfig;
@@ -215,6 +217,17 @@ public final class RestModelMapper {
         }
         result.setBlueprint(config.getBlueprint());
         result.setImage(config.getImage());
+        return result;
+    }
+
+    public static ModelsPluginReferenceInput toModel(PluginReference reference) {
+        ModelsPluginReferenceInput result = new ModelsPluginReferenceInput();
+        result.setPluginId(reference.pluginId());
+        result.setPluginName(reference.pluginName());
+        result.setSourceType(reference.sourceType() != null ? reference.sourceType().name() : null);
+        result.setSourceValue(reference.sourceValue());
+        result.setVersion(reference.version());
+        result.setRequired(reference.required());
         return result;
     }
 

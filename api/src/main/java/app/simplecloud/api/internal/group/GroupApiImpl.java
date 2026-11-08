@@ -21,6 +21,7 @@ import app.simplecloud.api.group.WorkflowsConfig;
 import app.simplecloud.api.internal.blueprint.BlueprintProvisioner;
 import app.simplecloud.api.internal.create.CreateRequestDefaults;
 import app.simplecloud.api.internal.persistentserver.PersistentServerImpl;
+import app.simplecloud.api.internal.util.RestModelMapper;
 import app.simplecloud.api.internal.util.ValidationUtil;
 import app.simplecloud.api.internal.web.ApiCalls;
 import app.simplecloud.api.internal.web.ApiExceptions;
@@ -60,6 +61,7 @@ import java.util.concurrent.CompletableFuture;
 import java.util.concurrent.Executor;
 import java.util.function.Predicate;
 
+import static app.simplecloud.api.internal.util.QueryParams.joinOrNull;
 import static app.simplecloud.api.internal.util.RestModelMapper.orZero;
 import static app.simplecloud.api.internal.util.RestModelMapper.toModel;
 import static app.simplecloud.api.internal.util.RestModelMapper.toSummary;
@@ -235,7 +237,7 @@ public class GroupApiImpl implements GroupApi {
                 "groups",
                 "query",
                 query.getType(),
-                query.getTag(),
+                query.getTags() == null ? null : List.copyOf(query.getTags()),
                 query.getActive(),
                 query.getSourceType(),
                 query.getBlueprintId(),
@@ -250,7 +252,7 @@ public class GroupApiImpl implements GroupApi {
                 serverGroupId,
                 name,
                 query != null && query.getType() != null ? ValidationUtil.serverTypeName(query.getType()) : null,
-                query != null ? query.getTag() : null,
+                query != null ? joinOrNull(query.getTags()) : null,
                 query != null ? query.getActive() : null,
                 query != null && query.getSourceType() != null
                         ? query.getSourceType().name().toLowerCase(Locale.ROOT)
@@ -298,14 +300,22 @@ public class GroupApiImpl implements GroupApi {
                     ModelsCreateServerGroupRequest.TypeEnum.valueOf(ValidationUtil.serverTypeName(effectiveType)));
             apiRequest.setMinMemory(request.getMinMemory());
             apiRequest.setMaxMemory(request.getMaxMemory());
-            apiRequest.setMaxPlayers(createRequestDefaults.defaultMaxPlayers(request.getMaxPlayers()));
+            int effectiveMaxPlayers = createRequestDefaults.defaultMaxPlayers(request.getMaxPlayers());
+            apiRequest.setMaxPlayers(effectiveMaxPlayers);
             apiRequest.setActive(createRequestDefaults.defaultActive(request.getActive()));
             apiRequest.setPriority(request.getPriority());
             apiRequest.setProperties(createRequestDefaults.defaultProperties(request.getProperties()));
             apiRequest.setTags(createRequestDefaults.defaultTags(request.getName(), request.getTags()));
             apiRequest.setDeployment(toModel(createRequestDefaults.defaultDeployment(request.getDeployment())));
-            apiRequest.setScaling(toModel(createRequestDefaults.defaultGroupScaling(request.getScaling())));
+            apiRequest.setScaling(toModel(
+                    createRequestDefaults.defaultGroupScaling(request.getScaling(), effectiveMaxPlayers)));
             apiRequest.setWorkflows(toModel(effectiveWorkflows));
+            if (request.getPlugins() != null) {
+                apiRequest.setPlugins(request.getPlugins().stream().map(RestModelMapper::toModel).toList());
+            }
+            if (request.getPluginCollectionIds() != null) {
+                apiRequest.setPluginCollectionIds(List.copyOf(request.getPluginCollectionIds()));
+            }
 
             String blueprintId = blueprintProvisioner.createBlueprint(request.getName(), effectiveCreateBlueprint);
             SourceConfig effectiveSource = blueprintId != null
@@ -454,7 +464,7 @@ public class GroupApiImpl implements GroupApi {
 
     private void invalidateGroups(@Nullable String id) {
         if (id != null) {
-            cache.invalidate(QueryKey.of("group", id));
+            cache.invalidate(QueryKey.of("group", ValidationUtil.normalizeUuid(id)));
         }
         cache.invalidateAll(QueryKey.of("groups"));
         cache.invalidateAll(QueryKey.of("group", "name"));

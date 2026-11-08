@@ -25,6 +25,16 @@ class ServerStateChangedEventImpl implements ServerStateChangedEvent {
     }
 
     @Override
+    public String getServerGroupId() {
+        return delegate.getServerGroupId();
+    }
+
+    @Override
+    public String getPersistentServerId() {
+        return delegate.getPersistentServerId();
+    }
+
+    @Override
     public ServerState getOldState() {
         ServerState state = ProtoConversionUtil.convertServerState(delegate.getOldState());
         return state != null ? state : ServerState.UNKNOWN_STATE;

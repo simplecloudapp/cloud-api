@@ -8,6 +8,7 @@ import app.simplecloud.api.internal.web.ApiExceptions;
 import app.simplecloud.api.player.CloudPlayer;
 import app.simplecloud.api.player.ConnectResponse;
 import app.simplecloud.api.player.ConnectTarget;
+import app.simplecloud.api.player.Page;
 import app.simplecloud.api.player.PlayerApi;
 import app.simplecloud.api.player.PlayerClientSettings;
 import app.simplecloud.api.player.PlayerProfile;
@@ -69,7 +70,7 @@ import static app.simplecloud.api.internal.util.ProtoConversionUtil.emptyToNull;
 public class PlayerApiImpl implements PlayerApi {
 
     private static final Logger LOGGER = Logger.getLogger(PlayerApiImpl.class.getName());
-    private static final Duration REQUEST_TIMEOUT = Duration.ofSeconds(30);
+    private static final Duration CONNECT_REQUEST_TIMEOUT = Duration.ofSeconds(10);
     private static final int MAX_PAGE_SIZE = 100;
 
     private final CloudApiOptions options;
@@ -143,7 +144,7 @@ public class PlayerApiImpl implements PlayerApi {
     }
 
     @Override
-    public CompletableFuture<List<CloudPlayer>> list(@Nullable PlayerQuery query) {
+    public CompletableFuture<Page<CloudPlayer>> listPage(@Nullable PlayerQuery query) {
         PlayerQuery q = query != null ? query.copy() : PlayerQuery.create();
         List<String> playerIds = q.getPlayerIds() == null
                 ? null
@@ -176,7 +177,7 @@ public class PlayerApiImpl implements PlayerApi {
                     players.add(convertPlayerResponse(player));
                 }
             }
-            return players;
+            return new Page<>(players, total(response.getTotal(), players.size()));
         });
     }
 
@@ -269,7 +270,7 @@ public class PlayerApiImpl implements PlayerApi {
     }
 
     @Override
-    public CompletableFuture<List<PlayerProfile>> getProfiles(UUID uniqueId, int limit, int offset) {
+    public CompletableFuture<Page<PlayerProfile>> getProfilePage(UUID uniqueId, int limit, int offset) {
         return call(() -> {
             validatePagination(limit, offset);
             ModelsListPlayerProfilesResponse response =
@@ -281,7 +282,7 @@ public class PlayerApiImpl implements PlayerApi {
                     profiles.add(convertProfile(profile));
                 }
             }
-            return profiles;
+            return new Page<>(profiles, total(response.getTotal(), offset + profiles.size()));
         });
     }
 
@@ -302,7 +303,7 @@ public class PlayerApiImpl implements PlayerApi {
     }
 
     @Override
-    public CompletableFuture<List<PlayerSession>> getSessions(UUID uniqueId, int limit, int offset) {
+    public CompletableFuture<Page<PlayerSession>> getSessionPage(UUID uniqueId, int limit, int offset) {
         return call(() -> {
             validatePagination(limit, offset);
             ModelsListPlayerSessionsResponse response =
@@ -314,8 +315,12 @@ public class PlayerApiImpl implements PlayerApi {
                     sessions.add(convertSession(session, null));
                 }
             }
-            return sessions;
+            return new Page<>(sessions, total(response.getTotal(), offset + sessions.size()));
         });
+    }
+
+    private static long total(@Nullable Integer total, int fallback) {
+        return total != null ? total : fallback;
     }
 
     @Override
@@ -438,7 +443,8 @@ public class PlayerApiImpl implements PlayerApi {
                                 .build();
 
                         String subject = options.getNetworkId() + ".player." + uniqueId + ".connect";
-                        Message response = natsConnection.request(subject, request.toByteArray(), REQUEST_TIMEOUT);
+                        Message response =
+                                natsConnection.request(subject, request.toByteArray(), CONNECT_REQUEST_TIMEOUT);
 
                         if (response == null) {
                             return CloudPlayer.ConnectResult.PLAYER_NOT_FOUND;

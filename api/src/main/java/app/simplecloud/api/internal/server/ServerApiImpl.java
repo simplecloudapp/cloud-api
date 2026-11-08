@@ -275,14 +275,14 @@ public class ServerApiImpl implements ServerApi {
 
             Server server = new ServerImpl(response.getServer());
             invalidateServers(null);
-            cache.set(QueryKey.of("server", id), server);
+            cache.set(QueryKey.of("server", ValidationUtil.normalizeUuid(id)), server);
             return server;
         });
     }
 
     private void invalidateServers(@Nullable String id) {
         if (id != null) {
-            cache.invalidate(QueryKey.of("server", id));
+            cache.invalidate(QueryKey.of("server", ValidationUtil.normalizeUuid(id)));
         }
         cache.invalidateAll(QueryKey.of("servers"));
         cache.invalidateAll(QueryKey.of("server", "numerical"));

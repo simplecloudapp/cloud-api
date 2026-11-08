@@ -1,6 +1,7 @@
 package app.simplecloud.api.group;
 
 import app.simplecloud.api.blueprint.CreateBlueprintRequest;
+import app.simplecloud.api.plugin.PluginReference;
 import org.jetbrains.annotations.Nullable;
 
 import java.util.List;
@@ -9,11 +10,18 @@ import java.util.Map;
 /**
  * Request object for creating a new server group.
  *
+ * <p>{@code minMemory}, {@code maxMemory} and either {@code source} or {@code createBlueprint} are required.
+ * The controller rejects the request without them.
+ *
  * <p>Fields that aren't set get these defaults: type {@link GroupServerType#SERVER}, 50 max players,
  * active, tags {@code [name]}, deployment {@link DeploymentStrategy#BLACKLIST} with no hosts, scaling
- * {@link ScalingMode#SLOTS} with 0 to 1 servers and a player threshold of 0.75, scale down after 3 minutes idle,
- * start workflow {@code internal/setup}, stop workflow {@code internal/cleanup} and manual workflows
- * {@code default/backup} and {@code default/copy-to-template}.
+ * {@link ScalingMode#SLOTS} with 0 to 1 servers and as many available slots as max players, a player threshold of
+ * 0.75 (only used by {@link ScalingMode#SERVERS}), scale down after 3 minutes idle, start workflow
+ * {@code internal/setup}, stop workflow {@code internal/cleanup} and manual workflows {@code default/backup} and
+ * {@code default/copy-to-template}. A {@link ScalingMode#SLOTS} scaling config with 0 available slots and 0 min
+ * servers would never start a server, so it also gets as many available slots as max players.
+ *
+ * <p>Plugins and plugin collections set here are installed on the group when it is created.
  *
  * <p>A blueprint created inline with {@code createBlueprint} gets the name of the group. Blueprint names are
  * unique per network, so creating the group fails if a blueprint with that name already exists.
@@ -36,6 +44,8 @@ public class CreateGroupRequest {
     private WorkflowsConfig workflows;
     private Map<String, Object> properties;
     private List<String> tags;
+    private List<PluginReference> plugins;
+    private List<String> pluginCollectionIds;
 
     public CreateGroupRequest(String name) {
         this.name = name;
@@ -179,6 +189,26 @@ public class CreateGroupRequest {
         return this;
     }
 
+    @Nullable
+    public List<PluginReference> getPlugins() {
+        return plugins;
+    }
+
+    public CreateGroupRequest setPlugins(@Nullable List<PluginReference> plugins) {
+        this.plugins = plugins;
+        return this;
+    }
+
+    @Nullable
+    public List<String> getPluginCollectionIds() {
+        return pluginCollectionIds;
+    }
+
+    public CreateGroupRequest setPluginCollectionIds(@Nullable List<String> pluginCollectionIds) {
+        this.pluginCollectionIds = pluginCollectionIds;
+        return this;
+    }
+
     public static class Builder {
         private String name;
         private GroupServerType type;
@@ -194,6 +224,8 @@ public class CreateGroupRequest {
         private WorkflowsConfig workflows;
         private Map<String, Object> properties;
         private List<String> tags;
+        private List<PluginReference> plugins;
+        private List<String> pluginCollectionIds;
 
         public Builder name(String name) {
             this.name = name;
@@ -265,6 +297,16 @@ public class CreateGroupRequest {
             return this;
         }
 
+        public Builder plugins(List<PluginReference> plugins) {
+            this.plugins = plugins;
+            return this;
+        }
+
+        public Builder pluginCollectionIds(List<String> pluginCollectionIds) {
+            this.pluginCollectionIds = pluginCollectionIds;
+            return this;
+        }
+
         public CreateGroupRequest build() {
             if (name == null) {
                 throw new IllegalStateException("name is required");
@@ -283,7 +325,9 @@ public class CreateGroupRequest {
                     .setCreateBlueprint(createBlueprint)
                     .setWorkflows(workflows)
                     .setProperties(properties)
-                    .setTags(tags);
+                    .setTags(tags)
+                    .setPlugins(plugins)
+                    .setPluginCollectionIds(pluginCollectionIds);
         }
     }
 }

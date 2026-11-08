@@ -33,8 +33,9 @@ public record CloudStats(
 
     /**
      * @param total the number of servers
-     * @param active the number of active servers
-     * @param byState the number of servers per state
+     * @param active the number of servers that are not {@link ServerState#STOPPED}
+     * @param byState the number of servers per state; the controller does not report
+     *     {@link ServerState#CLEANUP} yet, so the counts can add up to less than {@code total}
      */
     public record Servers(int total, int active, Map<ServerState, Integer> byState) {
         public Servers {

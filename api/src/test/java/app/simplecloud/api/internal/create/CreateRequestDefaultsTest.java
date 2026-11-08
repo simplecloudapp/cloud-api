@@ -26,8 +26,9 @@ class CreateRequestDefaultsTest {
 
     @Test
     void missingScalingGetsDefaults() {
-        ScalingConfig scaling = defaults.defaultGroupScaling(null);
+        ScalingConfig scaling = defaults.defaultGroupScaling(null, 50);
 
+        assertEquals(50, scaling.getAvailableSlots());
         assertEquals(0, scaling.getMinServers());
         assertEquals(1, scaling.getMaxServers());
         assertEquals(0.75, scaling.getPlayerThreshold());
@@ -46,8 +47,9 @@ class CreateRequestDefaultsTest {
                 .playerThreshold(0.5)
                 .scalingMode(ScalingMode.SERVERS)
                 .scaleDown(ScaleDownConfig.builder().ignorePlayers(false).build())
-                .build());
+                .build(), 50);
 
+        assertEquals(0, scaling.getAvailableSlots());
         assertEquals(2, scaling.getMinServers());
         assertEquals(5, scaling.getMaxServers());
         assertEquals(0.5, scaling.getPlayerThreshold());
@@ -63,11 +65,21 @@ class CreateRequestDefaultsTest {
         assertThrows(
                 IllegalArgumentException.class,
                 () -> defaults.defaultGroupScaling(
-                        ScalingConfig.builder().playerThreshold(0).build()));
+                        ScalingConfig.builder().playerThreshold(0).build(), 50));
         assertThrows(
                 IllegalArgumentException.class,
                 () -> defaults.defaultGroupScaling(
-                        ScalingConfig.builder().playerThreshold(1.5).build()));
+                        ScalingConfig.builder().playerThreshold(1.5).build(), 50));
+    }
+
+    @Test
+    void slotsScalingWithoutSlotsOrMinServersGetsMaxPlayersAsSlots() {
+        assertEquals(20, defaults.defaultGroupScaling(ScalingConfig.builder().maxServers(3).build(), 20)
+                .getAvailableSlots());
+        assertEquals(5, defaults.defaultGroupScaling(ScalingConfig.builder().availableSlots(5).build(), 20)
+                .getAvailableSlots());
+        assertEquals(0, defaults.defaultGroupScaling(ScalingConfig.builder().minServers(1).build(), 20)
+                .getAvailableSlots());
     }
 
     @Test

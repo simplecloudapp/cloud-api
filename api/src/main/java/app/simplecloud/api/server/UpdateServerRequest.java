@@ -34,6 +34,15 @@ public class UpdateServerRequest {
         return state;
     }
 
+    /**
+     * Sets the state the controller stores for this server.
+     *
+     * <p>This only overwrites the stored state and publishes the matching events. It does not start or stop the
+     * server process; use {@link ServerApi#stopServer(String)} to stop a server. The controller plans to stop
+     * accepting {@code state} here.
+     *
+     * @param state the state to store, or null to keep it
+     */
     public void setState(@Nullable ServerState state) {
         this.state = state;
     }
@@ -81,6 +90,12 @@ public class UpdateServerRequest {
         private Integer maxMemory;
         private Integer maxPlayers;
 
+        /**
+         * Sets the state the controller stores for this server. See {@link UpdateServerRequest#setState}.
+         *
+         * @param state the state to store
+         * @return this builder
+         */
         public Builder state(ServerState state) {
             this.state = state;
             return this;

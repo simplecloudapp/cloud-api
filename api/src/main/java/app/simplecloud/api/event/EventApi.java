@@ -11,6 +11,10 @@ import app.simplecloud.api.event.server.ServerEventApi;
  *
  * <p>All event subscriptions return a {@link Subscription} that must be
  * closed when no longer needed to prevent resource leaks.
+ *
+ * <p>Events are best effort: each event is delivered at most once, and events are not ordered, neither within one
+ * area nor across areas. A missed event is not sent again, so do not rebuild state from events alone; load the
+ * current state through the other APIs when it matters.
  */
 public interface EventApi {
 

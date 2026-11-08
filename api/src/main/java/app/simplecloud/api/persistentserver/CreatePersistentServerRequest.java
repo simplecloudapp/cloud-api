@@ -4,6 +4,7 @@ import app.simplecloud.api.blueprint.CreateBlueprintRequest;
 import app.simplecloud.api.group.GroupServerType;
 import app.simplecloud.api.group.SourceConfig;
 import app.simplecloud.api.group.WorkflowsConfig;
+import app.simplecloud.api.plugin.PluginReference;
 import org.jetbrains.annotations.Nullable;
 
 import java.util.List;
@@ -15,6 +16,11 @@ import java.util.Map;
  * <p>Fields that aren't set get the same defaults as {@link app.simplecloud.api.group.CreateGroupRequest}
  * for type, max players, active state, tags and workflows. An inline blueprint set with
  * {@code createBlueprint} works the same way as for groups and gets the name of the persistent server.
+ *
+ * <p>{@code minMemory}, {@code maxMemory} and either {@code source} or {@code createBlueprint} are required.
+ * The controller rejects the request without them.
+ *
+ * <p>Plugins and plugin collections set here are installed on the persistent server when it is created.
  */
 public class CreatePersistentServerRequest {
     private final String name;
@@ -30,6 +36,8 @@ public class CreatePersistentServerRequest {
     private final WorkflowsConfig workflows;
     private final Map<String, Object> properties;
     private final List<String> tags;
+    private final List<PluginReference> plugins;
+    private final List<String> pluginCollectionIds;
 
     private CreatePersistentServerRequest(Builder builder) {
         this.name = builder.name;
@@ -45,6 +53,8 @@ public class CreatePersistentServerRequest {
         this.workflows = builder.workflows;
         this.properties = builder.properties;
         this.tags = builder.tags;
+        this.plugins = builder.plugins;
+        this.pluginCollectionIds = builder.pluginCollectionIds;
     }
 
     public String getName() {
@@ -111,6 +121,16 @@ public class CreatePersistentServerRequest {
         return tags;
     }
 
+    @Nullable
+    public List<PluginReference> getPlugins() {
+        return plugins;
+    }
+
+    @Nullable
+    public List<String> getPluginCollectionIds() {
+        return pluginCollectionIds;
+    }
+
     public static Builder builder() {
         return new Builder();
     }
@@ -129,6 +149,8 @@ public class CreatePersistentServerRequest {
         private WorkflowsConfig workflows;
         private Map<String, Object> properties;
         private List<String> tags;
+        private List<PluginReference> plugins;
+        private List<String> pluginCollectionIds;
 
         public Builder name(String name) {
             this.name = name;
@@ -192,6 +214,16 @@ public class CreatePersistentServerRequest {
 
         public Builder tags(List<String> tags) {
             this.tags = tags;
+            return this;
+        }
+
+        public Builder plugins(List<PluginReference> plugins) {
+            this.plugins = plugins;
+            return this;
+        }
+
+        public Builder pluginCollectionIds(List<String> pluginCollectionIds) {
+            this.pluginCollectionIds = pluginCollectionIds;
             return this;
         }
 

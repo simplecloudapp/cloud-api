@@ -94,6 +94,9 @@ public interface PersistentServerApi {
     /**
      * Deletes a persistent server and its referenced blueprint, if present.
      *
+     * <p>The controller cannot delete a persistent server while its server still exists, including a server that
+     * is still stopping. Stop the server, wait until it is gone and retry.
+     *
      * @param id the unique ID of the persistent server to delete
      * @return a future that completes when the persistent server and its referenced blueprint are deleted
      */

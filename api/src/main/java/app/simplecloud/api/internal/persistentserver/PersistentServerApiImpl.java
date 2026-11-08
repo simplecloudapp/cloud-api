@@ -214,6 +214,12 @@ public class PersistentServerApiImpl implements PersistentServerApi {
             apiRequest.setType(
                     ModelsCreatePersistentServerRequest.TypeEnum.valueOf(ValidationUtil.serverTypeName(effectiveType)));
             apiRequest.setWorkflows(toModel(effectiveWorkflows));
+            if (request.getPlugins() != null) {
+                apiRequest.setPlugins(request.getPlugins().stream().map(RestModelMapper::toModel).toList());
+            }
+            if (request.getPluginCollectionIds() != null) {
+                apiRequest.setPluginCollectionIds(List.copyOf(request.getPluginCollectionIds()));
+            }
 
             String blueprintId = blueprintProvisioner.createBlueprint(request.getName(), effectiveCreateBlueprint);
             SourceConfig effectiveSource = blueprintId != null
@@ -366,7 +372,7 @@ public class PersistentServerApiImpl implements PersistentServerApi {
 
     private void invalidatePersistentServers(@Nullable String id) {
         if (id != null) {
-            cache.invalidate(QueryKey.of("persistentServer", id));
+            cache.invalidate(QueryKey.of("persistentServer", ValidationUtil.normalizeUuid(id)));
         }
         cache.invalidateAll(QueryKey.of("persistentServers"));
         cache.invalidateAll(QueryKey.of("persistentServer", "name"));

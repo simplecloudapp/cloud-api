@@ -30,6 +30,13 @@ public interface ServerStoppedEvent {
     String getServerGroupId();
 
     /**
+     * Returns the persistent server ID this server belongs to.
+     *
+     * @return the persistent server ID, or an empty string for a group server
+     */
+    String getPersistentServerId();
+
+    /**
      * Returns the stopped server instance with complete configuration and runtime information.
      *
      * @return the server

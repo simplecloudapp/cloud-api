@@ -29,6 +29,11 @@ class ServerUpdatedEventImpl implements ServerUpdatedEvent {
     }
 
     @Override
+    public String getPersistentServerId() {
+        return delegate.getPersistentServerId();
+    }
+
+    @Override
     public Server getServer() {
         if (server == null) {
             if (!delegate.hasConfig() && !delegate.hasGroupConfig() && !delegate.hasPersistentServerConfig()) {

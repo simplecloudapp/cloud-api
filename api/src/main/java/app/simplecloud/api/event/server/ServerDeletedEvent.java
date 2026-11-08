@@ -29,6 +29,13 @@ public interface ServerDeletedEvent {
     String getServerGroupId();
 
     /**
+     * Returns the persistent server ID this server belongs to.
+     *
+     * @return the persistent server ID, or an empty string for a group server
+     */
+    String getPersistentServerId();
+
+    /**
      * Returns the deleted server instance with complete configuration and runtime information.
      *
      * @return the server

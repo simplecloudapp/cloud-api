@@ -88,6 +88,9 @@ public interface GroupApi {
      * <p>Only groups with {@link ScalingMode#SLOTS} support rolling restarts; other groups fail with
      * {@link CloudApiException.Reason#INVALID_REQUEST}.
      *
+     * <p>Starting a rolling restart while one is running replaces it with a new one that restarts every server
+     * started before now.
+     *
      * @param serverGroupId the server group ID
      * @return a future that completes when the rolling restart was started
      */
@@ -124,6 +127,8 @@ public interface GroupApi {
 
     /**
      * Cancels the running rolling restart of a server group.
+     *
+     * <p>A stop the controller already planned or sent can still go through.
      *
      * @param serverGroupId the server group ID
      * @return a future that completes when the rolling restart was cancelled

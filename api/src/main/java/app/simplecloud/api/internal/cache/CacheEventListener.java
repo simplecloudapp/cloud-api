@@ -66,6 +66,23 @@ public class CacheEventListener {
         schedulePatternInvalidation(QueryKey.of("group"));
     }
 
+    private void schedulePersistentServerInvalidation() {
+        schedulePatternInvalidation(QueryKey.of("persistentServers"));
+        schedulePatternInvalidation(QueryKey.of("persistentServer"));
+    }
+
+    private void schedulePersistentServerInvalidation(String persistentServerId) {
+        if (persistentServerId != null && !persistentServerId.isEmpty()) {
+            schedulePersistentServerInvalidation();
+        }
+    }
+
+    private void schedulePlayerCountInvalidation() {
+        scheduleServerInvalidation();
+        scheduleGroupStatsInvalidation();
+        schedulePersistentServerInvalidation();
+    }
+
     private void scheduleFlush() {
         long now = System.nanoTime();
         if (firstPendingAtNanos < 0) {
@@ -99,6 +116,7 @@ public class CacheEventListener {
             schedulePatternInvalidation(QueryKey.of("servers"));
             schedulePatternInvalidation(QueryKey.of("server", "numerical"));
             scheduleGroupStatsInvalidation();
+            schedulePersistentServerInvalidation(event.getPersistentServerId());
         }));
 
         subscriptions.add(eventApi.server().onStopped(event -> {
@@ -106,6 +124,7 @@ public class CacheEventListener {
             schedulePatternInvalidation(QueryKey.of("servers"));
             schedulePatternInvalidation(QueryKey.of("server", "numerical"));
             scheduleGroupStatsInvalidation();
+            schedulePersistentServerInvalidation(event.getPersistentServerId());
         }));
 
         subscriptions.add(eventApi.server().onStateChanged(event -> {
@@ -113,6 +132,7 @@ public class CacheEventListener {
             schedulePatternInvalidation(QueryKey.of("servers"));
             schedulePatternInvalidation(QueryKey.of("server", "numerical"));
             scheduleGroupStatsInvalidation();
+            schedulePersistentServerInvalidation(event.getPersistentServerId());
         }));
 
         subscriptions.add(eventApi.server().onDeleted(event -> {
@@ -120,13 +140,19 @@ public class CacheEventListener {
             schedulePatternInvalidation(QueryKey.of("servers"));
             schedulePatternInvalidation(QueryKey.of("server", "numerical"));
             scheduleGroupStatsInvalidation();
+            schedulePersistentServerInvalidation(event.getPersistentServerId());
         }));
 
         subscriptions.add(eventApi.server().onUpdated(event -> {
             scheduleInvalidation(QueryKey.of("server", event.getServerId()));
             schedulePatternInvalidation(QueryKey.of("servers"));
             schedulePatternInvalidation(QueryKey.of("server", "numerical"));
+            schedulePersistentServerInvalidation(event.getPersistentServerId());
         }));
+
+        subscriptions.add(eventApi.player().onLogin(event -> schedulePlayerCountInvalidation()));
+        subscriptions.add(eventApi.player().onDisconnect(event -> schedulePlayerCountInvalidation()));
+        subscriptions.add(eventApi.player().onServerSwitch(event -> schedulePlayerCountInvalidation()));
 
         // Group events
         subscriptions.add(eventApi.group().onCreated(event -> {

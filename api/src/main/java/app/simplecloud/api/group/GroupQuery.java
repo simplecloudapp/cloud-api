@@ -2,6 +2,10 @@ package app.simplecloud.api.group;
 
 import org.jetbrains.annotations.Nullable;
 
+import java.util.ArrayList;
+import java.util.Arrays;
+import java.util.List;
+
 /**
  * Filters for {@link GroupApi#getAllGroups(GroupQuery)}. A group has to match all filters that are set.
  */
@@ -9,7 +13,7 @@ public class GroupQuery {
     @Nullable
     private GroupServerType type;
 
-    private String tag;
+    private List<String> tags;
     private Boolean active;
     private SourceType sourceType;
     private String blueprintId;
@@ -28,13 +32,43 @@ public class GroupQuery {
         return this;
     }
 
+    /**
+     * @return the first tag filter, or null if none is set
+     * @deprecated use {@link #getTags()}
+     */
+    @Deprecated
     @Nullable
     public String getTag() {
-        return tag;
+        return tags == null || tags.isEmpty() ? null : tags.getFirst();
     }
 
+    @Nullable
+    public List<String> getTags() {
+        return tags;
+    }
+
+    /**
+     * Filter by a single tag, replacing any tags set before.
+     *
+     * @param tag the tag to filter by
+     * @return this query for chaining
+     */
     public GroupQuery filterByTag(String tag) {
-        this.tag = tag;
+        this.tags = new ArrayList<>(List.of(tag));
+        return this;
+    }
+
+    /**
+     * Filter by one or more tags (matches if any tag matches). Repeated calls add tags.
+     *
+     * @param tags the tags to filter by
+     * @return this query for chaining
+     */
+    public GroupQuery filterByTags(String... tags) {
+        if (this.tags == null) {
+            this.tags = new ArrayList<>();
+        }
+        this.tags.addAll(Arrays.asList(tags));
         return this;
     }
 
@@ -118,7 +152,7 @@ public class GroupQuery {
     public GroupQuery copy() {
         GroupQuery copy = new GroupQuery();
         copy.type = type;
-        copy.tag = tag;
+        copy.tags = tags == null ? null : new ArrayList<>(tags);
         copy.active = active;
         copy.sourceType = sourceType;
         copy.blueprintId = blueprintId;

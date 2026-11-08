@@ -60,6 +60,10 @@ public class ScalingConfig {
         this.minServers = minServers;
     }
 
+    /**
+     * @return the share of max players (0 to 1) below which a server still counts as free, used with
+     *     {@link ScalingMode#SERVERS}
+     */
     public double getPlayerThreshold() {
         return playerThreshold;
     }

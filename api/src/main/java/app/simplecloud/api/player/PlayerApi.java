@@ -74,7 +74,17 @@ public interface PlayerApi {
      * @param query the query, or null for the controller defaults
      * @return a future containing the matching players
      */
-    CompletableFuture<List<CloudPlayer>> list(@Nullable PlayerQuery query);
+    default CompletableFuture<List<CloudPlayer>> list(@Nullable PlayerQuery query) {
+        return listPage(query).thenApply(Page::items);
+    }
+
+    /**
+     * Lists known players like {@link #list(PlayerQuery)} and also returns how many players match in total.
+     *
+     * @param query the query, or null for the controller defaults
+     * @return a future containing the requested page and the total number of matching players
+     */
+    CompletableFuture<Page<CloudPlayer>> listPage(@Nullable PlayerQuery query);
 
     /**
      * Gets the total number of players online on the network.
@@ -242,7 +252,20 @@ public interface PlayerApi {
      * @param offset the number of profiles to skip
      * @return a future containing the requested profiles
      */
-    CompletableFuture<List<PlayerProfile>> getProfiles(UUID uniqueId, int limit, int offset);
+    default CompletableFuture<List<PlayerProfile>> getProfiles(UUID uniqueId, int limit, int offset) {
+        return getProfilePage(uniqueId, limit, offset).thenApply(Page::items);
+    }
+
+    /**
+     * Lists the recorded profiles of a player like {@link #getProfiles(UUID, int, int)} and also returns how many
+     * profiles exist in total.
+     *
+     * @param uniqueId the player's UUID
+     * @param limit the page size, between 1 and 100
+     * @param offset the number of profiles to skip
+     * @return a future containing the requested page and the total number of profiles
+     */
+    CompletableFuture<Page<PlayerProfile>> getProfilePage(UUID uniqueId, int limit, int offset);
 
     /**
      * Lists the first 50 recorded profiles of a player, newest first.
@@ -279,7 +302,20 @@ public interface PlayerApi {
      * @param offset the number of sessions to skip
      * @return a future containing the requested sessions
      */
-    CompletableFuture<List<PlayerSession>> getSessions(UUID uniqueId, int limit, int offset);
+    default CompletableFuture<List<PlayerSession>> getSessions(UUID uniqueId, int limit, int offset) {
+        return getSessionPage(uniqueId, limit, offset).thenApply(Page::items);
+    }
+
+    /**
+     * Lists the sessions of a player like {@link #getSessions(UUID, int, int)} and also returns how many sessions
+     * exist in total.
+     *
+     * @param uniqueId the player's UUID
+     * @param limit the page size, between 1 and 100
+     * @param offset the number of sessions to skip
+     * @return a future containing the requested page and the total number of sessions
+     */
+    CompletableFuture<Page<PlayerSession>> getSessionPage(UUID uniqueId, int limit, int offset);
 
     /**
      * Lists the first 50 sessions of a player, newest first.
@@ -340,12 +376,14 @@ public interface PlayerApi {
     /**
      * Kicks a player from the network.
      *
-     * <p>The request is routed through the controller.
+     * <p>The request is routed through the controller. If the controller still lists the player as online but no
+     * proxy answers, the controller gives up after about 10 seconds and the future completes exceptionally with a
+     * {@link app.simplecloud.api.CloudApiException} ({@code UNKNOWN}).
      *
      * @param uniqueId the player's UUID
      * @param reason the kick reason, or null for none
      * @return a future containing true if the proxy kicked the player, false if the
-     *         player is not online or the kick failed
+     *         player is not online or the proxy reported that the kick failed
      */
     CompletableFuture<Boolean> kick(UUID uniqueId, @Nullable Component reason);
 
@@ -397,7 +435,8 @@ public interface PlayerApi {
      * Connects a player to a server by the name the proxy registered it under.
      *
      * <p>This goes to the player's proxy directly, without the controller, and never completes
-     * exceptionally.
+     * exceptionally. If no proxy holds the player, it completes with
+     * {@link CloudPlayer.ConnectResult#PLAYER_NOT_FOUND} after about 10 seconds.
      *
      * @param uniqueId the player's UUID
      * @param serverName the name of the target server on the proxy
