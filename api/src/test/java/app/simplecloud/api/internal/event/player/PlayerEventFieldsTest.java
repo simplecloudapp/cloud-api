@@ -1,13 +1,16 @@
 package app.simplecloud.api.internal.event.player;
 
+import app.simplecloud.api.player.PlayerApi;
 import build.buf.gen.simplecloud.player.v2.PlayerDisconnectEvent;
 import build.buf.gen.simplecloud.player.v2.PlayerKickEvent;
 import build.buf.gen.simplecloud.player.v2.PlayerLoginEvent;
 import build.buf.gen.simplecloud.player.v2.PlayerServerSwitchEvent;
+import com.google.protobuf.ByteString;
+import com.google.protobuf.CodedOutputStream;
+import io.nats.client.Connection;
 import org.junit.jupiter.api.Test;
 
-import java.io.ByteArrayOutputStream;
-import java.nio.charset.StandardCharsets;
+import java.io.IOException;
 
 import static org.junit.jupiter.api.Assertions.assertEquals;
 import static org.junit.jupiter.api.Assertions.assertNull;
@@ -18,58 +21,73 @@ import static org.junit.jupiter.api.Assertions.assertNull;
  */
 class PlayerEventFieldsTest {
 
+    /** These tests never call {@code getPlayer()}, the only method that needs the API or NATS. */
+    private static final PlayerApi NO_PLAYER_API = null;
+    private static final Connection NO_NATS_CONNECTION = null;
+
     @Test
-    void loginReadsProxyNameFromField3() throws Exception {
-        PlayerLoginEventImpl event = new PlayerLoginEventImpl(
-                PlayerLoginEvent.parseFrom(fields(3, "proxy-1")), null, null);
+    void loginReadsProxyNameFromField3() throws IOException {
+        ByteString bytes = encode(new StringField(3, "proxy-1"));
+        PlayerLoginEvent proto = PlayerLoginEvent.parseFrom(bytes);
+
+        PlayerLoginEventImpl event = new PlayerLoginEventImpl(proto, NO_PLAYER_API, NO_NATS_CONNECTION);
 
         assertEquals("proxy-1", event.getProxyName());
     }
 
     @Test
-    void disconnectReadsProxyNameFromField3AndServerNameFromField4() throws Exception {
-        PlayerDisconnectEventImpl event = new PlayerDisconnectEventImpl(
-                PlayerDisconnectEvent.parseFrom(fields(3, "proxy-1", 4, "lobby-1")), null, null);
+    void disconnectReadsProxyNameFromField3AndServerNameFromField4() throws IOException {
+        ByteString bytes = encode(new StringField(3, "proxy-1"), new StringField(4, "lobby-1"));
+        PlayerDisconnectEvent proto = PlayerDisconnectEvent.parseFrom(bytes);
+
+        PlayerDisconnectEventImpl event = new PlayerDisconnectEventImpl(proto, NO_PLAYER_API, NO_NATS_CONNECTION);
 
         assertEquals("proxy-1", event.getProxyName());
         assertEquals("lobby-1", event.getServerName());
     }
 
     @Test
-    void serverSwitchReadsPreviousServerFromField3AndNewServerFromField4() throws Exception {
-        PlayerServerSwitchEventImpl event = new PlayerServerSwitchEventImpl(
-                PlayerServerSwitchEvent.parseFrom(fields(3, "lobby-1", 4, "game-2")), null, null);
+    void serverSwitchReadsPreviousServerFromField3AndNewServerFromField4() throws IOException {
+        ByteString bytes = encode(new StringField(3, "lobby-1"), new StringField(4, "game-2"));
+        PlayerServerSwitchEvent proto = PlayerServerSwitchEvent.parseFrom(bytes);
+
+        PlayerServerSwitchEventImpl event = new PlayerServerSwitchEventImpl(proto, NO_PLAYER_API, NO_NATS_CONNECTION);
 
         assertEquals("lobby-1", event.getPreviousServerName());
         assertEquals("game-2", event.getNewServerName());
     }
 
     @Test
-    void firstServerSwitchHasNoPreviousServer() throws Exception {
-        PlayerServerSwitchEventImpl event = new PlayerServerSwitchEventImpl(
-                PlayerServerSwitchEvent.parseFrom(fields(4, "lobby-1")), null, null);
+    void firstServerSwitchHasNoPreviousServer() throws IOException {
+        ByteString bytes = encode(new StringField(4, "lobby-1"));
+        PlayerServerSwitchEvent proto = PlayerServerSwitchEvent.parseFrom(bytes);
+
+        PlayerServerSwitchEventImpl event = new PlayerServerSwitchEventImpl(proto, NO_PLAYER_API, NO_NATS_CONNECTION);
 
         assertNull(event.getPreviousServerName());
         assertEquals("lobby-1", event.getNewServerName());
     }
 
     @Test
-    void kickReadsServerNameFromField3() throws Exception {
-        PlayerKickEventImpl event = new PlayerKickEventImpl(
-                PlayerKickEvent.parseFrom(fields(3, "lobby-1")), null, null);
+    void kickReadsServerNameFromField3() throws IOException {
+        ByteString bytes = encode(new StringField(3, "lobby-1"));
+        PlayerKickEvent proto = PlayerKickEvent.parseFrom(bytes);
+
+        PlayerKickEventImpl event = new PlayerKickEventImpl(proto, NO_PLAYER_API, NO_NATS_CONNECTION);
 
         assertEquals("lobby-1", event.getServerName());
     }
 
-    /** Encodes string fields as protobuf wire format: a tag byte, a length byte, the UTF-8 bytes. */
-    private static byte[] fields(Object... numbersAndValues) {
-        ByteArrayOutputStream out = new ByteArrayOutputStream();
-        for (int i = 0; i < numbersAndValues.length; i += 2) {
-            byte[] value = ((String) numbersAndValues[i + 1]).getBytes(StandardCharsets.UTF_8);
-            out.write(((int) numbersAndValues[i] << 3) | 2);
-            out.write(value.length);
-            out.writeBytes(value);
+    private record StringField(int number, String value) {
+    }
+
+    private static ByteString encode(StringField... fields) throws IOException {
+        ByteString.Output output = ByteString.newOutput();
+        CodedOutputStream stream = CodedOutputStream.newInstance(output);
+        for (StringField field : fields) {
+            stream.writeString(field.number(), field.value());
         }
-        return out.toByteArray();
+        stream.flush();
+        return output.toByteString();
     }
 }
