@@ -7,7 +7,7 @@ mockito = "5.24.0"
 
 controller-proto = "36.2.0.1.20261016140109.c8833753d47f"
 adventure-proto = "36.2.0.1.20260902113455.2e6f3d5e83b3"
-player-proto = "36.2.0.1.20261108140312.e331ed0a7359"
+player-proto = "36.2.0.1.20261108141701.5bed564c5441"
 
 jnats = "2.26.4"
 okhttp = "5.5.1"
