@@ -37,7 +37,7 @@ class PlayerLoginEventImpl implements PlayerLoginEvent {
 
     @Override
     public String getProxyName() {
-        return PlayerEventModelMapper.emptyToNull(delegate.getProxyServerId());
+        return PlayerEventModelMapper.emptyToNull(delegate.getProxyName());
     }
 
     @Override

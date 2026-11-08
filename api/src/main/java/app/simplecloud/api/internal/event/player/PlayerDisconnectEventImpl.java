@@ -37,12 +37,12 @@ class PlayerDisconnectEventImpl implements PlayerDisconnectEvent {
 
     @Override
     public String getProxyName() {
-        return PlayerEventModelMapper.emptyToNull(delegate.getProxyServerId());
+        return PlayerEventModelMapper.emptyToNull(delegate.getProxyName());
     }
 
     @Override
     public String getServerName() {
-        return PlayerEventModelMapper.emptyToNull(delegate.getServerId());
+        return PlayerEventModelMapper.emptyToNull(delegate.getServerName());
     }
 
     @Override

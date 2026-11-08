@@ -39,7 +39,7 @@ class PlayerKickEventImpl implements PlayerKickEvent {
 
     @Override
     public String getServerName() {
-        return PlayerEventModelMapper.emptyToNull(delegate.getServerId());
+        return PlayerEventModelMapper.emptyToNull(delegate.getServerName());
     }
 
     @Override
