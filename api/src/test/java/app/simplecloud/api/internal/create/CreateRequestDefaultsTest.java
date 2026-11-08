@@ -41,13 +41,16 @@ class CreateRequestDefaultsTest {
 
     @Test
     void explicitScalingValuesAreKept() {
-        ScalingConfig scaling = defaults.defaultGroupScaling(ScalingConfig.builder()
-                .minServers(2)
-                .maxServers(5)
-                .playerThreshold(0.5)
-                .scalingMode(ScalingMode.SERVERS)
-                .scaleDown(ScaleDownConfig.builder().ignorePlayers(false).build())
-                .build(), 50);
+        ScalingConfig scaling = defaults.defaultGroupScaling(
+                ScalingConfig.builder()
+                        .minServers(2)
+                        .maxServers(5)
+                        .playerThreshold(0.5)
+                        .scalingMode(ScalingMode.SERVERS)
+                        .scaleDown(
+                                ScaleDownConfig.builder().ignorePlayers(false).build())
+                        .build(),
+                50);
 
         assertEquals(0, scaling.getAvailableSlots());
         assertEquals(2, scaling.getMinServers());
@@ -74,12 +77,21 @@ class CreateRequestDefaultsTest {
 
     @Test
     void slotsScalingWithoutSlotsOrMinServersGetsMaxPlayersAsSlots() {
-        assertEquals(20, defaults.defaultGroupScaling(ScalingConfig.builder().maxServers(3).build(), 20)
-                .getAvailableSlots());
-        assertEquals(5, defaults.defaultGroupScaling(ScalingConfig.builder().availableSlots(5).build(), 20)
-                .getAvailableSlots());
-        assertEquals(0, defaults.defaultGroupScaling(ScalingConfig.builder().minServers(1).build(), 20)
-                .getAvailableSlots());
+        assertEquals(
+                20,
+                defaults.defaultGroupScaling(
+                                ScalingConfig.builder().maxServers(3).build(), 20)
+                        .getAvailableSlots());
+        assertEquals(
+                5,
+                defaults.defaultGroupScaling(
+                                ScalingConfig.builder().availableSlots(5).build(), 20)
+                        .getAvailableSlots());
+        assertEquals(
+                0,
+                defaults.defaultGroupScaling(
+                                ScalingConfig.builder().minServers(1).build(), 20)
+                        .getAvailableSlots());
     }
 
     @Test

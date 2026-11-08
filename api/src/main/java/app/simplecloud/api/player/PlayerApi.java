@@ -515,8 +515,7 @@ public interface PlayerApi {
     @Deprecated
     default CompletableFuture<CloudPlayer.ConnectResult> connectToGroup(
             UUID uniqueId, String groupName, ServerSelectionMode selectionMode) {
-        return connectToGroupByName(uniqueId, groupName, selectionMode)
-                .thenApply(PlayerApi::withoutNoServerAvailable);
+        return connectToGroupByName(uniqueId, groupName, selectionMode).thenApply(PlayerApi::withoutNoServerAvailable);
     }
 
     /**

@@ -99,11 +99,10 @@ public final class CreateRequestDefaults {
         }
 
         ScalingMode scalingMode = scaling.getScalingMode() != null ? scaling.getScalingMode() : ScalingMode.SLOTS;
-        int availableSlots = scalingMode == ScalingMode.SLOTS
-                        && scaling.getAvailableSlots() <= 0
-                        && scaling.getMinServers() <= 0
-                ? maxPlayers
-                : scaling.getAvailableSlots();
+        int availableSlots =
+                scalingMode == ScalingMode.SLOTS && scaling.getAvailableSlots() <= 0 && scaling.getMinServers() <= 0
+                        ? maxPlayers
+                        : scaling.getAvailableSlots();
 
         return ScalingConfig.builder()
                 .availableSlots(availableSlots)

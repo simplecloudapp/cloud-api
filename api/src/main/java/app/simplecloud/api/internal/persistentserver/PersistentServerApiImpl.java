@@ -215,7 +215,9 @@ public class PersistentServerApiImpl implements PersistentServerApi {
                     ModelsCreatePersistentServerRequest.TypeEnum.valueOf(ValidationUtil.serverTypeName(effectiveType)));
             apiRequest.setWorkflows(toModel(effectiveWorkflows));
             if (request.getPlugins() != null) {
-                apiRequest.setPlugins(request.getPlugins().stream().map(RestModelMapper::toModel).toList());
+                apiRequest.setPlugins(request.getPlugins().stream()
+                        .map(RestModelMapper::toModel)
+                        .toList());
             }
             if (request.getPluginCollectionIds() != null) {
                 apiRequest.setPluginCollectionIds(List.copyOf(request.getPluginCollectionIds()));

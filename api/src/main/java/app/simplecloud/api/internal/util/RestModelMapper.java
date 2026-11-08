@@ -224,7 +224,8 @@ public final class RestModelMapper {
         ModelsPluginReferenceInput result = new ModelsPluginReferenceInput();
         result.setPluginId(reference.pluginId());
         result.setPluginName(reference.pluginName());
-        result.setSourceType(reference.sourceType() != null ? reference.sourceType().name() : null);
+        result.setSourceType(
+                reference.sourceType() != null ? reference.sourceType().name() : null);
         result.setSourceValue(reference.sourceValue());
         result.setVersion(reference.version());
         result.setRequired(reference.required());

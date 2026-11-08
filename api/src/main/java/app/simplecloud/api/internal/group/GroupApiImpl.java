@@ -307,11 +307,13 @@ public class GroupApiImpl implements GroupApi {
             apiRequest.setProperties(createRequestDefaults.defaultProperties(request.getProperties()));
             apiRequest.setTags(createRequestDefaults.defaultTags(request.getName(), request.getTags()));
             apiRequest.setDeployment(toModel(createRequestDefaults.defaultDeployment(request.getDeployment())));
-            apiRequest.setScaling(toModel(
-                    createRequestDefaults.defaultGroupScaling(request.getScaling(), effectiveMaxPlayers)));
+            apiRequest.setScaling(
+                    toModel(createRequestDefaults.defaultGroupScaling(request.getScaling(), effectiveMaxPlayers)));
             apiRequest.setWorkflows(toModel(effectiveWorkflows));
             if (request.getPlugins() != null) {
-                apiRequest.setPlugins(request.getPlugins().stream().map(RestModelMapper::toModel).toList());
+                apiRequest.setPlugins(request.getPlugins().stream()
+                        .map(RestModelMapper::toModel)
+                        .toList());
             }
             if (request.getPluginCollectionIds() != null) {
                 apiRequest.setPluginCollectionIds(List.copyOf(request.getPluginCollectionIds()));

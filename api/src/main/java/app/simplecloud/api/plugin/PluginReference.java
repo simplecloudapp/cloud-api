@@ -26,9 +26,11 @@ public record PluginReference(
 
     public PluginReference {
         boolean byId = pluginId != null && !pluginId.isBlank();
-        boolean bySource = pluginName != null && !pluginName.isBlank()
+        boolean bySource = pluginName != null
+                && !pluginName.isBlank()
                 && sourceType != null
-                && sourceValue != null && !sourceValue.isBlank();
+                && sourceValue != null
+                && !sourceValue.isBlank();
         if (byId == bySource) {
             throw new IllegalArgumentException(
                     "Either pluginId or pluginName, sourceType and sourceValue must be set, not both");
