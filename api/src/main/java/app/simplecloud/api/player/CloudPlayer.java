@@ -193,6 +193,65 @@ public interface CloudPlayer extends Audience {
     }
 
     /**
+     * Connects the player to a server by the name the proxy registered it under.
+     *
+     * @param serverName the name of the server on the proxy
+     * @return a future containing the connection result
+     * @deprecated use {@link #connectToServerByName(String)} to connect through the controller, or
+     *             {@link #connectDirect(String)}, which this method calls
+     */
+    @Deprecated
+    default CompletableFuture<ConnectResult> connect(String serverName) {
+        return connectDirect(serverName);
+    }
+
+    /**
+     * Connects the player to a server of the given server group.
+     *
+     * @param groupName the name of the target server group
+     * @param selectionMode how the target server is chosen
+     * @return a future containing the connection result
+     * @deprecated use {@link #connectToGroupByName(String, ServerSelectionMode)}, which can also answer
+     *             {@link ConnectResult#NO_SERVER_AVAILABLE}. This method answers
+     *             {@link ConnectResult#SERVER_NOT_FOUND} instead.
+     */
+    @Deprecated
+    default CompletableFuture<ConnectResult> connectToGroup(String groupName, ServerSelectionMode selectionMode) {
+        return connectToGroupByName(groupName, selectionMode).thenApply(CloudPlayer::withoutNoServerAvailable);
+    }
+
+    /**
+     * Connects the player to a random server of the given server group.
+     *
+     * @param groupName the name of the target server group
+     * @return a future containing the connection result
+     * @deprecated use {@link #connectToGroupByName(String)}, see
+     *             {@link #connectToGroup(String, ServerSelectionMode)} for how the results differ
+     */
+    @Deprecated
+    default CompletableFuture<ConnectResult> connectToGroup(String groupName) {
+        return connectToGroup(groupName, ServerSelectionMode.RANDOM);
+    }
+
+    /**
+     * Connects the player to a persistent server.
+     *
+     * @param persistentServerId the ID of the target persistent server
+     * @return a future containing the connection result
+     * @deprecated use {@link #connectToPersistentServerById(String)}, which can also answer
+     *             {@link ConnectResult#NO_SERVER_AVAILABLE}. This method answers
+     *             {@link ConnectResult#SERVER_NOT_FOUND} instead.
+     */
+    @Deprecated
+    default CompletableFuture<ConnectResult> connectToPersistentServer(String persistentServerId) {
+        return connectToPersistentServerById(persistentServerId).thenApply(CloudPlayer::withoutNoServerAvailable);
+    }
+
+    private static ConnectResult withoutNoServerAvailable(ConnectResult result) {
+        return result == ConnectResult.NO_SERVER_AVAILABLE ? ConnectResult.SERVER_NOT_FOUND : result;
+    }
+
+    /**
      * Result of a player connection attempt.
      */
     enum ConnectResult {

@@ -5,7 +5,9 @@ import org.jetbrains.annotations.Nullable;
 
 import java.util.ArrayList;
 import java.util.List;
+import java.util.Locale;
 import java.util.Objects;
+import java.util.function.Function;
 
 /**
  * Filters and sorting for {@link ServerApi#getAllServers(ServerQuery)}.
@@ -223,6 +225,20 @@ public class ServerQuery {
         return this;
     }
 
+    /**
+     * Set the field to sort by.
+     *
+     * @param sortBy the field name ("created_at", "updated_at", "numerical_id" or "state"), or null
+     * @return this query for chaining
+     * @throws IllegalArgumentException if the field name is unknown
+     * @deprecated use {@link #sortBy(SortField)}
+     */
+    @Deprecated
+    public ServerQuery sortBy(@Nullable String sortBy) {
+        this.sortBy = sortBy == null ? null : parse(SortField.values(), SortField::getValue, sortBy, "sortBy");
+        return this;
+    }
+
     @Nullable
     public SortOrder getSortOrder() {
         return sortOrder;
@@ -237,6 +253,31 @@ public class ServerQuery {
     public ServerQuery sortOrder(SortOrder sortOrder) {
         this.sortOrder = sortOrder;
         return this;
+    }
+
+    /**
+     * Set the sort order. The controller sorts ascending if none is set.
+     *
+     * @param sortOrder "asc" or "desc", or null
+     * @return this query for chaining
+     * @throws IllegalArgumentException if the sort order is unknown
+     * @deprecated use {@link #sortOrder(SortOrder)}
+     */
+    @Deprecated
+    public ServerQuery sortOrder(@Nullable String sortOrder) {
+        this.sortOrder =
+                sortOrder == null ? null : parse(SortOrder.values(), SortOrder::getValue, sortOrder, "sortOrder");
+        return this;
+    }
+
+    private static <T> T parse(T[] values, Function<T, String> valueOf, String raw, String name) {
+        String normalized = raw.trim().toLowerCase(Locale.ROOT);
+        for (T value : values) {
+            if (valueOf.apply(value).equals(normalized)) {
+                return value;
+            }
+        }
+        throw new IllegalArgumentException("unknown " + name + ": " + raw);
     }
 
     @Nullable

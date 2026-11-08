@@ -447,4 +447,73 @@ public interface PlayerApi {
         return connectTo(uniqueId, new ConnectTarget.PersistentServerId(persistentServerId))
                 .thenApply(ConnectResponse::result);
     }
+
+    /**
+     * Connects a player to a server by the name the proxy registered it under.
+     *
+     * @param uniqueId the player's UUID
+     * @param serverName the name of the server on the proxy
+     * @return a future containing the connection result
+     * @deprecated use {@link #connectToServerByName(UUID, String)} to connect through the controller, or
+     *             {@link #connectDirect(UUID, String)}, which this method calls
+     */
+    @Deprecated
+    default CompletableFuture<CloudPlayer.ConnectResult> connect(UUID uniqueId, String serverName) {
+        return connectDirect(uniqueId, serverName);
+    }
+
+    /**
+     * Connects a player to a server of the given server group.
+     *
+     * @param uniqueId the player's UUID
+     * @param groupName the name of the target server group
+     * @param selectionMode how the target server is chosen
+     * @return a future containing the connection result
+     * @deprecated use {@link #connectToGroupByName(UUID, String, ServerSelectionMode)}, which can also
+     *             answer {@link CloudPlayer.ConnectResult#NO_SERVER_AVAILABLE}. This method answers
+     *             {@link CloudPlayer.ConnectResult#SERVER_NOT_FOUND} instead.
+     */
+    @Deprecated
+    default CompletableFuture<CloudPlayer.ConnectResult> connectToGroup(
+            UUID uniqueId, String groupName, ServerSelectionMode selectionMode) {
+        return connectToGroupByName(uniqueId, groupName, selectionMode)
+                .thenApply(PlayerApi::withoutNoServerAvailable);
+    }
+
+    /**
+     * Connects a player to a random server of the given server group.
+     *
+     * @param uniqueId the player's UUID
+     * @param groupName the name of the target server group
+     * @return a future containing the connection result
+     * @deprecated use {@link #connectToGroupByName(UUID, String)}, see
+     *             {@link #connectToGroup(UUID, String, ServerSelectionMode)} for how the results differ
+     */
+    @Deprecated
+    default CompletableFuture<CloudPlayer.ConnectResult> connectToGroup(UUID uniqueId, String groupName) {
+        return connectToGroup(uniqueId, groupName, ServerSelectionMode.RANDOM);
+    }
+
+    /**
+     * Connects a player to a persistent server.
+     *
+     * @param uniqueId the player's UUID
+     * @param persistentServerId the ID of the target persistent server
+     * @return a future containing the connection result
+     * @deprecated use {@link #connectToPersistentServerById(UUID, String)}, which can also answer
+     *             {@link CloudPlayer.ConnectResult#NO_SERVER_AVAILABLE}. This method answers
+     *             {@link CloudPlayer.ConnectResult#SERVER_NOT_FOUND} instead.
+     */
+    @Deprecated
+    default CompletableFuture<CloudPlayer.ConnectResult> connectToPersistentServer(
+            UUID uniqueId, String persistentServerId) {
+        return connectToPersistentServerById(uniqueId, persistentServerId)
+                .thenApply(PlayerApi::withoutNoServerAvailable);
+    }
+
+    private static CloudPlayer.ConnectResult withoutNoServerAvailable(CloudPlayer.ConnectResult result) {
+        return result == CloudPlayer.ConnectResult.NO_SERVER_AVAILABLE
+                ? CloudPlayer.ConnectResult.SERVER_NOT_FOUND
+                : result;
+    }
 }
