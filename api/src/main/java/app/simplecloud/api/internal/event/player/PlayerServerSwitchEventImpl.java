@@ -40,12 +40,12 @@ class PlayerServerSwitchEventImpl implements PlayerServerSwitchEvent {
 
     @Override
     public String getPreviousServerName() {
-        return ProtoConversionUtil.emptyToNull(delegate.getPreviousServerId());
+        return ProtoConversionUtil.emptyToNull(delegate.getPreviousServerName());
     }
 
     @Override
     public String getNewServerName() {
-        return delegate.getNewServerId();
+        return delegate.getNewServerName();
     }
 
     @Override

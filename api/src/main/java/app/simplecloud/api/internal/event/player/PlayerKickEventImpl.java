@@ -42,7 +42,7 @@ class PlayerKickEventImpl implements PlayerKickEvent {
 
     @Override
     public String getServerName() {
-        return ProtoConversionUtil.emptyToNull(delegate.getServerId());
+        return ProtoConversionUtil.emptyToNull(delegate.getServerName());
     }
 
     @Override

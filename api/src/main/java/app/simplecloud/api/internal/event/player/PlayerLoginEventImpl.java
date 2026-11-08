@@ -40,7 +40,7 @@ class PlayerLoginEventImpl implements PlayerLoginEvent {
 
     @Override
     public String getProxyName() {
-        return ProtoConversionUtil.emptyToNull(delegate.getProxyServerId());
+        return ProtoConversionUtil.emptyToNull(delegate.getProxyName());
     }
 
     @Override

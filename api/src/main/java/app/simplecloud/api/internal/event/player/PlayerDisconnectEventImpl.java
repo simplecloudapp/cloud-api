@@ -40,12 +40,12 @@ class PlayerDisconnectEventImpl implements PlayerDisconnectEvent {
 
     @Override
     public String getProxyName() {
-        return ProtoConversionUtil.emptyToNull(delegate.getProxyServerId());
+        return ProtoConversionUtil.emptyToNull(delegate.getProxyName());
     }
 
     @Override
     public String getServerName() {
-        return ProtoConversionUtil.emptyToNull(delegate.getServerId());
+        return ProtoConversionUtil.emptyToNull(delegate.getServerName());
     }
 
     @Override
