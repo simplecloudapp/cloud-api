@@ -13,8 +13,8 @@ import static org.junit.jupiter.api.Assertions.assertEquals;
 import static org.junit.jupiter.api.Assertions.assertNull;
 
 /**
- * Decodes events from raw field numbers, as every controller version sends them, so the test
- * fails if a public getter reads the wrong field.
+ * Decodes events from raw field numbers, which is what the controller sends, so the test fails
+ * if a public getter reads the wrong field.
  */
 class PlayerEventFieldsTest {
 
