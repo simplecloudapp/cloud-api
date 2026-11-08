@@ -1,7 +1,5 @@
 package app.simplecloud.api.player;
 
-import org.jetbrains.annotations.Nullable;
-
 import java.util.Objects;
 
 /**
@@ -39,9 +37,10 @@ public sealed interface ConnectTarget {
      * A server of a server group, looked up by the group's name (case-insensitive).
      *
      * @param groupName the name of the server group
-     * @param selectionMode how the server is chosen, {@link ServerSelectionMode#RANDOM} if null
+     * @param selectionMode how the server is chosen; null when creating it means {@link ServerSelectionMode#RANDOM},
+     *     so the accessor never returns null
      */
-    record GroupName(String groupName, @Nullable ServerSelectionMode selectionMode) implements ConnectTarget {
+    record GroupName(String groupName, ServerSelectionMode selectionMode) implements ConnectTarget {
         public GroupName {
             Objects.requireNonNull(groupName, "groupName");
             selectionMode = selectionMode != null ? selectionMode : ServerSelectionMode.RANDOM;
@@ -52,9 +51,10 @@ public sealed interface ConnectTarget {
      * A server of a server group, looked up by the group's ID.
      *
      * @param groupId the server group UUID
-     * @param selectionMode how the server is chosen, {@link ServerSelectionMode#RANDOM} if null
+     * @param selectionMode how the server is chosen; null when creating it means {@link ServerSelectionMode#RANDOM},
+     *     so the accessor never returns null
      */
-    record GroupId(String groupId, @Nullable ServerSelectionMode selectionMode) implements ConnectTarget {
+    record GroupId(String groupId, ServerSelectionMode selectionMode) implements ConnectTarget {
         public GroupId {
             Objects.requireNonNull(groupId, "groupId");
             selectionMode = selectionMode != null ? selectionMode : ServerSelectionMode.RANDOM;
@@ -66,8 +66,8 @@ public sealed interface ConnectTarget {
      *
      * @param persistentServerId the persistent server UUID
      */
-    record PersistentServer(String persistentServerId) implements ConnectTarget {
-        public PersistentServer {
+    record PersistentServerId(String persistentServerId) implements ConnectTarget {
+        public PersistentServerId {
             Objects.requireNonNull(persistentServerId, "persistentServerId");
         }
     }

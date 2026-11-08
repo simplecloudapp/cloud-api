@@ -121,7 +121,7 @@ class PlayerApiImplTest {
 
         assertEquals(
                 CloudPlayer.ConnectResult.ALREADY_CONNECTED,
-                api.connect(PLAYER_ID, "lobby-1").join());
+                api.connectToServerByName(PLAYER_ID, "lobby-1").join());
 
         RecordedRequest request = controller.takeRequest();
         assertEquals("/v0/players/connect", ControllerServer.url(request).encodedPath());
@@ -135,7 +135,7 @@ class PlayerApiImplTest {
 
         assertEquals(
                 CloudPlayer.ConnectResult.PLAYER_NOT_FOUND,
-                api.connect(PLAYER_ID, "lobby-1").join());
+                api.connectToServerByName(PLAYER_ID, "lobby-1").join());
     }
 
     @Test
@@ -144,7 +144,7 @@ class PlayerApiImplTest {
 
         assertEquals(
                 CloudPlayer.ConnectResult.SERVER_NOT_FOUND,
-                api.connect(PLAYER_ID, "lobby-9").join());
+                api.connectToServerByName(PLAYER_ID, "lobby-9").join());
     }
 
     @Test
@@ -153,16 +153,16 @@ class PlayerApiImplTest {
 
         assertEquals(
                 CloudApiException.Reason.CONFLICT,
-                failure(api.connect(PLAYER_ID, "lobby")).getReason());
+                failure(api.connectToServerByName(PLAYER_ID, "lobby")).getReason());
     }
 
     @Test
-    void connectToServerSendsServerIdOnly() {
+    void connectToServerByIdSendsServerIdOnly() {
         controller.respond(200, "{\"success\": true, \"result\": \"SUCCESS\", \"server_name\": \"lobby-1\"}");
 
         assertEquals(
                 CloudPlayer.ConnectResult.SUCCESS,
-                api.connectToServer(PLAYER_ID, SERVER_ID).join());
+                api.connectToServerById(PLAYER_ID, SERVER_ID).join());
 
         JsonObject body = ControllerServer.body(controller.takeRequest());
         assertEquals(SERVER_ID, body.get("server_id").getAsString());

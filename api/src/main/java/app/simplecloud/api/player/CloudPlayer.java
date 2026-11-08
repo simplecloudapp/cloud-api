@@ -2,6 +2,7 @@ package app.simplecloud.api.player;
 
 import net.kyori.adventure.audience.Audience;
 import net.kyori.adventure.text.Component;
+import org.jetbrains.annotations.Nullable;
 
 import java.util.Map;
 import java.util.UUID;
@@ -119,14 +120,14 @@ public interface CloudPlayer extends Audience {
      * Connects the player to the specified server by its cloud name.
      *
      * <p>The name is a persistent server's name or {@code <group>-<numerical id>}, matched
-     * case-insensitively. Server UUIDs are not accepted, use {@link #connectToServer(String)}.
+     * case-insensitively. Server UUIDs are not accepted, use {@link #connectToServerById(String)}.
      * To reach servers that are not managed by the cloud, use {@link #connectDirect(String)}.
      * See {@link PlayerApi#connectTo(UUID, ConnectTarget)} for when the future completes exceptionally.
      *
      * @param serverName the cloud name of the server to connect to
      * @return a future containing the connection result
      */
-    default CompletableFuture<ConnectResult> connect(String serverName) {
+    default CompletableFuture<ConnectResult> connectToServerByName(String serverName) {
         return connectTo(new ConnectTarget.ServerName(serverName)).thenApply(ConnectResponse::result);
     }
 
@@ -138,7 +139,7 @@ public interface CloudPlayer extends Audience {
      * @param serverId the UUID of the server to connect to
      * @return a future containing the connection result
      */
-    default CompletableFuture<ConnectResult> connectToServer(String serverId) {
+    default CompletableFuture<ConnectResult> connectToServerById(String serverId) {
         return connectTo(new ConnectTarget.ServerId(serverId)).thenApply(ConnectResponse::result);
     }
 
@@ -162,7 +163,8 @@ public interface CloudPlayer extends Audience {
      * @param selectionMode how the target server is chosen, or null for {@link ServerSelectionMode#RANDOM}
      * @return a future containing the connection result
      */
-    default CompletableFuture<ConnectResult> connectToGroup(String groupName, ServerSelectionMode selectionMode) {
+    default CompletableFuture<ConnectResult> connectToGroupByName(
+            String groupName, @Nullable ServerSelectionMode selectionMode) {
         return connectTo(new ConnectTarget.GroupName(groupName, selectionMode)).thenApply(ConnectResponse::result);
     }
 
@@ -172,21 +174,22 @@ public interface CloudPlayer extends Audience {
      * @param groupName the name of the target server group, matched case-insensitively
      * @return a future containing the connection result
      */
-    default CompletableFuture<ConnectResult> connectToGroup(String groupName) {
-        return connectToGroup(groupName, ServerSelectionMode.RANDOM);
+    default CompletableFuture<ConnectResult> connectToGroupByName(String groupName) {
+        return connectToGroupByName(groupName, ServerSelectionMode.RANDOM);
     }
 
     /**
      * Connects the player to a persistent server.
      *
-     * <p>To connect by the persistent server's name, use {@link #connect(String)}.
+     * <p>To connect by the persistent server's name, use {@link #connectToServerByName(String)}.
      * See {@link PlayerApi#connectTo(UUID, ConnectTarget)} for when the future completes exceptionally.
      *
      * @param persistentServerId the UUID of the target persistent server
      * @return a future containing the connection result
      */
-    default CompletableFuture<ConnectResult> connectToPersistentServer(String persistentServerId) {
-        return connectTo(new ConnectTarget.PersistentServer(persistentServerId)).thenApply(ConnectResponse::result);
+    default CompletableFuture<ConnectResult> connectToPersistentServerById(String persistentServerId) {
+        return connectTo(new ConnectTarget.PersistentServerId(persistentServerId))
+                .thenApply(ConnectResponse::result);
     }
 
     /**

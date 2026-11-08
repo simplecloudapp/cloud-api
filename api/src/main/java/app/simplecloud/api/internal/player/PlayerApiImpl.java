@@ -421,7 +421,7 @@ public class PlayerApiImpl implements PlayerApi {
                 request.setServerGroupId(t.groupId());
                 request.setSelectionMode(Objects.requireNonNull(t.selectionMode()).name());
             }
-            case ConnectTarget.PersistentServer t -> request.setPersistentServerId(t.persistentServerId());
+            case ConnectTarget.PersistentServerId t -> request.setPersistentServerId(t.persistentServerId());
         }
         return connectViaController(uniqueId, request);
     }

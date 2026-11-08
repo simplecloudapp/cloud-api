@@ -368,7 +368,7 @@ public interface PlayerApi {
      * Connects a player to a specific server by its cloud name.
      *
      * <p>The name is a persistent server's name or {@code <group>-<numerical id>}, matched
-     * case-insensitively. Server UUIDs are not accepted, use {@link #connectToServer(UUID, String)}.
+     * case-insensitively. Server UUIDs are not accepted, use {@link #connectToServerById(UUID, String)}.
      * To reach servers that are not managed by the cloud, use {@link #connectDirect(UUID, String)}.
      * Failures are reported as described in {@link #connectTo(UUID, ConnectTarget)}.
      *
@@ -376,7 +376,7 @@ public interface PlayerApi {
      * @param serverName the cloud name of the target server
      * @return a future containing the connection result
      */
-    default CompletableFuture<CloudPlayer.ConnectResult> connect(UUID uniqueId, String serverName) {
+    default CompletableFuture<CloudPlayer.ConnectResult> connectToServerByName(UUID uniqueId, String serverName) {
         return connectTo(uniqueId, new ConnectTarget.ServerName(serverName)).thenApply(ConnectResponse::result);
     }
 
@@ -389,7 +389,7 @@ public interface PlayerApi {
      * @param serverId the UUID of the target server
      * @return a future containing the connection result
      */
-    default CompletableFuture<CloudPlayer.ConnectResult> connectToServer(UUID uniqueId, String serverId) {
+    default CompletableFuture<CloudPlayer.ConnectResult> connectToServerById(UUID uniqueId, String serverId) {
         return connectTo(uniqueId, new ConnectTarget.ServerId(serverId)).thenApply(ConnectResponse::result);
     }
 
@@ -415,8 +415,8 @@ public interface PlayerApi {
      * @param selectionMode how the target server is chosen, or null for {@link ServerSelectionMode#RANDOM}
      * @return a future containing the connection result
      */
-    default CompletableFuture<CloudPlayer.ConnectResult> connectToGroup(
-            UUID uniqueId, String groupName, ServerSelectionMode selectionMode) {
+    default CompletableFuture<CloudPlayer.ConnectResult> connectToGroupByName(
+            UUID uniqueId, String groupName, @Nullable ServerSelectionMode selectionMode) {
         return connectTo(uniqueId, new ConnectTarget.GroupName(groupName, selectionMode))
                 .thenApply(ConnectResponse::result);
     }
@@ -428,23 +428,23 @@ public interface PlayerApi {
      * @param groupName the name of the target server group, matched case-insensitively
      * @return a future containing the connection result
      */
-    default CompletableFuture<CloudPlayer.ConnectResult> connectToGroup(UUID uniqueId, String groupName) {
-        return connectToGroup(uniqueId, groupName, ServerSelectionMode.RANDOM);
+    default CompletableFuture<CloudPlayer.ConnectResult> connectToGroupByName(UUID uniqueId, String groupName) {
+        return connectToGroupByName(uniqueId, groupName, ServerSelectionMode.RANDOM);
     }
 
     /**
      * Connects a player to a persistent server.
      *
-     * <p>To connect by the persistent server's name, use {@link #connect(UUID, String)}.
+     * <p>To connect by the persistent server's name, use {@link #connectToServerByName(UUID, String)}.
      * Failures are reported as described in {@link #connectTo(UUID, ConnectTarget)}.
      *
      * @param uniqueId the player's UUID
      * @param persistentServerId the UUID of the target persistent server
      * @return a future containing the connection result
      */
-    default CompletableFuture<CloudPlayer.ConnectResult> connectToPersistentServer(
+    default CompletableFuture<CloudPlayer.ConnectResult> connectToPersistentServerById(
             UUID uniqueId, String persistentServerId) {
-        return connectTo(uniqueId, new ConnectTarget.PersistentServer(persistentServerId))
+        return connectTo(uniqueId, new ConnectTarget.PersistentServerId(persistentServerId))
                 .thenApply(ConnectResponse::result);
     }
 }
