@@ -228,7 +228,9 @@ public final class ManifestServerUrlResolver implements BlueprintProvisioner.Ser
         }
     }
 
-    private record ManifestEntry(@Nullable String name, @Nullable List<ManifestDownloadLink> downloadLinks) {}
+    private record ManifestEntry(
+            @Nullable String name, @Nullable List<ManifestDownloadLink> downloadLinks) {}
 
-    private record ManifestDownloadLink(@Nullable String version, @Nullable String link) {}
+    private record ManifestDownloadLink(
+            @Nullable String version, @Nullable String link) {}
 }

@@ -320,8 +320,9 @@ public class ServerApiImpl implements ServerApi {
         return ApiCalls.supplyAsync(executor, () -> {
             ModelsUpdatePropertiesRequest request = new ModelsUpdatePropertiesRequest();
             request.setProperties(properties);
-            Map<String, Object> result =
-                    serversApi.updateServerProperties(options.getNetworkId(), id, request).getProperties();
+            Map<String, Object> result = serversApi
+                    .updateServerProperties(options.getNetworkId(), id, request)
+                    .getProperties();
             invalidateServers(id);
             return result != null ? result : new HashMap<>();
         });

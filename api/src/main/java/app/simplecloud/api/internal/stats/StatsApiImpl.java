@@ -50,8 +50,7 @@ public class StatsApiImpl implements StatsApi {
         ModelsServerhostStats serverhosts =
                 model.getServerhosts() != null ? model.getServerhosts() : new ModelsServerhostStats();
         ModelsPlayerStats players = model.getPlayers() != null ? model.getPlayers() : new ModelsPlayerStats();
-        ModelsResourceStats resources =
-                model.getResources() != null ? model.getResources() : new ModelsResourceStats();
+        ModelsResourceStats resources = model.getResources() != null ? model.getResources() : new ModelsResourceStats();
 
         return new CloudStats(
                 new CloudStats.Health(health.getStatus(), toDouble(health.getHealthyServerPercent())),

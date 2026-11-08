@@ -52,14 +52,13 @@ import java.time.Duration;
 import java.time.Instant;
 import java.time.OffsetDateTime;
 import java.time.ZoneOffset;
-
+import java.util.ArrayList;
+import java.util.HashMap;
+import java.util.List;
+import java.util.Map;
+import java.util.Objects;
 import java.util.Optional;
 import java.util.UUID;
-import java.util.List;
-import java.util.ArrayList;
-import java.util.Map;
-import java.util.HashMap;
-import java.util.Objects;
 import java.util.concurrent.CompletableFuture;
 import java.util.concurrent.Executor;
 import java.util.logging.Level;
@@ -415,11 +414,13 @@ public class PlayerApiImpl implements PlayerApi {
             case ConnectTarget.ServerId t -> request.setServerId(t.serverId());
             case ConnectTarget.GroupName t -> {
                 request.setServerGroupName(t.groupName());
-                request.setSelectionMode(Objects.requireNonNull(t.selectionMode()).name());
+                request.setSelectionMode(
+                        Objects.requireNonNull(t.selectionMode()).name());
             }
             case ConnectTarget.GroupId t -> {
                 request.setServerGroupId(t.groupId());
-                request.setSelectionMode(Objects.requireNonNull(t.selectionMode()).name());
+                request.setSelectionMode(
+                        Objects.requireNonNull(t.selectionMode()).name());
             }
             case ConnectTarget.PersistentServerId t -> request.setPersistentServerId(t.persistentServerId());
         }
@@ -558,7 +559,9 @@ public class PlayerApiImpl implements PlayerApi {
                 Boolean.TRUE.equals(response.getOnlineMode()),
                 response.getLoginTime(),
                 emptyToNull(response.getLogoutTime()),
-                response.getDurationSeconds() != null ? response.getDurationSeconds().longValue() : null,
+                response.getDurationSeconds() != null
+                        ? response.getDurationSeconds().longValue()
+                        : null,
                 settings != null ? convertClientSettings(settings) : null);
     }
 

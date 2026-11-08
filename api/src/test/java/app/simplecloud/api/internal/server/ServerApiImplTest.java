@@ -180,14 +180,9 @@ class ServerApiImplTest {
 
     @Test
     void getServersByGroupSkipsServersWithoutGroup() {
-        controller.respond(
-                200,
-                servers(
-                        server(SERVER_ID, 1),
-                        """
+        controller.respond(200, servers(server(SERVER_ID, 1), """
                         {"server_id": "%s", "persistent_server_id": "%s", "numerical_id": 1, "state": "AVAILABLE"}
-                        """
-                                .formatted(OTHER_SERVER_ID, PERSISTENT_SERVER_ID)));
+                        """.formatted(OTHER_SERVER_ID, PERSISTENT_SERVER_ID)));
 
         List<Server> servers = api().getServersByGroup("lobby").join();
 
@@ -253,7 +248,8 @@ class ServerApiImplTest {
 
         assertEquals(
                 CloudApiException.Reason.UNKNOWN,
-                failure(api().updateServer(SERVER_ID, new UpdateServerRequest())).getReason());
+                failure(api().updateServer(SERVER_ID, new UpdateServerRequest()))
+                        .getReason());
     }
 
     @Test
@@ -271,7 +267,8 @@ class ServerApiImplTest {
     @Test
     void sendCommandRejectsBlankCommandWithoutAskingController() {
         CompletionException exception = assertThrows(
-                CompletionException.class, () -> api().sendCommand(SERVER_ID, " ").join());
+                CompletionException.class,
+                () -> api().sendCommand(SERVER_ID, " ").join());
 
         assertInstanceOf(IllegalArgumentException.class, exception.getCause());
         assertEquals(0, controller.requestCount());
@@ -288,7 +285,8 @@ class ServerApiImplTest {
                 new WorkflowExecutionResult("backup", 1, List.of(), List.of(), Map.of(SERVER_ID, "step failed")),
                 result);
         RecordedRequest request = controller.takeRequest();
-        assertEquals("/v0/servers/workflows/manual", ControllerServer.url(request).encodedPath());
+        assertEquals(
+                "/v0/servers/workflows/manual", ControllerServer.url(request).encodedPath());
         assertEquals("backup", ControllerServer.body(request).get("workflow_id").getAsString());
     }
 
@@ -327,12 +325,9 @@ class ServerApiImplTest {
 
     @Test
     void findServerByNumericalIdIgnoresPersistentServerWithSameName() {
-        controller.respond(
-                200,
-                servers("""
+        controller.respond(200, servers("""
                         {"server_id": "%s", "persistent_server_id": "%s", "numerical_id": 2, "state": "AVAILABLE"}
-                        """
-                        .formatted(OTHER_SERVER_ID, PERSISTENT_SERVER_ID), server(SERVER_ID, 2)));
+                        """.formatted(OTHER_SERVER_ID, PERSISTENT_SERVER_ID), server(SERVER_ID, 2)));
 
         Server server = api().findServerByNumericalId("lobby", 2).join().orElseThrow();
 
@@ -356,7 +351,10 @@ class ServerApiImplTest {
     @Test
     void updateServerRejectsUnknownStateWithoutAskingController() {
         CompletableFuture<Server> future = api().updateServer(
-                SERVER_ID, UpdateServerRequest.builder().state(ServerState.UNKNOWN_STATE).build());
+                        SERVER_ID,
+                        UpdateServerRequest.builder()
+                                .state(ServerState.UNKNOWN_STATE)
+                                .build());
 
         CompletionException exception = assertThrows(CompletionException.class, future::join);
         assertInstanceOf(IllegalArgumentException.class, exception.getCause());
@@ -373,7 +371,12 @@ class ServerApiImplTest {
         assertEquals(Map.of("motd", "hi"), properties);
         RecordedRequest request = controller.takeRequest();
         assertEquals("PUT", request.getMethod());
-        assertEquals("hi", ControllerServer.body(request).getAsJsonObject("properties").get("motd").getAsString());
+        assertEquals(
+                "hi",
+                ControllerServer.body(request)
+                        .getAsJsonObject("properties")
+                        .get("motd")
+                        .getAsString());
     }
 
     private ServerApi api() {
@@ -390,8 +393,7 @@ class ServerApiImplTest {
                 {"server_id": "%s", "server_group_id": "%s", "numerical_id": %d, "state": "AVAILABLE",
                  "player_count": 3, "max_players": 20, "ip": "10.0.0.2", "port": 25565,
                  "network_id": "%s", "serverhost_id": "host-1"}
-                """
-                .formatted(serverId, GROUP_ID, numericalId, ControllerServer.NETWORK_ID);
+                """.formatted(serverId, GROUP_ID, numericalId, ControllerServer.NETWORK_ID);
     }
 
     private static String servers(String... servers) {

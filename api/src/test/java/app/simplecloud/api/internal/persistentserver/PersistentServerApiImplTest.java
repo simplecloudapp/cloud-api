@@ -158,7 +158,8 @@ class PersistentServerApiImplTest {
 
         assertEquals("GET", controller.takeRequest().getMethod());
         RecordedRequest deleteServer = controller.takeRequest();
-        assertEquals("/v0/persistent-servers", ControllerServer.url(deleteServer).encodedPath());
+        assertEquals(
+                "/v0/persistent-servers", ControllerServer.url(deleteServer).encodedPath());
         assertEquals("DELETE", deleteServer.getMethod());
         RecordedRequest deleteBlueprint = controller.takeRequest();
         assertEquals("/v0/blueprints", ControllerServer.url(deleteBlueprint).encodedPath());
@@ -178,7 +179,8 @@ class PersistentServerApiImplTest {
                 .build()));
 
         assertEquals(CloudApiException.Reason.UNAVAILABLE, failure.getReason());
-        assertEquals("/v0/blueprints", ControllerServer.url(controller.takeRequest()).encodedPath());
+        assertEquals(
+                "/v0/blueprints", ControllerServer.url(controller.takeRequest()).encodedPath());
         assertEquals("POST", controller.takeRequest().getMethod());
         RecordedRequest reconcile = controller.takeRequest();
         assertEquals("GET", reconcile.getMethod());
@@ -194,14 +196,14 @@ class PersistentServerApiImplTest {
                 """.formatted(GROUP_ID));
 
         Group group = api.convertToGroup(
-                        PERSISTENT_SERVER_ID,
-                        List.of(new DeploymentHost("host-1", 1)),
-                        completeScaling())
+                        PERSISTENT_SERVER_ID, List.of(new DeploymentHost("host-1", 1)), completeScaling())
                 .join();
 
         assertEquals(GROUP_ID, group.getServerGroupId());
         RecordedRequest request = controller.takeRequest();
-        assertEquals("/v0/persistent-servers/convert-to-group", ControllerServer.url(request).encodedPath());
+        assertEquals(
+                "/v0/persistent-servers/convert-to-group",
+                ControllerServer.url(request).encodedPath());
         assertEquals(PERSISTENT_SERVER_ID, ControllerServer.url(request).queryParameter("persistent_server_id"));
         JsonObject body = ControllerServer.body(request);
         JsonObject host = body.getAsJsonObject("deployment")
@@ -243,7 +245,9 @@ class PersistentServerApiImplTest {
                         "backup", 2, List.of(SERVER_ID), List.of(), Map.of("failed-server", "step failed")),
                 result);
         RecordedRequest request = controller.takeRequest();
-        assertEquals("/v0/persistent-servers/workflows/manual", ControllerServer.url(request).encodedPath());
+        assertEquals(
+                "/v0/persistent-servers/workflows/manual",
+                ControllerServer.url(request).encodedPath());
         assertEquals("backup", ControllerServer.body(request).get("workflow_id").getAsString());
     }
 
@@ -268,8 +272,7 @@ class PersistentServerApiImplTest {
         return """
                 {"persistent_server_id": "%s", "name": "%s", "type": "SERVER", "max_players": 50, "active": true,
                  "tags": ["%s"], "source": {"type": "blueprint", "blueprint": "%s"}}
-                """
-                .formatted(id, name, name, BLUEPRINT_ID);
+                """.formatted(id, name, name, BLUEPRINT_ID);
     }
 
     private static String persistentServers(String... servers) {

@@ -14,4 +14,9 @@ import java.util.UUID;
  * @param createdAt when this profile was recorded as an ISO-8601 timestamp, or null if unavailable
  * @see PlayerApi#getProfiles(UUID)
  */
-public record PlayerProfile(String id, UUID playerId, String name, @Nullable String texture, @Nullable String createdAt) {}
+public record PlayerProfile(
+        String id,
+        UUID playerId,
+        String name,
+        @Nullable String texture,
+        @Nullable String createdAt) {}

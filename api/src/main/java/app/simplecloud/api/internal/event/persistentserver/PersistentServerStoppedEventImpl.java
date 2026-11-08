@@ -54,7 +54,8 @@ class PersistentServerStoppedEventImpl implements PersistentServerStoppedEvent {
     public PersistentServer getPersistentServer() {
         if (persistentServer == null) {
             if (!delegate.hasConfig() || !delegate.getConfig().hasBaseConfig()) {
-                throw new IllegalStateException("Persistent server data is not available in PersistentServerStoppedEvent");
+                throw new IllegalStateException(
+                        "Persistent server data is not available in PersistentServerStoppedEvent");
             }
             persistentServer = ControllerEventModelMapper.mapPersistentServer(
                     delegate.getPersistentServerId(),

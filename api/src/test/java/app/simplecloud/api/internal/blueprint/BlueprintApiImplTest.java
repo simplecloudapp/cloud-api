@@ -138,8 +138,7 @@ class BlueprintApiImplTest {
         return """
                 {"blueprint_id": "%s", "name": "%s", "server_software": "paper", "minecraft_version": "1.21.4",
                  "server_url": "https://example.com/paper.jar"}
-                """
-                .formatted(id, name);
+                """.formatted(id, name);
     }
 
     private static String blueprints(String... blueprints) {

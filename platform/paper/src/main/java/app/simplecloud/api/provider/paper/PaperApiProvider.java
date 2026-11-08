@@ -47,7 +47,9 @@ public class PaperApiProvider extends JavaPlugin {
                 Bukkit.getOnlinePlayers().stream().map(Player::getUniqueId).toList());
         this.playerSynchronizer = new PlayerSynchronizer(cloudApi, onlinePlayerTracker);
         Bukkit.getPluginManager()
-                .registerEvents(new PlayerConnectionListener(onlinePlayerTracker, playerSynchronizer, adventureIntegration), this);
+                .registerEvents(
+                        new PlayerConnectionListener(onlinePlayerTracker, playerSynchronizer, adventureIntegration),
+                        this);
         playerSynchronizer.start();
         playerSynchronizer.updatePlayerCount();
     }

@@ -152,17 +152,20 @@ class ControllerEventModelMapperTest {
                 .setBaseConfig(BaseServerConfig.newBuilder().setName("lobby"))
                 .build();
 
-        assertNull(ControllerEventModelMapper.mapGroup(GROUP_ID, config, TIMESTAMP).getPriority());
+        assertNull(
+                ControllerEventModelMapper.mapGroup(GROUP_ID, config, TIMESTAMP).getPriority());
     }
 
     @Test
     void unspecifiedScalingModeIsLeftOut() {
         ServerGroupConfig config = ServerGroupConfig.newBuilder()
                 .setBaseConfig(BaseServerConfig.newBuilder().setName("lobby"))
-                .setScaling(build.buf.gen.simplecloud.controller.v2.ScalingConfig.newBuilder().setMaxServers(3))
+                .setScaling(build.buf.gen.simplecloud.controller.v2.ScalingConfig.newBuilder()
+                        .setMaxServers(3))
                 .build();
 
-        ScalingConfig scaling = ControllerEventModelMapper.mapGroup(GROUP_ID, config, TIMESTAMP).getScaling();
+        ScalingConfig scaling =
+                ControllerEventModelMapper.mapGroup(GROUP_ID, config, TIMESTAMP).getScaling();
 
         assertNotNull(scaling);
         assertNull(scaling.getScalingMode());

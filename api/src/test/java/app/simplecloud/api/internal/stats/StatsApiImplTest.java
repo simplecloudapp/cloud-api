@@ -44,7 +44,9 @@ class StatsApiImplTest {
 
         assertEquals("healthy", stats.health().status());
         assertEquals(3, stats.servers().total());
-        assertEquals(Map.of(ServerState.AVAILABLE, 2, ServerState.STOPPED, 1), stats.servers().byState());
+        assertEquals(
+                Map.of(ServerState.AVAILABLE, 2, ServerState.STOPPED, 1),
+                stats.servers().byState());
         assertEquals(new CloudStats.Count(2, 1), stats.groups());
         assertEquals(8192, stats.serverhosts().totalMemoryCapacityMb());
         assertEquals(12.5, stats.players().utilizationPercent());

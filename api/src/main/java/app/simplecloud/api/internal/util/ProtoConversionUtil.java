@@ -39,14 +39,12 @@ public final class ProtoConversionUtil {
     }
 
     @Nullable
-    public static String convertChatModeToString(
-            @Nullable build.buf.gen.simplecloud.player.v2.ChatMode protoChatMode) {
+    public static String convertChatModeToString(@Nullable build.buf.gen.simplecloud.player.v2.ChatMode protoChatMode) {
         return enumName(protoChatMode, "CHAT_MODE_");
     }
 
     @Nullable
-    public static String convertMainHandToString(
-            @Nullable build.buf.gen.simplecloud.player.v2.MainHand protoMainHand) {
+    public static String convertMainHandToString(@Nullable build.buf.gen.simplecloud.player.v2.MainHand protoMainHand) {
         return enumName(protoMainHand, "MAIN_HAND_");
     }
 

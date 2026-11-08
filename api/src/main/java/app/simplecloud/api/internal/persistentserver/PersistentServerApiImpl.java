@@ -319,12 +319,14 @@ public class PersistentServerApiImpl implements PersistentServerApi {
     }
 
     @Override
-    public CompletableFuture<Map<String, Object>> setPersistentServerProperties(String id, Map<String, Object> properties) {
+    public CompletableFuture<Map<String, Object>> setPersistentServerProperties(
+            String id, Map<String, Object> properties) {
         return ApiCalls.supplyAsync(executor, () -> {
             ModelsUpdatePropertiesRequest request = new ModelsUpdatePropertiesRequest();
             request.setProperties(properties);
-            Map<String, Object> result =
-                    persistentServersApi.updatePersistentServerProperties(options.getNetworkId(), id, request).getProperties();
+            Map<String, Object> result = persistentServersApi
+                    .updatePersistentServerProperties(options.getNetworkId(), id, request)
+                    .getProperties();
             invalidatePersistentServerAndServers(id);
             return result != null ? result : new HashMap<>();
         });

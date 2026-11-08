@@ -38,13 +38,11 @@ class PersistentServerCreatedEventImpl implements PersistentServerCreatedEvent {
     public PersistentServer getPersistentServer() {
         if (persistentServer == null) {
             if (!delegate.hasConfig() || !delegate.getConfig().hasBaseConfig()) {
-                throw new IllegalStateException("Persistent server data is not available in PersistentServerCreatedEvent");
+                throw new IllegalStateException(
+                        "Persistent server data is not available in PersistentServerCreatedEvent");
             }
             persistentServer = ControllerEventModelMapper.mapPersistentServer(
-                    delegate.getPersistentServerId(),
-                    delegate.getConfig(),
-                    null,
-                    delegate.getTimestamp());
+                    delegate.getPersistentServerId(), delegate.getConfig(), null, delegate.getTimestamp());
         }
         return persistentServer;
     }

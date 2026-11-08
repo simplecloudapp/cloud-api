@@ -413,8 +413,9 @@ public class GroupApiImpl implements GroupApi {
         return ApiCalls.supplyAsync(executor, () -> {
             ModelsUpdatePropertiesRequest request = new ModelsUpdatePropertiesRequest();
             request.setProperties(properties);
-            Map<String, Object> result =
-                    serverGroupsApi.updateServerGroupProperties(options.getNetworkId(), id, request).getProperties();
+            Map<String, Object> result = serverGroupsApi
+                    .updateServerGroupProperties(options.getNetworkId(), id, request)
+                    .getProperties();
             invalidateGroupAndServers(id);
             return result != null ? result : new HashMap<>();
         });

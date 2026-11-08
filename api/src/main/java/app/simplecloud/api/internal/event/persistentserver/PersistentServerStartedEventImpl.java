@@ -35,7 +35,8 @@ class PersistentServerStartedEventImpl implements PersistentServerStartedEvent {
     public PersistentServer getPersistentServer() {
         if (persistentServer == null) {
             if (!delegate.hasConfig() || !delegate.getConfig().hasBaseConfig()) {
-                throw new IllegalStateException("Persistent server data is not available in PersistentServerStartedEvent");
+                throw new IllegalStateException(
+                        "Persistent server data is not available in PersistentServerStartedEvent");
             }
             persistentServer = ControllerEventModelMapper.mapPersistentServer(
                     delegate.getPersistentServerId(),
