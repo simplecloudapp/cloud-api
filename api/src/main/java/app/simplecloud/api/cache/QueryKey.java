@@ -62,6 +62,15 @@ public final class QueryKey {
         return true;
     }
 
+    /**
+     * Returns the key parts.
+     *
+     * @return a copy of the key parts
+     */
+    public Object[] getParts() {
+        return parts.clone();
+    }
+
     @Override
     public boolean equals(Object o) {
         if (this == o) return true;

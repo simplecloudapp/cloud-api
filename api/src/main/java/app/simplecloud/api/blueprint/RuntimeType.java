@@ -12,5 +12,29 @@ public enum RuntimeType {
     /**
      * Native binary executable.
      */
-    BINARY
+    BINARY,
+
+    /**
+     * Node.js runtime environment.
+     *
+     * @deprecated the controller does not support this runtime and rejects it
+     */
+    @Deprecated
+    NODE,
+
+    /**
+     * Python runtime environment.
+     *
+     * @deprecated the controller does not support this runtime and rejects it
+     */
+    @Deprecated
+    PYTHON,
+
+    /**
+     * Docker container runtime.
+     *
+     * @deprecated the controller does not support this runtime and rejects it
+     */
+    @Deprecated
+    DOCKER
 }

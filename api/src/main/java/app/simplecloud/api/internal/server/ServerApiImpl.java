@@ -224,8 +224,8 @@ public class ServerApiImpl implements ServerApi {
                 joinOrNull(q.getServerGroupNames()),
                 joinOrNull(q.getServerGroupTags()),
                 joinOrNull(q.getNumericalIds()),
-                q.getSortBy() != null ? q.getSortBy().getValue() : null,
-                q.getSortOrder() != null ? q.getSortOrder().getValue() : null,
+                q.getSortBy(),
+                q.getSortOrder(),
                 q.getLimit(),
                 q.getOffset());
         List<ModelsServerSummary> servers = response.getServers();

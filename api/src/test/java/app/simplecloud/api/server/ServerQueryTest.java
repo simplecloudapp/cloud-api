@@ -29,8 +29,17 @@ class ServerQueryTest {
 
     @Test
     void repeatedCallsAddValues() {
-        ServerQuery query = ServerQuery.create().filterByServerhostId("host-1").filterByServerhostId("host-2");
+        ServerQuery query =
+                ServerQuery.create().filterByServerhostId("host-1", "host-2").filterByServerhostId("host-3", "host-4");
 
-        assertEquals(List.of("host-1", "host-2"), query.getServerhostIds());
+        assertEquals(List.of("host-1", "host-2", "host-3", "host-4"), query.getServerhostIds());
+    }
+
+    @Test
+    void singleValueCallReplacesValues() {
+        ServerQuery query =
+                ServerQuery.create().filterByServerhostId("host-1", "host-2").filterByServerhostId("host-3");
+
+        assertEquals(List.of("host-3"), query.getServerhostIds());
     }
 }

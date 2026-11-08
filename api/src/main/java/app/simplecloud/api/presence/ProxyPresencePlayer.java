@@ -28,6 +28,24 @@ public record ProxyPresencePlayer(
         sessionId = normalize(sessionId);
     }
 
+    /** @deprecated use {@link #playerId()} */
+    @Deprecated
+    public String getPlayerId() {
+        return playerId;
+    }
+
+    /** @deprecated use {@link #name()} */
+    @Deprecated
+    public String getName() {
+        return name;
+    }
+
+    /** @deprecated use {@link #connectedServerName()} */
+    @Deprecated
+    public String getConnectedServerName() {
+        return connectedServerName;
+    }
+
     public String hashRecord() {
         return playerId + '\u001f' + connectedServerName;
     }

@@ -13,6 +13,36 @@ public record GroupStartQueue(
         items = List.copyOf(items);
     }
 
+    /** @deprecated use {@link #count()} */
+    @Deprecated
+    public int getCount() {
+        return count;
+    }
+
+    /** @deprecated use {@link #failedStarts()} */
+    @Deprecated
+    public int getFailedStarts() {
+        return failedStarts;
+    }
+
+    /** @deprecated use {@link #items()} */
+    @Deprecated
+    public List<GroupStartQueueEntry> getItems() {
+        return items;
+    }
+
+    /** @deprecated use {@link #queuedStarts()} */
+    @Deprecated
+    public int getQueuedStarts() {
+        return queuedStarts;
+    }
+
+    /** @deprecated use {@link #totalStarts()} */
+    @Deprecated
+    public int getTotalStarts() {
+        return totalStarts;
+    }
+
     /**
      * @return the queue entry of the group with this ID, or null if the group has no queued starts
      */

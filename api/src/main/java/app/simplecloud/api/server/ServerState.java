@@ -1,5 +1,8 @@
 package app.simplecloud.api.server;
 
+import app.simplecloud.api.web.models.ModelsPatchServerRequest;
+import app.simplecloud.api.web.models.ModelsServerSummary;
+
 import java.util.Locale;
 
 /**
@@ -60,5 +63,17 @@ public enum ServerState {
      */
     public static ServerState parse(String state) {
         return ServerState.valueOf(state.toUpperCase(Locale.ROOT).replace("SERVER_STATE_", ""));
+    }
+
+    /** @deprecated use {@link #parse(String)} */
+    @Deprecated
+    public static ServerState parse(ModelsServerSummary.StateEnum state) {
+        return parse(state.getValue());
+    }
+
+    /** @deprecated use {@link #parse(String)} */
+    @Deprecated
+    public static ServerState parse(ModelsPatchServerRequest.StateEnum state) {
+        return parse(state.getValue());
     }
 }

@@ -19,8 +19,52 @@ public class GroupQuery {
     private String blueprintId;
     private Integer limit;
     private Integer offset;
+    private String sortBy;
+    private String sortOrder;
 
     public GroupQuery() {}
+
+    /**
+     * @return the sort field set with {@link #sortBy(String)}
+     * @deprecated the controller does not sort groups, so this value is ignored
+     */
+    @Deprecated
+    @Nullable
+    public String getSortBy() {
+        return sortBy;
+    }
+
+    /**
+     * @param sortBy the field to sort by
+     * @return this query for chaining
+     * @deprecated the controller does not sort groups, so this value is ignored
+     */
+    @Deprecated
+    public GroupQuery sortBy(String sortBy) {
+        this.sortBy = sortBy;
+        return this;
+    }
+
+    /**
+     * @return the sort order set with {@link #sortOrder(String)}
+     * @deprecated the controller does not sort groups, so this value is ignored
+     */
+    @Deprecated
+    @Nullable
+    public String getSortOrder() {
+        return sortOrder;
+    }
+
+    /**
+     * @param sortOrder the sort order
+     * @return this query for chaining
+     * @deprecated the controller does not sort groups, so this value is ignored
+     */
+    @Deprecated
+    public GroupQuery sortOrder(String sortOrder) {
+        this.sortOrder = sortOrder;
+        return this;
+    }
 
     @Nullable
     public GroupServerType getType() {
@@ -158,6 +202,8 @@ public class GroupQuery {
         copy.blueprintId = blueprintId;
         copy.limit = limit;
         copy.offset = offset;
+        copy.sortBy = sortBy;
+        copy.sortOrder = sortOrder;
         return copy;
     }
 }

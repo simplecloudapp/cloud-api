@@ -18,4 +18,42 @@ public record GroupStartQueueEntry(
     public GroupStartQueueEntry {
         starts = List.copyOf(starts);
     }
+
+    /** @deprecated use {@link #failedStarts()} */
+    @Deprecated
+    public int getFailedStarts() {
+        return failedStarts;
+    }
+
+    /** @deprecated use {@link #queuedStarts()} */
+    @Deprecated
+    public int getQueuedStarts() {
+        return queuedStarts;
+    }
+
+    /** @deprecated use {@link #serverGroupId()} */
+    @Deprecated
+    @Nullable
+    public String getServerGroupId() {
+        return serverGroupId;
+    }
+
+    /** @deprecated use {@link #serverGroupName()} */
+    @Deprecated
+    @Nullable
+    public String getServerGroupName() {
+        return serverGroupName;
+    }
+
+    /** @deprecated use {@link #starts()} */
+    @Deprecated
+    public List<GroupStartQueueItem> getStarts() {
+        return starts;
+    }
+
+    /** @deprecated use {@link #totalStarts()} */
+    @Deprecated
+    public int getTotalStarts() {
+        return totalStarts;
+    }
 }

@@ -23,7 +23,29 @@ public class UpdateServerRequest {
     @Nullable
     private Integer maxPlayers;
 
+    @Nullable
+    private Integer playerCount;
+
     public UpdateServerRequest() {}
+
+    /**
+     * @return the player count set with {@link #setPlayerCount(Integer)}
+     * @deprecated the controller tracks the player count itself and ignores this value
+     */
+    @Deprecated
+    @Nullable
+    public Integer getPlayerCount() {
+        return playerCount;
+    }
+
+    /**
+     * @param playerCount the player count
+     * @deprecated the controller tracks the player count itself and ignores this value
+     */
+    @Deprecated
+    public void setPlayerCount(@Nullable Integer playerCount) {
+        this.playerCount = playerCount;
+    }
 
     public static Builder builder() {
         return new Builder();
@@ -89,6 +111,18 @@ public class UpdateServerRequest {
         private Integer minMemory;
         private Integer maxMemory;
         private Integer maxPlayers;
+        private Integer playerCount;
+
+        /**
+         * @param playerCount the player count
+         * @return this builder
+         * @deprecated the controller tracks the player count itself and ignores this value
+         */
+        @Deprecated
+        public Builder playerCount(Integer playerCount) {
+            this.playerCount = playerCount;
+            return this;
+        }
 
         /**
          * Sets the state the controller stores for this server. See {@link UpdateServerRequest#setState}.
@@ -128,6 +162,7 @@ public class UpdateServerRequest {
             request.setMinMemory(minMemory);
             request.setMaxMemory(maxMemory);
             request.setMaxPlayers(maxPlayers);
+            request.setPlayerCount(playerCount);
             return request;
         }
     }

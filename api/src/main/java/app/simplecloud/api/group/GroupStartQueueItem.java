@@ -9,4 +9,32 @@ public record GroupStartQueueItem(
         @Nullable String createdAt,
         @Nullable String failureReason,
         @Nullable String id,
-        GroupStartQueueItemStatus status) {}
+        GroupStartQueueItemStatus status) {
+
+    /** @deprecated use {@link #createdAt()} */
+    @Deprecated
+    @Nullable
+    public String getCreatedAt() {
+        return createdAt;
+    }
+
+    /** @deprecated use {@link #failureReason()} */
+    @Deprecated
+    @Nullable
+    public String getFailureReason() {
+        return failureReason;
+    }
+
+    /** @deprecated use {@link #id()} */
+    @Deprecated
+    @Nullable
+    public String getId() {
+        return id;
+    }
+
+    /** @deprecated use {@link #status()} */
+    @Deprecated
+    public GroupStartQueueItemStatus getStatus() {
+        return status;
+    }
+}

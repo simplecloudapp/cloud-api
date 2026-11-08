@@ -51,6 +51,12 @@ public interface ServerStoppedEvent {
      */
     boolean isCrashed();
 
+    /** @deprecated use {@link #isCrashed()} */
+    @Deprecated
+    default boolean getCrashed() {
+        return isCrashed();
+    }
+
     /**
      * Returns the exit code of the server process.
      *

@@ -13,7 +13,8 @@ import java.util.function.Function;
  * Filters and sorting for {@link ServerApi#getAllServers(ServerQuery)}.
  *
  * <p>Filter methods that take several values match any of them, and repeated calls add to the earlier values.
- * Filter values must not be null.
+ * Filter values must not be null. The single-value {@code filterByServerhostId(String)} and
+ * {@code filterByPersistentServerId(String)} replace earlier values instead.
  *
  * <p>The server group type, name and tag filters also match persistent servers with that type, name or tag.
  */
@@ -122,6 +123,27 @@ public class ServerQuery {
         return this;
     }
 
+    /**
+     * Filter by a single serverhost ID, replacing any serverhost IDs set before.
+     *
+     * @param serverhostId the serverhost ID to filter by, or null to remove the filter
+     * @return this query for chaining
+     */
+    public ServerQuery filterByServerhostId(@Nullable String serverhostId) {
+        this.serverhostIds = serverhostId == null ? null : new ArrayList<>(List.of(serverhostId));
+        return this;
+    }
+
+    /**
+     * @return the first serverhost ID filter, or null if none is set
+     * @deprecated use {@link #getServerhostIds()}
+     */
+    @Deprecated
+    @Nullable
+    public String getServerhostId() {
+        return serverhostIds == null || serverhostIds.isEmpty() ? null : serverhostIds.getFirst();
+    }
+
     @Nullable
     public List<String> getPersistentServerIds() {
         return persistentServerIds;
@@ -136,6 +158,27 @@ public class ServerQuery {
     public ServerQuery filterByPersistentServerId(String... persistentServerIds) {
         this.persistentServerIds = addAll(this.persistentServerIds, "persistentServerIds", persistentServerIds);
         return this;
+    }
+
+    /**
+     * Filter by a single persistent server ID, replacing any persistent server IDs set before.
+     *
+     * @param persistentServerId the persistent server ID to filter by, or null to remove the filter
+     * @return this query for chaining
+     */
+    public ServerQuery filterByPersistentServerId(@Nullable String persistentServerId) {
+        this.persistentServerIds = persistentServerId == null ? null : new ArrayList<>(List.of(persistentServerId));
+        return this;
+    }
+
+    /**
+     * @return the first persistent server ID filter, or null if none is set
+     * @deprecated use {@link #getPersistentServerIds()}
+     */
+    @Deprecated
+    @Nullable
+    public String getPersistentServerId() {
+        return persistentServerIds == null || persistentServerIds.isEmpty() ? null : persistentServerIds.getFirst();
     }
 
     @Nullable
@@ -209,9 +252,21 @@ public class ServerQuery {
         return this;
     }
 
+    /**
+     * @return the field to sort by, or null if none is set
+     */
     @Nullable
-    public SortField getSortBy() {
+    public SortField getSortField() {
         return sortBy;
+    }
+
+    /**
+     * @return the controller name of the field to sort by, or null if none is set
+     * @see #getSortField()
+     */
+    @Nullable
+    public String getSortBy() {
+        return sortBy == null ? null : sortBy.getValue();
     }
 
     /**
@@ -239,9 +294,21 @@ public class ServerQuery {
         return this;
     }
 
+    /**
+     * @return the sort order, or null if none is set
+     */
     @Nullable
-    public SortOrder getSortOrder() {
+    public SortOrder getSortDirection() {
         return sortOrder;
+    }
+
+    /**
+     * @return the controller name of the sort order ("asc" or "desc"), or null if none is set
+     * @see #getSortDirection()
+     */
+    @Nullable
+    public String getSortOrder() {
+        return sortOrder == null ? null : sortOrder.getValue();
     }
 
     /**

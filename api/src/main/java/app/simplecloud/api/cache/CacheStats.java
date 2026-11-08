@@ -13,6 +13,42 @@ package app.simplecloud.api.cache;
 public record CacheStats(
         long hitCount, long missCount, long staleHitCount, long evictionCount, long entryCount, double hitRate) {
 
+    /** @deprecated use {@link #hitCount()} */
+    @Deprecated
+    public long getHitCount() {
+        return hitCount;
+    }
+
+    /** @deprecated use {@link #missCount()} */
+    @Deprecated
+    public long getMissCount() {
+        return missCount;
+    }
+
+    /** @deprecated use {@link #staleHitCount()} */
+    @Deprecated
+    public long getStaleHitCount() {
+        return staleHitCount;
+    }
+
+    /** @deprecated use {@link #evictionCount()} */
+    @Deprecated
+    public long getEvictionCount() {
+        return evictionCount;
+    }
+
+    /** @deprecated use {@link #entryCount()} */
+    @Deprecated
+    public long getEntryCount() {
+        return entryCount;
+    }
+
+    /** @deprecated use {@link #hitRate()} */
+    @Deprecated
+    public double getHitRate() {
+        return hitRate;
+    }
+
     @Override
     public String toString() {
         return String.format(
