@@ -3,7 +3,6 @@ package app.simplecloud.api.player;
 import app.simplecloud.api.group.Group;
 import app.simplecloud.api.persistentserver.PersistentServer;
 import app.simplecloud.api.server.Server;
-import org.jetbrains.annotations.ApiStatus;
 import org.jetbrains.annotations.Nullable;
 
 import java.util.Objects;
@@ -171,7 +170,6 @@ public final class ConnectTarget {
      *
      * @return the kind
      */
-    @ApiStatus.Internal
     public Kind getKind() {
         return kind;
     }
@@ -181,7 +179,6 @@ public final class ConnectTarget {
      *
      * @return the name or ID
      */
-    @ApiStatus.Internal
     public String getValue() {
         return value;
     }
@@ -192,7 +189,6 @@ public final class ConnectTarget {
      *
      * @return the selection mode, or null for the controller's default and for targets that aren't groups
      */
-    @ApiStatus.Internal
     public @Nullable ServerSelectionMode getSelectionMode() {
         return selectionMode;
     }
@@ -222,7 +218,6 @@ public final class ConnectTarget {
     /**
      * The kinds of targets. For the library's implementation only; it may change in any release.
      */
-    @ApiStatus.Internal
     public enum Kind {
         SERVER_ID("serverId"),
         SERVER_NAME("serverName"),

@@ -1,7 +1,6 @@
 package app.simplecloud.api.player;
 
 import net.kyori.adventure.text.Component;
-import org.jetbrains.annotations.ApiStatus;
 import org.jetbrains.annotations.Nullable;
 
 import java.util.List;
@@ -13,6 +12,9 @@ import java.util.function.LongUnaryOperator;
 
 /**
  * API for querying and managing players connected to the cloud network.
+ *
+ * <p>cloud-api implements this interface. Plugins use it but don't implement it, so later releases may add
+ * methods to it.
  *
  * <p>Example usage:
  * <pre>{@code
@@ -41,7 +43,6 @@ import java.util.function.LongUnaryOperator;
  *     .thenAccept(top -> top.forEach(p -> System.out.println(p.getName())));
  * }</pre>
  */
-@ApiStatus.NonExtendable
 public interface PlayerApi {
 
     /**

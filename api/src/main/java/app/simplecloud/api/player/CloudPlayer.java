@@ -2,7 +2,6 @@ package app.simplecloud.api.player;
 
 import net.kyori.adventure.audience.Audience;
 import net.kyori.adventure.text.Component;
-import org.jetbrains.annotations.ApiStatus;
 import org.jetbrains.annotations.Nullable;
 
 import java.util.Map;
@@ -15,6 +14,9 @@ import java.util.concurrent.CompletableFuture;
  * <p>CloudPlayer extends Adventure's {@link Audience}, allowing you to send
  * messages, titles, sounds, and other content directly to the player regardless
  * of which server they are connected to.
+ *
+ * <p>cloud-api implements this interface. Plugins use it but don't implement it, so later releases may add
+ * methods to it.
  *
  * <p>Example usage:
  * <pre>{@code
@@ -40,7 +42,6 @@ import java.util.concurrent.CompletableFuture;
  * player.kick(Component.text("Goodbye!"));
  * }</pre>
  */
-@ApiStatus.NonExtendable
 public interface CloudPlayer extends Audience {
 
     /**
