@@ -495,51 +495,46 @@ public class PlayerApiImpl implements PlayerApi {
     }
 
     private CompletableFuture<ConnectOutcome> connectViaProxy(UUID uniqueId, String registeredServerName) {
-        return CompletableFuture.supplyAsync(() -> {
-            ConnectPlayerRequest request = ConnectPlayerRequest.newBuilder()
-                    .setPlayerId(uniqueId.toString())
-                    .setServerName(registeredServerName)
-                    .build();
-            String subject = options.getNetworkId() + ".player." + uniqueId + ".connect";
-            Message response = requestFromProxy(uniqueId, subject, request);
-            ConnectPlayerResponse proxyResponse;
-            try {
-                proxyResponse = ConnectPlayerResponse.parseFrom(response.getData());
-            } catch (InvalidProtocolBufferException e) {
-                throw unreadableAnswer("The player's proxy sent a connect answer that can't be read", e);
-            }
-            return ConnectOutcome.of(toConnectStatus(proxyResponse), null);
-        }, executor);
+        return CompletableFuture.supplyAsync(() -> requestConnectFromProxy(uniqueId, registeredServerName), executor);
     }
 
-    private Message requestFromProxy(UUID uniqueId, String subject, ConnectPlayerRequest request) {
-        Message response;
+    private ConnectOutcome requestConnectFromProxy(UUID uniqueId, String registeredServerName) {
+        ConnectPlayerRequest request = ConnectPlayerRequest.newBuilder()
+                .setPlayerId(uniqueId.toString())
+                .setServerName(registeredServerName)
+                .build();
+        String subject = options.getNetworkId() + ".player." + uniqueId + ".connect";
+        Message answer = sendToProxy(uniqueId, subject, request);
+        ConnectPlayerResponse proxyResponse;
         try {
-            response = natsConnection.request(subject, request.toByteArray(), REQUEST_TIMEOUT);
+            proxyResponse = ConnectPlayerResponse.parseFrom(answer.getData());
+        } catch (InvalidProtocolBufferException e) {
+            throw unreadableAnswer("The player's proxy sent a connect answer that can't be read", e);
+        }
+        ConnectStatus status = toConnectStatus(proxyResponse);
+        return ConnectOutcome.of(status, null);
+    }
+
+    private Message sendToProxy(UUID uniqueId, String subject, ConnectPlayerRequest request) {
+        Message answer;
+        try {
+            answer = natsConnection.request(subject, request.toByteArray(), REQUEST_TIMEOUT);
         } catch (InterruptedException e) {
             Thread.currentThread().interrupt();
             String message = "The connect for player '" + uniqueId + "' was interrupted; "
                     + "the player may still have been moved";
             throw new CloudApiException(CloudApiException.Reason.UNKNOWN, 0, message, e);
         } catch (RuntimeException e) {
-            throw proxyRequestFailed(uniqueId, e);
+            String message = "The connect for player '" + uniqueId + "' couldn't be sent to the proxies: "
+                    + e.getMessage();
+            throw new CloudApiException(CloudApiException.Reason.UNAVAILABLE, 0, message, e);
         }
-        if (response == null) {
-            throw new CloudApiException(
-                    CloudApiException.Reason.UNAVAILABLE,
-                    "No proxy answered the connect for player '" + uniqueId + "'; the player may be offline"
-            );
+        if (answer == null) {
+            String message = "No proxy answered the connect for player '" + uniqueId + "' within "
+                    + REQUEST_TIMEOUT.toSeconds() + " seconds; the player may be offline or may still have been moved";
+            throw new CloudApiException(CloudApiException.Reason.UNAVAILABLE, message);
         }
-        return response;
-    }
-
-    private static CloudApiException proxyRequestFailed(UUID uniqueId, RuntimeException cause) {
-        return new CloudApiException(
-                CloudApiException.Reason.UNAVAILABLE,
-                0,
-                "The connect for player '" + uniqueId + "' couldn't be sent to the proxies: " + cause.getMessage(),
-                cause
-        );
+        return answer;
     }
 
     private static ConnectStatus toConnectStatus(ConnectPlayerResponse proxyResponse) {
@@ -562,26 +557,31 @@ public class PlayerApiImpl implements PlayerApi {
     }
 
     private CompletableFuture<ConnectOutcome> connectViaController(UUID uniqueId, ModelsConnectPlayerRequest request) {
-        return CompletableFuture.supplyAsync(() -> {
-            ModelsConnectPlayerResponse response;
-            try {
-                response = playersApi.connectPlayer(options.getNetworkId(), uniqueId.toString(), request);
-            } catch (ApiException e) {
-                if (e.getCode() == 404) {
-                    ConnectStatus status = isPlayerNotOnline(e)
-                            ? ConnectStatus.PLAYER_NOT_ONLINE
-                            : ConnectStatus.TARGET_NOT_FOUND;
-                    return ConnectOutcome.of(status, null);
-                }
-                throw ApiErrors.from(e);
-            }
-            return ConnectOutcome.of(toConnectStatus(response), response.getServerName());
-        }, executor);
+        return CompletableFuture.supplyAsync(() -> requestConnectFromController(uniqueId, request), executor);
     }
 
-    private static boolean isPlayerNotOnline(ApiException e) {
-        String body = e.getResponseBody();
-        return body != null && body.contains("Player is not online");
+    private ConnectOutcome requestConnectFromController(UUID uniqueId, ModelsConnectPlayerRequest request) {
+        ModelsConnectPlayerResponse response;
+        try {
+            response = playersApi.connectPlayer(options.getNetworkId(), uniqueId.toString(), request);
+        } catch (ApiException e) {
+            if (e.getCode() == 404) {
+                return notFoundOutcome(e);
+            }
+            throw ApiErrors.from(e);
+        }
+        ConnectStatus status = toConnectStatus(response);
+        return ConnectOutcome.of(status, response.getServerName());
+    }
+
+    /**
+     * Tells the two 404 answers apart. Only their text differs, and {@code .61} reads the same text.
+     */
+    private static ConnectOutcome notFoundOutcome(ApiException notFound) {
+        String body = notFound.getResponseBody();
+        boolean playerNotOnline = body != null && body.contains("Player is not online");
+        ConnectStatus status = playerNotOnline ? ConnectStatus.PLAYER_NOT_ONLINE : ConnectStatus.TARGET_NOT_FOUND;
+        return ConnectOutcome.of(status, null);
     }
 
     private static ConnectStatus toConnectStatus(@Nullable ModelsConnectPlayerResponse response) {

@@ -147,6 +147,7 @@ public interface CloudPlayer extends Audience {
      *
      * @param serverName the name of the server on the proxy
      * @return a future containing the connection result
+     * @throws NullPointerException if the server name is null
      * @deprecated Use {@link #connectTo(ConnectTarget)} with {@link ConnectTarget#registeredServerName(String)}.
      */
     @Deprecated
@@ -158,6 +159,7 @@ public interface CloudPlayer extends Audience {
      *
      * @param serverName the name of the server on the proxy
      * @return a future containing the connection result
+     * @throws NullPointerException if the server name is null
      * @deprecated Use {@link #connectTo(ConnectTarget)} with {@link ConnectTarget#registeredServerName(String)}
      * for the proxy's name, or with {@link ConnectTarget#serverName(String)} for the cloud name.
      */
@@ -170,6 +172,7 @@ public interface CloudPlayer extends Audience {
      * @param groupName the name of the target server group
      * @param selectionMode how the target server is chosen, or null for {@link ServerSelectionMode#RANDOM}
      * @return a future containing the connection result
+     * @throws NullPointerException if the group name is null
      * @deprecated Use {@link #connectTo(ConnectTarget)} with {@link ConnectTarget#groupName(String, ServerSelectionMode)}.
      */
     @Deprecated
@@ -180,6 +183,7 @@ public interface CloudPlayer extends Audience {
      *
      * @param groupName the name of the target server group
      * @return a future containing the connection result
+     * @throws NullPointerException if the group name is null
      * @deprecated Use {@link #connectTo(ConnectTarget)} with {@link ConnectTarget#groupName(String)}.
      */
     @Deprecated
@@ -192,6 +196,7 @@ public interface CloudPlayer extends Audience {
      *
      * @param persistentServerId the UUID of the target persistent server
      * @return a future containing the connection result
+     * @throws NullPointerException if the persistent server ID is null
      * @deprecated Use {@link #connectTo(ConnectTarget)} with {@link ConnectTarget#persistentServerId(String)}.
      */
     @Deprecated

@@ -416,6 +416,7 @@ public interface PlayerApi {
      * @param serverName the name of the target server on the proxy
      * @return a future containing the connection result; a connect that fails, can't be sent or gets no
      * answer gives {@link CloudPlayer.ConnectResult#CONNECTION_FAILED}
+     * @throws NullPointerException if the player's UUID or the server name is null
      * @deprecated Use {@link #connectTo(UUID, ConnectTarget)} with
      * {@link ConnectTarget#registeredServerName(String)}, whose {@link ConnectOutcome} says why a connect failed.
      */
@@ -432,6 +433,7 @@ public interface PlayerApi {
      * @param uniqueId the player's UUID
      * @param serverName the name of the target server on the proxy
      * @return a future containing the connection result
+     * @throws NullPointerException if the player's UUID or the server name is null
      * @deprecated The name doesn't say which name it takes. Use {@link #connectTo(UUID, ConnectTarget)}
      * with {@link ConnectTarget#registeredServerName(String)} for the proxy's name, or with
      * {@link ConnectTarget#serverName(String)} for the cloud name.
@@ -448,6 +450,7 @@ public interface PlayerApi {
      * @param groupName the name of the target server group, matched case-insensitively
      * @param selectionMode how the target server is chosen, or null for {@link ServerSelectionMode#RANDOM}
      * @return a future containing the connection result
+     * @throws NullPointerException if the player's UUID or the group name is null
      * @deprecated The name doesn't say whether it takes a group name or ID. Use
      * {@link #connectTo(UUID, ConnectTarget)} with {@link ConnectTarget#groupName(String, ServerSelectionMode)}.
      */
@@ -468,6 +471,7 @@ public interface PlayerApi {
      * @param uniqueId the player's UUID
      * @param groupName the name of the target server group, matched case-insensitively
      * @return a future containing the connection result
+     * @throws NullPointerException if the player's UUID or the group name is null
      * @deprecated The name doesn't say whether it takes a group name or ID. Use
      * {@link #connectTo(UUID, ConnectTarget)} with {@link ConnectTarget#groupName(String)}.
      */
@@ -482,6 +486,7 @@ public interface PlayerApi {
      * @param uniqueId the player's UUID
      * @param persistentServerId the UUID of the target persistent server
      * @return a future containing the connection result
+     * @throws NullPointerException if the player's UUID or the persistent server ID is null
      * @deprecated The name doesn't say that it takes an ID. Use {@link #connectTo(UUID, ConnectTarget)} with
      * {@link ConnectTarget#persistentServerId(String)}.
      */

@@ -333,6 +333,17 @@ class PlayerApiImplTest {
     }
 
     @Test
+    @SuppressWarnings("deprecation") // the deprecated connects reject a null player like connectTo
+    void connects_withNullPlayer_throwRightAway() {
+        FakeNatsConnection nats = FakeNatsConnection.withoutRequests();
+        PlayerApiImpl api = new PlayerApiImpl(options(), nats.connection(), new FakePlayersApi());
+        ConnectTarget target = ConnectTarget.serverName("lobby-1");
+
+        assertThrows(NullPointerException.class, () -> api.connectTo(null, target));
+        assertThrows(NullPointerException.class, () -> api.connectDirect(null, "lobby-1"));
+    }
+
+    @Test
     void connectTo_returnsTheServerTheControllerTried() {
         FakePlayersApi playersApi = new FakePlayersApi();
         playersApi.connectResult = ModelsConnectResult.ConnectResultSuccess;
