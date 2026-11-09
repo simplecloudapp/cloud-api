@@ -17,7 +17,7 @@ public interface ProxyPlayer {
 
     /**
      * Connects the player to the server this proxy registered under the given name, for a connect request
-     * from the controller or {@code connectDirect}. Answers {@code SERVER_NOT_FOUND} if no server has that name.
+     * from the controller or a plugin. Answers {@code SERVER_NOT_FOUND} if no server has that name.
      */
     CompletableFuture<CloudPlayer.ConnectResult> connect(String proxyServerName);
 }

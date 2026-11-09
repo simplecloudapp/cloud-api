@@ -3,7 +3,7 @@ package app.simplecloud.api.internal.player;
 import app.simplecloud.api.CloudApiException;
 import app.simplecloud.api.internal.integration.adventure.RemoteAudience;
 import app.simplecloud.api.player.CloudPlayer;
-import app.simplecloud.api.player.ConnectResponse;
+import app.simplecloud.api.player.ConnectOutcome;
 import app.simplecloud.api.player.ConnectTarget;
 import app.simplecloud.api.player.PlayerApi;
 import app.simplecloud.api.player.ServerSelectionMode;
@@ -145,36 +145,12 @@ public class CloudPlayerImpl implements CloudPlayer, ForwardingAudience.Single {
     }
 
     @Override
-    public CompletableFuture<ConnectResponse> connectTo(ConnectTarget target) {
+    public CompletableFuture<ConnectOutcome> connectTo(ConnectTarget target) {
         return playerApi.connectTo(uniqueId, target);
     }
 
     @Override
-    public CompletableFuture<ConnectResult> connectToServerByName(String serverName) {
-        return playerApi.connectToServerByName(uniqueId, serverName);
-    }
-
-    @Override
-    public CompletableFuture<ConnectResult> connectToServerById(String serverId) {
-        return playerApi.connectToServerById(uniqueId, serverId);
-    }
-
-    @Override
-    public CompletableFuture<ConnectResult> connectToGroupByName(String groupName, @Nullable ServerSelectionMode selectionMode) {
-        return playerApi.connectToGroupByName(uniqueId, groupName, selectionMode);
-    }
-
-    @Override
-    public CompletableFuture<ConnectResult> connectToGroupByName(String groupName) {
-        return playerApi.connectToGroupByName(uniqueId, groupName);
-    }
-
-    @Override
-    public CompletableFuture<ConnectResult> connectToPersistentServerById(String persistentServerId) {
-        return playerApi.connectToPersistentServerById(uniqueId, persistentServerId);
-    }
-
-    @Override
+    @Deprecated
     public CompletableFuture<ConnectResult> connectDirect(String serverName) {
         return playerApi.connectDirect(uniqueId, serverName);
     }

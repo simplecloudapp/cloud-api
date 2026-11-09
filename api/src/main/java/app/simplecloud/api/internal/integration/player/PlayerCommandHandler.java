@@ -17,7 +17,7 @@ import java.util.concurrent.Executor;
 import java.util.concurrent.atomic.AtomicBoolean;
 
 /**
- * Handles kick requests from the controller and connect requests from the controller or {@code connectDirect}
+ * Handles kick requests from the controller and connect requests from the controller or a plugin
  * for players on this proxy, and replies to them.
  */
 public class PlayerCommandHandler {

@@ -1,6 +1,7 @@
 package app.simplecloud.api.player;
 
 import net.kyori.adventure.text.Component;
+import org.jetbrains.annotations.ApiStatus;
 import org.jetbrains.annotations.Nullable;
 
 import java.util.List;
@@ -40,6 +41,7 @@ import java.util.function.LongUnaryOperator;
  *     .thenAccept(top -> top.forEach(p -> System.out.println(p.getName())));
  * }</pre>
  */
+@ApiStatus.NonExtendable
 public interface PlayerApi {
 
     /**
@@ -376,123 +378,50 @@ public interface PlayerApi {
     CompletableFuture<Boolean> kick(UUID uniqueId, @Nullable Component reason);
 
     /**
-     * Connects a player through the controller, which resolves the target to one server.
+     * Moves a player to a server.
      *
-     * <p>The controller sends the player's proxy only the server ID. The proxy needs a plugin that maps
-     * server IDs to its own server names in {@link app.simplecloud.api.proxy.ProxyServerNames}, such as
-     * server-connection {@code 1.2.0} or newer. Without one, the proxy answers
-     * {@link CloudPlayer.ConnectResult#SERVER_NOT_FOUND} for every server the controller sends it to;
-     * {@link #connectDirect(UUID, String)} still works.
+     * <p>A target from {@link ConnectTarget#registeredServerName(String)} goes straight to the player's
+     * proxy. Every other target goes through the controller, which picks a game server and sends the
+     * player's proxy only the server's ID. The proxy then needs a plugin that maps server IDs to its server
+     * names in {@link app.simplecloud.api.proxy.ProxyServerNames}, such as server-connection {@code 1.2.0}
+     * or newer; without one, these targets answer {@link ConnectStatus#SERVER_NOT_REGISTERED}.
      *
-     * <p>A target without a game server in state {@code AVAILABLE} answers
-     * {@link CloudPlayer.ConnectResult#NO_SERVER_AVAILABLE}: for example a server that is still starting
-     * or is stopping, a persistent server that is not running, or a proxy such as {@code proxy-1},
-     * because a proxy is not a game server. An unknown target answers
-     * {@link CloudPlayer.ConnectResult#SERVER_NOT_FOUND}, and a player who is not online answers
-     * {@link CloudPlayer.ConnectResult#PLAYER_NOT_FOUND}. The future completes exceptionally with a
-     * {@link app.simplecloud.api.CloudApiException} when the request is invalid ({@code INVALID_REQUEST},
-     * for example an empty name or an ID that is not a UUID), when a persistent server and a group
-     * server share a server name ({@code CONFLICT}), when no proxy answers for the player, or when the
-     * controller can't be reached or fails.
-     *
-     * @param uniqueId the player's UUID
-     * @param target where to send the player; its names and IDs must not be null
-     * @return a future containing the result and the server the controller last tried
-     */
-    CompletableFuture<ConnectResponse> connectTo(UUID uniqueId, ConnectTarget target);
-
-    /**
-     * Connects a player to a server by its cloud name, through the controller.
-     *
-     * <p>The cloud name is {@code <group>-<number>} or the persistent server's name, matched
-     * case-insensitively; see {@link ConnectTarget.ServerName}. Results and failures are described on
-     * {@link #connectTo(UUID, ConnectTarget)}. To reach servers that are not managed by the cloud, use
-     * {@link #connectDirect(UUID, String)}.
+     * <p>A known outcome completes the future with its {@link ConnectStatus}. The future fails with a
+     * {@link app.simplecloud.api.CloudApiException} when the outcome is unknown or the request can't be
+     * made:
+     * <ul>
+     *     <li>the request is invalid ({@code INVALID_REQUEST}), for example an empty name or an ID that is
+     *     not a UUID;</li>
+     *     <li>a persistent server and a group server share the server name ({@code CONFLICT});</li>
+     *     <li>the player's proxy doesn't answer in time. The player may still have been moved. For a target
+     *     from {@link ConnectTarget#registeredServerName(String)}, this is also how an offline player
+     *     ends, because only the proxy that holds the player answers;</li>
+     *     <li>the controller can't be reached, fails, or answers something this version doesn't know.</li>
+     * </ul>
      *
      * @param uniqueId the player's UUID
-     * @param serverName the cloud name of the target server
-     * @return a future containing the connection result
+     * @param target where to send the player
+     * @return a future containing the outcome
      */
-    default CompletableFuture<CloudPlayer.ConnectResult> connectToServerByName(UUID uniqueId, String serverName) {
-        ConnectTarget target = new ConnectTarget.ServerName(serverName);
-        return connectTo(uniqueId, target).thenApply(ConnectResponse::result);
-    }
+    CompletableFuture<ConnectOutcome> connectTo(UUID uniqueId, ConnectTarget target);
 
     /**
-     * Connects a player to a server by its ID, through the controller.
-     *
-     * <p>Results and failures are described on {@link #connectTo(UUID, ConnectTarget)}.
-     *
-     * @param uniqueId the player's UUID
-     * @param serverId the UUID of the target server
-     * @return a future containing the connection result
-     */
-    default CompletableFuture<CloudPlayer.ConnectResult> connectToServerById(UUID uniqueId, String serverId) {
-        ConnectTarget target = new ConnectTarget.ServerId(serverId);
-        return connectTo(uniqueId, target).thenApply(ConnectResponse::result);
-    }
-
-    /**
-     * Connects a player to a server of the group with the given name, through the controller.
-     *
-     * <p>Results and failures are described on {@link #connectTo(UUID, ConnectTarget)}. To learn which
-     * server the controller picked, use {@link #connectTo(UUID, ConnectTarget)} with
-     * {@link ConnectTarget.GroupName}.
-     *
-     * @param uniqueId the player's UUID
-     * @param groupName the name of the target server group, matched case-insensitively
-     * @param selectionMode how the target server is chosen, or null for {@link ServerSelectionMode#RANDOM}
-     * @return a future containing the connection result
-     */
-    default CompletableFuture<CloudPlayer.ConnectResult> connectToGroupByName(
-            UUID uniqueId,
-            String groupName,
-            @Nullable ServerSelectionMode selectionMode
-    ) {
-        ConnectTarget target = new ConnectTarget.GroupName(groupName, selectionMode);
-        return connectTo(uniqueId, target).thenApply(ConnectResponse::result);
-    }
-
-    /**
-     * Connects a player to a random server of the group with the given name, through the controller.
-     *
-     * @param uniqueId the player's UUID
-     * @param groupName the name of the target server group, matched case-insensitively
-     * @return a future containing the connection result
-     */
-    default CompletableFuture<CloudPlayer.ConnectResult> connectToGroupByName(UUID uniqueId, String groupName) {
-        return connectToGroupByName(uniqueId, groupName, ServerSelectionMode.RANDOM);
-    }
-
-    /**
-     * Connects a player to the running server of a persistent server, through the controller.
-     *
-     * <p>To connect by the persistent server's name, use {@link #connectToServerByName(UUID, String)}.
-     * Results and failures are described on {@link #connectTo(UUID, ConnectTarget)}.
-     *
-     * @param uniqueId the player's UUID
-     * @param persistentServerId the UUID of the target persistent server
-     * @return a future containing the connection result
-     */
-    default CompletableFuture<CloudPlayer.ConnectResult> connectToPersistentServerById(
-            UUID uniqueId,
-            String persistentServerId
-    ) {
-        ConnectTarget target = new ConnectTarget.PersistentServerId(persistentServerId);
-        return connectTo(uniqueId, target).thenApply(ConnectResponse::result);
-    }
-
-    /**
-     * Connects a player to a server by the name the proxy registered it under.
-     *
-     * <p>The request goes straight to the player's proxy, without the controller. It works for any server
-     * the proxy knows, including servers that are not managed by the cloud.
+     * Connects a player to a server by the name the proxy registered it under, without the controller.
      *
      * @param uniqueId the player's UUID
      * @param serverName the name of the target server on the proxy
-     * @return a future containing the connection result
+     * @return a future containing the connection result; every failure, including a proxy that doesn't
+     * answer, gives {@link CloudPlayer.ConnectResult#CONNECTION_FAILED}
+     * @deprecated Use {@link #connectTo(UUID, ConnectTarget)} with
+     * {@link ConnectTarget#registeredServerName(String)}, which returns a {@link ConnectStatus}.
      */
-    CompletableFuture<CloudPlayer.ConnectResult> connectDirect(UUID uniqueId, String serverName);
+    @Deprecated
+    default CompletableFuture<CloudPlayer.ConnectResult> connectDirect(UUID uniqueId, String serverName) {
+        return connectTo(uniqueId, ConnectTarget.registeredServerName(serverName))
+                .handle((outcome, failure) -> failure == null
+                        ? toConnectResult(outcome.getStatus())
+                        : CloudPlayer.ConnectResult.CONNECTION_FAILED);
+    }
 
     /**
      * Connects a player to a server by the name the proxy registered it under, exactly like
@@ -501,8 +430,9 @@ public interface PlayerApi {
      * @param uniqueId the player's UUID
      * @param serverName the name of the target server on the proxy
      * @return a future containing the connection result
-     * @deprecated The name doesn't say which name it takes. Use {@link #connectToServerByName(UUID, String)}
-     * for the cloud name, or {@link #connectDirect(UUID, String)} for the proxy's name.
+     * @deprecated The name doesn't say which name it takes. Use {@link #connectTo(UUID, ConnectTarget)}
+     * with {@link ConnectTarget#registeredServerName(String)} for the proxy's name, or with
+     * {@link ConnectTarget#serverName(String)} for the cloud name.
      */
     @Deprecated
     default CompletableFuture<CloudPlayer.ConnectResult> connect(UUID uniqueId, String serverName) {
@@ -510,17 +440,14 @@ public interface PlayerApi {
     }
 
     /**
-     * Connects a player to a server of the group with the given name, like
-     * {@link #connectToGroupByName(UUID, String, ServerSelectionMode)}.
+     * Connects a player to a server of the group with the given name, through the controller.
      *
      * @param uniqueId the player's UUID
-     * @param groupName the name of the target server group
+     * @param groupName the name of the target server group, matched case-insensitively
      * @param selectionMode how the target server is chosen, or null for {@link ServerSelectionMode#RANDOM}
      * @return a future containing the connection result
      * @deprecated The name doesn't say whether it takes a group name or ID. Use
-     * {@link #connectToGroupByName(UUID, String, ServerSelectionMode)}, which can also answer
-     * {@link CloudPlayer.ConnectResult#NO_SERVER_AVAILABLE}; this method answers
-     * {@link CloudPlayer.ConnectResult#SERVER_NOT_FOUND} instead, as it did before that value existed.
+     * {@link #connectTo(UUID, ConnectTarget)} with {@link ConnectTarget#groupName(String, ServerSelectionMode)}.
      */
     @Deprecated
     default CompletableFuture<CloudPlayer.ConnectResult> connectToGroup(
@@ -528,20 +455,19 @@ public interface PlayerApi {
             String groupName,
             @Nullable ServerSelectionMode selectionMode
     ) {
-        return connectToGroupByName(uniqueId, groupName, selectionMode)
-                .thenApply(PlayerApi::toResultBeforeNoServerAvailable);
+        ServerSelectionMode mode = selectionMode != null ? selectionMode : ServerSelectionMode.RANDOM;
+        return connectTo(uniqueId, ConnectTarget.groupName(groupName, mode))
+                .thenApply(outcome -> toConnectResult(outcome.getStatus()));
     }
 
     /**
-     * Connects a player to a random server of the group with the given name, like
-     * {@link #connectToGroupByName(UUID, String)}.
+     * Connects a player to a random server of the group with the given name, through the controller.
      *
      * @param uniqueId the player's UUID
-     * @param groupName the name of the target server group
+     * @param groupName the name of the target server group, matched case-insensitively
      * @return a future containing the connection result
      * @deprecated The name doesn't say whether it takes a group name or ID. Use
-     * {@link #connectToGroupByName(UUID, String)}; see
-     * {@link #connectToGroup(UUID, String, ServerSelectionMode)} for how the results differ.
+     * {@link #connectTo(UUID, ConnectTarget)} with {@link ConnectTarget#groupName(String)}.
      */
     @Deprecated
     default CompletableFuture<CloudPlayer.ConnectResult> connectToGroup(UUID uniqueId, String groupName) {
@@ -549,35 +475,34 @@ public interface PlayerApi {
     }
 
     /**
-     * Connects a player to the running server of a persistent server, like
-     * {@link #connectToPersistentServerById(UUID, String)}.
+     * Connects a player to the running server of a persistent server, through the controller.
      *
      * @param uniqueId the player's UUID
      * @param persistentServerId the UUID of the target persistent server
      * @return a future containing the connection result
-     * @deprecated The name doesn't say that it takes an ID. Use
-     * {@link #connectToPersistentServerById(UUID, String)}, which can also answer
-     * {@link CloudPlayer.ConnectResult#NO_SERVER_AVAILABLE}; this method answers
-     * {@link CloudPlayer.ConnectResult#SERVER_NOT_FOUND} instead, as it did before that value existed.
+     * @deprecated The name doesn't say that it takes an ID. Use {@link #connectTo(UUID, ConnectTarget)} with
+     * {@link ConnectTarget#persistentServerId(String)}.
      */
     @Deprecated
     default CompletableFuture<CloudPlayer.ConnectResult> connectToPersistentServer(
             UUID uniqueId,
             String persistentServerId
     ) {
-        return connectToPersistentServerById(uniqueId, persistentServerId)
-                .thenApply(PlayerApi::toResultBeforeNoServerAvailable);
+        return connectTo(uniqueId, ConnectTarget.persistentServerId(persistentServerId))
+                .thenApply(outcome -> toConnectResult(outcome.getStatus()));
     }
 
     /**
-     * Turns {@link CloudPlayer.ConnectResult#NO_SERVER_AVAILABLE} into
-     * {@link CloudPlayer.ConnectResult#SERVER_NOT_FOUND} for the deprecated methods. Plugins built before
-     * that value existed may switch over the results without a default case, and would fail on it.
+     * Maps a status to the result the deprecated methods returned for it, so plugins built against them
+     * never see a result they don't know.
      */
-    private static CloudPlayer.ConnectResult toResultBeforeNoServerAvailable(CloudPlayer.ConnectResult result) {
-        if (result == CloudPlayer.ConnectResult.NO_SERVER_AVAILABLE) {
-            return CloudPlayer.ConnectResult.SERVER_NOT_FOUND;
-        }
-        return result;
+    private static CloudPlayer.ConnectResult toConnectResult(ConnectStatus status) {
+        return switch (status) {
+            case SUCCESS -> CloudPlayer.ConnectResult.SUCCESS;
+            case ALREADY_CONNECTED -> CloudPlayer.ConnectResult.ALREADY_CONNECTED;
+            case NO_SERVER_AVAILABLE, SERVER_NOT_REGISTERED, TARGET_NOT_FOUND -> CloudPlayer.ConnectResult.SERVER_NOT_FOUND;
+            case PLAYER_NOT_ONLINE -> CloudPlayer.ConnectResult.PLAYER_NOT_FOUND;
+            case FAILED -> CloudPlayer.ConnectResult.CONNECTION_FAILED;
+        };
     }
 }
