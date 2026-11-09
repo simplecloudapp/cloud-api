@@ -190,6 +190,21 @@ class PlayerApiImplTest {
     }
 
     @Test
+    void connectTo_withRegisteredServerName_withUnreadableProxyAnswer_failsAsUnknown() {
+        byte[] notAProtobufMessage = {(byte) 0xff};
+        FakeNatsConnection nats = FakeNatsConnection.answering(
+                (subject, data, timeout) -> FakeNatsConnection.reply(notAProtobufMessage)
+        );
+        PlayerApiImpl api = new PlayerApiImpl(options(), nats.connection(), new FakePlayersApi());
+        ConnectTarget target = ConnectTarget.registeredServerName("lobby");
+
+        CompletionException error = assertThrows(CompletionException.class, () -> api.connectTo(PLAYER_ID, target).join());
+
+        CloudApiException cause = assertInstanceOf(CloudApiException.class, error.getCause());
+        assertEquals(CloudApiException.Reason.UNKNOWN, cause.getReason());
+    }
+
+    @Test
     void connectTo_withRegisteredServerName_withoutReply_failsAsUnavailable() {
         FakeNatsConnection nats = FakeNatsConnection.answering((subject, data, timeout) -> null);
         PlayerApiImpl api = new PlayerApiImpl(options(), nats.connection(), new FakePlayersApi());
@@ -431,27 +446,16 @@ class PlayerApiImplTest {
 
     @ParameterizedTest
     @CsvSource({
-            "SUCCESS, , SUCCESS",
-            "ALREADY_CONNECTED, , ALREADY_CONNECTED",
-            "NO_SERVER_AVAILABLE, , SERVER_NOT_FOUND",
-            "SERVER_NOT_FOUND, , SERVER_NOT_FOUND",
-            "FAILED, , CONNECTION_FAILED",
-            ", player offline, PLAYER_NOT_FOUND",
-            ", unknown target, SERVER_NOT_FOUND",
+            "SUCCESS, SUCCESS",
+            "ALREADY_CONNECTED, ALREADY_CONNECTED",
+            "NO_SERVER_AVAILABLE, SERVER_NOT_FOUND",
+            "SERVER_NOT_FOUND, SERVER_NOT_FOUND",
+            "FAILED, CONNECTION_FAILED",
     })
     @SuppressWarnings("deprecation") // plugins built against the released methods must only get the released results
-    void deprecatedControllerConnects_answerOnlyTheReleasedResults(
-            String controllerResult,
-            String notFound,
-            CloudPlayer.ConnectResult expected
-    ) {
+    void deprecatedControllerConnects_answerOnlyTheReleasedResults(String controllerResult, CloudPlayer.ConnectResult expected) {
         FakePlayersApi playersApi = new FakePlayersApi();
-        if (controllerResult != null) {
-            playersApi.connectResult = ModelsConnectResult.fromValue(controllerResult);
-        } else {
-            String body = notFound.equals("player offline") ? PLAYER_OFFLINE_BODY : UNKNOWN_SERVER_BODY;
-            playersApi.connectError = new ApiException(404, "Not Found", null, body);
-        }
+        playersApi.connectResult = ModelsConnectResult.fromValue(controllerResult);
         PlayerApiImpl api = new PlayerApiImpl(options(), null, playersApi);
 
         CloudPlayer.ConnectResult groupResult = api.connectToGroup(PLAYER_ID, "lobby").join();
@@ -459,6 +463,30 @@ class PlayerApiImplTest {
 
         assertEquals(expected, groupResult);
         assertEquals(expected, persistentResult);
+    }
+
+    @Test
+    @SuppressWarnings("deprecation") // plugins built against the released methods must only get the released results
+    void deprecatedControllerConnects_withPlayerOffline_answerPlayerNotFound() {
+        FakePlayersApi playersApi = new FakePlayersApi();
+        playersApi.connectError = new ApiException(404, "Not Found", null, PLAYER_OFFLINE_BODY);
+        PlayerApiImpl api = new PlayerApiImpl(options(), null, playersApi);
+
+        CloudPlayer.ConnectResult result = api.connectToGroup(PLAYER_ID, "lobby").join();
+
+        assertEquals(CloudPlayer.ConnectResult.PLAYER_NOT_FOUND, result);
+    }
+
+    @Test
+    @SuppressWarnings("deprecation") // plugins built against the released methods must only get the released results
+    void deprecatedControllerConnects_withUnknownTarget_answerServerNotFound() {
+        FakePlayersApi playersApi = new FakePlayersApi();
+        playersApi.connectError = new ApiException(404, "Not Found", null, UNKNOWN_SERVER_BODY);
+        PlayerApiImpl api = new PlayerApiImpl(options(), null, playersApi);
+
+        CloudPlayer.ConnectResult result = api.connectToPersistentServer(PLAYER_ID, PERSISTENT_SERVER_ID).join();
+
+        assertEquals(CloudPlayer.ConnectResult.SERVER_NOT_FOUND, result);
     }
 
     @Test

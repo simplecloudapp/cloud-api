@@ -17,7 +17,8 @@ import java.util.Objects;
  * <p>A target from {@link #registeredServerName(String)} goes straight to the player's proxy. Every other
  * target goes through the controller, which picks a game server and sends the player's proxy its ID.
  *
- * <p>Later releases may add kinds of targets.
+ * <p>The factory methods throw a {@link NullPointerException} for a null argument. Later releases may add
+ * kinds of targets.
  */
 public final class ConnectTarget {
 
@@ -27,7 +28,7 @@ public final class ConnectTarget {
 
     private ConnectTarget(Kind kind, String value, @Nullable ServerSelectionMode selectionMode) {
         this.kind = kind;
-        this.value = Objects.requireNonNull(value, kind.description);
+        this.value = Objects.requireNonNull(value, kind.parameterName);
         this.selectionMode = selectionMode;
     }
 
@@ -215,7 +216,7 @@ public final class ConnectTarget {
     @Override
     public String toString() {
         String mode = selectionMode != null ? ", selectionMode=" + selectionMode : "";
-        return "ConnectTarget[" + kind.description + "=" + value + mode + "]";
+        return "ConnectTarget[" + kind.parameterName + "=" + value + mode + "]";
     }
 
     /**
@@ -230,10 +231,10 @@ public final class ConnectTarget {
         PERSISTENT_SERVER_ID("persistentServerId"),
         REGISTERED_SERVER_NAME("registeredServerName");
 
-        private final String description;
+        private final String parameterName;
 
-        Kind(String description) {
-            this.description = description;
+        Kind(String parameterName) {
+            this.parameterName = parameterName;
         }
     }
 }

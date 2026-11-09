@@ -386,12 +386,13 @@ public interface PlayerApi {
      * names in {@link app.simplecloud.api.proxy.ProxyServerNames}, such as server-connection {@code 1.2.0}
      * or newer; without one, these targets answer {@link ConnectStatus#SERVER_NOT_REGISTERED}.
      *
-     * <p>A known outcome completes the future with its {@link ConnectStatus}. The future fails with a
+     * <p>A known outcome completes the future with a {@link ConnectOutcome} that holds its
+     * {@link ConnectStatus}. The future fails with a
      * {@link app.simplecloud.api.CloudApiException} when the outcome is unknown or the request can't be
      * made:
      * <ul>
-     *     <li>the request is invalid ({@code INVALID_REQUEST}), for example an empty name or an ID that is
-     *     not a UUID;</li>
+     *     <li>the controller finds the request invalid ({@code INVALID_REQUEST}), for example an empty name
+     *     or an ID that is not a UUID;</li>
      *     <li>a persistent server and a group server share the server name ({@code CONFLICT});</li>
      *     <li>the player's proxy doesn't answer in time. The player may still have been moved. For a target
      *     from {@link ConnectTarget#registeredServerName(String)}, this is also how an offline player
@@ -403,6 +404,7 @@ public interface PlayerApi {
      * @param uniqueId the player's UUID
      * @param target where to send the player
      * @return a future containing the outcome
+     * @throws NullPointerException if the target is null
      */
     CompletableFuture<ConnectOutcome> connectTo(UUID uniqueId, ConnectTarget target);
 
@@ -414,14 +416,12 @@ public interface PlayerApi {
      * @return a future containing the connection result; a connect that fails, can't be sent or gets no
      * answer gives {@link CloudPlayer.ConnectResult#CONNECTION_FAILED}
      * @deprecated Use {@link #connectTo(UUID, ConnectTarget)} with
-     * {@link ConnectTarget#registeredServerName(String)}, which returns a {@link ConnectStatus}.
+     * {@link ConnectTarget#registeredServerName(String)}, whose {@link ConnectOutcome} says why a connect failed.
      */
     @Deprecated
     default CompletableFuture<CloudPlayer.ConnectResult> connectDirect(UUID uniqueId, String serverName) {
         return connectTo(uniqueId, ConnectTarget.registeredServerName(serverName))
-                .handle((outcome, failure) -> failure == null
-                        ? toConnectResult(outcome.getStatus())
-                        : CloudPlayer.ConnectResult.CONNECTION_FAILED);
+                .handle(PlayerApi::toDirectConnectResult);
     }
 
     /**
@@ -491,6 +491,20 @@ public interface PlayerApi {
     ) {
         return connectTo(uniqueId, ConnectTarget.persistentServerId(persistentServerId))
                 .thenApply(outcome -> toConnectResult(outcome.getStatus()));
+    }
+
+    /**
+     * Maps a direct connect to the result {@link #connectDirect(UUID, String)} returned for it: it never
+     * failed its future.
+     */
+    private static CloudPlayer.ConnectResult toDirectConnectResult(
+            @Nullable ConnectOutcome outcome,
+            @Nullable Throwable failure
+    ) {
+        if (failure != null) {
+            return CloudPlayer.ConnectResult.CONNECTION_FAILED;
+        }
+        return toConnectResult(outcome.getStatus());
     }
 
     /**

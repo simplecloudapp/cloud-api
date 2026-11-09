@@ -131,11 +131,14 @@ public interface CloudPlayer extends Audience {
     /**
      * Moves the player to a server.
      *
-     * <p>See {@link PlayerApi#connectTo(UUID, ConnectTarget)} for how each target is sent, the proxy's
-     * precondition and the failures.
+     * <p>Every target except {@link ConnectTarget#registeredServerName(String)} needs a plugin on the
+     * player's proxy that maps server IDs to its server names, such as server-connection {@code 1.2.0} or
+     * newer. See {@link PlayerApi#connectTo(UUID, ConnectTarget)} for how each target is sent and how the
+     * future fails.
      *
      * @param target where to send the player
      * @return a future containing the outcome
+     * @throws NullPointerException if the target is null
      */
     CompletableFuture<ConnectOutcome> connectTo(ConnectTarget target);
 
@@ -144,7 +147,7 @@ public interface CloudPlayer extends Audience {
      *
      * @param serverName the name of the server on the proxy
      * @return a future containing the connection result
-     * @deprecated See {@link PlayerApi#connectDirect(UUID, String)}.
+     * @deprecated Use {@link #connectTo(ConnectTarget)} with {@link ConnectTarget#registeredServerName(String)}.
      */
     @Deprecated
     CompletableFuture<ConnectResult> connectDirect(String serverName);
@@ -155,7 +158,8 @@ public interface CloudPlayer extends Audience {
      *
      * @param serverName the name of the server on the proxy
      * @return a future containing the connection result
-     * @deprecated See {@link PlayerApi#connect(UUID, String)}.
+     * @deprecated Use {@link #connectTo(ConnectTarget)} with {@link ConnectTarget#registeredServerName(String)}
+     * for the proxy's name, or with {@link ConnectTarget#serverName(String)} for the cloud name.
      */
     @Deprecated
     CompletableFuture<ConnectResult> connect(String serverName);
@@ -166,7 +170,7 @@ public interface CloudPlayer extends Audience {
      * @param groupName the name of the target server group
      * @param selectionMode how the target server is chosen, or null for {@link ServerSelectionMode#RANDOM}
      * @return a future containing the connection result
-     * @deprecated See {@link PlayerApi#connectToGroup(UUID, String, ServerSelectionMode)}.
+     * @deprecated Use {@link #connectTo(ConnectTarget)} with {@link ConnectTarget#groupName(String, ServerSelectionMode)}.
      */
     @Deprecated
     CompletableFuture<ConnectResult> connectToGroup(String groupName, @Nullable ServerSelectionMode selectionMode);
@@ -176,7 +180,7 @@ public interface CloudPlayer extends Audience {
      *
      * @param groupName the name of the target server group
      * @return a future containing the connection result
-     * @deprecated See {@link PlayerApi#connectToGroup(UUID, String)}.
+     * @deprecated Use {@link #connectTo(ConnectTarget)} with {@link ConnectTarget#groupName(String)}.
      */
     @Deprecated
     CompletableFuture<ConnectResult> connectToGroup(String groupName);
@@ -186,14 +190,14 @@ public interface CloudPlayer extends Audience {
      *
      * @param persistentServerId the UUID of the target persistent server
      * @return a future containing the connection result
-     * @deprecated See {@link PlayerApi#connectToPersistentServer(UUID, String)}.
+     * @deprecated Use {@link #connectTo(ConnectTarget)} with {@link ConnectTarget#persistentServerId(String)}.
      */
     @Deprecated
     CompletableFuture<ConnectResult> connectToPersistentServer(String persistentServerId);
 
     /**
      * Result of a connect from the deprecated connect methods. {@link #connectTo(ConnectTarget)} returns a
-     * {@link ConnectStatus} instead. This enum gets no new values.
+     * {@link ConnectOutcome} with a {@link ConnectStatus} instead. This enum gets no new values.
      */
     enum ConnectResult {
         /**

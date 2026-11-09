@@ -457,18 +457,40 @@ public class PlayerApiImpl implements PlayerApi {
     public CompletableFuture<ConnectOutcome> connectTo(UUID uniqueId, ConnectTarget target) {
         Objects.requireNonNull(target, "target");
         String value = target.getValue();
-        ServerSelectionMode selectionMode = target.getSelectionMode();
         ModelsConnectPlayerRequest request = new ModelsConnectPlayerRequest();
-        // Only group targets have a selection mode; without one the request leaves the choice to the controller.
-        request.setSelectionMode(selectionMode != null ? selectionMode.name() : null);
         return switch (target.getKind()) {
             case REGISTERED_SERVER_NAME -> connectViaProxy(uniqueId, value);
-            case SERVER_ID -> connectViaController(uniqueId, request.serverId(value));
-            case SERVER_NAME -> connectViaController(uniqueId, request.serverName(value));
-            case GROUP_ID -> connectViaController(uniqueId, request.serverGroupId(value));
-            case GROUP_NAME -> connectViaController(uniqueId, request.serverGroupName(value));
-            case PERSISTENT_SERVER_ID -> connectViaController(uniqueId, request.persistentServerId(value));
+            case SERVER_ID -> {
+                request.setServerId(value);
+                yield connectViaController(uniqueId, request);
+            }
+            case SERVER_NAME -> {
+                request.setServerName(value);
+                yield connectViaController(uniqueId, request);
+            }
+            case GROUP_ID -> {
+                request.setServerGroupId(value);
+                request.setSelectionMode(selectionModeName(target));
+                yield connectViaController(uniqueId, request);
+            }
+            case GROUP_NAME -> {
+                request.setServerGroupName(value);
+                request.setSelectionMode(selectionModeName(target));
+                yield connectViaController(uniqueId, request);
+            }
+            case PERSISTENT_SERVER_ID -> {
+                request.setPersistentServerId(value);
+                yield connectViaController(uniqueId, request);
+            }
         };
+    }
+
+    /**
+     * Returns the target's selection mode for the request, or null, which leaves the choice to the controller.
+     */
+    private static @Nullable String selectionModeName(ConnectTarget target) {
+        ServerSelectionMode selectionMode = target.getSelectionMode();
+        return selectionMode != null ? selectionMode.name() : null;
     }
 
     private CompletableFuture<ConnectOutcome> connectViaProxy(UUID uniqueId, String registeredServerName) {
@@ -495,7 +517,9 @@ public class PlayerApiImpl implements PlayerApi {
             response = natsConnection.request(subject, request.toByteArray(), REQUEST_TIMEOUT);
         } catch (InterruptedException e) {
             Thread.currentThread().interrupt();
-            throw proxyRequestFailed(uniqueId, e);
+            String message = "The connect for player '" + uniqueId + "' was interrupted; "
+                    + "the player may still have been moved";
+            throw new CloudApiException(CloudApiException.Reason.UNKNOWN, 0, message, e);
         } catch (RuntimeException e) {
             throw proxyRequestFailed(uniqueId, e);
         }
@@ -508,7 +532,7 @@ public class PlayerApiImpl implements PlayerApi {
         return response;
     }
 
-    private static CloudApiException proxyRequestFailed(UUID uniqueId, Exception cause) {
+    private static CloudApiException proxyRequestFailed(UUID uniqueId, RuntimeException cause) {
         return new CloudApiException(
                 CloudApiException.Reason.UNAVAILABLE,
                 0,
