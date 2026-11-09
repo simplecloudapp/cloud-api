@@ -205,6 +205,20 @@ class PlayerApiImplTest {
     }
 
     @Test
+    void connectTo_withRegisteredServerName_interrupted_failsAsUnknown() {
+        FakeNatsConnection nats = FakeNatsConnection.answering((subject, data, timeout) -> {
+            throw new InterruptedException();
+        });
+        PlayerApiImpl api = new PlayerApiImpl(options(), nats.connection(), new FakePlayersApi());
+        ConnectTarget target = ConnectTarget.registeredServerName("lobby");
+
+        CompletionException error = assertThrows(CompletionException.class, () -> api.connectTo(PLAYER_ID, target).join());
+
+        CloudApiException cause = assertInstanceOf(CloudApiException.class, error.getCause());
+        assertEquals(CloudApiException.Reason.UNKNOWN, cause.getReason());
+    }
+
+    @Test
     void connectTo_withRegisteredServerName_withoutReply_failsAsUnavailable() {
         FakeNatsConnection nats = FakeNatsConnection.answering((subject, data, timeout) -> null);
         PlayerApiImpl api = new PlayerApiImpl(options(), nats.connection(), new FakePlayersApi());
@@ -351,19 +365,6 @@ class PlayerApiImplTest {
     @Test
     void connectTo_withoutControllerResult_failsAsUnknown() {
         PlayerApiImpl api = new PlayerApiImpl(options(), null, new FakePlayersApi());
-        ConnectTarget target = ConnectTarget.serverName("lobby-1");
-
-        CompletionException error = assertThrows(CompletionException.class, () -> api.connectTo(PLAYER_ID, target).join());
-
-        CloudApiException cause = assertInstanceOf(CloudApiException.class, error.getCause());
-        assertEquals(CloudApiException.Reason.UNKNOWN, cause.getReason());
-    }
-
-    @Test
-    void connectTo_withControllerResultThisVersionDoesntKnow_failsAsUnknown() {
-        FakePlayersApi playersApi = new FakePlayersApi();
-        playersApi.connectReadError = new IllegalArgumentException("Unexpected value 'CANCELLED'");
-        PlayerApiImpl api = new PlayerApiImpl(options(), null, playersApi);
         ConnectTarget target = ConnectTarget.serverName("lobby-1");
 
         CompletionException error = assertThrows(CompletionException.class, () -> api.connectTo(PLAYER_ID, target).join());
@@ -603,7 +604,6 @@ class PlayerApiImplTest {
         private ModelsConnectResult connectResult;
         private String connectServerName;
         private ApiException connectError;
-        private IllegalArgumentException connectReadError;
         private String lastConnectPlayerId;
         private final List<ModelsConnectPlayerRequest> connectRequests = new ArrayList<>();
 
@@ -617,9 +617,6 @@ class PlayerApiImplTest {
             connectRequests.add(modelsConnectPlayerRequest);
             if (connectError != null) {
                 throw connectError;
-            }
-            if (connectReadError != null) {
-                throw connectReadError;
             }
             ModelsConnectPlayerResponse response = new ModelsConnectPlayerResponse();
             response.setResult(connectResult);

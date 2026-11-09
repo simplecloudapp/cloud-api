@@ -10,9 +10,9 @@ import java.util.concurrent.atomic.AtomicReference;
  * <p>The proxy uses it to resolve connect requests that target a server by ID. It is fed by the server
  * connection plugin, which registers the servers on the proxy and knows which ID belongs to which name.
  * Only Velocity and BungeeCord proxies handle connect requests, so it has no effect on other platforms.
- * The controller sends the proxy every connect as a server ID, so without a registration every connect
- * through the controller ends with {@link app.simplecloud.api.player.ConnectStatus#SERVER_NOT_REGISTERED},
- * which the deprecated connect methods report as
+ * The controller passes every connect on to the proxy as a server ID, so without a registration each of
+ * them ends with {@link app.simplecloud.api.player.ConnectStatus#SERVER_NOT_REGISTERED}, which the deprecated
+ * {@code connectToGroup} and {@code connectToPersistentServer} report as
  * {@link app.simplecloud.api.player.CloudPlayer.ConnectResult#SERVER_NOT_FOUND}.
  *
  * <p>The registry is process-wide rather than tied to a {@code CloudApi} instance, because the connection

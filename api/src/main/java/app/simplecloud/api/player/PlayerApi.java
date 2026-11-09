@@ -384,7 +384,8 @@ public interface PlayerApi {
      * proxy. Every other target goes through the controller, which picks a game server and sends the
      * player's proxy only the server's ID. The proxy then needs a plugin that maps server IDs to its server
      * names in {@link app.simplecloud.api.proxy.ProxyServerNames}, such as server-connection {@code 1.2.0}
-     * or newer; without one, these targets answer {@link ConnectStatus#SERVER_NOT_REGISTERED}.
+     * or newer; without one, every connect the controller passes on to the proxy answers
+     * {@link ConnectStatus#SERVER_NOT_REGISTERED}.
      *
      * <p>A known outcome completes the future with a {@link ConnectOutcome} that holds its
      * {@link ConnectStatus}. The future fails with a
@@ -404,7 +405,7 @@ public interface PlayerApi {
      * @param uniqueId the player's UUID
      * @param target where to send the player
      * @return a future containing the outcome
-     * @throws NullPointerException if the target is null
+     * @throws NullPointerException if the player's UUID or the target is null
      */
     CompletableFuture<ConnectOutcome> connectTo(UUID uniqueId, ConnectTarget target);
 

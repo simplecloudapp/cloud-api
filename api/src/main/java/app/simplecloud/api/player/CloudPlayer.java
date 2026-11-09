@@ -183,7 +183,9 @@ public interface CloudPlayer extends Audience {
      * @deprecated Use {@link #connectTo(ConnectTarget)} with {@link ConnectTarget#groupName(String)}.
      */
     @Deprecated
-    CompletableFuture<ConnectResult> connectToGroup(String groupName);
+    default CompletableFuture<ConnectResult> connectToGroup(String groupName) {
+        return connectToGroup(groupName, ServerSelectionMode.RANDOM);
+    }
 
     /**
      * Connects the player to the running server of a persistent server, through the controller.
@@ -206,7 +208,8 @@ public interface CloudPlayer extends Audience {
         SUCCESS,
 
         /**
-         * The target server was not found.
+         * The target server was not found. The deprecated methods also return it when the target has no
+         * available server, or when the player's proxy doesn't know the server.
          */
         SERVER_NOT_FOUND,
 

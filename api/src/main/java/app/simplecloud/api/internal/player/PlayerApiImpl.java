@@ -455,6 +455,7 @@ public class PlayerApiImpl implements PlayerApi {
     
     @Override
     public CompletableFuture<ConnectOutcome> connectTo(UUID uniqueId, ConnectTarget target) {
+        Objects.requireNonNull(uniqueId, "uniqueId");
         Objects.requireNonNull(target, "target");
         String value = target.getValue();
         ModelsConnectPlayerRequest request = new ModelsConnectPlayerRequest();
@@ -573,10 +574,6 @@ public class PlayerApiImpl implements PlayerApi {
                     return ConnectOutcome.of(status, null);
                 }
                 throw ApiErrors.from(e);
-            } catch (IllegalArgumentException e) {
-                // The generated client throws this for a response it can't read, such as an unknown result value.
-                String message = "The controller sent a connect answer this version can't read: " + e.getMessage();
-                throw unreadableAnswer(message, e);
             }
             return ConnectOutcome.of(toConnectStatus(response), response.getServerName());
         }, executor);

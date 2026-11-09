@@ -28,9 +28,10 @@ public enum ConnectStatus {
     /**
      * The player's proxy doesn't know the server. For a target from
      * {@link ConnectTarget#registeredServerName(String)}, no server is registered under that name. For
-     * every other target, the proxy has no plugin that maps server IDs to its server names in
-     * {@link app.simplecloud.api.proxy.ProxyServerNames}, such as server-connection {@code 1.2.0} or newer,
-     * or the server has only just started and isn't registered yet.
+     * every other target, the proxy can't map the server's ID to one of its server names, for example
+     * because it has no plugin that fills {@link app.simplecloud.api.proxy.ProxyServerNames}, such as
+     * server-connection {@code 1.2.0} or newer, or because the server has only just started and isn't
+     * registered yet.
      */
     SERVER_NOT_REGISTERED,
 

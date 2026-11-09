@@ -169,12 +169,6 @@ public class CloudPlayerImpl implements CloudPlayer, ForwardingAudience.Single {
 
     @Override
     @Deprecated
-    public CompletableFuture<ConnectResult> connectToGroup(String groupName) {
-        return playerApi.connectToGroup(uniqueId, groupName);
-    }
-
-    @Override
-    @Deprecated
     public CompletableFuture<ConnectResult> connectToPersistentServer(String persistentServerId) {
         return playerApi.connectToPersistentServer(uniqueId, persistentServerId);
     }
