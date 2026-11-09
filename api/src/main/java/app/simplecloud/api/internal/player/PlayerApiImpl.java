@@ -456,10 +456,19 @@ public class PlayerApiImpl implements PlayerApi {
     @Override
     public CompletableFuture<ConnectOutcome> connectTo(UUID uniqueId, ConnectTarget target) {
         Objects.requireNonNull(target, "target");
-        if (target.getKind() == ConnectTarget.Kind.REGISTERED_SERVER_NAME) {
-            return connectViaProxy(uniqueId, target.getValue());
-        }
-        return connectViaController(uniqueId, toConnectRequest(target));
+        String value = target.getValue();
+        ServerSelectionMode selectionMode = target.getSelectionMode();
+        ModelsConnectPlayerRequest request = new ModelsConnectPlayerRequest();
+        // Only group targets have a selection mode; without one the request leaves the choice to the controller.
+        request.setSelectionMode(selectionMode != null ? selectionMode.name() : null);
+        return switch (target.getKind()) {
+            case REGISTERED_SERVER_NAME -> connectViaProxy(uniqueId, value);
+            case SERVER_ID -> connectViaController(uniqueId, request.serverId(value));
+            case SERVER_NAME -> connectViaController(uniqueId, request.serverName(value));
+            case GROUP_ID -> connectViaController(uniqueId, request.serverGroupId(value));
+            case GROUP_NAME -> connectViaController(uniqueId, request.serverGroupName(value));
+            case PERSISTENT_SERVER_ID -> connectViaController(uniqueId, request.persistentServerId(value));
+        };
     }
 
     private CompletableFuture<ConnectOutcome> connectViaProxy(UUID uniqueId, String registeredServerName) {
@@ -469,69 +478,62 @@ public class PlayerApiImpl implements PlayerApi {
                     .setServerName(registeredServerName)
                     .build();
             String subject = options.getNetworkId() + ".player." + uniqueId + ".connect";
-            Message response;
+            Message response = requestFromProxy(uniqueId, subject, request);
+            ConnectPlayerResponse proxyResponse;
             try {
-                response = natsConnection.request(subject, request.toByteArray(), REQUEST_TIMEOUT);
-            } catch (InterruptedException e) {
-                Thread.currentThread().interrupt();
-                throw proxyUnavailable(uniqueId, e);
-            } catch (RuntimeException e) {
-                throw proxyUnavailable(uniqueId, e);
-            }
-            if (response == null) {
-                throw proxyUnavailable(uniqueId, null);
-            }
-            ConnectPlayerResponse protoResponse;
-            try {
-                protoResponse = ConnectPlayerResponse.parseFrom(response.getData());
+                proxyResponse = ConnectPlayerResponse.parseFrom(response.getData());
             } catch (InvalidProtocolBufferException e) {
                 throw unreadableAnswer("The player's proxy sent a connect answer that can't be read", e);
             }
-            ConnectStatus status = switch (protoResponse.getResult()) {
-                case CONNECT_RESULT_SUCCESS -> ConnectStatus.SUCCESS;
-                case CONNECT_RESULT_ALREADY_CONNECTED -> ConnectStatus.ALREADY_CONNECTED;
-                case CONNECT_RESULT_SERVER_NOT_FOUND -> ConnectStatus.SERVER_NOT_REGISTERED;
-                // The controller reads an unset result as a failed connect too.
-                case CONNECT_RESULT_FAILED, CONNECT_RESULT_UNSPECIFIED -> ConnectStatus.FAILED;
-                default -> throw unreadableAnswer(
-                        "The player's proxy sent a connect result this version doesn't know: "
-                                + protoResponse.getResultValue(),
-                        null
-                );
-            };
-            return ConnectOutcome.of(status, null);
+            return ConnectOutcome.of(toConnectStatus(proxyResponse), null);
         }, executor);
     }
 
-    private static CloudApiException proxyUnavailable(UUID uniqueId, @Nullable Exception cause) {
+    private Message requestFromProxy(UUID uniqueId, String subject, ConnectPlayerRequest request) {
+        Message response;
+        try {
+            response = natsConnection.request(subject, request.toByteArray(), REQUEST_TIMEOUT);
+        } catch (InterruptedException e) {
+            Thread.currentThread().interrupt();
+            throw proxyRequestFailed(uniqueId, e);
+        } catch (RuntimeException e) {
+            throw proxyRequestFailed(uniqueId, e);
+        }
+        if (response == null) {
+            throw new CloudApiException(
+                    CloudApiException.Reason.UNAVAILABLE,
+                    "No proxy answered the connect for player '" + uniqueId + "'; the player may be offline"
+            );
+        }
+        return response;
+    }
+
+    private static CloudApiException proxyRequestFailed(UUID uniqueId, Exception cause) {
         return new CloudApiException(
                 CloudApiException.Reason.UNAVAILABLE,
                 0,
-                "No proxy answered the connect for player '" + uniqueId + "'; the player may be offline",
+                "The connect for player '" + uniqueId + "' couldn't be sent to the proxies: " + cause.getMessage(),
                 cause
         );
     }
 
-    private static CloudApiException unreadableAnswer(String message, @Nullable Exception cause) {
-        return new CloudApiException(CloudApiException.Reason.UNKNOWN, 0, message, cause);
+    private static ConnectStatus toConnectStatus(ConnectPlayerResponse proxyResponse) {
+        return switch (proxyResponse.getResult()) {
+            case CONNECT_RESULT_SUCCESS -> ConnectStatus.SUCCESS;
+            case CONNECT_RESULT_ALREADY_CONNECTED -> ConnectStatus.ALREADY_CONNECTED;
+            case CONNECT_RESULT_SERVER_NOT_FOUND -> ConnectStatus.SERVER_NOT_REGISTERED;
+            // The controller counts a result the proxy left unset as failed too.
+            case CONNECT_RESULT_FAILED, CONNECT_RESULT_UNSPECIFIED -> ConnectStatus.FAILED;
+            case UNRECOGNIZED -> throw unreadableAnswer(
+                    "The player's proxy sent a connect result this version doesn't know: "
+                            + proxyResponse.getResultValue(),
+                    null
+            );
+        };
     }
 
-    private static ModelsConnectPlayerRequest toConnectRequest(ConnectTarget target) {
-        ModelsConnectPlayerRequest request = new ModelsConnectPlayerRequest();
-        String value = target.getValue();
-        switch (target.getKind()) {
-            case SERVER_ID -> request.setServerId(value);
-            case SERVER_NAME -> request.setServerName(value);
-            case GROUP_ID -> request.setServerGroupId(value);
-            case GROUP_NAME -> request.setServerGroupName(value);
-            case PERSISTENT_SERVER_ID -> request.setPersistentServerId(value);
-            case REGISTERED_SERVER_NAME -> throw new IllegalArgumentException("A registered server name isn't sent to the controller");
-        }
-        ServerSelectionMode selectionMode = target.getSelectionMode();
-        if (selectionMode != null) {
-            request.setSelectionMode(selectionMode.name());
-        }
-        return request;
+    private static CloudApiException unreadableAnswer(String message, @Nullable Exception cause) {
+        return new CloudApiException(CloudApiException.Reason.UNKNOWN, 0, message, cause);
     }
 
     private CompletableFuture<ConnectOutcome> connectViaController(UUID uniqueId, ModelsConnectPlayerRequest request) {
@@ -541,13 +543,16 @@ public class PlayerApiImpl implements PlayerApi {
                 response = playersApi.connectPlayer(options.getNetworkId(), uniqueId.toString(), request);
             } catch (ApiException e) {
                 if (e.getCode() == 404) {
-                    ConnectStatus status = isPlayerNotOnline(e) ? ConnectStatus.PLAYER_NOT_ONLINE : ConnectStatus.TARGET_NOT_FOUND;
+                    ConnectStatus status = isPlayerNotOnline(e)
+                            ? ConnectStatus.PLAYER_NOT_ONLINE
+                            : ConnectStatus.TARGET_NOT_FOUND;
                     return ConnectOutcome.of(status, null);
                 }
                 throw ApiErrors.from(e);
             } catch (IllegalArgumentException e) {
-                // The generated client rejects enum values it doesn't know while it reads the response.
-                throw unreadableAnswer("The controller sent a connect answer this version can't read: " + e.getMessage(), e);
+                // The generated client throws this for a response it can't read, such as an unknown result value.
+                String message = "The controller sent a connect answer this version can't read: " + e.getMessage();
+                throw unreadableAnswer(message, e);
             }
             return ConnectOutcome.of(toConnectStatus(response), response.getServerName());
         }, executor);

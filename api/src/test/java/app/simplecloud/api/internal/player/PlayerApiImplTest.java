@@ -174,6 +174,22 @@ class PlayerApiImplTest {
     }
 
     @Test
+    void connectTo_withRegisteredServerName_withProxyResultThisVersionDoesntKnow_failsAsUnknown() {
+        int unknownResult = 99;
+        ConnectPlayerResponse response = ConnectPlayerResponse.newBuilder().setResultValue(unknownResult).build();
+        FakeNatsConnection nats = FakeNatsConnection.answering(
+                (subject, data, timeout) -> FakeNatsConnection.reply(response.toByteArray())
+        );
+        PlayerApiImpl api = new PlayerApiImpl(options(), nats.connection(), new FakePlayersApi());
+        ConnectTarget target = ConnectTarget.registeredServerName("lobby");
+
+        CompletionException error = assertThrows(CompletionException.class, () -> api.connectTo(PLAYER_ID, target).join());
+
+        CloudApiException cause = assertInstanceOf(CloudApiException.class, error.getCause());
+        assertEquals(CloudApiException.Reason.UNKNOWN, cause.getReason());
+    }
+
+    @Test
     void connectTo_withRegisteredServerName_withoutReply_failsAsUnavailable() {
         FakeNatsConnection nats = FakeNatsConnection.answering((subject, data, timeout) -> null);
         PlayerApiImpl api = new PlayerApiImpl(options(), nats.connection(), new FakePlayersApi());

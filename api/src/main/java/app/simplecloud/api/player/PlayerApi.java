@@ -396,7 +396,8 @@ public interface PlayerApi {
      *     <li>the player's proxy doesn't answer in time. The player may still have been moved. For a target
      *     from {@link ConnectTarget#registeredServerName(String)}, this is also how an offline player
      *     ends, because only the proxy that holds the player answers;</li>
-     *     <li>the controller can't be reached, fails, or answers something this version doesn't know.</li>
+     *     <li>the request can't be sent to the controller or over NATS;</li>
+     *     <li>the controller fails, or the controller or proxy answers something this version doesn't know.</li>
      * </ul>
      *
      * @param uniqueId the player's UUID
@@ -410,8 +411,8 @@ public interface PlayerApi {
      *
      * @param uniqueId the player's UUID
      * @param serverName the name of the target server on the proxy
-     * @return a future containing the connection result; every failure, including a proxy that doesn't
-     * answer, gives {@link CloudPlayer.ConnectResult#CONNECTION_FAILED}
+     * @return a future containing the connection result; a connect that fails, can't be sent or gets no
+     * answer gives {@link CloudPlayer.ConnectResult#CONNECTION_FAILED}
      * @deprecated Use {@link #connectTo(UUID, ConnectTarget)} with
      * {@link ConnectTarget#registeredServerName(String)}, which returns a {@link ConnectStatus}.
      */
@@ -500,7 +501,8 @@ public interface PlayerApi {
         return switch (status) {
             case SUCCESS -> CloudPlayer.ConnectResult.SUCCESS;
             case ALREADY_CONNECTED -> CloudPlayer.ConnectResult.ALREADY_CONNECTED;
-            case NO_SERVER_AVAILABLE, SERVER_NOT_REGISTERED, TARGET_NOT_FOUND -> CloudPlayer.ConnectResult.SERVER_NOT_FOUND;
+            case NO_SERVER_AVAILABLE, SERVER_NOT_REGISTERED, TARGET_NOT_FOUND ->
+                    CloudPlayer.ConnectResult.SERVER_NOT_FOUND;
             case PLAYER_NOT_ONLINE -> CloudPlayer.ConnectResult.PLAYER_NOT_FOUND;
             case FAILED -> CloudPlayer.ConnectResult.CONNECTION_FAILED;
         };
