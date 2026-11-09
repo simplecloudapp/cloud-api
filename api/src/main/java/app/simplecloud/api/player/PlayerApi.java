@@ -13,6 +13,9 @@ import java.util.function.LongUnaryOperator;
 /**
  * API for querying and managing players connected to the cloud network.
  *
+ * <p>cloud-api implements this interface. Plugins use it but don't implement it, so later releases may add
+ * methods to it.
+ *
  * <p>Example usage:
  * <pre>{@code
  * PlayerApi players = api.player();
@@ -376,60 +379,153 @@ public interface PlayerApi {
     CompletableFuture<Boolean> kick(UUID uniqueId, @Nullable Component reason);
 
     /**
-     * Connects a player to a specific server.
+     * Moves a player to a server.
      *
-     * <p>Today this targets the name the proxy registered the server under, exactly like
-     * {@link #connectDirect(UUID, String)}. In a later release it will take the cloud server name
-     * ({@code <group>-<number>} or the persistent server's name) and route through the controller, so it
-     * will only reach cloud-managed servers. Server IDs are not accepted.
+     * <p>A target from {@link ConnectTarget#registeredServerName(String)} goes straight to the player's
+     * proxy. Every other target goes through the controller, which picks a game server and sends the
+     * player's proxy only the server's ID. The proxy then needs a plugin that maps server IDs to its server
+     * names in {@link app.simplecloud.api.proxy.ProxyServerNames}, such as server-connection {@code 1.2.0}
+     * or newer; without one, every connect the controller passes on to the proxy answers
+     * {@link ConnectStatus#SERVER_NOT_REGISTERED}.
      *
-     * <p>To reach servers that are not managed by the cloud, use {@link #connectDirect(UUID, String)}.
+     * <p>A known outcome completes the future with a {@link ConnectOutcome} that holds its
+     * {@link ConnectStatus}. The future fails with a
+     * {@link app.simplecloud.api.CloudApiException} when the outcome is unknown or the request can't be
+     * made:
+     * <ul>
+     *     <li>the controller finds the request invalid ({@code INVALID_REQUEST}), for example an empty name
+     *     or an ID that is not a UUID;</li>
+     *     <li>a persistent server and a group server share the server name ({@code CONFLICT});</li>
+     *     <li>the player's proxy doesn't answer in time. The player may still have been moved. For a target
+     *     from {@link ConnectTarget#registeredServerName(String)}, this is also how an offline player
+     *     ends, because only the proxy that holds the player answers;</li>
+     *     <li>the request can't be sent to the controller or over NATS;</li>
+     *     <li>the controller fails, or the controller or proxy answers something this version doesn't know.</li>
+     * </ul>
      *
      * @param uniqueId the player's UUID
-     * @param serverName the name of the target server
-     * @return a future containing the connection result
+     * @param target where to send the player
+     * @return a future containing the outcome
+     * @throws NullPointerException if the player's UUID or the target is null
      */
-    CompletableFuture<CloudPlayer.ConnectResult> connect(UUID uniqueId, String serverName);
+    CompletableFuture<ConnectOutcome> connectTo(UUID uniqueId, ConnectTarget target);
 
     /**
-     * Connects a player to a server by the name the proxy registered it under.
+     * Connects a player to a server by the name the proxy registered it under, without the controller.
      *
-     * <p>The request goes straight to the player's proxy, without the controller. It works for any server
-     * the proxy knows, including servers that are not managed by the cloud.
+     * @param uniqueId the player's UUID
+     * @param serverName the name of the target server on the proxy
+     * @return a future containing the connection result; a connect that fails, can't be sent or gets no
+     * answer gives {@link CloudPlayer.ConnectResult#CONNECTION_FAILED}
+     * @throws NullPointerException if the player's UUID or the server name is null
+     * @deprecated Use {@link #connectTo(UUID, ConnectTarget)} with
+     * {@link ConnectTarget#registeredServerName(String)}, whose {@link ConnectOutcome} says why a connect failed.
+     */
+    @Deprecated
+    default CompletableFuture<CloudPlayer.ConnectResult> connectDirect(UUID uniqueId, String serverName) {
+        return connectTo(uniqueId, ConnectTarget.registeredServerName(serverName))
+                .handle(PlayerApi::toDirectConnectResult);
+    }
+
+    /**
+     * Connects a player to a server by the name the proxy registered it under, exactly like
+     * {@link #connectDirect(UUID, String)}.
      *
      * @param uniqueId the player's UUID
      * @param serverName the name of the target server on the proxy
      * @return a future containing the connection result
+     * @throws NullPointerException if the player's UUID or the server name is null
+     * @deprecated The name doesn't say which name it takes. Use {@link #connectTo(UUID, ConnectTarget)}
+     * with {@link ConnectTarget#registeredServerName(String)} for the proxy's name, or with
+     * {@link ConnectTarget#serverName(String)} for the cloud name.
      */
-    CompletableFuture<CloudPlayer.ConnectResult> connectDirect(UUID uniqueId, String serverName);
+    @Deprecated
+    default CompletableFuture<CloudPlayer.ConnectResult> connect(UUID uniqueId, String serverName) {
+        return connectDirect(uniqueId, serverName);
+    }
 
     /**
-     * Connects a player to a server of the given server group.
+     * Connects a player to a server of the group with the given name, through the controller.
      *
      * @param uniqueId the player's UUID
-     * @param groupName the name of the target server group
-     * @param selectionMode how the target server is chosen
+     * @param groupName the name of the target server group, matched case-insensitively
+     * @param selectionMode how the target server is chosen, or null for {@link ServerSelectionMode#RANDOM}
      * @return a future containing the connection result
+     * @throws NullPointerException if the player's UUID or the group name is null
+     * @deprecated The name doesn't say whether it takes a group name or ID. Use
+     * {@link #connectTo(UUID, ConnectTarget)} with {@link ConnectTarget#groupName(String, ServerSelectionMode)}.
      */
-    CompletableFuture<CloudPlayer.ConnectResult> connectToGroup(UUID uniqueId, String groupName, ServerSelectionMode selectionMode);
+    @Deprecated
+    default CompletableFuture<CloudPlayer.ConnectResult> connectToGroup(
+            UUID uniqueId,
+            String groupName,
+            @Nullable ServerSelectionMode selectionMode
+    ) {
+        ServerSelectionMode mode = selectionMode != null ? selectionMode : ServerSelectionMode.RANDOM;
+        return connectTo(uniqueId, ConnectTarget.groupName(groupName, mode))
+                .thenApply(outcome -> toConnectResult(outcome.getStatus()));
+    }
 
     /**
-     * Connects a player to a random server of the given server group.
+     * Connects a player to a random server of the group with the given name, through the controller.
      *
      * @param uniqueId the player's UUID
-     * @param groupName the name of the target server group
+     * @param groupName the name of the target server group, matched case-insensitively
      * @return a future containing the connection result
+     * @throws NullPointerException if the player's UUID or the group name is null
+     * @deprecated The name doesn't say whether it takes a group name or ID. Use
+     * {@link #connectTo(UUID, ConnectTarget)} with {@link ConnectTarget#groupName(String)}.
      */
+    @Deprecated
     default CompletableFuture<CloudPlayer.ConnectResult> connectToGroup(UUID uniqueId, String groupName) {
         return connectToGroup(uniqueId, groupName, ServerSelectionMode.RANDOM);
     }
 
     /**
-     * Connects a player to a persistent server.
+     * Connects a player to the running server of a persistent server, through the controller.
      *
      * @param uniqueId the player's UUID
-     * @param persistentServerId the ID of the target persistent server
+     * @param persistentServerId the UUID of the target persistent server
      * @return a future containing the connection result
+     * @throws NullPointerException if the player's UUID or the persistent server ID is null
+     * @deprecated The name doesn't say that it takes an ID. Use {@link #connectTo(UUID, ConnectTarget)} with
+     * {@link ConnectTarget#persistentServerId(String)}.
      */
-    CompletableFuture<CloudPlayer.ConnectResult> connectToPersistentServer(UUID uniqueId, String persistentServerId);
+    @Deprecated
+    default CompletableFuture<CloudPlayer.ConnectResult> connectToPersistentServer(
+            UUID uniqueId,
+            String persistentServerId
+    ) {
+        return connectTo(uniqueId, ConnectTarget.persistentServerId(persistentServerId))
+                .thenApply(outcome -> toConnectResult(outcome.getStatus()));
+    }
+
+    /**
+     * Maps a direct connect to the result {@link #connectDirect(UUID, String)} returned for it: it never
+     * failed its future.
+     */
+    private static CloudPlayer.ConnectResult toDirectConnectResult(
+            @Nullable ConnectOutcome outcome,
+            @Nullable Throwable failure
+    ) {
+        if (failure != null) {
+            return CloudPlayer.ConnectResult.CONNECTION_FAILED;
+        }
+        return toConnectResult(outcome.getStatus());
+    }
+
+    /**
+     * Maps a status to the result the deprecated methods returned for it, so plugins built against them
+     * never see a result they don't know.
+     */
+    private static CloudPlayer.ConnectResult toConnectResult(ConnectStatus status) {
+        return switch (status) {
+            case SUCCESS -> CloudPlayer.ConnectResult.SUCCESS;
+            case ALREADY_CONNECTED -> CloudPlayer.ConnectResult.ALREADY_CONNECTED;
+            case NO_SERVER_AVAILABLE, SERVER_NOT_REGISTERED, TARGET_NOT_FOUND ->
+                    CloudPlayer.ConnectResult.SERVER_NOT_FOUND;
+            case PLAYER_NOT_ONLINE -> CloudPlayer.ConnectResult.PLAYER_NOT_FOUND;
+            case FAILED -> CloudPlayer.ConnectResult.CONNECTION_FAILED;
+        };
+    }
 }

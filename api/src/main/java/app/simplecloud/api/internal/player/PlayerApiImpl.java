@@ -6,6 +6,9 @@ import app.simplecloud.api.internal.web.ApiClients;
 import app.simplecloud.api.internal.web.ApiErrors;
 import app.simplecloud.api.internal.web.Identifiers;
 import app.simplecloud.api.player.CloudPlayer;
+import app.simplecloud.api.player.ConnectOutcome;
+import app.simplecloud.api.player.ConnectStatus;
+import app.simplecloud.api.player.ConnectTarget;
 import app.simplecloud.api.player.PlayerApi;
 import app.simplecloud.api.player.PlayerClientSettings;
 import app.simplecloud.api.player.PlayerProfile;
@@ -41,6 +44,7 @@ import app.simplecloud.api.web.models.ModelsUpdatePlayerPropertiesRequest;
 import app.simplecloud.api.web.models.ModelsUpdatePlayerPropertiesResponse;
 import build.buf.gen.simplecloud.player.v2.ConnectPlayerRequest;
 import build.buf.gen.simplecloud.player.v2.ConnectPlayerResponse;
+import com.google.protobuf.InvalidProtocolBufferException;
 import io.nats.client.Connection;
 import io.nats.client.Message;
 import net.kyori.adventure.text.Component;
@@ -55,6 +59,7 @@ import java.util.ArrayList;
 import java.util.HashMap;
 import java.util.List;
 import java.util.Map;
+import java.util.Objects;
 import java.util.Optional;
 import java.util.UUID;
 import java.util.concurrent.CompletableFuture;
@@ -449,100 +454,149 @@ public class PlayerApiImpl implements PlayerApi {
     }
     
     @Override
-    public CompletableFuture<CloudPlayer.ConnectResult> connect(UUID uniqueId, String serverName) {
-        return connectDirect(uniqueId, serverName);
-    }
-
-    @Override
-    public CompletableFuture<CloudPlayer.ConnectResult> connectDirect(UUID uniqueId, String serverName) {
-        return CompletableFuture.supplyAsync(() -> {
-            try {
-                ConnectPlayerRequest request = ConnectPlayerRequest.newBuilder()
-                        .setPlayerId(uniqueId.toString())
-                        .setServerName(serverName)
-                        .build();
-
-                String subject = options.getNetworkId() + ".player." + uniqueId + ".connect";
-                Message response = natsConnection.request(subject, request.toByteArray(), REQUEST_TIMEOUT);
-
-                if (response == null) {
-                    return CloudPlayer.ConnectResult.CONNECTION_FAILED;
-                }
-
-                ConnectPlayerResponse protoResponse = ConnectPlayerResponse.parseFrom(response.getData());
-                return switch (protoResponse.getResult()) {
-                    case CONNECT_RESULT_SUCCESS -> CloudPlayer.ConnectResult.SUCCESS;
-                    case CONNECT_RESULT_SERVER_NOT_FOUND -> CloudPlayer.ConnectResult.SERVER_NOT_FOUND;
-                    case CONNECT_RESULT_ALREADY_CONNECTED -> CloudPlayer.ConnectResult.ALREADY_CONNECTED;
-                    default -> CloudPlayer.ConnectResult.CONNECTION_FAILED;
-                };
-            } catch (Exception e) {
-                return CloudPlayer.ConnectResult.CONNECTION_FAILED;
-            }
-        }, executor);
-    }
-
-    @Override
-    public CompletableFuture<CloudPlayer.ConnectResult> connectToGroup(
-            UUID uniqueId,
-            String groupName,
-            ServerSelectionMode selectionMode
-    ) {
+    public CompletableFuture<ConnectOutcome> connectTo(UUID uniqueId, ConnectTarget target) {
+        Objects.requireNonNull(uniqueId, "uniqueId");
+        Objects.requireNonNull(target, "target");
+        String value = target.getValue();
         ModelsConnectPlayerRequest request = new ModelsConnectPlayerRequest();
-        request.setServerGroupId(groupName);
-        request.setSelectionMode((selectionMode != null ? selectionMode : ServerSelectionMode.RANDOM).name());
-        return connectViaController(uniqueId, request);
-    }
-
-    @Override
-    public CompletableFuture<CloudPlayer.ConnectResult> connectToPersistentServer(UUID uniqueId, String persistentServerId) {
-        ModelsConnectPlayerRequest request = new ModelsConnectPlayerRequest();
-        request.setPersistentServerId(persistentServerId);
-        return connectViaController(uniqueId, request);
-    }
-
-    private CompletableFuture<CloudPlayer.ConnectResult> connectViaController(UUID uniqueId, ModelsConnectPlayerRequest request) {
-        return CompletableFuture.supplyAsync(() -> {
-            try {
-                ModelsConnectPlayerResponse response = playersApi.connectPlayer(
-                        options.getNetworkId(),
-                        uniqueId.toString(),
-                        request
-                );
-                return toConnectResult(response);
-            } catch (ApiException e) {
-                if (e.getCode() == 404) {
-                    return isPlayerNotOnline(e)
-                            ? CloudPlayer.ConnectResult.PLAYER_NOT_FOUND
-                            : CloudPlayer.ConnectResult.SERVER_NOT_FOUND;
-                }
-                throw ApiErrors.from(e);
+        return switch (target.getKind()) {
+            case REGISTERED_SERVER_NAME -> connectViaProxy(uniqueId, value);
+            case SERVER_ID -> {
+                request.setServerId(value);
+                yield connectViaController(uniqueId, request);
             }
-        }, executor);
-    }
-    
-    private static boolean isPlayerNotOnline(ApiException e) {
-        String body = e.getResponseBody();
-        return body != null && body.contains("Player is not online");
+            case SERVER_NAME -> {
+                request.setServerName(value);
+                yield connectViaController(uniqueId, request);
+            }
+            case GROUP_ID -> {
+                request.setServerGroupId(value);
+                request.setSelectionMode(selectionModeName(target));
+                yield connectViaController(uniqueId, request);
+            }
+            case GROUP_NAME -> {
+                request.setServerGroupName(value);
+                request.setSelectionMode(selectionModeName(target));
+                yield connectViaController(uniqueId, request);
+            }
+            case PERSISTENT_SERVER_ID -> {
+                request.setPersistentServerId(value);
+                yield connectViaController(uniqueId, request);
+            }
+        };
     }
 
-    static CloudPlayer.ConnectResult toConnectResult(ModelsConnectPlayerResponse response) {
-        if (response == null) {
-            return CloudPlayer.ConnectResult.CONNECTION_FAILED;
-        }
-        if (Boolean.TRUE.equals(response.getSuccess())) {
-            return CloudPlayer.ConnectResult.SUCCESS;
-        }
-        String message = response.getMessage();
-        if ("Player is already connected to this server".equals(message)) {
-            return CloudPlayer.ConnectResult.ALREADY_CONNECTED;
-        }
-        if ("Target server not found".equals(message)) {
-            return CloudPlayer.ConnectResult.SERVER_NOT_FOUND;
-        }
-        return CloudPlayer.ConnectResult.CONNECTION_FAILED;
+    /**
+     * Returns the target's selection mode for the request, or null, which leaves the choice to the controller.
+     */
+    private static @Nullable String selectionModeName(ConnectTarget target) {
+        ServerSelectionMode selectionMode = target.getSelectionMode();
+        return selectionMode != null ? selectionMode.name() : null;
     }
-    
+
+    private CompletableFuture<ConnectOutcome> connectViaProxy(UUID uniqueId, String registeredServerName) {
+        return CompletableFuture.supplyAsync(() -> requestConnectFromProxy(uniqueId, registeredServerName), executor);
+    }
+
+    private ConnectOutcome requestConnectFromProxy(UUID uniqueId, String registeredServerName) {
+        ConnectPlayerRequest request = ConnectPlayerRequest.newBuilder()
+                .setPlayerId(uniqueId.toString())
+                .setServerName(registeredServerName)
+                .build();
+        String subject = options.getNetworkId() + ".player." + uniqueId + ".connect";
+        Message answer = sendToProxy(uniqueId, subject, request);
+        ConnectPlayerResponse proxyResponse;
+        try {
+            proxyResponse = ConnectPlayerResponse.parseFrom(answer.getData());
+        } catch (InvalidProtocolBufferException e) {
+            throw unreadableAnswer("The player's proxy sent a connect answer that can't be read", e);
+        }
+        ConnectStatus status = toConnectStatus(proxyResponse);
+        return ConnectOutcome.of(status, null);
+    }
+
+    private Message sendToProxy(UUID uniqueId, String subject, ConnectPlayerRequest request) {
+        Message answer;
+        try {
+            answer = natsConnection.request(subject, request.toByteArray(), REQUEST_TIMEOUT);
+        } catch (InterruptedException e) {
+            Thread.currentThread().interrupt();
+            String message = "The connect for player '" + uniqueId + "' was interrupted; "
+                    + "the player may still have been moved";
+            throw new CloudApiException(CloudApiException.Reason.UNKNOWN, 0, message, e);
+        } catch (RuntimeException e) {
+            String message = "The connect for player '" + uniqueId + "' couldn't be sent to the proxies: "
+                    + e.getMessage();
+            throw new CloudApiException(CloudApiException.Reason.UNAVAILABLE, 0, message, e);
+        }
+        if (answer == null) {
+            String message = "No proxy answered the connect for player '" + uniqueId + "' within "
+                    + REQUEST_TIMEOUT.toSeconds() + " seconds; the player may be offline or may still have been moved";
+            throw new CloudApiException(CloudApiException.Reason.UNAVAILABLE, message);
+        }
+        return answer;
+    }
+
+    private static ConnectStatus toConnectStatus(ConnectPlayerResponse proxyResponse) {
+        return switch (proxyResponse.getResult()) {
+            case CONNECT_RESULT_SUCCESS -> ConnectStatus.SUCCESS;
+            case CONNECT_RESULT_ALREADY_CONNECTED -> ConnectStatus.ALREADY_CONNECTED;
+            case CONNECT_RESULT_SERVER_NOT_FOUND -> ConnectStatus.SERVER_NOT_REGISTERED;
+            // The controller counts a result the proxy left unset as failed too.
+            case CONNECT_RESULT_FAILED, CONNECT_RESULT_UNSPECIFIED -> ConnectStatus.FAILED;
+            case UNRECOGNIZED -> throw unreadableAnswer(
+                    "The player's proxy sent a connect result this version doesn't know: "
+                            + proxyResponse.getResultValue(),
+                    null
+            );
+        };
+    }
+
+    private static CloudApiException unreadableAnswer(String message, @Nullable Exception cause) {
+        return new CloudApiException(CloudApiException.Reason.UNKNOWN, 0, message, cause);
+    }
+
+    private CompletableFuture<ConnectOutcome> connectViaController(UUID uniqueId, ModelsConnectPlayerRequest request) {
+        return CompletableFuture.supplyAsync(() -> requestConnectFromController(uniqueId, request), executor);
+    }
+
+    private ConnectOutcome requestConnectFromController(UUID uniqueId, ModelsConnectPlayerRequest request) {
+        ModelsConnectPlayerResponse response;
+        try {
+            response = playersApi.connectPlayer(options.getNetworkId(), uniqueId.toString(), request);
+        } catch (ApiException e) {
+            if (e.getCode() == 404) {
+                return notFoundOutcome(e);
+            }
+            throw ApiErrors.from(e);
+        }
+        ConnectStatus status = toConnectStatus(response);
+        return ConnectOutcome.of(status, response.getServerName());
+    }
+
+    /**
+     * Tells the two 404 answers apart. Only their text differs, and {@code .61} reads the same text.
+     */
+    private static ConnectOutcome notFoundOutcome(ApiException notFound) {
+        String body = notFound.getResponseBody();
+        boolean playerNotOnline = body != null && body.contains("Player is not online");
+        ConnectStatus status = playerNotOnline ? ConnectStatus.PLAYER_NOT_ONLINE : ConnectStatus.TARGET_NOT_FOUND;
+        return ConnectOutcome.of(status, null);
+    }
+
+    private static ConnectStatus toConnectStatus(@Nullable ModelsConnectPlayerResponse response) {
+        if (response == null || response.getResult() == null) {
+            throw unreadableAnswer("The controller's connect answer has no result", null);
+        }
+        return switch (response.getResult()) {
+            case ConnectResultSuccess -> ConnectStatus.SUCCESS;
+            case ConnectResultAlreadyConnected -> ConnectStatus.ALREADY_CONNECTED;
+            case ConnectResultNoServerAvailable -> ConnectStatus.NO_SERVER_AVAILABLE;
+            case ConnectResultServerNotFound -> ConnectStatus.SERVER_NOT_REGISTERED;
+            case ConnectResultFailed -> ConnectStatus.FAILED;
+        };
+    }
+
     private CloudPlayer convertPlayer(ModelsOnlinePlayerResponse player) {
         assert player.getId() != null;
         return new CloudPlayerImpl(

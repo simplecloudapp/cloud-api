@@ -70,6 +70,13 @@ openApiGenerate {
     )
 }
 
+tasks.openApiGenerate {
+    // The build cache keys this task by the spec's URL, not by the spec, so a cached result
+    // would be a client generated from whatever the controller served when it was stored.
+    val specUrl = remoteInputSpec
+    outputs.doNotCacheIf("the spec is downloaded from a URL, and the cache key holds only the URL") { specUrl.isPresent }
+}
+
 tasks.register<org.openapitools.generator.gradle.plugin.tasks.GenerateTask>("generateGoClient") {
     group = "build"
     description = "Generates the standalone Go client from the controller OpenAPI document."
