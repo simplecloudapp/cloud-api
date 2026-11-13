@@ -23,7 +23,8 @@ import java.util.Locale;
 public class BungeeCordApiProvider extends Plugin implements ProxyPresencePlayerProvider {
 
     // Created with the plugin, not in onEnable: BungeeCord constructs every plugin before it enables
-    // any, so plugins that create their CloudApi when constructed find this connection.
+    // any, so plugins constructed after this one, in practice those that depend on it, find this
+    // connection when they create their CloudApi.
     private final CloudApiImpl cloudApi = CloudApiImpl.createNatsConnectionOwner(CloudApiOptions.DEFAULT);
     private String proxyName;
     private PlayerSynchronizer playerSynchronizer;
