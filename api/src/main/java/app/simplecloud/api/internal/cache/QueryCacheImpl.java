@@ -97,7 +97,7 @@ public class QueryCacheImpl implements QueryCache {
         // A fetcher that throws or returns null fails the shared request instead of leaving it to the timeout.
         try {
             CompletableFuture<T> sourceResponse = Objects.requireNonNull(fetcher.get(), "fetcher returned null");
-            sourceResponse.whenComplete((data, error) -> cacheIfCurrentAndComplete(key, request, data, error));
+            sourceResponse.whenComplete((data, error) -> completeAndCacheIfOwner(key, request, data, error));
         } catch (Throwable error) {
             request.completeExceptionally(error);
         }
@@ -116,7 +116,7 @@ public class QueryCacheImpl implements QueryCache {
         );
     }
 
-    private <T> void cacheIfCurrentAndComplete(QueryKey key, CompletableFuture<T> request, T data, Throwable error) {
+    private <T> void completeAndCacheIfOwner(QueryKey key, CompletableFuture<T> request, T data, Throwable error) {
         if (error != null) {
             request.completeExceptionally(error);
             return;

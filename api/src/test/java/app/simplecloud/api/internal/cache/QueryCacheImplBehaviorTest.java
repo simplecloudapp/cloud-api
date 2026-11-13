@@ -248,6 +248,24 @@ class QueryCacheImplBehaviorTest {
     }
 
     @Test
+    void olderRequestFinishingAfterInvalidation_doesNotDisplaceNewerRequest() throws Exception {
+        QueryCacheImpl cache = newCache(longLivedConfig());
+        CompletableFuture<String> olderSource = new CompletableFuture<>();
+        CompletableFuture<String> newerSource = new CompletableFuture<>();
+
+        cache.fetch(SERVER_KEY, () -> olderSource);
+        cache.invalidate(SERVER_KEY);
+        CompletableFuture<String> newerResult = cache.fetch(SERVER_KEY, () -> newerSource);
+        olderSource.complete("before-invalidation");
+        String cachedAfterOlder = cachedData(cache, SERVER_KEY);
+        newerSource.complete("after-invalidation");
+        await(newerResult);
+
+        assertNull(cachedAfterOlder, "the request started before the invalidation must not cache");
+        assertEquals("after-invalidation", cachedData(cache, SERVER_KEY), "the newer request must still own the key");
+    }
+
+    @Test
     void set_whileFetchInFlight_keepsSetValue() throws Exception {
         QueryCacheImpl cache = newCache(longLivedConfig());
         CompletableFuture<String> source = new CompletableFuture<>();

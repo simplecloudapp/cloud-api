@@ -1,6 +1,7 @@
 package app.simplecloud.api.cache;
 
 import app.simplecloud.api.CloudApiException;
+import app.simplecloud.api.internal.cache.NoOpQueryCache;
 import app.simplecloud.api.internal.cache.QueryCacheImpl;
 import org.junit.jupiter.api.AfterEach;
 import org.junit.jupiter.api.Test;
@@ -24,8 +25,8 @@ import static org.junit.jupiter.api.Assertions.assertSame;
 import static org.junit.jupiter.api.Assertions.assertThrows;
 
 /**
- * Covers {@link QueryCache#fetchWithTransientMissRecovery}, which retries the source directly
- * when a lookup briefly reports "not found".
+ * Covers {@link QueryCache#fetchWithTransientMissRecovery}, which retries the lookup through the
+ * cache when it briefly reports "not found".
  */
 class TransientMissRecoveryTest {
 
@@ -125,7 +126,7 @@ class TransientMissRecoveryTest {
         String result = recover(source);
 
         assertEquals("server", result);
-        assertEquals("server", cachedData(), "the retry bypasses the cache, so its result must be stored");
+        assertEquals("server", cachedData(), "the result found on retry must be cached");
         assertEquals(2, source.calls.get());
     }
 
@@ -267,5 +268,54 @@ class TransientMissRecoveryTest {
         } finally {
             shortTimeoutCache.shutdown();
         }
+    }
+
+    @Test
+    void cachingDisabled_retriesWithoutCaching() throws Exception {
+        NoOpQueryCache noOpCache = new NoOpQueryCache();
+        ScriptedSource source = new ScriptedSource(null, "server");
+
+        String result = startRecovery(source, noOpCache).get(1, TimeUnit.SECONDS);
+
+        assertEquals("server", result);
+        assertEquals(2, source.calls.get());
+    }
+
+    @Test
+    void entityTypeDisabled_retriesWithoutCachingOrCounting() throws Exception {
+        CacheConfig serversDisabled = CacheConfig.builder()
+                .entityConfig(EntityType.SERVER, EntityCacheConfig.builder().enabled(false).build())
+                .build();
+        QueryCacheImpl serversDisabledCache = new QueryCacheImpl(serversDisabled, Duration.ofSeconds(2));
+        ScriptedSource source = new ScriptedSource(null, "server");
+
+        try {
+            String result = startRecovery(source, serversDisabledCache).get(1, TimeUnit.SECONDS);
+            CacheStats stats = serversDisabledCache.getStats();
+
+            assertEquals("server", result);
+            assertNull(serversDisabledCache.get(KEY));
+            assertEquals(0, stats.getHitCount() + stats.getStaleHitCount() + stats.getMissCount());
+        } finally {
+            serversDisabledCache.shutdown();
+        }
+    }
+
+    @Test
+    void retry_joinsRequestAlreadyRunningForKey() throws Exception {
+        ScriptedSource recoverySource = new ScriptedSource((String) null);
+        CompletableFuture<String> runningRequest = new CompletableFuture<>();
+        Duration retryDelay = Duration.ofMillis(200);
+
+        CompletableFuture<String> result = cache.fetchWithTransientMissRecovery(
+                KEY, recoverySource, Objects::isNull, retryDelay, MAX_RETRIES);
+        cache.invalidate(KEY);
+        cache.fetch(KEY, () -> runningRequest);
+        // Let the retry fire while the request is still running, so it has to join it.
+        Thread.sleep(retryDelay.toMillis() * 2);
+        runningRequest.complete("server");
+
+        assertEquals("server", result.get(1, TimeUnit.SECONDS));
+        assertEquals(1, recoverySource.calls.get(), "the retry must reuse the running request, not ask the source");
     }
 }
