@@ -60,7 +60,8 @@ public interface CloudApi extends AutoCloseable {
     /**
      * Creates a CloudAPI instance with custom options.
      *
-     * <p>Instances loaded by the same class loader, such as plugins on one proxy, share resources:
+     * <p>Instances loaded by the same class loader, such as plugins on one server or proxy that
+     * use the API from the SimpleCloud platform plugin, share resources:
      * <ul>
      *   <li>one NATS connection, when NATS URL, network, secret and failover reconnect delay match;</li>
      *   <li>one HTTP connection pool;</li>

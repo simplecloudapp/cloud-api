@@ -9,9 +9,9 @@ import java.util.function.Supplier;
 /**
  * Reference-counted resources shared by every {@code CloudApi} instance loaded by the same class loader.
  *
- * <p>Plugins on one proxy load the API from the platform plugin, so they share these resources
- * instead of each opening its own NATS connection, HTTP pool and cache. The last lease to close
- * a resource closes it.
+ * <p>Plugins that load the API from the platform plugin, on any server or proxy, share these
+ * resources instead of each opening its own NATS connection, HTTP pool and cache. The last lease
+ * to close a resource closes it.
  */
 public final class SharedResources {
 
