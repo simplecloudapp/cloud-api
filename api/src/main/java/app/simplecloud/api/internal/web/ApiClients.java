@@ -5,6 +5,7 @@ import app.simplecloud.api.web.ApiClient;
 import app.simplecloud.api.web.ApiException;
 import app.simplecloud.api.web.auth.ApiKeyAuth;
 import com.google.gson.JsonParseException;
+import okhttp3.OkHttpClient;
 import okhttp3.Response;
 
 import java.lang.reflect.Type;
@@ -24,7 +25,16 @@ public final class ApiClients {
      * for other CloudApi instances in the same class loader.
      */
     public static ApiClient create(CloudApiOptions options) {
-        ApiClient client = new ResponseValidatingApiClient();
+        return create(options, newHttpClient());
+    }
+
+    /**
+     * Creates an isolated client on top of {@code httpClient}. The client derives its own
+     * {@link OkHttpClient} for its timeouts, which keeps the connection pool and dispatcher
+     * of {@code httpClient}, so clients created from one base share their connections.
+     */
+    public static ApiClient create(CloudApiOptions options, OkHttpClient httpClient) {
+        ApiClient client = new ResponseValidatingApiClient(httpClient);
         applyTimeouts(client, options);
         ApiKeyAuth credential = (ApiKeyAuth) client.getAuthentication("NetworkCredential");
         credential.setApiKey(options.getNetworkSecret());
@@ -59,12 +69,31 @@ public final class ApiClients {
                 .plus(Duration.ofSeconds(5));
     }
 
+    /**
+     * Creates the HTTP client the generated {@link ApiClient} would create by default.
+     */
+    public static OkHttpClient newHttpClient() {
+        return new ApiClient().getHttpClient();
+    }
+
+    /**
+     * Stops the connection pool and dispatcher threads of {@code httpClient}.
+     */
+    public static void close(OkHttpClient httpClient) {
+        httpClient.dispatcher().executorService().shutdown();
+        httpClient.connectionPool().evictAll();
+    }
+
     private static int toMillis(Duration duration) {
         long millis = duration.toMillis();
         return millis > Integer.MAX_VALUE ? Integer.MAX_VALUE : (int) millis;
     }
 
     static final class ResponseValidatingApiClient extends ApiClient {
+
+        ResponseValidatingApiClient(OkHttpClient httpClient) {
+            super(httpClient);
+        }
 
         @Override
         public <T> T deserialize(Response response, Type returnType) throws ApiException {
