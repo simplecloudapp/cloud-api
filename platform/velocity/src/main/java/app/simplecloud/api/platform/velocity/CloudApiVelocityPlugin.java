@@ -1,6 +1,6 @@
 package app.simplecloud.api.platform.velocity;
 
-import app.simplecloud.api.CloudApi;
+import app.simplecloud.api.CloudApiOptions;
 import app.simplecloud.api.internal.CloudApiImpl;
 import app.simplecloud.api.internal.integration.player.PlayerCommandHandler;
 import app.simplecloud.api.internal.integration.player.PlayerSessionReporter;
@@ -54,7 +54,7 @@ public class CloudApiVelocityPlugin implements ProxyPresencePlayerProvider {
     ) {
         this.logger = logger;
         this.proxyServer = proxyServer;
-        this.cloudApi = (CloudApiImpl) CloudApi.create();
+        this.cloudApi = CloudApiImpl.createNatsConnectionOwner(CloudApiOptions.DEFAULT);
         this.proxyName = SimpleCloudRuntime.serverName();
         this.playerSynchronizer = new PlayerSynchronizer(cloudApi, proxyServer::getPlayerCount);
         this.playerSessionReporter = new PlayerSessionReporter(cloudApi);

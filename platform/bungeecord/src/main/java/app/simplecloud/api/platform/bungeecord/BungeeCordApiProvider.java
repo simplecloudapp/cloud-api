@@ -1,6 +1,6 @@
 package app.simplecloud.api.platform.bungeecord;
 
-import app.simplecloud.api.CloudApi;
+import app.simplecloud.api.CloudApiOptions;
 import app.simplecloud.api.internal.CloudApiImpl;
 import app.simplecloud.api.internal.integration.player.PlayerCommandHandler;
 import app.simplecloud.api.internal.integration.player.PlayerSessionReporter;
@@ -22,7 +22,10 @@ import java.util.Locale;
 
 public class BungeeCordApiProvider extends Plugin implements ProxyPresencePlayerProvider {
 
-    private CloudApiImpl cloudApi;
+    // Created with the plugin, not in onEnable: BungeeCord constructs every plugin before it enables
+    // any, so plugins constructed after this one, in practice those that depend on it, find this
+    // connection when they create their CloudApi.
+    private final CloudApiImpl cloudApi = CloudApiImpl.createNatsConnectionOwner(CloudApiOptions.DEFAULT);
     private String proxyName;
     private PlayerSynchronizer playerSynchronizer;
     private PlayerSessionReporter playerSessionReporter;
@@ -35,8 +38,7 @@ public class BungeeCordApiProvider extends Plugin implements ProxyPresencePlayer
 
     @Override
     public void onEnable() {
-        this.cloudApi = (CloudApiImpl) CloudApi.create();
-        // Started right after the CloudApi and stopped first in onDisable, so onDisable stops it
+        // Started first and stopped first in onDisable, so onDisable stops it
         // even if a later step of onEnable fails.
         this.luckPermsSynchronizer = startLuckPermsSynchronizer();
         this.proxyName = SimpleCloudRuntime.serverName();

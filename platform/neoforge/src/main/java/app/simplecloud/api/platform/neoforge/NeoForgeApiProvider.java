@@ -1,6 +1,8 @@
 package app.simplecloud.api.platform.neoforge;
 
 import app.simplecloud.api.CloudApi;
+import app.simplecloud.api.CloudApiOptions;
+import app.simplecloud.api.internal.CloudApiImpl;
 import app.simplecloud.api.platform.shared.PlayerSynchronizer;
 import net.minecraft.server.MinecraftServer;
 import net.minecraft.server.level.ServerPlayer;
@@ -37,7 +39,7 @@ public final class NeoForgeApiProvider {
     private void onServerStarted(ServerStartedEvent event) {
         this.server = event.getServer();
         this.onlinePlayerCount.set(server.getPlayerList().getPlayerCount());
-        this.cloudApi = CloudApi.create();
+        this.cloudApi = CloudApiImpl.createNatsConnectionOwner(CloudApiOptions.DEFAULT);
         this.playerSynchronizer = new PlayerSynchronizer(cloudApi, onlinePlayerCount::get);
         this.playerSynchronizer.start();
         this.playerSynchronizer.updatePlayerCount();

@@ -11,7 +11,9 @@ import app.simplecloud.api.internal.cache.NoOpQueryCache;
 import app.simplecloud.api.internal.cache.QueryCacheImpl;
 import app.simplecloud.api.internal.event.EventApiImpl;
 import app.simplecloud.api.internal.group.GroupApiImpl;
+import app.simplecloud.api.internal.nats.InstanceNatsView;
 import app.simplecloud.api.internal.nats.NatsFailoverConnectionManager;
+import app.simplecloud.api.internal.nats.PlatformNatsConnection;
 import app.simplecloud.api.internal.persistentserver.PersistentServerApiImpl;
 import app.simplecloud.api.internal.server.ServerApiImpl;
 import app.simplecloud.api.internal.player.PlayerApiImpl;
@@ -22,6 +24,7 @@ import app.simplecloud.api.player.PlayerApi;
 import app.simplecloud.api.server.ServerApi;
 import io.nats.client.Connection;
 
+import java.util.Optional;
 import java.util.concurrent.Executor;
 import java.util.concurrent.ExecutorService;
 import java.util.concurrent.Executors;
@@ -34,10 +37,10 @@ public class CloudApiImpl implements CloudApi {
     private static final Logger LOGGER = Logger.getLogger(CloudApiImpl.class.getName());
 
     private final CloudApiOptions options;
-    private final ApiClient httpClient;
+    private final ApiClient apiClient;
 
-    private final NatsFailoverConnectionManager natsConnectionManager;
-    private final Connection natsClient;
+    private final NatsFailoverConnectionManager ownNatsConnectionManager;
+    private final InstanceNatsView instanceNatsView;
     private final QueryCache queryCache;
     private final CacheEventListener cacheEventListener;
     private final ServerApi serverApi;
@@ -51,38 +54,73 @@ public class CloudApiImpl implements CloudApi {
     public CloudApiImpl(CloudApiOptions options) {
         this.options = options;
 
-        this.natsConnectionManager = new NatsFailoverConnectionManager(
-                options.getNatsUrl(),
-                options.getNetworkId(),
-                options.getNetworkSecret(),
-                options.getNatsFailoverReconnectAfter()
-        );
-        this.natsClient = natsConnectionManager.getConnection();
+        NatsFailoverConnectionManager ownNatsConnectionManager = null;
+        InstanceNatsView instanceNatsView = null;
+        QueryCache queryCache = null;
+        try {
+            PlatformNatsConnection.Settings natsSettings = PlatformNatsConnection.Settings.of(options);
+            Optional<NatsFailoverConnectionManager> platformNatsConnectionManager = PlatformNatsConnection.find(natsSettings);
+            if (platformNatsConnectionManager.isEmpty()) {
+                ownNatsConnectionManager = natsSettings.openConnectionManager();
+            }
+            NatsFailoverConnectionManager natsConnectionManager = platformNatsConnectionManager.orElse(ownNatsConnectionManager);
+            instanceNatsView = new InstanceNatsView(natsConnectionManager.getConnection());
+            this.ownNatsConnectionManager = ownNatsConnectionManager;
+            this.instanceNatsView = instanceNatsView;
+            Connection natsClient = instanceNatsView.view();
 
-        // Initialize cache
-        CacheConfig cacheConfig = options.getCacheConfig();
-        if (cacheConfig.isEnabled()) {
-            this.queryCache = new QueryCacheImpl(cacheConfig, ApiClients.maxRequestDuration(options));
-        } else {
-            this.queryCache = new NoOpQueryCache();
+            // Initialize cache
+            CacheConfig cacheConfig = options.getCacheConfig();
+            if (cacheConfig.isEnabled()) {
+                queryCache = new QueryCacheImpl(cacheConfig, ApiClients.maxRequestDuration(options));
+            } else {
+                queryCache = new NoOpQueryCache();
+            }
+            this.queryCache = queryCache;
+
+            // Initialize APIs with cache
+            this.apiClient = ApiClients.create(options);
+            this.playerApi = new PlayerApiImpl(options, natsClient, apiClient, executor);
+            this.eventApi = new EventApiImpl(natsClient, options.getNetworkId(), playerApi);
+            this.serverApi = new ServerApiImpl(options, queryCache, apiClient, executor);
+            this.groupApi = new GroupApiImpl(options, queryCache, apiClient, executor);
+            this.persistentServerApi = new PersistentServerApiImpl(options, queryCache, apiClient, executor);
+
+            // Setup event-based cache invalidation with debouncing
+            if (cacheConfig.isEnabled() && cacheConfig.isAutoInvalidateOnEvents()) {
+                long debounceMs = cacheConfig.getEventDebounceTime().toMillis();
+                this.cacheEventListener = new CacheEventListener(queryCache, eventApi, debounceMs);
+            } else {
+                this.cacheEventListener = null;
+            }
+        } catch (RuntimeException | Error e) {
+            if (instanceNatsView != null) {
+                instanceNatsView.close();
+            }
+            if (ownNatsConnectionManager != null) {
+                ownNatsConnectionManager.shutdown();
+            }
+            if (queryCache instanceof QueryCacheImpl queryCacheImpl) {
+                queryCacheImpl.shutdown();
+            }
+            executor.shutdown();
+            throw e;
         }
+    }
 
-        // Initialize APIs with cache
-        this.httpClient = ApiClients.create(options);
-        this.playerApi = new PlayerApiImpl(options, natsClient, httpClient, executor);
-        this.eventApi = new EventApiImpl(natsClient, options.getNetworkId(), playerApi);
-        this.serverApi = new ServerApiImpl(options, queryCache, httpClient, executor);
-        this.groupApi = new GroupApiImpl(options, queryCache, httpClient, executor);
-        this.persistentServerApi = new PersistentServerApiImpl(options, queryCache, httpClient, executor);
-
-        // Setup event-based cache invalidation with debouncing
-        if (cacheConfig.isEnabled() && cacheConfig.isAutoInvalidateOnEvents()) {
-            long debounceMs = cacheConfig.getEventDebounceTime().toMillis();
-            this.cacheEventListener = new CacheEventListener(queryCache, eventApi, debounceMs);
-        } else {
-            this.cacheEventListener = null;
+    /**
+     * Creates the platform plugin's instance. Instances created afterwards in this class loader with
+     * the same NATS settings use its NATS connection instead of opening their own, and closing this instance
+     * closes that connection for all of them. If another connection is registered already, this
+     * instance is created like any other.
+     */
+    public static CloudApiImpl createNatsConnectionOwner(CloudApiOptions options) {
+        CloudApiImpl cloudApi = new CloudApiImpl(options);
+        if (cloudApi.ownNatsConnectionManager != null) {
+            PlatformNatsConnection.Settings natsSettings = PlatformNatsConnection.Settings.of(options);
+            PlatformNatsConnection.register(natsSettings, cloudApi.ownNatsConnectionManager);
         }
-
+        return cloudApi;
     }
 
     @Override
@@ -111,13 +149,15 @@ public class CloudApiImpl implements CloudApi {
     }
 
     /**
-     * Returns the underlying NATS connection.
+     * Returns this instance's view of the NATS connection, which may be shared with other instances.
+     * Callers subscribe through a dispatcher from {@code createDispatcher}; {@code subscribe} on the
+     * view throws.
      * This is for internal use by integration modules.
      *
-     * @return the NATS connection
+     * @return this instance's view of the NATS connection
      */
     public Connection getNatsConnection() {
-        return natsClient;
+        return instanceNatsView.view();
     }
 
     public Executor getExecutor() {
@@ -154,13 +194,16 @@ public class CloudApiImpl implements CloudApi {
                 LOGGER.log(Level.WARNING, "Failed to shutdown query cache", e);
             }
         }
-        try {
-            natsConnectionManager.shutdown();
-        } catch (RuntimeException e) {
-            LOGGER.log(Level.WARNING, "Failed to shutdown NATS connection", e);
+        instanceNatsView.close();
+        if (ownNatsConnectionManager != null) {
+            // Unregistered first, so instances created from now on open their own connection instead of this closing one.
+            PlatformNatsConnection.unregister(ownNatsConnectionManager);
+            try {
+                ownNatsConnectionManager.shutdown();
+            } catch (RuntimeException e) {
+                LOGGER.log(Level.WARNING, "Failed to shutdown NATS connection", e);
+            }
         }
-        httpClient.getHttpClient().dispatcher().executorService().shutdown();
-        httpClient.getHttpClient().connectionPool().evictAll();
         executor.shutdown();
     }
 

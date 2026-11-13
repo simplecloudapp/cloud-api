@@ -5,6 +5,7 @@ import app.simplecloud.api.web.ApiClient;
 import app.simplecloud.api.web.ApiException;
 import app.simplecloud.api.web.auth.ApiKeyAuth;
 import com.google.gson.JsonParseException;
+import okhttp3.OkHttpClient;
 import okhttp3.Response;
 
 import java.lang.reflect.Type;
@@ -15,16 +16,21 @@ import java.time.Duration;
  */
 public final class ApiClients {
 
+    // Never shut down, because every CloudApi instance in this class loader sends its requests through it.
+    private static final OkHttpClient HTTP_CLIENT = new ApiClient().getHttpClient();
+
     private ApiClients() {
     }
 
     /**
      * Creates an isolated client. Generated API no-arg constructors use a global
      * default client, so configuring that client would change headers and timeouts
-     * for other CloudApi instances in the same class loader.
+     * for other CloudApi instances in the same class loader. The client derives its own
+     * {@link OkHttpClient} for its timeouts, which keeps the connection pool and dispatcher
+     * that all clients share.
      */
     public static ApiClient create(CloudApiOptions options) {
-        ApiClient client = new ResponseValidatingApiClient();
+        ApiClient client = new ResponseValidatingApiClient(HTTP_CLIENT);
         applyTimeouts(client, options);
         ApiKeyAuth credential = (ApiKeyAuth) client.getAuthentication("NetworkCredential");
         credential.setApiKey(options.getNetworkSecret());
@@ -65,6 +71,10 @@ public final class ApiClients {
     }
 
     static final class ResponseValidatingApiClient extends ApiClient {
+
+        ResponseValidatingApiClient(OkHttpClient httpClient) {
+            super(httpClient);
+        }
 
         @Override
         public <T> T deserialize(Response response, Type returnType) throws ApiException {
