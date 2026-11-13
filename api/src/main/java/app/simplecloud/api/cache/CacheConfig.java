@@ -12,8 +12,8 @@ import java.util.Map;
  * <ul>
  *   <li><b>staleTime</b>: How long data is considered fresh. Fresh data is returned immediately
  *       without network request. Default: 5 seconds (varies by entity type).</li>
- *   <li><b>cacheTime</b>: How long unused data stays in memory before garbage collection.
- *       Default: 2 minutes.</li>
+ *   <li><b>cacheTime</b>: How long data stays in memory after it was last fetched or set.
+ *       Reads do not extend it, so it is not an idle timeout. Default: 2 minutes.</li>
  *   <li><b>autoInvalidateOnEvents</b>: When enabled, NATS events automatically invalidate
  *       affected cache entries. Default: true.</li>
  * </ul>

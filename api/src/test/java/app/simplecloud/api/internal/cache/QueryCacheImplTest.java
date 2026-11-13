@@ -143,9 +143,9 @@ class QueryCacheImplTest {
     }
 
     /**
-     * Ensures cache.put does NOT run if the fetcher completes after the in-flight timeout.
-     * JDK CompletableFuture.uniApply short-circuits when the downstream stage is already
-     * completed exceptionally, so late data must not pollute the cache.
+     * Ensures late data does not reach the cache when the fetcher completes after the in-flight
+     * timeout. The timeout already unregistered the request, so it no longer owns the key and
+     * its result is not cached.
      */
     @Test
     void fetch_fetcherCompletesAfterTimeout_doesNotPolluteCache() throws Exception {

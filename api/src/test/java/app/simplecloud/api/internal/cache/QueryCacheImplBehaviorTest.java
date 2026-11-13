@@ -12,6 +12,7 @@ import org.junit.jupiter.api.Test;
 import java.time.Duration;
 import java.util.Set;
 import java.util.concurrent.CompletableFuture;
+import java.util.concurrent.CountDownLatch;
 import java.util.concurrent.ExecutionException;
 import java.util.concurrent.TimeUnit;
 import java.util.concurrent.atomic.AtomicInteger;
@@ -23,6 +24,7 @@ import static org.junit.jupiter.api.Assertions.assertInstanceOf;
 import static org.junit.jupiter.api.Assertions.assertNotNull;
 import static org.junit.jupiter.api.Assertions.assertNull;
 import static org.junit.jupiter.api.Assertions.assertThrows;
+import static org.junit.jupiter.api.Assertions.assertTrue;
 
 /**
  * Covers stale-while-revalidate, per-entity configuration, invalidation racing in-flight
@@ -265,6 +267,35 @@ class QueryCacheImplBehaviorTest {
         assertEquals("after-invalidation", cachedData(cache, SERVER_KEY), "the newer request must still own the key");
     }
 
+    /**
+     * Regression test: a finished fetch used to unregister itself and then cache its result in two
+     * steps, so an invalidate() between them was overwritten. Building the entry reads the key's
+     * entity type, so a key part whose toString() blocks pauses the fetch exactly between the two.
+     */
+    @Test
+    void invalidateWhileFetchIsCachingItsResult_removesTheResult() throws Exception {
+        QueryCacheImpl cache = newCache(longLivedConfig());
+        CountDownLatch cachingPaused = new CountDownLatch(1);
+        CountDownLatch resumeCaching = new CountDownLatch(1);
+        Object serverPrefix = new PausingKeyPart("server", COMPLETER_THREAD, cachingPaused, resumeCaching);
+        QueryKey key = QueryKey.of(serverPrefix, "server-1");
+        CompletableFuture<String> source = new CompletableFuture<>();
+        CompletableFuture<String> result = cache.fetch(key, () -> source);
+
+        Thread completer = new Thread(() -> source.complete("before-invalidation"), COMPLETER_THREAD);
+        completer.start();
+        assertTrue(cachingPaused.await(1, TimeUnit.SECONDS), "fetch never started caching");
+        CompletableFuture<Void> invalidation = CompletableFuture.runAsync(() -> cache.invalidate(key));
+        // Without the per-key lock the invalidation finishes inside this pause.
+        Thread.sleep(50);
+        resumeCaching.countDown();
+        invalidation.get(1, TimeUnit.SECONDS);
+        completer.join(1_000);
+
+        assertEquals("before-invalidation", await(result));
+        assertNull(cache.get(key), "an invalidation during caching must win");
+    }
+
     @Test
     void set_whileFetchInFlight_keepsSetValue() throws Exception {
         QueryCacheImpl cache = newCache(longLivedConfig());
@@ -415,5 +446,31 @@ class QueryCacheImplBehaviorTest {
         String result = await(cache.fetch(SERVER_KEY, () -> CompletableFuture.completedFuture("new")));
 
         assertEquals("old", result);
+    }
+
+    private static final String COMPLETER_THREAD = "fetch-completer";
+
+    /**
+     * A key part that reads as {@code name}. Read on the thread named {@code pausedThread}, it
+     * signals {@code paused} and blocks until {@code resume} opens.
+     */
+    private record PausingKeyPart(String name, String pausedThread, CountDownLatch paused, CountDownLatch resume) {
+
+        @Override
+        public String toString() {
+            if (Thread.currentThread().getName().equals(pausedThread)) {
+                paused.countDown();
+                awaitQuietly(resume);
+            }
+            return name;
+        }
+
+        private static void awaitQuietly(CountDownLatch latch) {
+            try {
+                latch.await(2, TimeUnit.SECONDS);
+            } catch (InterruptedException e) {
+                Thread.currentThread().interrupt();
+            }
+        }
     }
 }

@@ -188,7 +188,7 @@ public interface QueryCache {
 
         Executor afterRetryDelay = CompletableFuture.delayedExecutor(retryDelay.toMillis(), TimeUnit.MILLISECONDS);
         CompletableFuture<Void> retryDelayElapsed = CompletableFuture.runAsync(() -> {}, afterRetryDelay);
-        CompletableFuture<T> retried = retryDelayElapsed.thenCompose(ignored -> refetchPastCachedMiss(key, fetcher, isTransientMiss));
+        CompletableFuture<T> retried = retryDelayElapsed.thenCompose(ignored -> dropMissAndFetch(key, fetcher, isTransientMiss));
         return retried.thenCompose(retriedResult -> recoverTransientMiss(
                 key,
                 fetcher,
@@ -204,7 +204,7 @@ public interface QueryCache {
      * deduplication, timeout and invalidation handling as any other lookup on this cache. Data
      * another lookup cached in the meantime is returned without asking the source.
      */
-    private <T> CompletableFuture<T> refetchPastCachedMiss(
+    private <T> CompletableFuture<T> dropMissAndFetch(
             QueryKey key,
             Supplier<CompletableFuture<T>> fetcher,
             Predicate<T> isTransientMiss
@@ -213,8 +213,10 @@ public interface QueryCache {
         return fetch(key, fetcher);
     }
 
-    // Checking and invalidating are separate calls, so a set() landing between them is dropped too;
-    // the next lookup then fetches it again. Closing that needs a conditional remove on this interface.
+    // Checking and invalidating are separate calls, so anything cached between them, by set() or
+    // another lookup, is dropped too, and a request another lookup has running for the key is no
+    // longer cached. The next lookup fetches again. Closing that needs a conditional remove on this
+    // interface.
     private <T> void dropCachedMiss(QueryKey key, Predicate<T> isTransientMiss) {
         CacheEntry<T> entry = get(key);
         if (entry != null && isTransientMiss.test(entry.getData())) {
