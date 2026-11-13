@@ -51,7 +51,7 @@ public class CacheEventListener {
     }
 
     private void subscribeToServerEvents(ServerEventApi events) {
-        subscriptions.add(events.onStarted(event -> invalidateServerLists()));
+        subscriptions.add(events.onStarted(event -> invalidateServer(event.getServerId())));
         subscriptions.add(events.onStopped(event -> invalidateServer(event.getServerId())));
         subscriptions.add(events.onStateChanged(event -> invalidateServer(event.getServerId())));
         subscriptions.add(events.onDeleted(event -> invalidateServer(event.getServerId())));
@@ -59,13 +59,13 @@ public class CacheEventListener {
     }
 
     private void subscribeToGroupEvents(GroupEventApi events) {
-        subscriptions.add(events.onCreated(event -> invalidateGroupLists()));
+        subscriptions.add(events.onCreated(event -> invalidateGroup(event.getServerGroupId())));
         subscriptions.add(events.onUpdated(event -> invalidateGroup(event.getServerGroupId())));
         subscriptions.add(events.onDeleted(event -> invalidateGroup(event.getServerGroupId())));
     }
 
     private void subscribeToPersistentServerEvents(PersistentServerEventApi events) {
-        subscriptions.add(events.onCreated(event -> invalidatePersistentServerLists()));
+        subscriptions.add(events.onCreated(event -> invalidatePersistentServer(event.getPersistentServerId())));
         subscriptions.add(events.onStarted(event -> invalidatePersistentServer(event.getPersistentServerId())));
         subscriptions.add(events.onStopped(event -> invalidatePersistentServer(event.getPersistentServerId())));
         subscriptions.add(events.onUpdated(event -> invalidatePersistentServer(event.getPersistentServerId())));
@@ -74,30 +74,18 @@ public class CacheEventListener {
 
     private void invalidateServer(String serverId) {
         queueKey(QueryKey.of("server", serverId));
-        invalidateServerLists();
-    }
-
-    private void invalidateServerLists() {
         queuePattern(QueryKey.of("servers"));
         queuePattern(QueryKey.of("server", "numerical"));
     }
 
     private void invalidateGroup(String groupId) {
         queueKey(QueryKey.of("group", groupId));
-        invalidateGroupLists();
-    }
-
-    private void invalidateGroupLists() {
         queuePattern(QueryKey.of("groups"));
         queuePattern(QueryKey.of("group", "name"));
     }
 
     private void invalidatePersistentServer(String persistentServerId) {
         queueKey(QueryKey.of("persistentServer", persistentServerId));
-        invalidatePersistentServerLists();
-    }
-
-    private void invalidatePersistentServerLists() {
         queuePattern(QueryKey.of("persistentServers"));
         queuePattern(QueryKey.of("persistentServer", "name"));
     }

@@ -58,11 +58,11 @@ public interface QueryCache {
     <T> CompletableFuture<T> fetch(QueryKey key, Supplier<CompletableFuture<T>> fetcher);
 
     /**
-     * Fetches data and retries direct source fetches when the result matches a transient-miss predicate.
+     * Fetches data and retries the lookup when the result matches a transient-miss predicate.
      *
      * <p>This is intended for exact lookups where eventual consistency can briefly return
      * "not found" even though the resource exists a moment later. If all retries still match
-     * the transient-miss predicate, the cache entry is invalidated to avoid negative caching.
+     * the transient-miss predicate, the cached miss is dropped to avoid negative caching.
      *
      * @param key the query key
      * @param fetcher the function to fetch fresh data from the source
@@ -182,38 +182,41 @@ public interface QueryCache {
 
         // Out of retries: drop the cached miss so the next lookup asks the source again.
         if (retriesRemaining == 0) {
-            invalidate(key);
+            dropCachedMiss(key, isTransientMiss);
             return CompletableFuture.completedFuture(result);
         }
 
         Executor afterRetryDelay = CompletableFuture.delayedExecutor(retryDelay.toMillis(), TimeUnit.MILLISECONDS);
-        CompletableFuture<Void> retryDelayElapsed = CompletableFuture.runAsync(() -> {
-        }, afterRetryDelay);
-        CompletableFuture<T> retriedResult = retryDelayElapsed.thenCompose(ignored -> fetcher.get());
-        return retriedResult.thenCompose(retried -> cacheFoundOrRetry(
+        CompletableFuture<Void> retryDelayElapsed = CompletableFuture.runAsync(() -> {}, afterRetryDelay);
+        CompletableFuture<T> retried = retryDelayElapsed.thenCompose(ignored -> refetchPastCachedMiss(key, fetcher, isTransientMiss));
+        return retried.thenCompose(retriedResult -> recoverTransientMiss(
                 key,
                 fetcher,
                 isTransientMiss,
                 retryDelay,
                 retriesRemaining - 1,
-                retried
+                retriedResult
         ));
     }
 
-    private <T> CompletableFuture<T> cacheFoundOrRetry(
+    /**
+     * Fetches through the cache once the cached miss is gone, so the retry joins a request already
+     * running for the key, times out like any fetch, and is not cached if the key is invalidated or
+     * set while it runs. Data another lookup found in the meantime is returned without a request.
+     */
+    private <T> CompletableFuture<T> refetchPastCachedMiss(
             QueryKey key,
             Supplier<CompletableFuture<T>> fetcher,
-            Predicate<T> isTransientMiss,
-            Duration retryDelay,
-            int retriesRemaining,
-            T retriedResult
+            Predicate<T> isTransientMiss
     ) {
-        if (isTransientMiss.test(retriedResult)) {
-            return recoverTransientMiss(key, fetcher, isTransientMiss, retryDelay, retriesRemaining, retriedResult);
-        }
+        dropCachedMiss(key, isTransientMiss);
+        return fetch(key, fetcher);
+    }
 
-        // A retry bypasses the cache, so store what it found.
-        set(key, retriedResult);
-        return CompletableFuture.completedFuture(retriedResult);
+    private <T> void dropCachedMiss(QueryKey key, Predicate<T> isTransientMiss) {
+        CacheEntry<T> entry = get(key);
+        if (entry != null && isTransientMiss.test(entry.getData())) {
+            invalidate(key);
+        }
     }
 }

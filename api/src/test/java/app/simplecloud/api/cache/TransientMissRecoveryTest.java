@@ -1,5 +1,6 @@
 package app.simplecloud.api.cache;
 
+import app.simplecloud.api.CloudApiException;
 import app.simplecloud.api.internal.cache.QueryCacheImpl;
 import org.junit.jupiter.api.AfterEach;
 import org.junit.jupiter.api.Test;
@@ -17,6 +18,7 @@ import java.util.concurrent.atomic.AtomicInteger;
 import java.util.function.Supplier;
 
 import static org.junit.jupiter.api.Assertions.assertEquals;
+import static org.junit.jupiter.api.Assertions.assertInstanceOf;
 import static org.junit.jupiter.api.Assertions.assertNull;
 import static org.junit.jupiter.api.Assertions.assertSame;
 import static org.junit.jupiter.api.Assertions.assertThrows;
@@ -65,6 +67,37 @@ class TransientMissRecoveryTest {
                 MAX_RETRIES
         );
         return result.get(1, TimeUnit.SECONDS);
+    }
+
+    /**
+     * Answers "not found" on the first call and returns {@link #retry} from the second call on.
+     */
+    private static final class MissThenPendingRetry implements Supplier<CompletableFuture<String>> {
+        private final CompletableFuture<String> retry = new CompletableFuture<>();
+        private final AtomicInteger calls = new AtomicInteger();
+
+        @Override
+        public CompletableFuture<String> get() {
+            int call = calls.incrementAndGet();
+            if (call == 1) {
+                return CompletableFuture.completedFuture(null);
+            }
+            return retry;
+        }
+    }
+
+    private CompletableFuture<String> startRecovery(Supplier<CompletableFuture<String>> source, QueryCache cache) {
+        return cache.fetchWithTransientMissRecovery(KEY, source, Objects::isNull, RETRY_DELAY, MAX_RETRIES);
+    }
+
+    private static void awaitRetryStarted(MissThenPendingRetry source) throws InterruptedException {
+        long deadline = System.currentTimeMillis() + 2_000;
+        while (source.calls.get() < 2) {
+            if (System.currentTimeMillis() > deadline) {
+                throw new AssertionError("retry never reached the source");
+            }
+            Thread.sleep(5);
+        }
     }
 
     private String cachedData() {
@@ -168,5 +201,71 @@ class TransientMissRecoveryTest {
                 () -> cache.fetchWithTransientMissRecovery(KEY, source, Objects::isNull, negativeDelay, 1));
         assertThrows(NullPointerException.class,
                 () -> cache.fetchWithTransientMissRecovery(KEY, source, null, RETRY_DELAY, 1));
+    }
+
+    /**
+     * Regression test: a retry used to store its result unconditionally, so a snapshot taken
+     * before an invalidating event was cached after it.
+     */
+    @Test
+    void invalidatedWhileRetryRuns_retryResultIsNotCached() throws Exception {
+        MissThenPendingRetry source = new MissThenPendingRetry();
+
+        CompletableFuture<String> result = startRecovery(source, cache);
+        awaitRetryStarted(source);
+        cache.invalidate(KEY);
+        source.retry.complete("before-invalidation");
+
+        assertEquals("before-invalidation", result.get(1, TimeUnit.SECONDS));
+        assertNull(cache.get(KEY));
+    }
+
+    @Test
+    void setWhileRetryRuns_keepsWrittenValue() throws Exception {
+        MissThenPendingRetry source = new MissThenPendingRetry();
+
+        CompletableFuture<String> result = startRecovery(source, cache);
+        awaitRetryStarted(source);
+        cache.set(KEY, "written");
+        source.retry.complete("read-before-write");
+        result.get(1, TimeUnit.SECONDS);
+
+        assertEquals("written", cachedData());
+    }
+
+    /**
+     * Regression test: running out of retries used to invalidate the key unconditionally,
+     * deleting data written while the last retry ran.
+     */
+    @Test
+    void retriesExhausted_keepsValueWrittenMeanwhile() throws Exception {
+        MissThenPendingRetry source = new MissThenPendingRetry();
+
+        CompletableFuture<String> result = cache.fetchWithTransientMissRecovery(KEY, source, Objects::isNull, RETRY_DELAY, 1);
+        awaitRetryStarted(source);
+        cache.set(KEY, "written");
+        source.retry.complete(null);
+
+        assertNull(result.get(1, TimeUnit.SECONDS));
+        assertEquals("written", cachedData());
+    }
+
+    /**
+     * Regression test: retries used to call the source directly, so a hanging retry never
+     * hit the cache's in-flight timeout.
+     */
+    @Test
+    void retryHangs_failsAfterInFlightTimeout() throws Exception {
+        QueryCacheImpl shortTimeoutCache = new QueryCacheImpl(CacheConfig.DEFAULT, Duration.ofMillis(100));
+        MissThenPendingRetry source = new MissThenPendingRetry();
+
+        try {
+            CompletableFuture<String> result = startRecovery(source, shortTimeoutCache);
+            ExecutionException error = assertThrows(ExecutionException.class, () -> result.get(1, TimeUnit.SECONDS));
+
+            assertInstanceOf(CloudApiException.class, error.getCause());
+        } finally {
+            shortTimeoutCache.shutdown();
+        }
     }
 }

@@ -48,20 +48,24 @@ class CacheEventListenerTest {
             QueryKey.of("persistentServer", "name")
     );
 
+    /**
+     * Fired events answer every getter with the getter's own name, so the expected key names the
+     * getter the listener must read the ID from.
+     */
     static Stream<Arguments> eventsAndTheirInvalidations() {
-        Set<QueryKey> serverKey = Set.of(QueryKey.of("server", "id-1"));
-        Set<QueryKey> groupKey = Set.of(QueryKey.of("group", "id-1"));
-        Set<QueryKey> persistentServerKey = Set.of(QueryKey.of("persistentServer", "id-1"));
+        Set<QueryKey> serverKey = Set.of(QueryKey.of("server", "getServerId"));
+        Set<QueryKey> groupKey = Set.of(QueryKey.of("group", "getServerGroupId"));
+        Set<QueryKey> persistentServerKey = Set.of(QueryKey.of("persistentServer", "getPersistentServerId"));
         return Stream.of(
-                Arguments.of("server.onStarted", Set.of(), SERVER_LIST_PATTERNS),
+                Arguments.of("server.onStarted", serverKey, SERVER_LIST_PATTERNS),
                 Arguments.of("server.onStopped", serverKey, SERVER_LIST_PATTERNS),
                 Arguments.of("server.onStateChanged", serverKey, SERVER_LIST_PATTERNS),
                 Arguments.of("server.onDeleted", serverKey, SERVER_LIST_PATTERNS),
                 Arguments.of("server.onUpdated", serverKey, SERVER_LIST_PATTERNS),
-                Arguments.of("group.onCreated", Set.of(), GROUP_LIST_PATTERNS),
+                Arguments.of("group.onCreated", groupKey, GROUP_LIST_PATTERNS),
                 Arguments.of("group.onUpdated", groupKey, GROUP_LIST_PATTERNS),
                 Arguments.of("group.onDeleted", groupKey, GROUP_LIST_PATTERNS),
-                Arguments.of("persistentServer.onCreated", Set.of(), PERSISTENT_SERVER_LIST_PATTERNS),
+                Arguments.of("persistentServer.onCreated", persistentServerKey, PERSISTENT_SERVER_LIST_PATTERNS),
                 Arguments.of("persistentServer.onStarted", persistentServerKey, PERSISTENT_SERVER_LIST_PATTERNS),
                 Arguments.of("persistentServer.onStopped", persistentServerKey, PERSISTENT_SERVER_LIST_PATTERNS),
                 Arguments.of("persistentServer.onUpdated", persistentServerKey, PERSISTENT_SERVER_LIST_PATTERNS),
@@ -76,7 +80,7 @@ class CacheEventListenerTest {
         FakeEventApi eventApi = new FakeEventApi();
         CacheEventListener listener = new CacheEventListener(cache, eventApi, LONG_WINDOW_MS);
 
-        eventApi.fire(handler, "id-1");
+        eventApi.fire(handler);
         listener.shutdown();
 
         assertEquals(expectedKeys, Set.copyOf(cache.invalidations));
@@ -101,14 +105,14 @@ class CacheEventListenerTest {
         FakeEventApi eventApi = new FakeEventApi();
         CacheEventListener listener = new CacheEventListener(cache, eventApi, SHORT_WINDOW_MS);
 
-        eventApi.fire("server.onUpdated", "id-1");
-        eventApi.fire("server.onUpdated", "id-1");
-        eventApi.fire("server.onUpdated", "id-1");
+        eventApi.fire("server.onUpdated");
+        eventApi.fire("server.onUpdated");
+        eventApi.fire("server.onUpdated");
         // The batch applies patterns before keys, so a recorded key means the whole batch is done.
         awaitTrue(() -> !cache.invalidations.isEmpty(), "batch should be applied after the window");
         listener.shutdown();
 
-        assertEquals(List.of(QueryKey.of("server", "id-1")), cache.invalidations);
+        assertEquals(List.of(QueryKey.of("server", "getServerId")), cache.invalidations);
         assertEquals(SERVER_LIST_PATTERNS.size(), cache.patternInvalidations.size());
     }
 
@@ -126,7 +130,7 @@ class CacheEventListenerTest {
 
         long streamEndsAt = System.currentTimeMillis() + streamDurationMs;
         while (System.currentTimeMillis() < streamEndsAt) {
-            eventApi.fire("server.onUpdated", "id-1");
+            eventApi.fire("server.onUpdated");
             Thread.sleep(eventIntervalMs);
         }
         boolean invalidatedDuringStream = !cache.invalidations.isEmpty();
@@ -141,10 +145,10 @@ class CacheEventListenerTest {
         FakeEventApi eventApi = new FakeEventApi();
         CacheEventListener listener = new CacheEventListener(cache, eventApi, LONG_WINDOW_MS);
 
-        eventApi.fire("server.onUpdated", "server-1");
+        eventApi.fire("server.onUpdated");
         listener.shutdown();
 
-        assertTrue(cache.invalidations.contains(QueryKey.of("server", "server-1")));
+        assertTrue(cache.invalidations.contains(QueryKey.of("server", "getServerId")));
         assertTrue(cache.patternInvalidations.contains(QueryKey.of("servers")));
     }
 
@@ -155,7 +159,7 @@ class CacheEventListenerTest {
         CacheEventListener listener = new CacheEventListener(cache, eventApi, SHORT_WINDOW_MS);
 
         listener.shutdown();
-        eventApi.fire("server.onUpdated", "server-1");
+        eventApi.fire("server.onUpdated");
 
         assertTrue(cache.invalidations.isEmpty());
         assertTrue(cache.patternInvalidations.isEmpty());
@@ -209,7 +213,7 @@ class CacheEventListenerTest {
 
     /**
      * Records every handler the listener registers under "entity.method", and fires them with an
-     * event whose ID getters all return the given ID.
+     * event whose getters return their own method name.
      */
     private static final class FakeEventApi implements EventApi {
         private final Map<String, Consumer<Object>> handlers = new ConcurrentHashMap<>();
@@ -219,20 +223,20 @@ class CacheEventListenerTest {
         private final PersistentServerEventApi persistentServer =
                 recordingProxy(PersistentServerEventApi.class, "persistentServer");
 
-        void fire(String handlerName, String id) {
+        void fire(String handlerName) {
             Consumer<Object> handler = handlers.get(handlerName);
-            Object event = eventWithId(handlerName, id);
+            Object event = eventAnsweringGetterNames(handlerName);
             handler.accept(event);
         }
 
-        private Object eventWithId(String handlerName, String id) {
+        private Object eventAnsweringGetterNames(String handlerName) {
             Method registration = registrationMethod(handlerName);
             ParameterizedType consumerType = (ParameterizedType) registration.getGenericParameterTypes()[0];
             Class<?> eventType = (Class<?>) consumerType.getActualTypeArguments()[0];
             return Proxy.newProxyInstance(
                     eventType.getClassLoader(),
                     new Class<?>[]{eventType},
-                    (proxy, method, args) -> method.getName().endsWith("Id") ? id : null
+                    (proxy, method, args) -> method.getName()
             );
         }
 

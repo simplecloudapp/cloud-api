@@ -96,4 +96,23 @@ class QueryKeyTest {
         assertNull(QueryKey.of().getEntityType());
         assertNull(QueryKey.of(null, "id").getEntityType());
     }
+
+    @Test
+    void matches_comparesArrayPartsByContent() {
+        QueryKey pattern = QueryKey.of("servers", new Object[]{"Lobby"});
+        QueryKey key = QueryKey.of("servers", new Object[]{"Lobby"}, "page-1");
+
+        assertTrue(pattern.matches(key), "matches() must agree with equals() on array parts");
+    }
+
+    private enum KeyPrefix {
+        server
+    }
+
+    @Test
+    void getEntityType_readsNonStringFirstPartThroughToString() {
+        QueryKey key = QueryKey.of(KeyPrefix.server, "id");
+
+        assertEquals(EntityType.SERVER, key.getEntityType());
+    }
 }

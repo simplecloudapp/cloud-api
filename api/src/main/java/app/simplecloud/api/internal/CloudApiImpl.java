@@ -75,10 +75,10 @@ public class CloudApiImpl implements CloudApi {
         this.groupApi = new GroupApiImpl(options, queryCache, httpClient, executor);
         this.persistentServerApi = new PersistentServerApiImpl(options, queryCache, httpClient, executor);
 
-        // Setup event-based cache invalidation with debouncing
+        // Setup event-based cache invalidation, batched per window
         if (cacheConfig.isEnabled() && cacheConfig.isAutoInvalidateOnEvents()) {
-            long debounceMs = cacheConfig.getEventDebounceTime().toMillis();
-            this.cacheEventListener = new CacheEventListener(queryCache, eventApi, debounceMs);
+            long batchWindowMs = cacheConfig.getEventDebounceTime().toMillis();
+            this.cacheEventListener = new CacheEventListener(queryCache, eventApi, batchWindowMs);
         } else {
             this.cacheEventListener = null;
         }

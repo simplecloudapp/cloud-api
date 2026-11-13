@@ -114,8 +114,9 @@ public class CacheConfig {
     }
 
     /**
-     * Returns the debounce time for event-based cache invalidation.
-     * Multiple events within this window are coalesced into a single invalidation.
+     * Returns the batching window for event-based cache invalidation.
+     * The first event opens the window, and events arriving before it closes are applied together
+     * when it does. Later events do not extend the window.
      */
     public Duration getEventDebounceTime() {
         return eventDebounceTime;
@@ -223,12 +224,13 @@ public class CacheConfig {
         }
 
         /**
-         * Sets the debounce time for event-based cache invalidation.
-         * When multiple events arrive within this window, they are coalesced
-         * into a single invalidation operation. This is useful during rolling
-         * restarts or bulk operations.
+         * Sets the batching window for event-based cache invalidation.
+         * The first event opens the window, and events arriving before it closes are
+         * applied together when it does. Later events do not extend the window, so a
+         * steady stream of events, such as a rolling restart, still invalidates the
+         * cache at least once per window.
          *
-         * @param debounceTime the debounce time (default: 50ms)
+         * @param debounceTime the window length (default: 50ms)
          * @return this builder
          */
         public Builder eventDebounceTime(Duration debounceTime) {

@@ -49,7 +49,7 @@ public class QueryCacheImpl implements QueryCache {
         this.inFlightTimeout = inFlightTimeout;
         this.cache = Caffeine.newBuilder()
                 .maximumSize(config.getMaxEntries())
-                .expireAfter(new ExpireAtEntryExpiresAt())
+                .expireAfter(new EntryExpiresAtExpiry())
                 .evictionListener((key, value, cause) -> evictionCount.incrementAndGet())
                 .build();
     }
@@ -79,8 +79,9 @@ public class QueryCacheImpl implements QueryCache {
      * Fetches from the source, sharing one source request among all callers for the same key.
      *
      * <p>The shared future fails after {@code inFlightTimeout} even if the source never answers,
-     * so a hanging request cannot block the key forever. A result that arrives after the key was
-     * invalidated or timed out is returned to its callers but not cached.
+     * so a hanging request cannot block the key forever; a result arriving after that is dropped.
+     * A result that arrives after the key was invalidated or overwritten with {@link #set} is
+     * returned to its callers but not cached.
      */
     @SuppressWarnings("unchecked")
     <T> CompletableFuture<T> fetchWithDeduplication(QueryKey key, Supplier<CompletableFuture<T>> fetcher) {
@@ -96,7 +97,7 @@ public class QueryCacheImpl implements QueryCache {
         // A fetcher that throws or returns null fails the shared request instead of leaving it to the timeout.
         try {
             CompletableFuture<T> sourceResponse = Objects.requireNonNull(fetcher.get(), "fetcher returned null");
-            sourceResponse.whenComplete((data, error) -> completeRequest(key, request, data, error));
+            sourceResponse.whenComplete((data, error) -> cacheIfCurrentAndComplete(key, request, data, error));
         } catch (Throwable error) {
             request.completeExceptionally(error);
         }
@@ -115,18 +116,33 @@ public class QueryCacheImpl implements QueryCache {
         );
     }
 
-    private <T> void completeRequest(QueryKey key, CompletableFuture<T> request, T data, Throwable error) {
+    private <T> void cacheIfCurrentAndComplete(QueryKey key, CompletableFuture<T> request, T data, Throwable error) {
         if (error != null) {
             request.completeExceptionally(error);
             return;
         }
 
-        // Only the request still registered for the key may cache; invalidate() or the timeout may have dropped it.
-        boolean stillCurrent = inFlightRequests.remove(key, request);
-        if (stillCurrent) {
-            cache.put(key, newEntry(key, data));
-        }
+        // invalidate() and set() remove the key's request before touching the entry. Checking and
+        // caching inside the map's per-key lock keeps a result fetched before them from landing after.
+        inFlightRequests.computeIfPresent(key, (ignored, current) -> cacheIfOwner(key, request, current, data));
         request.complete(data);
+    }
+
+    /**
+     * Caches the data if {@code request} still owns the key, and returns the map's new value for
+     * the key: null to unregister the finished request, or the other owner unchanged.
+     */
+    private <T> CompletableFuture<?> cacheIfOwner(
+            QueryKey key,
+            CompletableFuture<T> request,
+            CompletableFuture<?> currentOwner,
+            T data
+    ) {
+        if (currentOwner != request) {
+            return currentOwner;
+        }
+        cache.put(key, newEntry(key, data));
+        return null;
     }
 
     private <T> void triggerBackgroundRevalidation(QueryKey key, Supplier<CompletableFuture<T>> fetcher) {
@@ -275,7 +291,7 @@ public class QueryCacheImpl implements QueryCache {
      * Makes Caffeine drop an entry at its {@link CacheEntry#getExpiresAt()}, which {@link #set}
      * and a finished fetch reset on every write. Reads do not extend it.
      */
-    private static final class ExpireAtEntryExpiresAt implements Expiry<QueryKey, CacheEntry<?>> {
+    private static final class EntryExpiresAtExpiry implements Expiry<QueryKey, CacheEntry<?>> {
 
         @Override
         public long expireAfterCreate(QueryKey key, CacheEntry<?> entry, long currentTime) {

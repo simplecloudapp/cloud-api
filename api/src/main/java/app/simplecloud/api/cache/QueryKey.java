@@ -51,9 +51,10 @@ public final class QueryKey {
      * Returns the entity type inferred from this key, or null if unknown.
      */
     public EntityType getEntityType() {
-        if (parts.length == 0 || !(parts[0] instanceof String first)) {
+        if (parts.length == 0 || parts[0] == null) {
             return null;
         }
+        String first = parts[0].toString();
         return switch (first) {
             case "server", "servers" -> EntityType.SERVER;
             case "group", "groups" -> EntityType.GROUP;
@@ -82,7 +83,7 @@ public final class QueryKey {
     public boolean matches(QueryKey other) {
         if (parts.length > other.parts.length) return false;
         for (int i = 0; i < parts.length; i++) {
-            if (!Objects.equals(parts[i], other.parts[i])) return false;
+            if (!Objects.deepEquals(parts[i], other.parts[i])) return false;
         }
         return true;
     }
