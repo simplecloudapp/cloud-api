@@ -71,8 +71,9 @@ public interface CloudApi extends AutoCloseable {
      *       {@code X-SC-Component} header of the instance that started it.</li>
      * </ul>
      * Shared resources close when the last instance using them closes. Use
-     * {@link CloudApiOptions.Builder#dedicatedNatsConnection()} or
-     * {@link CloudApiOptions.Builder#dedicatedHttpClient()} to opt out.
+     * {@link CloudApiOptions.Builder#dedicatedNatsConnection()},
+     * {@link CloudApiOptions.Builder#dedicatedHttpClient()} or
+     * {@link CloudApiOptions.Builder#dedicatedQueryCache()} to opt out.
      *
      * @param options the configuration options for the API client
      * @return a new CloudApi instance
@@ -153,7 +154,7 @@ public interface CloudApi extends AutoCloseable {
      * }</pre>
      *
      * <p>Other instances with the same settings may share this cache, so invalidating or clearing
-     * it affects them too. {@link CloudApiOptions.Builder#dedicatedHttpClient()} gives an instance
+     * it affects them too. {@link CloudApiOptions.Builder#dedicatedQueryCache()} gives an instance
      * its own cache. See {@link #create(CloudApiOptions)}.
      *
      * @return the query cache

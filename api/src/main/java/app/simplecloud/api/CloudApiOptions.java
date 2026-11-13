@@ -24,6 +24,7 @@ public class CloudApiOptions {
     private final Duration httpWriteTimeout;
     private final boolean dedicatedNatsConnection;
     private final boolean dedicatedHttpClient;
+    private final boolean dedicatedQueryCache;
 
     private CloudApiOptions(Builder builder) {
         this.natsUrl = builder.natsUrl;
@@ -39,6 +40,7 @@ public class CloudApiOptions {
         this.httpWriteTimeout = builder.httpWriteTimeout;
         this.dedicatedNatsConnection = builder.dedicatedNatsConnection;
         this.dedicatedHttpClient = builder.dedicatedHttpClient;
+        this.dedicatedQueryCache = builder.dedicatedQueryCache;
     }
 
     public String getNatsUrl() {
@@ -112,10 +114,17 @@ public class CloudApiOptions {
     }
 
     /**
-     * Returns whether this instance uses its own HTTP client and query cache instead of sharing them.
+     * Returns whether this instance uses its own HTTP connection pool instead of sharing one.
      */
     public boolean isDedicatedHttpClient() {
         return dedicatedHttpClient;
+    }
+
+    /**
+     * Returns whether this instance uses its own query cache instead of sharing one.
+     */
+    public boolean isDedicatedQueryCache() {
+        return dedicatedQueryCache;
     }
 
     public static Builder builder() {
@@ -136,6 +145,7 @@ public class CloudApiOptions {
         private Duration httpWriteTimeout = Duration.ofSeconds(10);
         private boolean dedicatedNatsConnection;
         private boolean dedicatedHttpClient;
+        private boolean dedicatedQueryCache;
 
         public Builder() {
             this.natsUrl = System.getenv().getOrDefault("SIMPLECLOUD_NATS_URL", "wss://nats.simplecloud.app:443");
@@ -293,17 +303,29 @@ public class CloudApiOptions {
         }
 
         /**
-         * Uses an HTTP client and query cache for this instance only, so its controller
-         * requests are never merged with requests from other instances.
+         * Opens an HTTP connection pool for this instance only.
          *
-         * <p>By default, instances share one HTTP connection pool, and instances with the same
-         * controller, network, secret, cache configuration and HTTP timeouts share one query
-         * cache.
+         * <p>By default, all instances share one HTTP connection pool. This does not stop reads
+         * from being merged through a shared query cache; see {@link #dedicatedQueryCache()}.
          *
          * @return this builder
          */
         public Builder dedicatedHttpClient() {
             this.dedicatedHttpClient = true;
+            return this;
+        }
+
+        /**
+         * Uses a query cache for this instance only, so its reads are never merged with or served
+         * from reads of other instances, and invalidating or clearing its cache affects only it.
+         *
+         * <p>By default, instances with the same controller, network, secret, cache configuration
+         * and HTTP timeouts share one query cache.
+         *
+         * @return this builder
+         */
+        public Builder dedicatedQueryCache() {
+            this.dedicatedQueryCache = true;
             return this;
         }
 

@@ -143,7 +143,7 @@ public class CloudApiImpl implements CloudApi {
         }
         Duration inFlightTimeout = ApiClients.maxRequestDuration(options);
         Supplier<QueryCacheImpl> newQueryCache = () -> new QueryCacheImpl(cacheConfig, inFlightTimeout);
-        if (options.isDedicatedHttpClient()) {
+        if (options.isDedicatedQueryCache()) {
             return Lease.unshared(newQueryCache.get(), QueryCacheImpl::shutdown);
         }
         QueryCacheKey key = new QueryCacheKey(

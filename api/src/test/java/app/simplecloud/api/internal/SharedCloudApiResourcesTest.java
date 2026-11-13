@@ -16,6 +16,7 @@ import org.junit.jupiter.api.AfterEach;
 import org.junit.jupiter.api.BeforeEach;
 import org.junit.jupiter.api.Test;
 
+import okhttp3.ConnectionPool;
 import okhttp3.OkHttpClient;
 
 import java.lang.reflect.Field;
@@ -93,9 +94,9 @@ class SharedCloudApiResourcesTest {
     }
 
     @Test
-    void dedicatedHttpClientNeverSharesRequests() {
+    void dedicatedQueryCacheNeverSharesRequests() {
         try (CloudApi first = CloudApi.create(options(UnaryOperator.identity()));
-             CloudApi second = CloudApi.create(options(CloudApiOptions.Builder::dedicatedHttpClient))) {
+             CloudApi second = CloudApi.create(options(CloudApiOptions.Builder::dedicatedQueryCache))) {
             assertNotSame(first.cache(), second.cache());
 
             CompletableFuture<List<Server>> firstRead = first.server().getServersByGroup("lobby");
@@ -104,6 +105,18 @@ class SharedCloudApiResourcesTest {
             firstRead.join();
             secondRead.join();
             assertEquals(2, serverRequests.get());
+        }
+    }
+
+    @Test
+    void dedicatedHttpClientKeepsSharingTheQueryCache() throws Exception {
+        try (CloudApi first = CloudApi.create(options(UnaryOperator.identity()));
+             CloudApi second = CloudApi.create(options(CloudApiOptions.Builder::dedicatedHttpClient))) {
+            ConnectionPool firstPool = okHttpClient(first).connectionPool();
+            ConnectionPool secondPool = okHttpClient(second).connectionPool();
+
+            assertNotSame(firstPool, secondPool);
+            assertSame(first.cache(), second.cache());
         }
     }
 
