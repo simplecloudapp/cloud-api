@@ -45,9 +45,9 @@ public final class ScopedNatsConnection {
     public synchronized void close() {
         closed = true;
         for (Dispatcher dispatcher : dispatchers) {
-            dispatchers.remove(dispatcher);
             closeSharedDispatcher(dispatcher);
         }
+        dispatchers.clear();
     }
 
     private Object handleCall(Object proxy, Method method, Object[] args) throws Throwable {
@@ -63,12 +63,6 @@ public final class ScopedNatsConnection {
                 close();
                 yield CompletableFuture.completedFuture(Boolean.TRUE);
             }
-            default -> forward(method, args);
-        };
-    }
-
-    private Object forward(Method method, Object[] args) throws Throwable {
-        return switch (method.getName()) {
             case "createDispatcher" -> createDispatcher(method, args);
             case "closeDispatcher" -> closeDispatcher(method, args);
             default -> invokeUnlessClosed(method, args);

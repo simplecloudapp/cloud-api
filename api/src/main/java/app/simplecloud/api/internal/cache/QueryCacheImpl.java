@@ -257,7 +257,7 @@ public class QueryCacheImpl implements QueryCache {
 
     /**
      * Shuts down the background revalidation executor.
-     * Call this when the CloudApi is being shut down.
+     * Call this when the last CloudApi instance using this cache closes.
      */
     public void shutdown() {
         revalidationExecutor.shutdown();

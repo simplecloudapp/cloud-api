@@ -26,6 +26,7 @@ import java.util.List;
 import java.util.concurrent.ArrayBlockingQueue;
 import java.util.concurrent.BlockingQueue;
 import java.util.concurrent.CompletableFuture;
+import java.util.concurrent.CopyOnWriteArrayList;
 import java.util.concurrent.ExecutorService;
 import java.util.concurrent.Executors;
 import java.util.concurrent.TimeUnit;
@@ -39,11 +40,13 @@ import static org.junit.jupiter.api.Assertions.assertNotSame;
 import static org.junit.jupiter.api.Assertions.assertNull;
 import static org.junit.jupiter.api.Assertions.assertSame;
 import static org.junit.jupiter.api.Assertions.assertThrows;
+import static org.junit.jupiter.api.Assertions.assertTrue;
 import static org.junit.jupiter.api.Assumptions.assumeTrue;
 
 class SharedCloudApiResourcesTest {
 
     private final AtomicInteger serverRequests = new AtomicInteger();
+    private final List<String> serverRequestComponents = new CopyOnWriteArrayList<>();
     private HttpServer controller;
 
     @BeforeEach
@@ -51,6 +54,7 @@ class SharedCloudApiResourcesTest {
         controller = HttpServer.create(new InetSocketAddress("127.0.0.1", 0), 0);
         controller.createContext("/v0/servers", exchange -> {
             serverRequests.incrementAndGet();
+            serverRequestComponents.add(exchange.getRequestHeaders().getFirst("X-SC-Component"));
             try {
                 // Keeps the request in flight while the other instance asks for the same data.
                 Thread.sleep(300);
@@ -84,7 +88,7 @@ class SharedCloudApiResourcesTest {
 
             assertEquals(List.of(), firstRead.join());
             assertEquals(List.of(), secondRead.join());
-            assertEquals(1, serverRequests.get());
+            assertEquals(List.of("first-plugin"), serverRequestComponents);
         }
     }
 
@@ -126,6 +130,19 @@ class SharedCloudApiResourcesTest {
             ExecutorService remainingDispatcher = okHttpClient(remaining).dispatcher().executorService();
             assertFalse(remainingDispatcher.isShutdown());
         }
+    }
+
+    @Test
+    void failedConstructionReturnsTheLeasesItTook() throws Exception {
+        CloudApiOptions failingOptions = options(builder -> builder.cache(null));
+        CloudApi remaining = CloudApi.create(options(UnaryOperator.identity()));
+        OkHttpClient sharedHttpClient = okHttpClient(remaining);
+
+        assertThrows(NullPointerException.class, () -> CloudApi.create(failingOptions));
+        remaining.close();
+
+        ExecutorService sharedDispatcher = sharedHttpClient.dispatcher().executorService();
+        assertTrue(sharedDispatcher.isShutdown());
     }
 
     @Test

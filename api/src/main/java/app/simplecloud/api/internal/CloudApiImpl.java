@@ -44,11 +44,9 @@ public class CloudApiImpl implements CloudApi {
     private final Lease<OkHttpClient> okHttpClientLease;
     private final ApiClient httpClient;
 
-    private final Lease<NatsFailoverConnectionManager> natsLease;
+    private final Lease<NatsFailoverConnectionManager> natsConnectionManagerLease;
     private final ScopedNatsConnection scopedNatsConnection;
-    private final Connection natsClient;
     private final Lease<? extends QueryCache> queryCacheLease;
-    private final QueryCache queryCache;
     private final CacheEventListener cacheEventListener;
     private final ServerApi serverApi;
     private final GroupApi groupApi;
@@ -65,16 +63,16 @@ public class CloudApiImpl implements CloudApi {
         List<Lease<?>> acquiredLeases = new ArrayList<>();
         ScopedNatsConnection natsView = null;
         try {
-            this.natsLease = acquireNats(options);
-            acquiredLeases.add(natsLease);
+            this.natsConnectionManagerLease = acquireNats(options);
+            acquiredLeases.add(natsConnectionManagerLease);
             this.okHttpClientLease = acquireOkHttpClient(options);
             acquiredLeases.add(okHttpClientLease);
             this.queryCacheLease = acquireQueryCache(options);
             acquiredLeases.add(queryCacheLease);
-            natsView = new ScopedNatsConnection(natsLease.get().getConnection());
+            natsView = new ScopedNatsConnection(natsConnectionManagerLease.get().getConnection());
             this.scopedNatsConnection = natsView;
-            this.natsClient = scopedNatsConnection.connection();
-            this.queryCache = queryCacheLease.get();
+            Connection natsClient = natsView.connection();
+            QueryCache queryCache = queryCacheLease.get();
             CacheConfig cacheConfig = options.getCacheConfig();
 
             // Initialize APIs with cache
@@ -207,13 +205,14 @@ public class CloudApiImpl implements CloudApi {
     }
 
     /**
-     * Returns the underlying NATS connection.
+     * Returns this instance's view of the NATS connection, which may be shared with other instances.
+     * Closing or draining the view only closes this instance's dispatchers.
      * This is for internal use by integration modules.
      *
      * @return the NATS connection
      */
     public Connection getNatsConnection() {
-        return natsClient;
+        return scopedNatsConnection.connection();
     }
 
     public Executor getExecutor() {
@@ -227,7 +226,7 @@ public class CloudApiImpl implements CloudApi {
 
     @Override
     public QueryCache cache() {
-        return queryCache;
+        return queryCacheLease.get();
     }
 
     @Override
@@ -245,7 +244,7 @@ public class CloudApiImpl implements CloudApi {
         }
         closeQuietly("query cache", queryCacheLease);
         scopedNatsConnection.close();
-        closeQuietly("NATS connection", natsLease);
+        closeQuietly("NATS connection", natsConnectionManagerLease);
         closeQuietly("HTTP client", okHttpClientLease);
         executor.shutdown();
     }
