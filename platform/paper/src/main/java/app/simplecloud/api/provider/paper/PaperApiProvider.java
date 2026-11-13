@@ -12,14 +12,14 @@ import org.bukkit.plugin.java.JavaPlugin;
 
 public class PaperApiProvider extends JavaPlugin {
 
-    private CloudApiImpl cloudApi;
+    // Created with the plugin, not in onEnable: Paper constructs every plugin before it enables any,
+    // so plugins that create their CloudApi when constructed find this connection.
+    private final CloudApiImpl cloudApi = CloudApiImpl.createNatsConnectionOwner(CloudApiOptions.DEFAULT);
     private AdventureIntegration adventureIntegration;
     private PlayerSynchronizer playerSynchronizer;
 
     @Override
     public void onEnable() {
-        this.cloudApi = CloudApiImpl.createNatsConnectionOwner(CloudApiOptions.DEFAULT);
-
         String serverId = SimpleCloudRuntime.serverId();
         String groupName = SimpleCloudRuntime.groupName();
 
@@ -44,9 +44,7 @@ public class PaperApiProvider extends JavaPlugin {
         if (adventureIntegration != null) {
             adventureIntegration.stop();
         }
-        if (cloudApi != null) {
-            cloudApi.close();
-        }
+        cloudApi.close();
         getLogger().info("SimpleCloud v3 API provider uninitialized!");
     }
 

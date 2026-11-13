@@ -10,13 +10,14 @@ import org.bukkit.plugin.java.JavaPlugin;
 
 public class FoliaApiProvider extends JavaPlugin {
 
-    private CloudApiImpl cloudApi;
+    // Created with the plugin, not in onEnable: Folia constructs every plugin before it enables any,
+    // so plugins that create their CloudApi when constructed find this connection.
+    private final CloudApiImpl cloudApi = CloudApiImpl.createNatsConnectionOwner(CloudApiOptions.DEFAULT);
     private FoliaAdventureIntegration foliaAdventureIntegration;
     private PlayerSynchronizer playerSynchronizer;
 
     @Override
     public void onEnable() {
-        this.cloudApi = CloudApiImpl.createNatsConnectionOwner(CloudApiOptions.DEFAULT);
         this.foliaAdventureIntegration = new FoliaAdventureIntegration(this, cloudApi);
         this.foliaAdventureIntegration.start();
 
@@ -33,9 +34,7 @@ public class FoliaApiProvider extends JavaPlugin {
         if (foliaAdventureIntegration != null) {
             foliaAdventureIntegration.stop();
         }
-        if (cloudApi != null) {
-            cloudApi.close();
-        }
+        cloudApi.close();
 
         getLogger().info("SimpleCloud v3 API provider uninitialized!");
     }
