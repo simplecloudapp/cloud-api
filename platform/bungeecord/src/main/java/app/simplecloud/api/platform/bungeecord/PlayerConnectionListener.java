@@ -5,7 +5,6 @@ import app.simplecloud.api.internal.integration.player.PlayerLogin;
 import app.simplecloud.api.internal.integration.player.PlayerSessionReporter;
 import app.simplecloud.api.internal.integration.presence.ProxyPresenceTracker;
 import app.simplecloud.api.platform.shared.LuckPermsSynchronizer;
-import app.simplecloud.api.platform.shared.PlayerSynchronizer;
 import app.simplecloud.api.player.PlayerClientSettings;
 import net.md_5.bungee.api.SkinConfiguration;
 import net.md_5.bungee.api.connection.PendingConnection;
@@ -33,7 +32,6 @@ public class PlayerConnectionListener implements Listener {
     private static final long LOGIN_WAIT_SECONDS = 5;
 
     private final Plugin plugin;
-    private final PlayerSynchronizer playerSynchronizer;
     private final PlayerSessionReporter playerSessionReporter;
     private final ProxyPresenceTracker proxyPresenceTracker;
     private final String proxyName;
@@ -41,14 +39,12 @@ public class PlayerConnectionListener implements Listener {
 
     public PlayerConnectionListener(
             Plugin plugin,
-            PlayerSynchronizer playerSynchronizer,
             PlayerSessionReporter playerSessionReporter,
             ProxyPresenceTracker proxyPresenceTracker,
             String proxyName,
             LuckPermsSynchronizer luckPermsSynchronizer
     ) {
         this.plugin = plugin;
-        this.playerSynchronizer = playerSynchronizer;
         this.playerSessionReporter = playerSessionReporter;
         this.proxyPresenceTracker = proxyPresenceTracker;
         this.proxyName = proxyName;
@@ -88,8 +84,6 @@ public class PlayerConnectionListener implements Listener {
         CompletableFuture<Void> registrationOrTimeout =
                 registration.copy().completeOnTimeout(null, LOGIN_WAIT_SECONDS, TimeUnit.SECONDS);
         registrationOrTimeout.whenComplete((ignored, failure) -> event.completeIntent(plugin));
-
-        CompletableFuture.runAsync(() -> playerSynchronizer.updatePlayerCount());
     }
 
     private void applyLoginResult(ProxiedPlayer player, LoginResult result) {
@@ -118,8 +112,6 @@ public class PlayerConnectionListener implements Listener {
                 });
         proxyPresenceTracker.remove(playerId.toString());
         luckPermsSynchronizer.forget(playerId);
-
-        CompletableFuture.runAsync(() -> playerSynchronizer.updatePlayerCount());
     }
 
     @EventHandler
