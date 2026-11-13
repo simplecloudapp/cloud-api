@@ -21,33 +21,33 @@ import java.util.logging.Logger;
  * and {@code drain} on the view close only the view, never the connection, and a closed view
  * rejects every further call.
  */
-public final class ScopedNatsConnection {
+public final class InstanceNatsView {
 
-    private static final Logger LOGGER = Logger.getLogger(ScopedNatsConnection.class.getName());
+    private static final Logger LOGGER = Logger.getLogger(InstanceNatsView.class.getName());
 
-    private final Connection delegate;
+    private final Connection sharedConnection;
     private final List<Dispatcher> dispatchers = new CopyOnWriteArrayList<>();
-    private final Connection connection;
+    private final Connection view;
     private boolean closed;
 
-    public ScopedNatsConnection(Connection delegate) {
-        this.delegate = delegate;
-        this.connection = (Connection) Proxy.newProxyInstance(
+    public InstanceNatsView(Connection sharedConnection) {
+        this.sharedConnection = sharedConnection;
+        this.view = (Connection) Proxy.newProxyInstance(
                 Connection.class.getClassLoader(),
                 new Class<?>[]{Connection.class},
                 this::handleCall
         );
     }
 
-    public Connection connection() {
-        return connection;
+    public Connection view() {
+        return view;
     }
 
     // Synchronized with createDispatcher, so no dispatcher is created after close went through the list.
     public synchronized void close() {
         closed = true;
         for (Dispatcher dispatcher : dispatchers) {
-            closeDelegateDispatcher(dispatcher);
+            closeDispatcherOnSharedConnection(dispatcher);
         }
         dispatchers.clear();
     }
@@ -56,7 +56,7 @@ public final class ScopedNatsConnection {
         return switch (method.getName()) {
             case "hashCode" -> System.identityHashCode(proxy);
             case "equals" -> proxy == args[0];
-            case "toString" -> "Scoped " + delegate;
+            case "toString" -> "Instance view of " + sharedConnection;
             case "close" -> {
                 close();
                 yield null;
@@ -89,9 +89,9 @@ public final class ScopedNatsConnection {
         return closed;
     }
 
-    private void closeDelegateDispatcher(Dispatcher dispatcher) {
+    private void closeDispatcherOnSharedConnection(Dispatcher dispatcher) {
         try {
-            delegate.closeDispatcher(dispatcher);
+            sharedConnection.closeDispatcher(dispatcher);
         } catch (RuntimeException e) {
             // Thrown for a dispatcher that was drained already, and once the connection is closed,
             // which the platform plugin's instance may do before this instance closes.
@@ -104,7 +104,7 @@ public final class ScopedNatsConnection {
             throw new IllegalStateException("NATS connection of a closed CloudApi instance");
         }
         try {
-            return method.invoke(delegate, args);
+            return method.invoke(sharedConnection, args);
         } catch (InvocationTargetException e) {
             throw e.getTargetException();
         }

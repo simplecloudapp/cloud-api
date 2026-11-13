@@ -214,15 +214,32 @@ class SharedCloudApiResourcesTest {
     }
 
     @Test
+    void closingAViewLeavesTheSharedConnectionOpen() throws Exception {
+        CloudApiOptions brokerOptions = options(builder -> builder.natsUrl(natsTestUrl()));
+
+        try (CloudApiImpl owner = CloudApiImpl.createNatsConnectionOwner(brokerOptions);
+             CloudApiImpl closing = (CloudApiImpl) CloudApi.create(brokerOptions)) {
+            awaitClientId(owner);
+            Connection closingView = closing.getNatsConnection();
+
+            closingView.close();
+
+            byte[] payload = new byte[0];
+            assertThrows(IllegalStateException.class, () -> closingView.publish(SUBJECT, payload));
+            assertEquals(Connection.Status.CONNECTED, owner.getNatsConnection().getStatus());
+        }
+    }
+
+    @Test
     void closingTheOwnerFirstLeavesLaterClosesQuiet() throws Exception {
         CloudApiOptions brokerOptions = options(builder -> builder.natsUrl(natsTestUrl()));
         PlatformNatsConnection.Settings settings = PlatformNatsConnection.Settings.of(brokerOptions);
-        List<String> warnings = new CopyOnWriteArrayList<>();
-        Handler warningCollector = new Handler() {
+        List<String> logsAboveFine = new CopyOnWriteArrayList<>();
+        Handler logCollector = new Handler() {
             @Override
             public void publish(LogRecord record) {
                 if (record.getLevel().intValue() > Level.FINE.intValue()) {
-                    warnings.add(record.getLevel() + " " + record.getMessage());
+                    logsAboveFine.add(record.getLevel() + " " + record.getMessage());
                 }
             }
 
@@ -246,14 +263,14 @@ class SharedCloudApiResourcesTest {
 
             assertEquals(Connection.Status.CLOSED, sharedConnection.getStatus());
             assertTrue(PlatformNatsConnection.find(settings).isEmpty());
-            apiLogger.addHandler(warningCollector);
+            apiLogger.addHandler(logCollector);
             try {
                 assertDoesNotThrow(closedLast::close);
             } finally {
-                apiLogger.removeHandler(warningCollector);
+                apiLogger.removeHandler(logCollector);
             }
         }
-        assertEquals(List.of(), warnings);
+        assertEquals(List.of(), logsAboveFine);
     }
 
     private static void subscribe(Connection connection, BlockingQueue<String> received) {

@@ -11,9 +11,9 @@ import app.simplecloud.api.internal.cache.NoOpQueryCache;
 import app.simplecloud.api.internal.cache.QueryCacheImpl;
 import app.simplecloud.api.internal.event.EventApiImpl;
 import app.simplecloud.api.internal.group.GroupApiImpl;
+import app.simplecloud.api.internal.nats.InstanceNatsView;
 import app.simplecloud.api.internal.nats.NatsFailoverConnectionManager;
 import app.simplecloud.api.internal.nats.PlatformNatsConnection;
-import app.simplecloud.api.internal.nats.ScopedNatsConnection;
 import app.simplecloud.api.internal.persistentserver.PersistentServerApiImpl;
 import app.simplecloud.api.internal.server.ServerApiImpl;
 import app.simplecloud.api.internal.player.PlayerApiImpl;
@@ -40,7 +40,7 @@ public class CloudApiImpl implements CloudApi {
     private final ApiClient apiClient;
 
     private final NatsFailoverConnectionManager ownNatsConnectionManager;
-    private final ScopedNatsConnection scopedNatsConnection;
+    private final InstanceNatsView instanceNatsView;
     private final QueryCache queryCache;
     private final CacheEventListener cacheEventListener;
     private final ServerApi serverApi;
@@ -55,7 +55,7 @@ public class CloudApiImpl implements CloudApi {
         this.options = options;
 
         NatsFailoverConnectionManager ownNatsConnectionManager = null;
-        ScopedNatsConnection scopedNatsConnection = null;
+        InstanceNatsView instanceNatsView = null;
         QueryCache queryCache = null;
         try {
             PlatformNatsConnection.Settings natsSettings = PlatformNatsConnection.Settings.of(options);
@@ -64,10 +64,10 @@ public class CloudApiImpl implements CloudApi {
                 ownNatsConnectionManager = natsSettings.openConnectionManager();
             }
             NatsFailoverConnectionManager natsConnectionManager = platformNatsConnectionManager.orElse(ownNatsConnectionManager);
-            scopedNatsConnection = new ScopedNatsConnection(natsConnectionManager.getConnection());
+            instanceNatsView = new InstanceNatsView(natsConnectionManager.getConnection());
             this.ownNatsConnectionManager = ownNatsConnectionManager;
-            this.scopedNatsConnection = scopedNatsConnection;
-            Connection natsClient = scopedNatsConnection.connection();
+            this.instanceNatsView = instanceNatsView;
+            Connection natsClient = instanceNatsView.view();
 
             // Initialize cache
             CacheConfig cacheConfig = options.getCacheConfig();
@@ -94,8 +94,8 @@ public class CloudApiImpl implements CloudApi {
                 this.cacheEventListener = null;
             }
         } catch (RuntimeException | Error e) {
-            if (scopedNatsConnection != null) {
-                scopedNatsConnection.close();
+            if (instanceNatsView != null) {
+                instanceNatsView.close();
             }
             if (ownNatsConnectionManager != null) {
                 ownNatsConnectionManager.shutdown();
@@ -150,13 +150,15 @@ public class CloudApiImpl implements CloudApi {
 
     /**
      * Returns this instance's view of the NATS connection, which may be shared with other instances.
-     * Closing or draining the view only closes this instance's dispatchers.
+     * Callers subscribe through a dispatcher from {@code createDispatcher}; {@code subscribe} on the
+     * view throws. Closing or draining the view only closes this instance's dispatchers, and a closed
+     * view rejects all calls.
      * This is for internal use by integration modules.
      *
-     * @return the NATS connection
+     * @return this instance's view of the NATS connection
      */
     public Connection getNatsConnection() {
-        return scopedNatsConnection.connection();
+        return instanceNatsView.view();
     }
 
     public Executor getExecutor() {
@@ -193,7 +195,7 @@ public class CloudApiImpl implements CloudApi {
                 LOGGER.log(Level.WARNING, "Failed to shutdown query cache", e);
             }
         }
-        scopedNatsConnection.close();
+        instanceNatsView.close();
         if (ownNatsConnectionManager != null) {
             // Unregistered first, so instances created from now on open their own connection instead of this closing one.
             PlatformNatsConnection.unregister(ownNatsConnectionManager);
