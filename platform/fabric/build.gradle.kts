@@ -12,7 +12,6 @@ dependencies {
     minecraft("com.mojang:minecraft:${libs.versions.fabric.minecraft.get()}")
 
     implementation(libs.fabric.loader)
-    implementation(libs.fabric.api)
 
     implementation(project(":api"))
 
