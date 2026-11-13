@@ -35,6 +35,7 @@ class QueryCacheImplBehaviorTest {
     private static final Duration IN_FLIGHT_TIMEOUT = Duration.ofSeconds(2);
     private static final QueryKey SERVER_KEY = QueryKey.of("server", "server-1");
     private static final QueryKey GROUP_KEY = QueryKey.of("group", "group-1");
+    private static final String COMPLETER_THREAD = "fetch-completer";
 
     private QueryCacheImpl cache;
 
@@ -269,8 +270,9 @@ class QueryCacheImplBehaviorTest {
 
     /**
      * Regression test: a finished fetch used to unregister itself and then cache its result in two
-     * steps, so an invalidate() between them was overwritten. Building the entry reads the key's
-     * entity type, so a key part whose toString() blocks pauses the fetch exactly between the two.
+     * separate steps, so an invalidate() between them was overwritten. Building the entry reads the
+     * key's entity type, so a key part whose toString() blocks pauses the fetch after its ownership
+     * check and before its cache write.
      */
     @Test
     void invalidateWhileFetchIsCachingItsResult_removesTheResult() throws Exception {
@@ -283,17 +285,31 @@ class QueryCacheImplBehaviorTest {
         CompletableFuture<String> result = cache.fetch(key, () -> source);
 
         Thread completer = new Thread(() -> source.complete("before-invalidation"), COMPLETER_THREAD);
-        completer.start();
-        assertTrue(cachingPaused.await(1, TimeUnit.SECONDS), "fetch never started caching");
-        CompletableFuture<Void> invalidation = CompletableFuture.runAsync(() -> cache.invalidate(key));
-        // Without the per-key lock the invalidation finishes inside this pause.
-        Thread.sleep(50);
-        resumeCaching.countDown();
-        invalidation.get(1, TimeUnit.SECONDS);
+        Thread invalidator = new Thread(() -> cache.invalidate(key), "invalidator");
+        try {
+            completer.start();
+            assertTrue(cachingPaused.await(1, TimeUnit.SECONDS), "fetch never started caching");
+            invalidator.start();
+            awaitBlockedOrDone(invalidator);
+        } finally {
+            resumeCaching.countDown();
+        }
+        invalidator.join(1_000);
         completer.join(1_000);
 
         assertEquals("before-invalidation", await(result));
         assertNull(cache.get(key), "an invalidation during caching must win");
+    }
+
+    /**
+     * Waits until the thread has finished or is blocked on a lock. The cache makes invalidate() wait
+     * for the key's lock while a result is being cached; without that lock it finishes at once.
+     */
+    private static void awaitBlockedOrDone(Thread thread) throws InterruptedException {
+        awaitTrue(
+                () -> thread.getState() == Thread.State.BLOCKED || thread.getState() == Thread.State.TERMINATED,
+                "invalidation neither finished nor waited for the key's lock"
+        );
     }
 
     @Test
@@ -448,11 +464,9 @@ class QueryCacheImplBehaviorTest {
         assertEquals("old", result);
     }
 
-    private static final String COMPLETER_THREAD = "fetch-completer";
-
     /**
      * A key part that reads as {@code name}. Read on the thread named {@code pausedThread}, it
-     * signals {@code paused} and blocks until {@code resume} opens.
+     * signals {@code paused} and blocks until {@code resume} opens, failing if that takes over 2 s.
      */
     private record PausingKeyPart(String name, String pausedThread, CountDownLatch paused, CountDownLatch resume) {
 
@@ -460,16 +474,21 @@ class QueryCacheImplBehaviorTest {
         public String toString() {
             if (Thread.currentThread().getName().equals(pausedThread)) {
                 paused.countDown();
-                awaitQuietly(resume);
+                awaitResume(resume);
             }
             return name;
         }
 
-        private static void awaitQuietly(CountDownLatch latch) {
+        private static void awaitResume(CountDownLatch resume) {
+            boolean resumed;
             try {
-                latch.await(2, TimeUnit.SECONDS);
+                resumed = resume.await(2, TimeUnit.SECONDS);
             } catch (InterruptedException e) {
                 Thread.currentThread().interrupt();
+                throw new IllegalStateException("interrupted while paused", e);
+            }
+            if (!resumed) {
+                throw new IllegalStateException("test never resumed the paused thread");
             }
         }
     }

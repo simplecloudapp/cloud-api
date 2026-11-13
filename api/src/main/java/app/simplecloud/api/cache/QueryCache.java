@@ -16,7 +16,7 @@ import java.util.function.Supplier;
  * <ul>
  *   <li><b>Stale-while-revalidate</b>: Returns cached data immediately, refetches in background if stale</li>
  *   <li><b>Query deduplication</b>: Multiple simultaneous identical requests share one network call</li>
- *   <li><b>Automatic garbage collection</b>: Unused cache entries are evicted after cache time</li>
+ *   <li><b>Automatic garbage collection</b>: Entries are evicted once cache time has passed since they were last fetched or set</li>
  * </ul>
  *
  * <p>Example usage:
