@@ -8,6 +8,7 @@ import com.github.benmanes.caffeine.cache.Expiry;
 
 import java.time.Duration;
 import java.time.Instant;
+import java.util.Objects;
 import java.util.Set;
 import java.util.concurrent.*;
 import java.util.concurrent.atomic.AtomicLong;
@@ -26,14 +27,18 @@ public class QueryCacheImpl implements QueryCache {
     private final CacheConfig config;
     private final Duration inFlightTimeout;
     private final Cache<QueryKey, CacheEntry<?>> cache;
-    private final ConcurrentMap<QueryKey, CompletableFuture<?>> inFlightRequests;
+    private final ConcurrentMap<QueryKey, CompletableFuture<?>> inFlightRequests = new ConcurrentHashMap<>();
 
     private final AtomicLong hitCount = new AtomicLong();
     private final AtomicLong missCount = new AtomicLong();
     private final AtomicLong staleHitCount = new AtomicLong();
     private final AtomicLong evictionCount = new AtomicLong();
 
-    private final ExecutorService revalidationExecutor;
+    private final ExecutorService revalidationExecutor = Executors.newCachedThreadPool(runnable -> {
+        Thread thread = new Thread(runnable, "QueryCache-Revalidation");
+        thread.setDaemon(true);
+        return thread;
+    });
 
     public QueryCacheImpl(CacheConfig config) {
         this(config, DEFAULT_IN_FLIGHT_TIMEOUT);
@@ -42,156 +47,153 @@ public class QueryCacheImpl implements QueryCache {
     public QueryCacheImpl(CacheConfig config, Duration inFlightTimeout) {
         this.config = config;
         this.inFlightTimeout = inFlightTimeout;
-        this.inFlightRequests = new ConcurrentHashMap<>();
-        this.revalidationExecutor = Executors.newCachedThreadPool(r -> {
-            Thread t = new Thread(r, "QueryCache-Revalidation");
-            t.setDaemon(true);
-            return t;
-        });
-
         this.cache = Caffeine.newBuilder()
                 .maximumSize(config.getMaxEntries())
-                .expireAfter(new Expiry<QueryKey, CacheEntry<?>>() {
-                    @Override
-                    public long expireAfterCreate(QueryKey key, CacheEntry<?> value, long currentTime) {
-                        return remainingNanos(value);
-                    }
-
-                    @Override
-                    public long expireAfterUpdate(QueryKey key, CacheEntry<?> value, long currentTime, long currentDuration) {
-                        return remainingNanos(value);
-                    }
-
-                    @Override
-                    public long expireAfterRead(QueryKey key, CacheEntry<?> value, long currentTime, long currentDuration) {
-                        return currentDuration;
-                    }
-                })
+                .expireAfter(new ExpireAtEntryExpiresAt())
                 .evictionListener((key, value, cause) -> evictionCount.incrementAndGet())
                 .build();
     }
 
-    private static long remainingNanos(CacheEntry<?> entry) {
-        return Math.max(0, Duration.between(Instant.now(), entry.getExpiresAt()).toNanos());
-    }
-
     @Override
-    @SuppressWarnings("unchecked")
     public <T> CompletableFuture<T> fetch(QueryKey key, Supplier<CompletableFuture<T>> fetcher) {
-        if (!config.isEnabled()) {
+        if (!isCachingEnabledFor(key)) {
             return fetcher.get();
         }
 
-        // Check if caching is disabled for this entity type
-        EntityType entityType = key.getEntityType();
-        if (entityType != null && config.getEntityConfigs().containsKey(entityType)) {
-            EntityCacheConfig entityConfig = config.getEntityConfigs().get(entityType);
-            if (!entityConfig.isEnabled()) {
-                return fetcher.get();
-            }
+        CacheEntry<T> entry = get(key);
+        if (entry == null) {
+            missCount.incrementAndGet();
+            return fetchWithDeduplication(key, fetcher);
         }
 
-        CacheEntry<T> entry = (CacheEntry<T>) cache.getIfPresent(key);
-        Duration staleTime = getStaleTime(key);
-
-        if (entry != null) {
-            if (entry.isExpired()) {
-                cache.invalidate(key);
-            } else {
-                Instant staleThreshold = Instant.now().minus(staleTime);
-
-                if (!entry.isStale(staleThreshold)) {
-                    // Fresh data - return immediately
-                    hitCount.incrementAndGet();
-                    return CompletableFuture.completedFuture(entry.getData());
-                } else {
-                    // Stale data - return cached, revalidate in background
-                    staleHitCount.incrementAndGet();
-                    triggerBackgroundRevalidation(key, fetcher);
-                    return CompletableFuture.completedFuture(entry.getData());
-                }
-            }
+        if (isStale(key, entry)) {
+            staleHitCount.incrementAndGet();
+            triggerBackgroundRevalidation(key, fetcher);
+        } else {
+            hitCount.incrementAndGet();
         }
-
-        // No cached data - fetch with deduplication
-        missCount.incrementAndGet();
-        return fetchWithDeduplication(key, fetcher);
+        return CompletableFuture.completedFuture(entry.getData());
     }
 
+    /**
+     * Fetches from the source, sharing one source request among all callers for the same key.
+     *
+     * <p>The shared future fails after {@code inFlightTimeout} even if the source never answers,
+     * so a hanging request cannot block the key forever. A result that arrives after the key was
+     * invalidated or timed out is returned to its callers but not cached.
+     */
     @SuppressWarnings("unchecked")
     <T> CompletableFuture<T> fetchWithDeduplication(QueryKey key, Supplier<CompletableFuture<T>> fetcher) {
-        CompletableFuture<T> result = new CompletableFuture<>();
-        CompletableFuture<?> existing = inFlightRequests.putIfAbsent(key, result);
-        if (existing != null) {
-            return (CompletableFuture<T>) existing;
+        CompletableFuture<T> request = new CompletableFuture<>();
+        CompletableFuture<?> existingRequest = inFlightRequests.putIfAbsent(key, request);
+        if (existingRequest != null) {
+            return (CompletableFuture<T>) existingRequest;
         }
 
-        result.whenComplete((data, error) -> inFlightRequests.remove(key, result));
-        CompletableFuture.delayedExecutor(inFlightTimeout.toMillis(), TimeUnit.MILLISECONDS)
-                .execute(() -> result.completeExceptionally(new CloudApiException(
-                        CloudApiException.Reason.UNAVAILABLE,
-                        "Controller did not respond within " + inFlightTimeout.toMillis() + " ms"
-                )));
+        request.whenComplete((data, error) -> inFlightRequests.remove(key, request));
+        failAfterInFlightTimeout(request);
 
-        CompletableFuture<T> source;
+        // A fetcher that throws or returns null fails the shared request instead of leaving it to the timeout.
         try {
-            source = fetcher.get();
-        } catch (Throwable t) {
-            result.completeExceptionally(t);
-            return result;
+            CompletableFuture<T> sourceResponse = Objects.requireNonNull(fetcher.get(), "fetcher returned null");
+            sourceResponse.whenComplete((data, error) -> completeRequest(key, request, data, error));
+        } catch (Throwable error) {
+            request.completeExceptionally(error);
+        }
+        return request;
+    }
+
+    private void failAfterInFlightTimeout(CompletableFuture<?> request) {
+        Executor afterTimeout = CompletableFuture.delayedExecutor(inFlightTimeout.toMillis(), TimeUnit.MILLISECONDS);
+        afterTimeout.execute(() -> request.completeExceptionally(newTimeoutException()));
+    }
+
+    private CloudApiException newTimeoutException() {
+        return new CloudApiException(
+                CloudApiException.Reason.UNAVAILABLE,
+                "Controller did not respond within " + inFlightTimeout.toMillis() + " ms"
+        );
+    }
+
+    private <T> void completeRequest(QueryKey key, CompletableFuture<T> request, T data, Throwable error) {
+        if (error != null) {
+            request.completeExceptionally(error);
+            return;
         }
 
-        source.whenComplete((data, error) -> {
-            if (error != null) {
-                result.completeExceptionally(error);
-                return;
-            }
-            if (inFlightRequests.remove(key, result)) {
-                Instant now = Instant.now();
-                cache.put(key, new CacheEntry<>(data, now, now.plus(getCacheTime(key))));
-            }
-            result.complete(data);
-        });
-
-        return result;
+        // Only the request still registered for the key may cache; invalidate() or the timeout may have dropped it.
+        boolean stillCurrent = inFlightRequests.remove(key, request);
+        if (stillCurrent) {
+            cache.put(key, newEntry(key, data));
+        }
+        request.complete(data);
     }
 
     private <T> void triggerBackgroundRevalidation(QueryKey key, Supplier<CompletableFuture<T>> fetcher) {
-        // Only revalidate if not already revalidating
         if (inFlightRequests.containsKey(key)) {
             return;
         }
 
         try {
-            revalidationExecutor.execute(() -> fetchWithDeduplication(key, fetcher).exceptionally(e -> {
-                LOGGER.log(Level.WARNING, "Background revalidation failed for " + key, e);
-                return null;
-            }));
+            revalidationExecutor.execute(() -> revalidate(key, fetcher));
         } catch (RejectedExecutionException e) {
             LOGGER.log(Level.FINE, "Skipping background revalidation for " + key + " after shutdown", e);
         }
     }
 
-    private Duration getStaleTime(QueryKey key) {
-        EntityType type = key.getEntityType();
-        if (type != null && config.getEntityConfigs().containsKey(type)) {
-            EntityCacheConfig entityConfig = config.getEntityConfigs().get(type);
-            if (entityConfig.getStaleTime() != null) {
-                return entityConfig.getStaleTime();
-            }
-        }
-        return config.getDefaultStaleTime();
+    private <T> void revalidate(QueryKey key, Supplier<CompletableFuture<T>> fetcher) {
+        CompletableFuture<T> request = fetchWithDeduplication(key, fetcher);
+        request.exceptionally(error -> {
+            LOGGER.log(Level.WARNING, "Background revalidation failed for " + key, error);
+            return null;
+        });
     }
 
-    private Duration getCacheTime(QueryKey key) {
-        EntityType type = key.getEntityType();
-        if (type != null && config.getEntityConfigs().containsKey(type)) {
-            EntityCacheConfig entityConfig = config.getEntityConfigs().get(type);
-            if (entityConfig.getCacheTime() != null) {
-                return entityConfig.getCacheTime();
-            }
+    private boolean isCachingEnabledFor(QueryKey key) {
+        if (!config.isEnabled()) {
+            return false;
         }
-        return config.getDefaultCacheTime();
+        EntityCacheConfig entityConfig = entityConfigFor(key);
+        return entityConfig == null || entityConfig.isEnabled();
+    }
+
+    private boolean isStale(QueryKey key, CacheEntry<?> entry) {
+        Instant staleThreshold = Instant.now().minus(staleTimeFor(key));
+        return entry.isStale(staleThreshold);
+    }
+
+    private <T> CacheEntry<T> newEntry(QueryKey key, T data) {
+        Instant now = Instant.now();
+        Instant expiresAt = now.plus(cacheTimeFor(key));
+        return new CacheEntry<>(data, now, expiresAt);
+    }
+
+    private Duration staleTimeFor(QueryKey key) {
+        EntityCacheConfig entityConfig = entityConfigFor(key);
+        if (entityConfig == null || entityConfig.getStaleTime() == null) {
+            return config.getDefaultStaleTime();
+        }
+        return entityConfig.getStaleTime();
+    }
+
+    private Duration cacheTimeFor(QueryKey key) {
+        EntityCacheConfig entityConfig = entityConfigFor(key);
+        if (entityConfig == null || entityConfig.getCacheTime() == null) {
+            return config.getDefaultCacheTime();
+        }
+        return entityConfig.getCacheTime();
+    }
+
+    /**
+     * Returns the overrides for the key's entity type, or null when the key has no known type
+     * or its type has no overrides.
+     */
+    private EntityCacheConfig entityConfigFor(QueryKey key) {
+        EntityType type = key.getEntityType();
+        if (type == null) {
+            return null;
+        }
+        return config.getEntityConfigs().get(type);
     }
 
     @Override
@@ -226,10 +228,8 @@ public class QueryCacheImpl implements QueryCache {
 
     @Override
     public <T> void set(QueryKey key, T data) {
-        Duration cacheTime = getCacheTime(key);
-        Instant now = Instant.now();
         inFlightRequests.remove(key);
-        cache.put(key, new CacheEntry<>(data, now, now.plus(cacheTime)));
+        cache.put(key, newEntry(key, data));
     }
 
     @Override
@@ -237,8 +237,8 @@ public class QueryCacheImpl implements QueryCache {
         long hits = hitCount.get();
         long staleHits = staleHitCount.get();
         long misses = missCount.get();
-        long total = hits + staleHits + misses;
-        double hitRate = total > 0 ? (double) (hits + staleHits) / total : 0.0;
+        long lookups = hits + staleHits + misses;
+        double hitRate = lookups > 0 ? (double) (hits + staleHits) / lookups : 0.0;
 
         return new CacheStats(
                 hits,
@@ -252,7 +252,7 @@ public class QueryCacheImpl implements QueryCache {
 
     @Override
     public Set<QueryKey> getKeys() {
-        return cache.asMap().keySet();
+        return Set.copyOf(cache.asMap().keySet());
     }
 
     /**
@@ -268,6 +268,33 @@ public class QueryCacheImpl implements QueryCache {
         } catch (InterruptedException e) {
             revalidationExecutor.shutdownNow();
             Thread.currentThread().interrupt();
+        }
+    }
+
+    /**
+     * Makes Caffeine drop an entry at its {@link CacheEntry#getExpiresAt()}, which {@link #set}
+     * and a finished fetch reset on every write. Reads do not extend it.
+     */
+    private static final class ExpireAtEntryExpiresAt implements Expiry<QueryKey, CacheEntry<?>> {
+
+        @Override
+        public long expireAfterCreate(QueryKey key, CacheEntry<?> entry, long currentTime) {
+            return nanosUntilExpiry(entry);
+        }
+
+        @Override
+        public long expireAfterUpdate(QueryKey key, CacheEntry<?> entry, long currentTime, long currentDuration) {
+            return nanosUntilExpiry(entry);
+        }
+
+        @Override
+        public long expireAfterRead(QueryKey key, CacheEntry<?> entry, long currentTime, long currentDuration) {
+            return currentDuration;
+        }
+
+        private static long nanosUntilExpiry(CacheEntry<?> entry) {
+            Duration remaining = Duration.between(Instant.now(), entry.getExpiresAt());
+            return Math.max(0, remaining.toNanos());
         }
     }
 }

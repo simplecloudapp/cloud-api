@@ -43,15 +43,17 @@ public final class QueryKey {
      * @return a new QueryKey
      */
     public static QueryKey of(Object... parts) {
-        return new QueryKey(parts);
+        // Copy so a caller reusing its array cannot change this key's identity after the hash is computed.
+        return new QueryKey(parts.clone());
     }
 
     /**
      * Returns the entity type inferred from this key, or null if unknown.
      */
     public EntityType getEntityType() {
-        if (parts.length == 0) return null;
-        String first = parts[0].toString();
+        if (parts.length == 0 || !(parts[0] instanceof String first)) {
+            return null;
+        }
         return switch (first) {
             case "server", "servers" -> EntityType.SERVER;
             case "group", "groups" -> EntityType.GROUP;

@@ -1,0 +1,172 @@
+package app.simplecloud.api.cache;
+
+import app.simplecloud.api.internal.cache.QueryCacheImpl;
+import org.junit.jupiter.api.AfterEach;
+import org.junit.jupiter.api.Test;
+
+import java.time.Duration;
+import java.util.ArrayDeque;
+import java.util.Arrays;
+import java.util.List;
+import java.util.Objects;
+import java.util.Queue;
+import java.util.concurrent.CompletableFuture;
+import java.util.concurrent.ExecutionException;
+import java.util.concurrent.TimeUnit;
+import java.util.concurrent.atomic.AtomicInteger;
+import java.util.function.Supplier;
+
+import static org.junit.jupiter.api.Assertions.assertEquals;
+import static org.junit.jupiter.api.Assertions.assertNull;
+import static org.junit.jupiter.api.Assertions.assertSame;
+import static org.junit.jupiter.api.Assertions.assertThrows;
+
+/**
+ * Covers {@link QueryCache#fetchWithTransientMissRecovery}, which retries the source directly
+ * when a lookup briefly reports "not found".
+ */
+class TransientMissRecoveryTest {
+
+    private static final QueryKey KEY = QueryKey.of("server", "server-1");
+    private static final Duration RETRY_DELAY = Duration.ofMillis(10);
+    private static final int MAX_RETRIES = 2;
+
+    private final QueryCacheImpl cache = new QueryCacheImpl(CacheConfig.DEFAULT, Duration.ofSeconds(2));
+
+    @AfterEach
+    void shutdownCache() {
+        cache.shutdown();
+    }
+
+    /**
+     * Returns the given results in order, one per call; null stands for "not found".
+     */
+    private static final class ScriptedSource implements Supplier<CompletableFuture<String>> {
+        private final List<String> results;
+        private final AtomicInteger calls = new AtomicInteger();
+
+        ScriptedSource(String... results) {
+            this.results = Arrays.asList(results);
+        }
+
+        @Override
+        public CompletableFuture<String> get() {
+            int call = calls.getAndIncrement();
+            return CompletableFuture.completedFuture(results.get(call));
+        }
+    }
+
+    private String recover(Supplier<CompletableFuture<String>> source) throws Exception {
+        CompletableFuture<String> result = cache.fetchWithTransientMissRecovery(
+                KEY,
+                source,
+                Objects::isNull,
+                RETRY_DELAY,
+                MAX_RETRIES
+        );
+        return result.get(1, TimeUnit.SECONDS);
+    }
+
+    private String cachedData() {
+        CacheEntry<String> entry = cache.get(KEY);
+        if (entry == null) {
+            return null;
+        }
+        return entry.getData();
+    }
+
+    @Test
+    void foundOnFirstFetch_doesNotRetry() throws Exception {
+        ScriptedSource source = new ScriptedSource("server");
+
+        String result = recover(source);
+
+        assertEquals("server", result);
+        assertEquals(1, source.calls.get());
+    }
+
+    @Test
+    void foundOnRetry_returnsAndCachesIt() throws Exception {
+        ScriptedSource source = new ScriptedSource(null, "server");
+
+        String result = recover(source);
+
+        assertEquals("server", result);
+        assertEquals("server", cachedData(), "the retry bypasses the cache, so its result must be stored");
+        assertEquals(2, source.calls.get());
+    }
+
+    @Test
+    void missOnEveryAttempt_returnsMissAndDropsCachedMiss() throws Exception {
+        ScriptedSource source = new ScriptedSource(null, null, null);
+
+        String result = recover(source);
+
+        assertNull(result);
+        assertNull(cache.get(KEY), "a final miss must not stay cached as a negative result");
+        assertEquals(1 + MAX_RETRIES, source.calls.get());
+    }
+
+    @Test
+    void zeroRetries_dropsCachedMissWithoutRetrying() throws Exception {
+        ScriptedSource source = new ScriptedSource((String) null);
+
+        CompletableFuture<String> result = cache.fetchWithTransientMissRecovery(KEY, source, Objects::isNull, RETRY_DELAY, 0);
+
+        assertNull(result.get(1, TimeUnit.SECONDS));
+        assertNull(cache.get(KEY));
+        assertEquals(1, source.calls.get());
+    }
+
+    @Test
+    void cachedMissFromEarlierLookup_isRetriedAndReplaced() throws Exception {
+        cache.set(KEY, null);
+        ScriptedSource source = new ScriptedSource("server");
+
+        String result = recover(source);
+
+        assertEquals("server", result);
+        assertEquals("server", cachedData());
+    }
+
+    @Test
+    void retryFails_propagatesError() {
+        AtomicInteger calls = new AtomicInteger();
+        RuntimeException controllerDown = new RuntimeException("controller down");
+        Supplier<CompletableFuture<String>> source = () -> {
+            int call = calls.incrementAndGet();
+            if (call == 1) {
+                return CompletableFuture.completedFuture(null);
+            }
+            return CompletableFuture.failedFuture(controllerDown);
+        };
+
+        ExecutionException error = assertThrows(ExecutionException.class, () -> recover(source));
+
+        assertSame(controllerDown, error.getCause());
+    }
+
+    @Test
+    void customMissPredicate_retriesEmptyLists() throws Exception {
+        Queue<List<String>> results = new ArrayDeque<>(List.of(List.of(), List.of("server")));
+        Supplier<CompletableFuture<List<String>>> source = () -> CompletableFuture.completedFuture(results.remove());
+
+        List<String> result = cache.fetchWithTransientMissRecovery(KEY, source, List::isEmpty, RETRY_DELAY, MAX_RETRIES)
+                .get(1, TimeUnit.SECONDS);
+
+        assertEquals(List.of("server"), result);
+    }
+
+    @Test
+    void invalidArguments_areRejected() {
+        Supplier<CompletableFuture<String>> source = () -> CompletableFuture.completedFuture("server");
+        Duration negativeDelay = Duration.ofMillis(-1);
+
+        assertThrows(IllegalArgumentException.class,
+                () -> cache.fetchWithTransientMissRecovery(KEY, source, Objects::isNull, RETRY_DELAY, -1));
+        assertThrows(IllegalArgumentException.class,
+                () -> cache.fetchWithTransientMissRecovery(KEY, source, Objects::isNull, negativeDelay, 1));
+        assertThrows(NullPointerException.class,
+                () -> cache.fetchWithTransientMissRecovery(KEY, source, null, RETRY_DELAY, 1));
+    }
+}

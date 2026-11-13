@@ -4,6 +4,7 @@ import java.time.Duration;
 import java.util.Objects;
 import java.util.Set;
 import java.util.concurrent.CompletableFuture;
+import java.util.concurrent.Executor;
 import java.util.concurrent.TimeUnit;
 import java.util.function.Predicate;
 import java.util.function.Supplier;
@@ -161,9 +162,9 @@ public interface QueryCache {
     CacheStats getStats();
 
     /**
-     * Returns all current cache keys (for debugging).
+     * Returns a snapshot of the current cache keys (for debugging).
      *
-     * @return the set of cached keys
+     * @return an unmodifiable copy of the cached keys
      */
     Set<QueryKey> getKeys();
 
@@ -179,31 +180,40 @@ public interface QueryCache {
             return CompletableFuture.completedFuture(result);
         }
 
+        // Out of retries: drop the cached miss so the next lookup asks the source again.
         if (retriesRemaining == 0) {
             invalidate(key);
             return CompletableFuture.completedFuture(result);
         }
 
-        return CompletableFuture
-                .supplyAsync(
-                        () -> null,
-                        CompletableFuture.delayedExecutor(retryDelay.toMillis(), TimeUnit.MILLISECONDS)
-                )
-                .thenCompose(ignored -> fetcher.get())
-                .thenCompose(retriedResult -> {
-                    if (!isTransientMiss.test(retriedResult)) {
-                        set(key, retriedResult);
-                        return CompletableFuture.completedFuture(retriedResult);
-                    }
+        Executor afterRetryDelay = CompletableFuture.delayedExecutor(retryDelay.toMillis(), TimeUnit.MILLISECONDS);
+        CompletableFuture<Void> retryDelayElapsed = CompletableFuture.runAsync(() -> {
+        }, afterRetryDelay);
+        CompletableFuture<T> retriedResult = retryDelayElapsed.thenCompose(ignored -> fetcher.get());
+        return retriedResult.thenCompose(retried -> cacheFoundOrRetry(
+                key,
+                fetcher,
+                isTransientMiss,
+                retryDelay,
+                retriesRemaining - 1,
+                retried
+        ));
+    }
 
-                    return recoverTransientMiss(
-                            key,
-                            fetcher,
-                            isTransientMiss,
-                            retryDelay,
-                            retriesRemaining - 1,
-                            retriedResult
-                    );
-                });
+    private <T> CompletableFuture<T> cacheFoundOrRetry(
+            QueryKey key,
+            Supplier<CompletableFuture<T>> fetcher,
+            Predicate<T> isTransientMiss,
+            Duration retryDelay,
+            int retriesRemaining,
+            T retriedResult
+    ) {
+        if (isTransientMiss.test(retriedResult)) {
+            return recoverTransientMiss(key, fetcher, isTransientMiss, retryDelay, retriesRemaining, retriedResult);
+        }
+
+        // A retry bypasses the cache, so store what it found.
+        set(key, retriedResult);
+        return CompletableFuture.completedFuture(retriedResult);
     }
 }

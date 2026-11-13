@@ -21,8 +21,8 @@ import java.util.Map;
  * <p>Default stale times by entity type (optimized for typical usage patterns):
  * <ul>
  *   <li>SERVER: 3 seconds (metrics like CPU/memory may change without events)</li>
- *   <li>GROUP: 30 seconds (configuration rarely changes, events handle updates)</li>
- *   <li>PERSISTENT_SERVER: 30 seconds (similar to groups)</li>
+ *   <li>GROUP: 10 seconds (configuration rarely changes, events handle updates)</li>
+ *   <li>PERSISTENT_SERVER: 10 seconds (similar to groups)</li>
  *   <li>PLAYER: 5 seconds (balance between freshness and load)</li>
  * </ul>
  *
@@ -136,23 +136,19 @@ public class CacheConfig {
 
         private static Map<EntityType, EntityCacheConfig> createDefaultEntityConfigs() {
             Map<EntityType, EntityCacheConfig> configs = new HashMap<>();
-            // Servers: 3 seconds - metrics (CPU, memory, player count) may update without events
-            configs.put(EntityType.SERVER, EntityCacheConfig.builder()
-                    .staleTime(Duration.ofSeconds(3))
-                    .build());
-            // Groups: 10 seconds - configuration rarely changes, events handle actual updates
-            configs.put(EntityType.GROUP, EntityCacheConfig.builder()
-                    .staleTime(Duration.ofSeconds(10))
-                    .build());
-            // Persistent servers: 10 seconds - similar to groups
-            configs.put(EntityType.PERSISTENT_SERVER, EntityCacheConfig.builder()
-                    .staleTime(Duration.ofSeconds(10))
-                    .build());
-            // Players: 5 seconds - balance between freshness and reducing load
-            configs.put(EntityType.PLAYER, EntityCacheConfig.builder()
-                    .staleTime(Duration.ofSeconds(5))
-                    .build());
+            // Server metrics (CPU, memory, player count) change without events.
+            configs.put(EntityType.SERVER, staleAfter(Duration.ofSeconds(3)));
+            // Group configuration rarely changes, and events invalidate the actual updates.
+            configs.put(EntityType.GROUP, staleAfter(Duration.ofSeconds(10)));
+            configs.put(EntityType.PERSISTENT_SERVER, staleAfter(Duration.ofSeconds(10)));
+            configs.put(EntityType.PLAYER, staleAfter(Duration.ofSeconds(5)));
             return configs;
+        }
+
+        private static EntityCacheConfig staleAfter(Duration staleTime) {
+            return EntityCacheConfig.builder()
+                    .staleTime(staleTime)
+                    .build();
         }
 
         /**
