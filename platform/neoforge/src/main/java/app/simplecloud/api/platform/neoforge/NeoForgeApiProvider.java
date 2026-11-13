@@ -4,7 +4,8 @@ import net.neoforged.api.distmarker.Dist;
 import net.neoforged.fml.common.Mod;
 
 /**
- * Loads the SimpleCloud API classes for other mods; it does no work of its own.
+ * The mod's entry class. The mod only ships the SimpleCloud API for other mods, so this
+ * class does nothing.
  */
 @Mod(value = NeoForgeApiProvider.MOD_ID, dist = Dist.DEDICATED_SERVER)
 public final class NeoForgeApiProvider {
