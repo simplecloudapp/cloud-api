@@ -297,8 +297,8 @@ public class CloudApiOptions {
          * requests are never merged with requests from other instances.
          *
          * <p>By default, instances share one HTTP connection pool, and instances with the same
-         * controller, network, secret, cache configuration and sum of HTTP timeouts share one
-         * query cache.
+         * controller, network, secret, cache configuration and HTTP timeouts share one query
+         * cache.
          *
          * @return this builder
          */

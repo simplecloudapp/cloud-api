@@ -63,6 +63,7 @@ public class CloudApiImpl implements CloudApi {
 
         // Leases taken before a failure must be returned, or other instances' resources never close.
         List<Lease<?>> acquiredLeases = new ArrayList<>();
+        ScopedNatsConnection natsView = null;
         try {
             this.natsLease = acquireNats(options);
             acquiredLeases.add(natsLease);
@@ -70,7 +71,8 @@ public class CloudApiImpl implements CloudApi {
             acquiredLeases.add(okHttpClientLease);
             this.queryCacheLease = acquireQueryCache(options);
             acquiredLeases.add(queryCacheLease);
-            this.scopedNatsConnection = new ScopedNatsConnection(natsLease.get().getConnection());
+            natsView = new ScopedNatsConnection(natsLease.get().getConnection());
+            this.scopedNatsConnection = natsView;
             this.natsClient = scopedNatsConnection.connection();
             this.queryCache = queryCacheLease.get();
             CacheConfig cacheConfig = options.getCacheConfig();
@@ -91,6 +93,9 @@ public class CloudApiImpl implements CloudApi {
                 this.cacheEventListener = null;
             }
         } catch (RuntimeException | Error e) {
+            if (natsView != null) {
+                natsView.close();
+            }
             for (Lease<?> lease : acquiredLeases) {
                 closeQuietly("leased resource", lease);
             }
@@ -147,7 +152,9 @@ public class CloudApiImpl implements CloudApi {
                 options.getNetworkId(),
                 options.getNetworkSecret(),
                 cacheConfig,
-                inFlightTimeout
+                options.getHttpConnectTimeout(),
+                options.getHttpReadTimeout(),
+                options.getHttpWriteTimeout()
         );
         return SharedResources.acquire(
                 key,
@@ -164,7 +171,9 @@ public class CloudApiImpl implements CloudApi {
             String networkId,
             String networkSecret,
             CacheConfig cacheConfig,
-            Duration inFlightTimeout
+            Duration httpConnectTimeout,
+            Duration httpReadTimeout,
+            Duration httpWriteTimeout
     ) {
     }
 

@@ -175,6 +175,10 @@ class SharedCloudApiResourcesTest {
             assertEquals("before", secondMessages.poll(5, TimeUnit.SECONDS));
 
             first.close();
+            byte[] payload = new byte[0];
+            assertThrows(IllegalStateException.class, () -> firstConnection.publish(subject, payload));
+            assertThrows(IllegalStateException.class, () -> firstConnection.createDispatcher());
+            firstConnection.drain(Duration.ofSeconds(1));
             assertEquals(Connection.Status.CONNECTED, secondConnection.getStatus());
 
             publisher.publish(subject, "after".getBytes(StandardCharsets.UTF_8));

@@ -26,7 +26,7 @@ public final class ScopedNatsConnection {
     private final Connection shared;
     private final List<Dispatcher> dispatchers = new CopyOnWriteArrayList<>();
     private final Connection connection;
-    private volatile boolean closed;
+    private boolean closed;
 
     public ScopedNatsConnection(Connection shared) {
         this.shared = shared;
@@ -41,7 +41,8 @@ public final class ScopedNatsConnection {
         return connection;
     }
 
-    public void close() {
+    // Synchronized with createDispatcher, so no dispatcher is created after close went through the list.
+    public synchronized void close() {
         closed = true;
         for (Dispatcher dispatcher : dispatchers) {
             dispatchers.remove(dispatcher);
@@ -67,25 +68,26 @@ public final class ScopedNatsConnection {
     }
 
     private Object forward(Method method, Object[] args) throws Throwable {
-        if (closed) {
-            throw new IllegalStateException("NATS connection of a closed CloudApi instance");
-        }
         return switch (method.getName()) {
             case "createDispatcher" -> createDispatcher(method, args);
             case "closeDispatcher" -> closeDispatcher(method, args);
-            default -> invoke(method, args);
+            default -> invokeUnlessClosed(method, args);
         };
     }
 
-    private Dispatcher createDispatcher(Method method, Object[] args) throws Throwable {
-        Dispatcher dispatcher = (Dispatcher) invoke(method, args);
+    private synchronized Dispatcher createDispatcher(Method method, Object[] args) throws Throwable {
+        Dispatcher dispatcher = (Dispatcher) invokeUnlessClosed(method, args);
         dispatchers.add(dispatcher);
         return dispatcher;
     }
 
     private Object closeDispatcher(Method method, Object[] args) throws Throwable {
         dispatchers.remove((Dispatcher) args[0]);
-        return invoke(method, args);
+        return invokeUnlessClosed(method, args);
+    }
+
+    private synchronized boolean isClosed() {
+        return closed;
     }
 
     private void closeSharedDispatcher(Dispatcher dispatcher) {
@@ -97,7 +99,10 @@ public final class ScopedNatsConnection {
         }
     }
 
-    private Object invoke(Method method, Object[] args) throws Throwable {
+    private Object invokeUnlessClosed(Method method, Object[] args) throws Throwable {
+        if (isClosed()) {
+            throw new IllegalStateException("NATS connection of a closed CloudApi instance");
+        }
         try {
             return method.invoke(shared, args);
         } catch (InvocationTargetException e) {

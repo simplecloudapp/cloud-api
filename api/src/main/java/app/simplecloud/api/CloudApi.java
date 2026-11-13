@@ -65,7 +65,7 @@ public interface CloudApi extends AutoCloseable {
      *   <li>one NATS connection, when NATS URL, network, secret and failover reconnect delay match;</li>
      *   <li>one HTTP connection pool;</li>
      *   <li>one query cache, when caching is enabled and controller, network, secret, cache
-     *       configuration and the sum of the HTTP timeouts match. Identical server, group and
+     *       configuration and HTTP timeouts match. Identical server, group and
      *       persistent server reads in flight at the same time then send one request, carrying the
      *       {@code X-SC-Component} header of the instance that started it.</li>
      * </ul>
