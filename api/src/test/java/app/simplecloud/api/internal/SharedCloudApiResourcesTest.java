@@ -2,14 +2,23 @@ package app.simplecloud.api.internal;
 
 import app.simplecloud.api.CloudApi;
 import app.simplecloud.api.CloudApiOptions;
+import app.simplecloud.api.cache.CacheConfig;
+import app.simplecloud.api.cache.EntityCacheConfig;
+import app.simplecloud.api.cache.EntityType;
 import app.simplecloud.api.server.Server;
+import app.simplecloud.api.web.ApiClient;
 import com.sun.net.httpserver.HttpServer;
 import io.nats.client.Connection;
+import io.nats.client.Dispatcher;
+import io.nats.client.MessageHandler;
 import io.nats.client.Nats;
 import org.junit.jupiter.api.AfterEach;
 import org.junit.jupiter.api.BeforeEach;
 import org.junit.jupiter.api.Test;
 
+import okhttp3.OkHttpClient;
+
+import java.lang.reflect.Field;
 import java.net.InetSocketAddress;
 import java.nio.charset.StandardCharsets;
 import java.time.Duration;
@@ -17,16 +26,19 @@ import java.util.List;
 import java.util.concurrent.ArrayBlockingQueue;
 import java.util.concurrent.BlockingQueue;
 import java.util.concurrent.CompletableFuture;
+import java.util.concurrent.ExecutorService;
 import java.util.concurrent.Executors;
 import java.util.concurrent.TimeUnit;
 import java.util.concurrent.atomic.AtomicInteger;
 import java.util.function.UnaryOperator;
 
 import static org.junit.jupiter.api.Assertions.assertEquals;
+import static org.junit.jupiter.api.Assertions.assertFalse;
 import static org.junit.jupiter.api.Assertions.assertNotEquals;
 import static org.junit.jupiter.api.Assertions.assertNotSame;
 import static org.junit.jupiter.api.Assertions.assertNull;
 import static org.junit.jupiter.api.Assertions.assertSame;
+import static org.junit.jupiter.api.Assertions.assertThrows;
 import static org.junit.jupiter.api.Assumptions.assumeTrue;
 
 class SharedCloudApiResourcesTest {
@@ -92,16 +104,38 @@ class SharedCloudApiResourcesTest {
     }
 
     @Test
-    void closingOneInstanceKeepsTheSharedResourcesOfTheOtherOpen() {
-        CloudApi second = CloudApi.create(options(UnaryOperator.identity()));
-        try {
-            CloudApi.create(options(UnaryOperator.identity())).close();
+    void instancesWithEqualButSeparatelyBuiltCacheConfigsShareOneCache() {
+        CacheConfig firstConfig = cacheConfigWithServerStaleTime(Duration.ofSeconds(1));
+        CacheConfig secondConfig = cacheConfigWithServerStaleTime(Duration.ofSeconds(1));
+        CacheConfig otherConfig = cacheConfigWithServerStaleTime(Duration.ofSeconds(2));
 
-            assertEquals(List.of(), second.server().getServersByGroup("lobby").join());
-            assertEquals(1, serverRequests.get());
-        } finally {
-            second.close();
+        try (CloudApi first = CloudApi.create(options(builder -> builder.cache(firstConfig)));
+             CloudApi second = CloudApi.create(options(builder -> builder.cache(secondConfig)));
+             CloudApi other = CloudApi.create(options(builder -> builder.cache(otherConfig)))) {
+            assertSame(first.cache(), second.cache());
+            assertNotSame(first.cache(), other.cache());
         }
+    }
+
+    @Test
+    void closingOneInstanceKeepsTheSharedHttpClientOfTheOtherOpen() throws Exception {
+        try (CloudApi remaining = CloudApi.create(options(UnaryOperator.identity()))) {
+            CloudApi closing = CloudApi.create(options(UnaryOperator.identity()));
+            closing.close();
+
+            ExecutorService remainingDispatcher = okHttpClient(remaining).dispatcher().executorService();
+            assertFalse(remainingDispatcher.isShutdown());
+        }
+    }
+
+    @Test
+    void closedInstanceRejectsCallsOnItsNatsConnection() {
+        CloudApiImpl closed = (CloudApiImpl) CloudApi.create(options(UnaryOperator.identity()));
+        Connection connection = closed.getNatsConnection();
+        closed.close();
+
+        byte[] payload = new byte[0];
+        assertThrows(IllegalStateException.class, () -> connection.publish("network-1.closed", payload));
     }
 
     // Run against an isolated broker with NATS_TEST_URL=nats://127.0.0.1:4222.
@@ -113,25 +147,27 @@ class SharedCloudApiResourcesTest {
         String subject = "network-1.shared-test";
         BlockingQueue<String> firstMessages = new ArrayBlockingQueue<>(10);
         BlockingQueue<String> secondMessages = new ArrayBlockingQueue<>(10);
-        UnaryOperator<CloudApiOptions.Builder> nats = builder -> builder.natsUrl(url);
+        CloudApiOptions sharedOptions = options(builder -> builder.natsUrl(url));
+        CloudApiOptions dedicatedOptions = options(builder -> builder.natsUrl(url).dedicatedNatsConnection());
 
         try (Connection publisher = Nats.connect(url);
-             CloudApi dedicated = CloudApi.create(options(builder -> nats.apply(builder).dedicatedNatsConnection()));
-             CloudApi second = CloudApi.create(options(nats));
-             CloudApiImpl first = (CloudApiImpl) CloudApi.create(options(nats))) {
+             CloudApiImpl dedicated = (CloudApiImpl) CloudApi.create(dedicatedOptions);
+             CloudApiImpl second = (CloudApiImpl) CloudApi.create(sharedOptions);
+             CloudApiImpl first = (CloudApiImpl) CloudApi.create(sharedOptions)) {
             Connection firstConnection = first.getNatsConnection();
-            Connection secondConnection = ((CloudApiImpl) second).getNatsConnection();
-            Connection dedicatedConnection = ((CloudApiImpl) dedicated).getNatsConnection();
+            Connection secondConnection = second.getNatsConnection();
+            Connection dedicatedConnection = dedicated.getNatsConnection();
             awaitConnected(firstConnection);
             awaitConnected(dedicatedConnection);
 
-            assertEquals(firstConnection.getServerInfo().getClientId(), secondConnection.getServerInfo().getClientId());
-            assertNotEquals(firstConnection.getServerInfo().getClientId(), dedicatedConnection.getServerInfo().getClientId());
+            int firstClientId = firstConnection.getServerInfo().getClientId();
+            int secondClientId = secondConnection.getServerInfo().getClientId();
+            int dedicatedClientId = dedicatedConnection.getServerInfo().getClientId();
+            assertEquals(firstClientId, secondClientId);
+            assertNotEquals(firstClientId, dedicatedClientId);
 
-            firstConnection.createDispatcher(message -> firstMessages.add(new String(message.getData(), StandardCharsets.UTF_8)))
-                    .subscribe(subject);
-            secondConnection.createDispatcher(message -> secondMessages.add(new String(message.getData(), StandardCharsets.UTF_8)))
-                    .subscribe(subject);
+            subscribe(firstConnection, subject, firstMessages);
+            subscribe(secondConnection, subject, secondMessages);
             firstConnection.flush(Duration.ofSeconds(5));
 
             publisher.publish(subject, "before".getBytes(StandardCharsets.UTF_8));
@@ -146,6 +182,28 @@ class SharedCloudApiResourcesTest {
             secondConnection.flush(Duration.ofSeconds(5));
             assertNull(firstMessages.poll(500, TimeUnit.MILLISECONDS));
         }
+    }
+
+    private static void subscribe(Connection connection, String subject, BlockingQueue<String> received) {
+        MessageHandler handler = message -> received.add(new String(message.getData(), StandardCharsets.UTF_8));
+        Dispatcher dispatcher = connection.createDispatcher(handler);
+        dispatcher.subscribe(subject);
+    }
+
+    private static CacheConfig cacheConfigWithServerStaleTime(Duration staleTime) {
+        EntityCacheConfig serverConfig = EntityCacheConfig.builder()
+                .staleTime(staleTime)
+                .build();
+        return CacheConfig.builder()
+                .entityConfig(EntityType.SERVER, serverConfig)
+                .build();
+    }
+
+    private static OkHttpClient okHttpClient(CloudApi api) throws ReflectiveOperationException {
+        Field field = CloudApiImpl.class.getDeclaredField("httpClient");
+        field.setAccessible(true);
+        ApiClient apiClient = (ApiClient) field.get(api);
+        return apiClient.getHttpClient();
     }
 
     private CloudApiOptions options(UnaryOperator<CloudApiOptions.Builder> customizer) {

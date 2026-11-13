@@ -282,7 +282,8 @@ public class CloudApiOptions {
         /**
          * Opens a NATS connection for this instance only.
          *
-         * <p>By default, instances with the same NATS URL, network and secret share one connection.
+         * <p>By default, instances with the same NATS URL, network, secret and failover reconnect
+         * delay share one connection.
          *
          * @return this builder
          */
@@ -296,7 +297,8 @@ public class CloudApiOptions {
          * requests are never merged with requests from other instances.
          *
          * <p>By default, instances share one HTTP connection pool, and instances with the same
-         * controller, network, secret and cache configuration share one query cache.
+         * controller, network, secret, cache configuration and sum of HTTP timeouts share one
+         * query cache.
          *
          * @return this builder
          */

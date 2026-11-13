@@ -7,6 +7,7 @@ import java.lang.reflect.InvocationTargetException;
 import java.lang.reflect.Method;
 import java.lang.reflect.Proxy;
 import java.util.List;
+import java.util.concurrent.CompletableFuture;
 import java.util.concurrent.CopyOnWriteArrayList;
 import java.util.logging.Level;
 import java.util.logging.Logger;
@@ -15,7 +16,8 @@ import java.util.logging.Logger;
  * One {@code CloudApi} instance's view of a shared NATS connection.
  *
  * <p>It remembers the dispatchers the instance creates, so closing the instance stops only its
- * own subscriptions. Closing the view never closes the shared connection.
+ * own subscriptions. {@code close} and {@code drain} on the view close only the view, never the
+ * shared connection, and a closed view rejects every further call.
  */
 public final class ScopedNatsConnection {
 
@@ -24,31 +26,14 @@ public final class ScopedNatsConnection {
     private final Connection shared;
     private final List<Dispatcher> dispatchers = new CopyOnWriteArrayList<>();
     private final Connection connection;
+    private volatile boolean closed;
 
     public ScopedNatsConnection(Connection shared) {
         this.shared = shared;
         this.connection = (Connection) Proxy.newProxyInstance(
                 Connection.class.getClassLoader(),
                 new Class<?>[]{Connection.class},
-                (proxy, method, args) -> switch (method.getName()) {
-                    case "createDispatcher" -> {
-                        Dispatcher dispatcher = (Dispatcher) invoke(method, args);
-                        dispatchers.add(dispatcher);
-                        yield dispatcher;
-                    }
-                    case "closeDispatcher" -> {
-                        dispatchers.remove((Dispatcher) args[0]);
-                        yield invoke(method, args);
-                    }
-                    case "close" -> {
-                        closeDispatchers();
-                        yield null;
-                    }
-                    case "hashCode" -> System.identityHashCode(proxy);
-                    case "equals" -> proxy == args[0];
-                    case "toString" -> "Scoped " + shared;
-                    default -> invoke(method, args);
-                }
+                this::handleCall
         );
     }
 
@@ -56,15 +41,59 @@ public final class ScopedNatsConnection {
         return connection;
     }
 
-    public void closeDispatchers() {
+    public void close() {
+        closed = true;
         for (Dispatcher dispatcher : dispatchers) {
             dispatchers.remove(dispatcher);
-            try {
-                shared.closeDispatcher(dispatcher);
-            } catch (RuntimeException e) {
-                // A dispatcher that was already drained is no longer known to the connection.
-                LOGGER.log(Level.FINE, "Failed to close NATS dispatcher", e);
+            closeSharedDispatcher(dispatcher);
+        }
+    }
+
+    private Object handleCall(Object proxy, Method method, Object[] args) throws Throwable {
+        return switch (method.getName()) {
+            case "hashCode" -> System.identityHashCode(proxy);
+            case "equals" -> proxy == args[0];
+            case "toString" -> "Scoped " + shared;
+            case "close" -> {
+                close();
+                yield null;
             }
+            case "drain" -> {
+                close();
+                yield CompletableFuture.completedFuture(Boolean.TRUE);
+            }
+            default -> forward(method, args);
+        };
+    }
+
+    private Object forward(Method method, Object[] args) throws Throwable {
+        if (closed) {
+            throw new IllegalStateException("NATS connection of a closed CloudApi instance");
+        }
+        return switch (method.getName()) {
+            case "createDispatcher" -> createDispatcher(method, args);
+            case "closeDispatcher" -> closeDispatcher(method, args);
+            default -> invoke(method, args);
+        };
+    }
+
+    private Dispatcher createDispatcher(Method method, Object[] args) throws Throwable {
+        Dispatcher dispatcher = (Dispatcher) invoke(method, args);
+        dispatchers.add(dispatcher);
+        return dispatcher;
+    }
+
+    private Object closeDispatcher(Method method, Object[] args) throws Throwable {
+        dispatchers.remove((Dispatcher) args[0]);
+        return invoke(method, args);
+    }
+
+    private void closeSharedDispatcher(Dispatcher dispatcher) {
+        try {
+            shared.closeDispatcher(dispatcher);
+        } catch (RuntimeException e) {
+            // A dispatcher that was already drained is no longer known to the connection.
+            LOGGER.log(Level.FINE, "Failed to close NATS dispatcher", e);
         }
     }
 

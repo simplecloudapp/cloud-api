@@ -93,13 +93,13 @@ class ComponentHeaderIsolationTest {
     }
 
     @Test
-    void createSharesOneHttpClientAcrossAllApisButNotBetweenInstances() throws Exception {
+    void createSharesOneApiClientAcrossAllApisAndOneConnectionPoolBetweenInstances() throws Exception {
         try (CloudApi first = CloudApi.create(options("proxy-essentials"));
              CloudApi second = CloudApi.create(options("another-plugin"))) {
             ApiClient firstClient = httpClient(first.player(), "playersApi");
             ApiClient secondClient = httpClient(second.player(), "playersApi");
             assertNotSame(firstClient, secondClient);
-            assertNotSame(firstClient.getHttpClient(), secondClient.getHttpClient());
+            assertSame(firstClient.getHttpClient().connectionPool(), secondClient.getHttpClient().connectionPool());
             assertNotSame(Configuration.getDefaultApiClient(), firstClient);
             assertNotSame(Configuration.getDefaultApiClient(), secondClient);
 

@@ -27,6 +27,8 @@ import io.nats.client.Connection;
 import okhttp3.OkHttpClient;
 
 import java.time.Duration;
+import java.util.ArrayList;
+import java.util.List;
 import java.util.concurrent.Executor;
 import java.util.concurrent.ExecutorService;
 import java.util.concurrent.Executors;
@@ -39,7 +41,7 @@ public class CloudApiImpl implements CloudApi {
     private static final Logger LOGGER = Logger.getLogger(CloudApiImpl.class.getName());
 
     private final CloudApiOptions options;
-    private final Lease<OkHttpClient> httpClientLease;
+    private final Lease<OkHttpClient> okHttpClientLease;
     private final ApiClient httpClient;
 
     private final Lease<NatsFailoverConnectionManager> natsLease;
@@ -59,30 +61,42 @@ public class CloudApiImpl implements CloudApi {
     public CloudApiImpl(CloudApiOptions options) {
         this.options = options;
 
-        this.natsLease = acquireNats(options);
-        this.scopedNatsConnection = new ScopedNatsConnection(natsLease.get().getConnection());
-        this.natsClient = scopedNatsConnection.connection();
-        this.httpClientLease = acquireHttpClient(options);
-        this.queryCacheLease = acquireQueryCache(options);
-        this.queryCache = queryCacheLease.get();
-        CacheConfig cacheConfig = options.getCacheConfig();
+        // Leases taken before a failure must be returned, or other instances' resources never close.
+        List<Lease<?>> acquiredLeases = new ArrayList<>();
+        try {
+            this.natsLease = acquireNats(options);
+            acquiredLeases.add(natsLease);
+            this.okHttpClientLease = acquireOkHttpClient(options);
+            acquiredLeases.add(okHttpClientLease);
+            this.queryCacheLease = acquireQueryCache(options);
+            acquiredLeases.add(queryCacheLease);
+            this.scopedNatsConnection = new ScopedNatsConnection(natsLease.get().getConnection());
+            this.natsClient = scopedNatsConnection.connection();
+            this.queryCache = queryCacheLease.get();
+            CacheConfig cacheConfig = options.getCacheConfig();
 
-        // Initialize APIs with cache
-        this.httpClient = ApiClients.create(options, httpClientLease.get());
-        this.playerApi = new PlayerApiImpl(options, natsClient, httpClient, executor);
-        this.eventApi = new EventApiImpl(natsClient, options.getNetworkId(), playerApi);
-        this.serverApi = new ServerApiImpl(options, queryCache, httpClient, executor);
-        this.groupApi = new GroupApiImpl(options, queryCache, httpClient, executor);
-        this.persistentServerApi = new PersistentServerApiImpl(options, queryCache, httpClient, executor);
+            // Initialize APIs with cache
+            this.httpClient = ApiClients.create(options, okHttpClientLease.get());
+            this.playerApi = new PlayerApiImpl(options, natsClient, httpClient, executor);
+            this.eventApi = new EventApiImpl(natsClient, options.getNetworkId(), playerApi);
+            this.serverApi = new ServerApiImpl(options, queryCache, httpClient, executor);
+            this.groupApi = new GroupApiImpl(options, queryCache, httpClient, executor);
+            this.persistentServerApi = new PersistentServerApiImpl(options, queryCache, httpClient, executor);
 
-        // Setup event-based cache invalidation with debouncing
-        if (cacheConfig.isEnabled() && cacheConfig.isAutoInvalidateOnEvents()) {
-            long debounceMs = cacheConfig.getEventDebounceTime().toMillis();
-            this.cacheEventListener = new CacheEventListener(queryCache, eventApi, debounceMs);
-        } else {
-            this.cacheEventListener = null;
+            // Setup event-based cache invalidation with debouncing
+            if (cacheConfig.isEnabled() && cacheConfig.isAutoInvalidateOnEvents()) {
+                long debounceMs = cacheConfig.getEventDebounceTime().toMillis();
+                this.cacheEventListener = new CacheEventListener(queryCache, eventApi, debounceMs);
+            } else {
+                this.cacheEventListener = null;
+            }
+        } catch (RuntimeException | Error e) {
+            for (Lease<?> lease : acquiredLeases) {
+                closeQuietly("leased resource", lease);
+            }
+            executor.shutdown();
+            throw e;
         }
-
     }
 
     private static Lease<NatsFailoverConnectionManager> acquireNats(CloudApiOptions options) {
@@ -111,7 +125,7 @@ public class CloudApiImpl implements CloudApi {
         );
     }
 
-    private static Lease<OkHttpClient> acquireHttpClient(CloudApiOptions options) {
+    private static Lease<OkHttpClient> acquireOkHttpClient(CloudApiOptions options) {
         if (options.isDedicatedHttpClient()) {
             return SharedResources.dedicated(ApiClients.newHttpClient(), ApiClients::close);
         }
@@ -221,9 +235,9 @@ public class CloudApiImpl implements CloudApi {
             }
         }
         closeQuietly("query cache", queryCacheLease);
-        scopedNatsConnection.closeDispatchers();
+        scopedNatsConnection.close();
         closeQuietly("NATS connection", natsLease);
-        closeQuietly("HTTP client", httpClientLease);
+        closeQuietly("HTTP client", okHttpClientLease);
         executor.shutdown();
     }
 

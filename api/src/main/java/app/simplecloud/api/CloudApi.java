@@ -60,11 +60,15 @@ public interface CloudApi extends AutoCloseable {
     /**
      * Creates a CloudAPI instance with custom options.
      *
-     * <p>Instances loaded by the same class loader, such as plugins on one proxy, share one NATS
-     * connection when they use the same NATS URL, network and secret. They also share one HTTP
-     * connection pool, and one query cache when caching is enabled and controller, network, secret,
-     * cache configuration and HTTP timeouts match. Identical server, group and persistent server
-     * reads in flight at the same time then send one request.
+     * <p>Instances loaded by the same class loader, such as plugins on one proxy, share resources:
+     * <ul>
+     *   <li>one NATS connection, when NATS URL, network, secret and failover reconnect delay match;</li>
+     *   <li>one HTTP connection pool;</li>
+     *   <li>one query cache, when caching is enabled and controller, network, secret, cache
+     *       configuration and the sum of the HTTP timeouts match. Identical server, group and
+     *       persistent server reads in flight at the same time then send one request, carrying the
+     *       {@code X-SC-Component} header of the instance that started it.</li>
+     * </ul>
      * Shared resources close when the last instance using them closes. Use
      * {@link CloudApiOptions.Builder#dedicatedNatsConnection()} or
      * {@link CloudApiOptions.Builder#dedicatedHttpClient()} to opt out.
@@ -148,7 +152,8 @@ public interface CloudApi extends AutoCloseable {
      * }</pre>
      *
      * <p>Other instances with the same settings may share this cache, so invalidating or clearing
-     * it affects them too. See {@link #create(CloudApiOptions)}.
+     * it affects them too. {@link CloudApiOptions.Builder#dedicatedHttpClient()} gives an instance
+     * its own cache. See {@link #create(CloudApiOptions)}.
      *
      * @return the query cache
      */
