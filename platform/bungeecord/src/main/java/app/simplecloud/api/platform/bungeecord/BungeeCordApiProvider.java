@@ -11,7 +11,6 @@ import app.simplecloud.api.presence.ProxyPresencePlayerProvider;
 import app.simplecloud.api.runtime.SimpleCloudRuntime;
 import app.simplecloud.api.platform.shared.LuckPermsPrimaryGroupSynchronizer;
 import app.simplecloud.api.platform.shared.LuckPermsSynchronizer;
-import app.simplecloud.api.platform.shared.PlayerSynchronizer;
 import net.kyori.adventure.platform.bungeecord.BungeeAudiences;
 import net.md_5.bungee.api.connection.ProxiedPlayer;
 import net.md_5.bungee.api.plugin.Plugin;
@@ -24,7 +23,6 @@ public class BungeeCordApiProvider extends Plugin implements ProxyPresencePlayer
 
     private CloudApiImpl cloudApi;
     private String proxyName;
-    private PlayerSynchronizer playerSynchronizer;
     private PlayerSessionReporter playerSessionReporter;
     private PlayerCommandHandler playerCommandHandler;
     private ProxyPresenceTracker proxyPresenceTracker;
@@ -40,7 +38,6 @@ public class BungeeCordApiProvider extends Plugin implements ProxyPresencePlayer
         // even if a later step of onEnable fails.
         this.luckPermsSynchronizer = startLuckPermsSynchronizer();
         this.proxyName = SimpleCloudRuntime.serverName();
-        this.playerSynchronizer = new PlayerSynchronizer(cloudApi, getProxy()::getOnlineCount);
         this.playerSessionReporter = new PlayerSessionReporter(cloudApi);
         this.playerCommandHandler = new PlayerCommandHandler(cloudApi, new BungeeCordPlayers(getProxy()));
         this.proxyPresenceTracker = new ProxyPresenceTracker(proxyName);
@@ -56,14 +53,12 @@ public class BungeeCordApiProvider extends Plugin implements ProxyPresencePlayer
         getLogger().info("SimpleCloud v3 API provider initialized!");
         getProxy().getPluginManager().registerListener(this, new PlayerConnectionListener(
                 this,
-                playerSynchronizer,
                 playerSessionReporter,
                 proxyPresenceTracker,
                 proxyName,
                 luckPermsSynchronizer
         ));
 
-        playerSynchronizer.start();
         playerCommandHandler.start();
         proxyPresenceResponder.start();
     }
@@ -73,7 +68,6 @@ public class BungeeCordApiProvider extends Plugin implements ProxyPresencePlayer
         getLogger().info("SimpleCloud v3 API provider uninitialized!");
         luckPermsSynchronizer.stop();
         proxyPresenceResponder.stop();
-        playerSynchronizer.stop();
         playerCommandHandler.stop();
 
         if (bungeeAudiences != null) {

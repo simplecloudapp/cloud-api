@@ -5,7 +5,6 @@ import app.simplecloud.api.internal.integration.player.PlayerLogin;
 import app.simplecloud.api.internal.integration.player.PlayerSessionReporter;
 import app.simplecloud.api.internal.integration.presence.ProxyPresenceTracker;
 import app.simplecloud.api.platform.shared.LuckPermsSynchronizer;
-import app.simplecloud.api.platform.shared.PlayerSynchronizer;
 import app.simplecloud.api.player.PlayerClientSettings;
 import com.velocitypowered.api.event.EventTask;
 import com.velocitypowered.api.event.Subscribe;
@@ -30,20 +29,17 @@ public class PlayerConnectionListener {
     private static final Logger logger = LoggerFactory.getLogger(PlayerConnectionListener.class);
     private static final long LOGIN_WAIT_SECONDS = 5;
 
-    private final PlayerSynchronizer playerSynchronizer;
     private final PlayerSessionReporter playerSessionReporter;
     private final ProxyPresenceTracker proxyPresenceTracker;
     private final String proxyName;
     private final LuckPermsSynchronizer luckPermsSynchronizer;
 
     public PlayerConnectionListener(
-            PlayerSynchronizer playerSynchronizer,
             PlayerSessionReporter playerSessionReporter,
             ProxyPresenceTracker proxyPresenceTracker,
             String proxyName,
             LuckPermsSynchronizer luckPermsSynchronizer
     ) {
-        this.playerSynchronizer = playerSynchronizer;
         this.playerSessionReporter = playerSessionReporter;
         this.proxyPresenceTracker = proxyPresenceTracker;
         this.proxyName = proxyName;
@@ -86,7 +82,6 @@ public class PlayerConnectionListener {
             return null;
         });
 
-        CompletableFuture.runAsync(() -> playerSynchronizer.updatePlayerCount());
         // Keep later login listeners and the initial backend connection behind registration.
         CompletableFuture<Void> registrationOrTimeout =
                 registration.copy().completeOnTimeout(null, LOGIN_WAIT_SECONDS, TimeUnit.SECONDS);
@@ -119,8 +114,6 @@ public class PlayerConnectionListener {
                 });
         proxyPresenceTracker.remove(playerId.toString());
         luckPermsSynchronizer.forget(playerId);
-
-        CompletableFuture.runAsync(() -> playerSynchronizer.updatePlayerCount());
     }
 
     @Subscribe

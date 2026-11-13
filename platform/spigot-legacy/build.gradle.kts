@@ -3,7 +3,6 @@ plugins {
 }
 
 dependencies {
-    api(project(":platform:shared"))
     compileOnly(libs.paper.api)
     implementation(project(":api"))
 }
