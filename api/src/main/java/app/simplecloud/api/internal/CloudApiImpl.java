@@ -109,8 +109,8 @@ public class CloudApiImpl implements CloudApi {
     }
 
     /**
-     * Creates the platform plugin's instance. Other instances in this class loader with the same
-     * NATS settings use its NATS connection instead of opening their own, and closing this instance
+     * Creates the platform plugin's instance. Instances created afterwards in this class loader with
+     * the same NATS settings use its NATS connection instead of opening their own, and closing this instance
      * closes that connection for all of them. If another connection is registered already, this
      * instance is created like any other.
      */
@@ -151,8 +151,7 @@ public class CloudApiImpl implements CloudApi {
     /**
      * Returns this instance's view of the NATS connection, which may be shared with other instances.
      * Callers subscribe through a dispatcher from {@code createDispatcher}; {@code subscribe} on the
-     * view throws. Closing or draining the view only closes this instance's dispatchers, and a closed
-     * view rejects all calls.
+     * view throws.
      * This is for internal use by integration modules.
      *
      * @return this instance's view of the NATS connection

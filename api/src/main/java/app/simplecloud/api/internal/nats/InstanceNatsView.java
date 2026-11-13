@@ -19,7 +19,7 @@ import java.util.logging.Logger;
  * closes only its own dispatchers and their subscriptions. {@code subscribe} directly on the view
  * is rejected, because such a subscription could not be closed with the instance. {@code close}
  * and {@code drain} on the view close only the view, never the connection, and a closed view
- * rejects every further call.
+ * rejects every further NATS operation; {@code close} and {@code drain} on it do nothing.
  */
 public final class InstanceNatsView {
 
