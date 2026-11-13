@@ -14,10 +14,8 @@ dependencies {
     implementation(libs.fabric.loader)
     implementation(libs.fabric.api)
 
-    implementation(project(":platform:shared"))
     implementation(project(":api"))
 
-    shade(project(":platform:shared"))
     shade(project(":api"))
 }
 
