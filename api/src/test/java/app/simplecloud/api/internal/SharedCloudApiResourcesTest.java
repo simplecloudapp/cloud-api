@@ -133,13 +133,15 @@ class SharedCloudApiResourcesTest {
     }
 
     @Test
-    void failedConstructionReturnsTheLeasesItTook() throws Exception {
+    void failedConstructionReturnsTheHttpClientLeaseItTook() throws Exception {
         CloudApiOptions failingOptions = options(builder -> builder.cache(null));
         CloudApi remaining = CloudApi.create(options(UnaryOperator.identity()));
         OkHttpClient sharedHttpClient = okHttpClient(remaining);
-
-        assertThrows(NullPointerException.class, () -> CloudApi.create(failingOptions));
-        remaining.close();
+        try {
+            assertThrows(NullPointerException.class, () -> CloudApi.create(failingOptions));
+        } finally {
+            remaining.close();
+        }
 
         ExecutorService sharedDispatcher = sharedHttpClient.dispatcher().executorService();
         assertTrue(sharedDispatcher.isShutdown());
@@ -221,7 +223,7 @@ class SharedCloudApiResourcesTest {
     }
 
     private static OkHttpClient okHttpClient(CloudApi api) throws ReflectiveOperationException {
-        Field field = CloudApiImpl.class.getDeclaredField("httpClient");
+        Field field = CloudApiImpl.class.getDeclaredField("apiClient");
         field.setAccessible(true);
         ApiClient apiClient = (ApiClient) field.get(api);
         return apiClient.getHttpClient();

@@ -33,6 +33,7 @@ import java.util.concurrent.Executor;
 import java.util.concurrent.ExecutorService;
 import java.util.concurrent.Executors;
 import java.util.concurrent.atomic.AtomicBoolean;
+import java.util.function.Supplier;
 import java.util.logging.Level;
 import java.util.logging.Logger;
 
@@ -42,7 +43,7 @@ public class CloudApiImpl implements CloudApi {
 
     private final CloudApiOptions options;
     private final Lease<OkHttpClient> okHttpClientLease;
-    private final ApiClient httpClient;
+    private final ApiClient apiClient;
 
     private final Lease<NatsFailoverConnectionManager> natsConnectionManagerLease;
     private final ScopedNatsConnection scopedNatsConnection;
@@ -76,12 +77,12 @@ public class CloudApiImpl implements CloudApi {
             CacheConfig cacheConfig = options.getCacheConfig();
 
             // Initialize APIs with cache
-            this.httpClient = ApiClients.create(options, okHttpClientLease.get());
-            this.playerApi = new PlayerApiImpl(options, natsClient, httpClient, executor);
+            this.apiClient = ApiClients.create(options, okHttpClientLease.get());
+            this.playerApi = new PlayerApiImpl(options, natsClient, apiClient, executor);
             this.eventApi = new EventApiImpl(natsClient, options.getNetworkId(), playerApi);
-            this.serverApi = new ServerApiImpl(options, queryCache, httpClient, executor);
-            this.groupApi = new GroupApiImpl(options, queryCache, httpClient, executor);
-            this.persistentServerApi = new PersistentServerApiImpl(options, queryCache, httpClient, executor);
+            this.serverApi = new ServerApiImpl(options, queryCache, apiClient, executor);
+            this.groupApi = new GroupApiImpl(options, queryCache, apiClient, executor);
+            this.persistentServerApi = new PersistentServerApiImpl(options, queryCache, apiClient, executor);
 
             // Setup event-based cache invalidation with debouncing
             if (cacheConfig.isEnabled() && cacheConfig.isAutoInvalidateOnEvents()) {
@@ -103,34 +104,34 @@ public class CloudApiImpl implements CloudApi {
     }
 
     private static Lease<NatsFailoverConnectionManager> acquireNats(CloudApiOptions options) {
-        if (options.isDedicatedNatsConnection()) {
-            return SharedResources.dedicated(newNatsConnectionManager(options), NatsFailoverConnectionManager::shutdown);
-        }
         NatsKey key = new NatsKey(
                 options.getNatsUrl(),
                 options.getNetworkId(),
                 options.getNetworkSecret(),
                 options.getNatsFailoverReconnectAfter()
         );
+        if (options.isDedicatedNatsConnection()) {
+            return Lease.unshared(newNatsConnectionManager(key), NatsFailoverConnectionManager::shutdown);
+        }
         return SharedResources.acquire(
                 key,
-                () -> newNatsConnectionManager(options),
+                () -> newNatsConnectionManager(key),
                 NatsFailoverConnectionManager::shutdown
         );
     }
 
-    private static NatsFailoverConnectionManager newNatsConnectionManager(CloudApiOptions options) {
+    private static NatsFailoverConnectionManager newNatsConnectionManager(NatsKey key) {
         return new NatsFailoverConnectionManager(
-                options.getNatsUrl(),
-                options.getNetworkId(),
-                options.getNetworkSecret(),
-                options.getNatsFailoverReconnectAfter()
+                key.natsUrl(),
+                key.networkId(),
+                key.networkSecret(),
+                key.failoverReconnectAfter()
         );
     }
 
     private static Lease<OkHttpClient> acquireOkHttpClient(CloudApiOptions options) {
         if (options.isDedicatedHttpClient()) {
-            return SharedResources.dedicated(ApiClients.newHttpClient(), ApiClients::close);
+            return Lease.unshared(ApiClients.newHttpClient(), ApiClients::close);
         }
         return SharedResources.acquire(HttpClientKey.INSTANCE, ApiClients::newHttpClient, ApiClients::close);
     }
@@ -138,12 +139,12 @@ public class CloudApiImpl implements CloudApi {
     private static Lease<? extends QueryCache> acquireQueryCache(CloudApiOptions options) {
         CacheConfig cacheConfig = options.getCacheConfig();
         if (!cacheConfig.isEnabled()) {
-            return SharedResources.dedicated(new NoOpQueryCache(), cache -> {
-            });
+            return Lease.unshared(new NoOpQueryCache(), cache -> {});
         }
         Duration inFlightTimeout = ApiClients.maxRequestDuration(options);
+        Supplier<QueryCacheImpl> newQueryCache = () -> new QueryCacheImpl(cacheConfig, inFlightTimeout);
         if (options.isDedicatedHttpClient()) {
-            return SharedResources.dedicated(new QueryCacheImpl(cacheConfig, inFlightTimeout), QueryCacheImpl::shutdown);
+            return Lease.unshared(newQueryCache.get(), QueryCacheImpl::shutdown);
         }
         QueryCacheKey key = new QueryCacheKey(
                 options.getControllerUrl(),
@@ -154,11 +155,7 @@ public class CloudApiImpl implements CloudApi {
                 options.getHttpReadTimeout(),
                 options.getHttpWriteTimeout()
         );
-        return SharedResources.acquire(
-                key,
-                () -> new QueryCacheImpl(cacheConfig, inFlightTimeout),
-                QueryCacheImpl::shutdown
-        );
+        return SharedResources.acquire(key, newQueryCache, QueryCacheImpl::shutdown);
     }
 
     private record NatsKey(String natsUrl, String networkId, String networkSecret, Duration failoverReconnectAfter) {

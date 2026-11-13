@@ -23,16 +23,13 @@ class SharedResourcesTest {
 
         assertSame(first.get(), second.get());
         assertEquals(1, created.get());
-        assertEquals(2, SharedResources.openLeases(key));
 
         first.close();
         first.close();
         assertEquals(List.of(), closed);
-        assertEquals(1, SharedResources.openLeases(key));
 
         second.close();
         assertEquals(List.of(1), closed);
-        assertEquals(0, SharedResources.openLeases(key));
 
         SharedResources.Lease<Object> third = SharedResources.acquire(key, () -> created.incrementAndGet(), closed::add);
         assertEquals(2, third.get());
@@ -40,12 +37,12 @@ class SharedResourcesTest {
     }
 
     @Test
-    void dedicatedLeasesAreNeverShared() {
+    void unsharedLeasesCloseTheirOwnResource() {
         List<Object> closed = new ArrayList<>();
         Object value = new Object();
 
-        SharedResources.Lease<Object> lease = SharedResources.dedicated(value, closed::add);
-        SharedResources.Lease<Object> other = SharedResources.dedicated(new Object(), closed::add);
+        SharedResources.Lease<Object> lease = SharedResources.Lease.unshared(value, closed::add);
+        SharedResources.Lease<Object> other = SharedResources.Lease.unshared(new Object(), closed::add);
 
         assertNotSame(lease.get(), other.get());
         lease.close();

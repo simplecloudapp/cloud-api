@@ -38,20 +38,6 @@ public final class SharedResources {
         return new Lease<>(acquired.value, () -> release(key, acquired));
     }
 
-    /**
-     * Returns a lease on a resource that is never shared with other instances.
-     */
-    public static <T> Lease<T> dedicated(T value, Consumer<T> closer) {
-        return new Lease<>(value, () -> closer.accept(value));
-    }
-
-    static int openLeases(Object key) {
-        synchronized (ENTRIES) {
-            Entry<?> entry = ENTRIES.get(key);
-            return entry == null ? 0 : entry.leases;
-        }
-    }
-
     private static <T> void release(Object key, Entry<T> entry) {
         synchronized (ENTRIES) {
             if (--entry.leases > 0) {
@@ -82,6 +68,14 @@ public final class SharedResources {
         private Lease(T value, Runnable release) {
             this.value = value;
             this.release = release;
+        }
+
+        /**
+         * Returns a lease on a resource that only one instance uses, for instances that opted out
+         * of sharing. Closing the lease closes the resource.
+         */
+        public static <T> Lease<T> unshared(T value, Consumer<T> closer) {
+            return new Lease<>(value, () -> closer.accept(value));
         }
 
         public T get() {

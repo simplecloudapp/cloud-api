@@ -15,8 +15,9 @@ import java.util.logging.Logger;
 /**
  * One {@code CloudApi} instance's view of a shared NATS connection.
  *
- * <p>It remembers the dispatchers the instance creates, so closing the instance stops only its
- * own subscriptions. {@code close} and {@code drain} on the view close only the view, never the
+ * <p>It remembers the dispatchers the instance creates, so closing the instance closes only those
+ * dispatchers and their subscriptions. Subscriptions made with {@code subscribe} directly on the
+ * view are not tracked and stay on the shared connection. {@code close} and {@code drain} on the view close only the view, never the
  * shared connection, and a closed view rejects every further call.
  */
 public final class ScopedNatsConnection {
