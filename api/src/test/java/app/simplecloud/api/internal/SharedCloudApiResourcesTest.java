@@ -5,6 +5,10 @@ import app.simplecloud.api.CloudApiOptions;
 import app.simplecloud.api.cache.CacheConfig;
 import app.simplecloud.api.cache.EntityCacheConfig;
 import app.simplecloud.api.cache.EntityType;
+import app.simplecloud.api.cache.QueryCache;
+import app.simplecloud.api.internal.cache.QueryCacheImpl;
+import app.simplecloud.api.internal.nats.NatsFailoverConnectionManager;
+import app.simplecloud.api.internal.shared.SharedResources;
 import app.simplecloud.api.server.Server;
 import app.simplecloud.api.web.ApiClient;
 import com.sun.net.httpserver.HttpServer;
@@ -161,6 +165,28 @@ class SharedCloudApiResourcesTest {
     }
 
     @Test
+    void closingTheLastInstanceShutsDownTheSharedQueryCache() throws Exception {
+        CloudApi first = CloudApi.create(options(UnaryOperator.identity()));
+        CloudApi second = CloudApi.create(options(UnaryOperator.identity()));
+        ExecutorService revalidation = revalidationExecutor(first.cache());
+
+        first.close();
+        assertFalse(revalidation.isShutdown());
+
+        second.close();
+        assertTrue(revalidation.isShutdown());
+    }
+
+    @Test
+    void natsViewRejectsDirectSubscriptions() {
+        try (CloudApiImpl api = (CloudApiImpl) CloudApi.create(options(UnaryOperator.identity()))) {
+            Connection connection = api.getNatsConnection();
+
+            assertThrows(UnsupportedOperationException.class, () -> connection.subscribe("network-1.direct"));
+        }
+    }
+
+    @Test
     void closedInstanceRejectsCallsOnItsNatsConnection() {
         CloudApiImpl closed = (CloudApiImpl) CloudApi.create(options(UnaryOperator.identity()));
         Connection connection = closed.getNatsConnection();
@@ -217,6 +243,10 @@ class SharedCloudApiResourcesTest {
             assertEquals("after", secondMessages.poll(5, TimeUnit.SECONDS));
             secondConnection.flush(Duration.ofSeconds(5));
             assertNull(firstMessages.poll(500, TimeUnit.MILLISECONDS));
+
+            Connection sharedConnection = natsConnectionManager(second).getConnection();
+            second.close();
+            assertEquals(Connection.Status.CLOSED, sharedConnection.getStatus());
         }
     }
 
@@ -233,6 +263,19 @@ class SharedCloudApiResourcesTest {
         return CacheConfig.builder()
                 .entityConfig(EntityType.SERVER, serverConfig)
                 .build();
+    }
+
+    private static NatsFailoverConnectionManager natsConnectionManager(CloudApiImpl api) throws ReflectiveOperationException {
+        Field field = CloudApiImpl.class.getDeclaredField("natsConnectionManagerLease");
+        field.setAccessible(true);
+        SharedResources.Lease<?> lease = (SharedResources.Lease<?>) field.get(api);
+        return (NatsFailoverConnectionManager) lease.get();
+    }
+
+    private static ExecutorService revalidationExecutor(QueryCache cache) throws ReflectiveOperationException {
+        Field field = QueryCacheImpl.class.getDeclaredField("revalidationExecutor");
+        field.setAccessible(true);
+        return (ExecutorService) field.get(cache);
     }
 
     private static OkHttpClient okHttpClient(CloudApi api) throws ReflectiveOperationException {

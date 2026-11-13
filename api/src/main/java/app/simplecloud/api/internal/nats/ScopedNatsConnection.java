@@ -13,24 +13,25 @@ import java.util.logging.Level;
 import java.util.logging.Logger;
 
 /**
- * One {@code CloudApi} instance's view of a shared NATS connection.
+ * One {@code CloudApi} instance's view of its NATS connection, which other instances may share.
  *
- * <p>It remembers the dispatchers the instance creates, so closing the instance closes only those
- * dispatchers and their subscriptions. Subscriptions made with {@code subscribe} directly on the
- * view are not tracked and stay on the shared connection. {@code close} and {@code drain} on the view close only the view, never the
- * shared connection, and a closed view rejects every further call.
+ * <p>Subscriptions go through dispatchers, which the view remembers, so closing the instance
+ * closes only its own dispatchers and their subscriptions. {@code subscribe} directly on the view
+ * is rejected, because such a subscription could not be closed with the instance. {@code close}
+ * and {@code drain} on the view close only the view, never the connection, and a closed view
+ * rejects every further call.
  */
 public final class ScopedNatsConnection {
 
     private static final Logger LOGGER = Logger.getLogger(ScopedNatsConnection.class.getName());
 
-    private final Connection shared;
+    private final Connection delegate;
     private final List<Dispatcher> dispatchers = new CopyOnWriteArrayList<>();
     private final Connection connection;
     private boolean closed;
 
-    public ScopedNatsConnection(Connection shared) {
-        this.shared = shared;
+    public ScopedNatsConnection(Connection delegate) {
+        this.delegate = delegate;
         this.connection = (Connection) Proxy.newProxyInstance(
                 Connection.class.getClassLoader(),
                 new Class<?>[]{Connection.class},
@@ -46,7 +47,7 @@ public final class ScopedNatsConnection {
     public synchronized void close() {
         closed = true;
         for (Dispatcher dispatcher : dispatchers) {
-            closeSharedDispatcher(dispatcher);
+            closeDelegateDispatcher(dispatcher);
         }
         dispatchers.clear();
     }
@@ -55,7 +56,7 @@ public final class ScopedNatsConnection {
         return switch (method.getName()) {
             case "hashCode" -> System.identityHashCode(proxy);
             case "equals" -> proxy == args[0];
-            case "toString" -> "Scoped " + shared;
+            case "toString" -> "Scoped " + delegate;
             case "close" -> {
                 close();
                 yield null;
@@ -64,6 +65,9 @@ public final class ScopedNatsConnection {
                 close();
                 yield CompletableFuture.completedFuture(Boolean.TRUE);
             }
+            case "subscribe" -> throw new UnsupportedOperationException(
+                    "Subscribe through a dispatcher, so the subscription closes with its CloudApi instance"
+            );
             case "createDispatcher" -> createDispatcher(method, args);
             case "closeDispatcher" -> closeDispatcher(method, args);
             default -> invokeUnlessClosed(method, args);
@@ -85,9 +89,9 @@ public final class ScopedNatsConnection {
         return closed;
     }
 
-    private void closeSharedDispatcher(Dispatcher dispatcher) {
+    private void closeDelegateDispatcher(Dispatcher dispatcher) {
         try {
-            shared.closeDispatcher(dispatcher);
+            delegate.closeDispatcher(dispatcher);
         } catch (RuntimeException e) {
             // A dispatcher that was already drained is no longer known to the connection.
             LOGGER.log(Level.FINE, "Failed to close NATS dispatcher", e);
@@ -99,7 +103,7 @@ public final class ScopedNatsConnection {
             throw new IllegalStateException("NATS connection of a closed CloudApi instance");
         }
         try {
-            return method.invoke(shared, args);
+            return method.invoke(delegate, args);
         } catch (InvocationTargetException e) {
             throw e.getTargetException();
         }

@@ -77,7 +77,7 @@ public final class ApiClients {
     }
 
     /**
-     * Stops the connection pool and dispatcher threads of {@code httpClient}.
+     * Shuts down the dispatcher's executor of {@code httpClient} and closes its idle pooled connections.
      */
     public static void close(OkHttpClient httpClient) {
         httpClient.dispatcher().executorService().shutdown();

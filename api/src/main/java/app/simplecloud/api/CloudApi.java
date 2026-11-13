@@ -153,8 +153,9 @@ public interface CloudApi extends AutoCloseable {
      * System.out.println("Cache hit rate: " + stats.getHitRate());
      * }</pre>
      *
-     * <p>Other instances with the same settings may share this cache, so invalidating or clearing
-     * it affects them too. {@link CloudApiOptions.Builder#dedicatedQueryCache()} gives an instance
+     * <p>Other instances with the same settings may share this cache. Every entry stored,
+     * read, invalidated or cleared, including entries under custom keys, and the statistics are
+     * shared with them. {@link CloudApiOptions.Builder#dedicatedQueryCache()} gives an instance
      * its own cache. See {@link #create(CloudApiOptions)}.
      *
      * @return the query cache
