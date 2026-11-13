@@ -1,6 +1,8 @@
 package app.simplecloud.api.platform.fabric;
 
 import app.simplecloud.api.CloudApi;
+import app.simplecloud.api.CloudApiOptions;
+import app.simplecloud.api.internal.CloudApiImpl;
 import app.simplecloud.api.platform.shared.PlayerSynchronizer;
 import net.fabricmc.api.DedicatedServerModInitializer;
 import net.fabricmc.fabric.api.event.lifecycle.v1.ServerLifecycleEvents;
@@ -33,7 +35,7 @@ public final class FabricApiProvider implements DedicatedServerModInitializer {
     private void onServerStarted(MinecraftServer server) {
         this.server = server;
         this.onlinePlayerCount.set(server.getPlayerList().getPlayerCount());
-        this.cloudApi = CloudApi.create();
+        this.cloudApi = CloudApiImpl.createNatsConnectionOwner(CloudApiOptions.DEFAULT);
         this.playerSynchronizer = new PlayerSynchronizer(cloudApi, onlinePlayerCount::get);
         this.playerSynchronizer.start();
         this.playerSynchronizer.updatePlayerCount();

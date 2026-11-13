@@ -12,28 +12,23 @@ import app.simplecloud.api.internal.cache.QueryCacheImpl;
 import app.simplecloud.api.internal.event.EventApiImpl;
 import app.simplecloud.api.internal.group.GroupApiImpl;
 import app.simplecloud.api.internal.nats.NatsFailoverConnectionManager;
+import app.simplecloud.api.internal.nats.PlatformNatsConnection;
 import app.simplecloud.api.internal.nats.ScopedNatsConnection;
 import app.simplecloud.api.internal.persistentserver.PersistentServerApiImpl;
 import app.simplecloud.api.internal.server.ServerApiImpl;
 import app.simplecloud.api.internal.player.PlayerApiImpl;
-import app.simplecloud.api.internal.shared.SharedResources;
-import app.simplecloud.api.internal.shared.SharedResources.Lease;
 import app.simplecloud.api.internal.web.ApiClients;
 import app.simplecloud.api.web.ApiClient;
 import app.simplecloud.api.persistentserver.PersistentServerApi;
 import app.simplecloud.api.player.PlayerApi;
 import app.simplecloud.api.server.ServerApi;
 import io.nats.client.Connection;
-import okhttp3.OkHttpClient;
 
-import java.time.Duration;
-import java.util.ArrayList;
-import java.util.List;
+import java.util.Optional;
 import java.util.concurrent.Executor;
 import java.util.concurrent.ExecutorService;
 import java.util.concurrent.Executors;
 import java.util.concurrent.atomic.AtomicBoolean;
-import java.util.function.Supplier;
 import java.util.logging.Level;
 import java.util.logging.Logger;
 
@@ -42,12 +37,11 @@ public class CloudApiImpl implements CloudApi {
     private static final Logger LOGGER = Logger.getLogger(CloudApiImpl.class.getName());
 
     private final CloudApiOptions options;
-    private final Lease<OkHttpClient> okHttpClientLease;
     private final ApiClient apiClient;
 
-    private final Lease<NatsFailoverConnectionManager> natsConnectionManagerLease;
+    private final NatsFailoverConnectionManager ownNatsConnectionManager;
     private final ScopedNatsConnection scopedNatsConnection;
-    private final Lease<? extends QueryCache> queryCacheLease;
+    private final QueryCache queryCache;
     private final CacheEventListener cacheEventListener;
     private final ServerApi serverApi;
     private final GroupApi groupApi;
@@ -60,24 +54,32 @@ public class CloudApiImpl implements CloudApi {
     public CloudApiImpl(CloudApiOptions options) {
         this.options = options;
 
-        // Leases taken before a failure must be returned, or other instances' resources never close.
-        List<Lease<?>> acquiredLeases = new ArrayList<>();
-        ScopedNatsConnection natsView = null;
+        NatsFailoverConnectionManager ownNatsConnectionManager = null;
+        ScopedNatsConnection scopedNatsConnection = null;
+        QueryCache queryCache = null;
         try {
-            this.natsConnectionManagerLease = acquireNats(options);
-            acquiredLeases.add(natsConnectionManagerLease);
-            this.okHttpClientLease = acquireOkHttpClient(options);
-            acquiredLeases.add(okHttpClientLease);
-            this.queryCacheLease = acquireQueryCache(options);
-            acquiredLeases.add(queryCacheLease);
-            natsView = new ScopedNatsConnection(natsConnectionManagerLease.get().getConnection());
-            this.scopedNatsConnection = natsView;
-            Connection natsClient = natsView.connection();
-            QueryCache queryCache = queryCacheLease.get();
+            PlatformNatsConnection.Settings natsSettings = PlatformNatsConnection.Settings.of(options);
+            Optional<NatsFailoverConnectionManager> platformNatsConnectionManager = PlatformNatsConnection.find(natsSettings);
+            if (platformNatsConnectionManager.isEmpty()) {
+                ownNatsConnectionManager = natsSettings.openConnectionManager();
+            }
+            NatsFailoverConnectionManager natsConnectionManager = platformNatsConnectionManager.orElse(ownNatsConnectionManager);
+            scopedNatsConnection = new ScopedNatsConnection(natsConnectionManager.getConnection());
+            this.ownNatsConnectionManager = ownNatsConnectionManager;
+            this.scopedNatsConnection = scopedNatsConnection;
+            Connection natsClient = scopedNatsConnection.connection();
+
+            // Initialize cache
             CacheConfig cacheConfig = options.getCacheConfig();
+            if (cacheConfig.isEnabled()) {
+                queryCache = new QueryCacheImpl(cacheConfig, ApiClients.maxRequestDuration(options));
+            } else {
+                queryCache = new NoOpQueryCache();
+            }
+            this.queryCache = queryCache;
 
             // Initialize APIs with cache
-            this.apiClient = ApiClients.create(options, okHttpClientLease.get());
+            this.apiClient = ApiClients.create(options);
             this.playerApi = new PlayerApiImpl(options, natsClient, apiClient, executor);
             this.eventApi = new EventApiImpl(natsClient, options.getNetworkId(), playerApi);
             this.serverApi = new ServerApiImpl(options, queryCache, apiClient, executor);
@@ -92,88 +94,33 @@ public class CloudApiImpl implements CloudApi {
                 this.cacheEventListener = null;
             }
         } catch (RuntimeException | Error e) {
-            if (natsView != null) {
-                natsView.close();
+            if (scopedNatsConnection != null) {
+                scopedNatsConnection.close();
             }
-            for (Lease<?> lease : acquiredLeases) {
-                closeQuietly("leased resource", lease);
+            if (ownNatsConnectionManager != null) {
+                ownNatsConnectionManager.shutdown();
+            }
+            if (queryCache instanceof QueryCacheImpl queryCacheImpl) {
+                queryCacheImpl.shutdown();
             }
             executor.shutdown();
             throw e;
         }
     }
 
-    private static Lease<NatsFailoverConnectionManager> acquireNats(CloudApiOptions options) {
-        NatsKey key = new NatsKey(
-                options.getNatsUrl(),
-                options.getNetworkId(),
-                options.getNetworkSecret(),
-                options.getNatsFailoverReconnectAfter()
-        );
-        if (options.isDedicatedNatsConnection()) {
-            return Lease.unshared(newNatsConnectionManager(key), NatsFailoverConnectionManager::shutdown);
+    /**
+     * Creates the platform plugin's instance. Other instances in this class loader with the same
+     * NATS settings use its NATS connection instead of opening their own, and closing this instance
+     * closes that connection for all of them. If another connection is registered already, this
+     * instance is created like any other.
+     */
+    public static CloudApiImpl createNatsConnectionOwner(CloudApiOptions options) {
+        CloudApiImpl cloudApi = new CloudApiImpl(options);
+        if (cloudApi.ownNatsConnectionManager != null) {
+            PlatformNatsConnection.Settings natsSettings = PlatformNatsConnection.Settings.of(options);
+            PlatformNatsConnection.register(natsSettings, cloudApi.ownNatsConnectionManager);
         }
-        return SharedResources.acquire(
-                key,
-                () -> newNatsConnectionManager(key),
-                NatsFailoverConnectionManager::shutdown
-        );
-    }
-
-    private static NatsFailoverConnectionManager newNatsConnectionManager(NatsKey key) {
-        return new NatsFailoverConnectionManager(
-                key.natsUrl(),
-                key.networkId(),
-                key.networkSecret(),
-                key.failoverReconnectAfter()
-        );
-    }
-
-    private static Lease<OkHttpClient> acquireOkHttpClient(CloudApiOptions options) {
-        if (options.isDedicatedHttpClient()) {
-            return Lease.unshared(ApiClients.newHttpClient(), ApiClients::close);
-        }
-        return SharedResources.acquire(HttpClientKey.INSTANCE, ApiClients::newHttpClient, ApiClients::close);
-    }
-
-    private static Lease<? extends QueryCache> acquireQueryCache(CloudApiOptions options) {
-        CacheConfig cacheConfig = options.getCacheConfig();
-        if (!cacheConfig.isEnabled()) {
-            return Lease.unshared(new NoOpQueryCache(), cache -> {});
-        }
-        Duration inFlightTimeout = ApiClients.maxRequestDuration(options);
-        Supplier<QueryCacheImpl> newQueryCache = () -> new QueryCacheImpl(cacheConfig, inFlightTimeout);
-        if (options.isDedicatedQueryCache()) {
-            return Lease.unshared(newQueryCache.get(), QueryCacheImpl::shutdown);
-        }
-        QueryCacheKey key = new QueryCacheKey(
-                options.getControllerUrl(),
-                options.getNetworkId(),
-                options.getNetworkSecret(),
-                cacheConfig,
-                options.getHttpConnectTimeout(),
-                options.getHttpReadTimeout(),
-                options.getHttpWriteTimeout()
-        );
-        return SharedResources.acquire(key, newQueryCache, QueryCacheImpl::shutdown);
-    }
-
-    private record NatsKey(String natsUrl, String networkId, String networkSecret, Duration failoverReconnectAfter) {
-    }
-
-    private record QueryCacheKey(
-            String controllerUrl,
-            String networkId,
-            String networkSecret,
-            CacheConfig cacheConfig,
-            Duration httpConnectTimeout,
-            Duration httpReadTimeout,
-            Duration httpWriteTimeout
-    ) {
-    }
-
-    private enum HttpClientKey {
-        INSTANCE
+        return cloudApi;
     }
 
     @Override
@@ -223,7 +170,7 @@ public class CloudApiImpl implements CloudApi {
 
     @Override
     public QueryCache cache() {
-        return queryCacheLease.get();
+        return queryCache;
     }
 
     @Override
@@ -239,19 +186,24 @@ public class CloudApiImpl implements CloudApi {
                 LOGGER.log(Level.WARNING, "Failed to shutdown cache event listener", e);
             }
         }
-        closeQuietly("query cache", queryCacheLease);
-        scopedNatsConnection.close();
-        closeQuietly("NATS connection", natsConnectionManagerLease);
-        closeQuietly("HTTP client", okHttpClientLease);
-        executor.shutdown();
-    }
-
-    private static void closeQuietly(String name, Lease<?> lease) {
-        try {
-            lease.close();
-        } catch (RuntimeException e) {
-            LOGGER.log(Level.WARNING, "Failed to shutdown " + name, e);
+        if (queryCache instanceof QueryCacheImpl queryCacheImpl) {
+            try {
+                queryCacheImpl.shutdown();
+            } catch (RuntimeException e) {
+                LOGGER.log(Level.WARNING, "Failed to shutdown query cache", e);
+            }
         }
+        scopedNatsConnection.close();
+        if (ownNatsConnectionManager != null) {
+            // Unregistered first, so instances created from now on open their own connection instead of this closing one.
+            PlatformNatsConnection.unregister(ownNatsConnectionManager);
+            try {
+                ownNatsConnectionManager.shutdown();
+            } catch (RuntimeException e) {
+                LOGGER.log(Level.WARNING, "Failed to shutdown NATS connection", e);
+            }
+        }
+        executor.shutdown();
     }
 
 }

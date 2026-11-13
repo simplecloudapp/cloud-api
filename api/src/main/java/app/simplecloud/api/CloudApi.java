@@ -60,20 +60,11 @@ public interface CloudApi extends AutoCloseable {
     /**
      * Creates a CloudAPI instance with custom options.
      *
-     * <p>Instances loaded by the same class loader, such as plugins on one server or proxy that
-     * use the API from the SimpleCloud platform plugin, share resources:
-     * <ul>
-     *   <li>one NATS connection, when NATS URL, network, secret and failover reconnect delay match;</li>
-     *   <li>one HTTP connection pool;</li>
-     *   <li>one query cache, when caching is enabled and controller, network, secret, cache
-     *       configuration and HTTP timeouts match. Identical server, group and
-     *       persistent server reads in flight at the same time then send one request, carrying the
-     *       {@code X-SC-Component} header of the instance that started it.</li>
-     * </ul>
-     * Shared resources close when the last instance using them closes. Use
-     * {@link CloudApiOptions.Builder#dedicatedNatsConnection()},
-     * {@link CloudApiOptions.Builder#dedicatedHttpClient()} or
-     * {@link CloudApiOptions.Builder#dedicatedQueryCache()} to opt out.
+     * <p>All instances in one class loader share one HTTP connection pool. On a server or proxy,
+     * an instance created after the SimpleCloud platform plugin created its own, with the same NATS
+     * URL, network, secret and failover reconnect delay, uses the plugin's NATS connection, and
+     * {@link #close()} leaves that connection open. Otherwise the instance opens its own NATS
+     * connection, which {@link #close()} closes.
      *
      * @param options the configuration options for the API client
      * @return a new CloudApi instance
@@ -152,11 +143,6 @@ public interface CloudApi extends AutoCloseable {
      * CacheStats stats = cloudApi.cache().getStats();
      * System.out.println("Cache hit rate: " + stats.getHitRate());
      * }</pre>
-     *
-     * <p>Other instances with the same settings may share this cache. Every entry stored,
-     * read, invalidated or cleared, including entries under custom keys, and the statistics are
-     * shared with them. {@link CloudApiOptions.Builder#dedicatedQueryCache()} gives an instance
-     * its own cache. See {@link #create(CloudApiOptions)}.
      *
      * @return the query cache
      */

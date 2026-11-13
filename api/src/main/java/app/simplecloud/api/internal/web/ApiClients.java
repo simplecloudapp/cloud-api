@@ -16,25 +16,21 @@ import java.time.Duration;
  */
 public final class ApiClients {
 
+    // Never shut down, because every CloudApi instance in this class loader sends its requests through it.
+    private static final OkHttpClient HTTP_CLIENT = new ApiClient().getHttpClient();
+
     private ApiClients() {
     }
 
     /**
      * Creates an isolated client. Generated API no-arg constructors use a global
      * default client, so configuring that client would change headers and timeouts
-     * for other CloudApi instances in the same class loader.
+     * for other CloudApi instances in the same class loader. The client derives its own
+     * {@link OkHttpClient} for its timeouts, which keeps the connection pool and dispatcher
+     * that all clients share.
      */
     public static ApiClient create(CloudApiOptions options) {
-        return create(options, newHttpClient());
-    }
-
-    /**
-     * Creates an isolated client on top of {@code httpClient}. The client derives its own
-     * {@link OkHttpClient} for its timeouts, which keeps the connection pool and dispatcher
-     * of {@code httpClient}, so clients created from one base share their connections.
-     */
-    public static ApiClient create(CloudApiOptions options, OkHttpClient httpClient) {
-        ApiClient client = new ResponseValidatingApiClient(httpClient);
+        ApiClient client = new ResponseValidatingApiClient(HTTP_CLIENT);
         applyTimeouts(client, options);
         ApiKeyAuth credential = (ApiKeyAuth) client.getAuthentication("NetworkCredential");
         credential.setApiKey(options.getNetworkSecret());
@@ -67,21 +63,6 @@ public final class ApiClients {
                 .plus(options.getHttpWriteTimeout())
                 .plus(options.getHttpReadTimeout())
                 .plus(Duration.ofSeconds(5));
-    }
-
-    /**
-     * Creates the HTTP client the generated {@link ApiClient} would create by default.
-     */
-    public static OkHttpClient newHttpClient() {
-        return new ApiClient().getHttpClient();
-    }
-
-    /**
-     * Shuts down the dispatcher's executor of {@code httpClient} and closes its idle pooled connections.
-     */
-    public static void close(OkHttpClient httpClient) {
-        httpClient.dispatcher().executorService().shutdown();
-        httpClient.connectionPool().evictAll();
     }
 
     private static int toMillis(Duration duration) {

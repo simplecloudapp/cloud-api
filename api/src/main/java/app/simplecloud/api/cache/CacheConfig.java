@@ -4,7 +4,6 @@ import java.time.Duration;
 import java.util.Collections;
 import java.util.HashMap;
 import java.util.Map;
-import java.util.Objects;
 
 /**
  * Configuration for the query cache, inspired by TanStack Query.
@@ -120,31 +119,6 @@ public class CacheConfig {
      */
     public Duration getEventDebounceTime() {
         return eventDebounceTime;
-    }
-
-    @Override
-    public boolean equals(Object other) {
-        return other instanceof CacheConfig that
-                && enabled == that.enabled
-                && autoInvalidateOnEvents == that.autoInvalidateOnEvents
-                && maxEntries == that.maxEntries
-                && Objects.equals(defaultStaleTime, that.defaultStaleTime)
-                && Objects.equals(defaultCacheTime, that.defaultCacheTime)
-                && Objects.equals(entityConfigs, that.entityConfigs)
-                && Objects.equals(eventDebounceTime, that.eventDebounceTime);
-    }
-
-    @Override
-    public int hashCode() {
-        return Objects.hash(
-                enabled,
-                defaultStaleTime,
-                defaultCacheTime,
-                entityConfigs,
-                autoInvalidateOnEvents,
-                maxEntries,
-                eventDebounceTime
-        );
     }
 
     public static Builder builder() {

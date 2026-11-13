@@ -1,6 +1,8 @@
 package app.simplecloud.api.platform.spigot;
 
 import app.simplecloud.api.CloudApi;
+import app.simplecloud.api.CloudApiOptions;
+import app.simplecloud.api.internal.CloudApiImpl;
 import app.simplecloud.api.platform.shared.OnlinePlayerTracker;
 import app.simplecloud.api.platform.shared.PlayerSynchronizer;
 import org.bukkit.Bukkit;
@@ -9,7 +11,7 @@ import org.bukkit.plugin.java.JavaPlugin;
 
 public class SpigotApiProvider extends JavaPlugin {
 
-    private final CloudApi cloudApi = CloudApi.create();
+    private final CloudApi cloudApi = CloudApiImpl.createNatsConnectionOwner(CloudApiOptions.DEFAULT);
     private final OnlinePlayerTracker onlinePlayerTracker = new OnlinePlayerTracker();
     private final PlayerSynchronizer playerSynchronizer = new PlayerSynchronizer(cloudApi, onlinePlayerTracker);
 

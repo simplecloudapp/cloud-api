@@ -93,7 +93,8 @@ public final class ScopedNatsConnection {
         try {
             delegate.closeDispatcher(dispatcher);
         } catch (RuntimeException e) {
-            // A dispatcher that was already drained is no longer known to the connection.
+            // Thrown for a dispatcher that was drained already, and once the connection is closed,
+            // which the platform plugin's instance may do before this instance closes.
             LOGGER.log(Level.FINE, "Failed to close NATS dispatcher", e);
         }
     }

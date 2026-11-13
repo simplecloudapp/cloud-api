@@ -22,9 +22,6 @@ public class CloudApiOptions {
     private final Duration httpConnectTimeout;
     private final Duration httpReadTimeout;
     private final Duration httpWriteTimeout;
-    private final boolean dedicatedNatsConnection;
-    private final boolean dedicatedHttpClient;
-    private final boolean dedicatedQueryCache;
 
     private CloudApiOptions(Builder builder) {
         this.natsUrl = builder.natsUrl;
@@ -38,9 +35,6 @@ public class CloudApiOptions {
         this.httpConnectTimeout = builder.httpConnectTimeout;
         this.httpReadTimeout = builder.httpReadTimeout;
         this.httpWriteTimeout = builder.httpWriteTimeout;
-        this.dedicatedNatsConnection = builder.dedicatedNatsConnection;
-        this.dedicatedHttpClient = builder.dedicatedHttpClient;
-        this.dedicatedQueryCache = builder.dedicatedQueryCache;
     }
 
     public String getNatsUrl() {
@@ -106,27 +100,6 @@ public class CloudApiOptions {
         return httpWriteTimeout;
     }
 
-    /**
-     * Returns whether this instance opens its own NATS connection instead of sharing one.
-     */
-    public boolean isDedicatedNatsConnection() {
-        return dedicatedNatsConnection;
-    }
-
-    /**
-     * Returns whether this instance uses its own HTTP connection pool instead of sharing one.
-     */
-    public boolean isDedicatedHttpClient() {
-        return dedicatedHttpClient;
-    }
-
-    /**
-     * Returns whether this instance uses its own query cache instead of sharing one.
-     */
-    public boolean isDedicatedQueryCache() {
-        return dedicatedQueryCache;
-    }
-
     public static Builder builder() {
         return new Builder();
     }
@@ -143,9 +116,6 @@ public class CloudApiOptions {
         private Duration httpConnectTimeout = Duration.ofSeconds(5);
         private Duration httpReadTimeout = Duration.ofSeconds(15);
         private Duration httpWriteTimeout = Duration.ofSeconds(10);
-        private boolean dedicatedNatsConnection;
-        private boolean dedicatedHttpClient;
-        private boolean dedicatedQueryCache;
 
         public Builder() {
             this.natsUrl = System.getenv().getOrDefault("SIMPLECLOUD_NATS_URL", "wss://nats.simplecloud.app:443");
@@ -286,46 +256,6 @@ public class CloudApiOptions {
                 throw new IllegalArgumentException("httpWriteTimeout must be >= 0");
             }
             this.httpWriteTimeout = httpWriteTimeout;
-            return this;
-        }
-
-        /**
-         * Opens a NATS connection for this instance only.
-         *
-         * <p>By default, instances with the same NATS URL, network, secret and failover reconnect
-         * delay share one connection.
-         *
-         * @return this builder
-         */
-        public Builder dedicatedNatsConnection() {
-            this.dedicatedNatsConnection = true;
-            return this;
-        }
-
-        /**
-         * Opens an HTTP connection pool for this instance only.
-         *
-         * <p>By default, all instances share one HTTP connection pool. This does not stop reads
-         * from being merged through a shared query cache; see {@link #dedicatedQueryCache()}.
-         *
-         * @return this builder
-         */
-        public Builder dedicatedHttpClient() {
-            this.dedicatedHttpClient = true;
-            return this;
-        }
-
-        /**
-         * Uses a query cache for this instance only, so its reads are never merged with or served
-         * from reads of other instances, and invalidating or clearing its cache affects only it.
-         *
-         * <p>By default, instances with the same controller, network, secret, cache configuration
-         * and HTTP timeouts share one query cache.
-         *
-         * @return this builder
-         */
-        public Builder dedicatedQueryCache() {
-            this.dedicatedQueryCache = true;
             return this;
         }
 

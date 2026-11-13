@@ -1,6 +1,6 @@
 package app.simplecloud.api.provider.paper;
 
-import app.simplecloud.api.CloudApi;
+import app.simplecloud.api.CloudApiOptions;
 import app.simplecloud.api.internal.CloudApiImpl;
 import app.simplecloud.api.internal.integration.adventure.AdventureIntegration;
 import app.simplecloud.api.platform.shared.OnlinePlayerTracker;
@@ -18,7 +18,7 @@ public class PaperApiProvider extends JavaPlugin {
 
     @Override
     public void onEnable() {
-        this.cloudApi = (CloudApiImpl) CloudApi.create();
+        this.cloudApi = CloudApiImpl.createNatsConnectionOwner(CloudApiOptions.DEFAULT);
 
         String serverId = SimpleCloudRuntime.serverId();
         String groupName = SimpleCloudRuntime.groupName();

@@ -1,7 +1,6 @@
 package app.simplecloud.api.cache;
 
 import java.time.Duration;
-import java.util.Objects;
 
 /**
  * Per-entity-type cache configuration overrides.
@@ -46,19 +45,6 @@ public class EntityCacheConfig {
      */
     public boolean isEnabled() {
         return enabled;
-    }
-
-    @Override
-    public boolean equals(Object other) {
-        return other instanceof EntityCacheConfig that
-                && enabled == that.enabled
-                && Objects.equals(staleTime, that.staleTime)
-                && Objects.equals(cacheTime, that.cacheTime);
-    }
-
-    @Override
-    public int hashCode() {
-        return Objects.hash(staleTime, cacheTime, enabled);
     }
 
     public static Builder builder() {

@@ -1,6 +1,6 @@
 package app.simplecloud.api.platform.bungeecord;
 
-import app.simplecloud.api.CloudApi;
+import app.simplecloud.api.CloudApiOptions;
 import app.simplecloud.api.internal.CloudApiImpl;
 import app.simplecloud.api.internal.integration.player.PlayerCommandHandler;
 import app.simplecloud.api.internal.integration.player.PlayerSessionReporter;
@@ -35,7 +35,7 @@ public class BungeeCordApiProvider extends Plugin implements ProxyPresencePlayer
 
     @Override
     public void onEnable() {
-        this.cloudApi = (CloudApiImpl) CloudApi.create();
+        this.cloudApi = CloudApiImpl.createNatsConnectionOwner(CloudApiOptions.DEFAULT);
         // Started right after the CloudApi and stopped first in onDisable, so onDisable stops it
         // even if a later step of onEnable fails.
         this.luckPermsSynchronizer = startLuckPermsSynchronizer();

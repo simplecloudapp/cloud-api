@@ -473,7 +473,8 @@ public final class NatsFailoverConnectionManager {
 
                 Dispatcher dispatcher = dispatcherState.delegateRef.get();
                 Subscription subscription = delegateRef.get();
-                if (dispatcher == null || subscription == null) {
+                // The closed connection has dropped its subscriptions, and its dispatchers reject unsubscribe.
+                if (shutdown || dispatcher == null || subscription == null) {
                     return;
                 }
                 if (args != null && args.length == 1 && args[0] instanceof Integer maxMessages) {

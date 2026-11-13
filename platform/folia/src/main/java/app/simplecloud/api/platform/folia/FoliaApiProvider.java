@@ -1,6 +1,6 @@
 package app.simplecloud.api.platform.folia;
 
-import app.simplecloud.api.CloudApi;
+import app.simplecloud.api.CloudApiOptions;
 import app.simplecloud.api.internal.CloudApiImpl;
 import app.simplecloud.api.platform.shared.OnlinePlayerTracker;
 import app.simplecloud.api.platform.shared.PlayerSynchronizer;
@@ -16,7 +16,7 @@ public class FoliaApiProvider extends JavaPlugin {
 
     @Override
     public void onEnable() {
-        this.cloudApi = (CloudApiImpl) CloudApi.create();
+        this.cloudApi = CloudApiImpl.createNatsConnectionOwner(CloudApiOptions.DEFAULT);
         this.foliaAdventureIntegration = new FoliaAdventureIntegration(this, cloudApi);
         this.foliaAdventureIntegration.start();
 
