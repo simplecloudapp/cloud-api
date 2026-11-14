@@ -77,7 +77,7 @@ public class CloudApiImpl implements CloudApi {
 
         // Setup event-based cache invalidation, batched per window
         if (cacheConfig.isEnabled() && cacheConfig.isAutoInvalidateOnEvents()) {
-            long batchWindowMs = cacheConfig.getEventDebounceTime().toMillis();
+            long batchWindowMs = cacheConfig.getEventBatchWindow().toMillis();
             this.cacheEventListener = new CacheEventListener(queryCache, eventApi, batchWindowMs);
         } else {
             this.cacheEventListener = null;

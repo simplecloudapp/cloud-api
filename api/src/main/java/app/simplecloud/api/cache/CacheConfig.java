@@ -59,7 +59,7 @@ public class CacheConfig {
     private final Map<EntityType, EntityCacheConfig> entityConfigs;
     private final boolean autoInvalidateOnEvents;
     private final int maxEntries;
-    private final Duration eventDebounceTime;
+    private final Duration eventBatchWindow;
 
     private CacheConfig(Builder builder) {
         this.enabled = builder.enabled;
@@ -68,7 +68,7 @@ public class CacheConfig {
         this.entityConfigs = Collections.unmodifiableMap(new HashMap<>(builder.entityConfigs));
         this.autoInvalidateOnEvents = builder.autoInvalidateOnEvents;
         this.maxEntries = builder.maxEntries;
-        this.eventDebounceTime = builder.eventDebounceTime;
+        this.eventBatchWindow = builder.eventBatchWindow;
     }
 
     /**
@@ -118,8 +118,19 @@ public class CacheConfig {
      * The first event opens the window, and events arriving before it closes are applied together
      * when it does. Later events do not extend the window.
      */
+    public Duration getEventBatchWindow() {
+        return eventBatchWindow;
+    }
+
+    /**
+     * Returns the batching window for event-based cache invalidation.
+     *
+     * @deprecated Use {@link #getEventBatchWindow()} instead. The window is fixed; later events
+     *             do not extend it as a debounce would.
+     */
+    @Deprecated
     public Duration getEventDebounceTime() {
-        return eventDebounceTime;
+        return getEventBatchWindow();
     }
 
     public static Builder builder() {
@@ -133,7 +144,7 @@ public class CacheConfig {
         private Map<EntityType, EntityCacheConfig> entityConfigs = createDefaultEntityConfigs();
         private boolean autoInvalidateOnEvents = true;
         private int maxEntries = 500;
-        private Duration eventDebounceTime = Duration.ofMillis(50);
+        private Duration eventBatchWindow = Duration.ofMillis(50);
 
         private static Map<EntityType, EntityCacheConfig> createDefaultEntityConfigs() {
             Map<EntityType, EntityCacheConfig> configs = new HashMap<>();
@@ -230,12 +241,25 @@ public class CacheConfig {
          * steady stream of events, such as a rolling restart, still invalidates the
          * cache at least once per window.
          *
-         * @param debounceTime the window length (default: 50ms)
+         * @param batchWindow the window length (default: 50ms)
          * @return this builder
          */
-        public Builder eventDebounceTime(Duration debounceTime) {
-            this.eventDebounceTime = debounceTime;
+        public Builder eventBatchWindow(Duration batchWindow) {
+            this.eventBatchWindow = batchWindow;
             return this;
+        }
+
+        /**
+         * Sets the batching window for event-based cache invalidation.
+         *
+         * @param debounceTime the window length (default: 50ms)
+         * @return this builder
+         * @deprecated Use {@link #eventBatchWindow(Duration)} instead. The window is fixed; later
+         *             events do not extend it as a debounce would.
+         */
+        @Deprecated
+        public Builder eventDebounceTime(Duration debounceTime) {
+            return eventBatchWindow(debounceTime);
         }
 
         public CacheConfig build() {
