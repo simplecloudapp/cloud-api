@@ -77,8 +77,10 @@ public class QueryCacheImpl implements QueryCache {
 
     /**
      * Fetches from the source, sharing one source request among all callers for the same key.
+     * Each caller gets its own future, so a caller cancelling it leaves the shared request, the
+     * other callers and the cache write untouched.
      *
-     * <p>The shared future fails after {@code inFlightTimeout} even if the source never answers,
+     * <p>The shared request fails after {@code inFlightTimeout} even if the source never answers,
      * so a hanging request cannot block the key forever; a result arriving after that is dropped.
      * A result that arrives after the key was invalidated or overwritten with {@link #set} is
      * returned to its callers but not cached.
@@ -88,9 +90,18 @@ public class QueryCacheImpl implements QueryCache {
         CompletableFuture<T> request = new CompletableFuture<>();
         CompletableFuture<?> existingRequest = inFlightRequests.putIfAbsent(key, request);
         if (existingRequest != null) {
-            return (CompletableFuture<T>) existingRequest;
+            return newCallerFuture((CompletableFuture<T>) existingRequest);
         }
 
+        startSharedRequest(key, request, fetcher);
+        return newCallerFuture(request);
+    }
+
+    private <T> void startSharedRequest(
+            QueryKey key,
+            CompletableFuture<T> request,
+            Supplier<CompletableFuture<T>> fetcher
+    ) {
         request.whenComplete((data, error) -> inFlightRequests.remove(key, request));
         failAfterInFlightTimeout(request);
 
@@ -101,7 +112,22 @@ public class QueryCacheImpl implements QueryCache {
         } catch (Throwable error) {
             request.completeExceptionally(error);
         }
-        return request;
+    }
+
+    // Not request.copy(): a copy wraps the request's error in a CompletionException, and callers'
+    // exceptionally() handlers get that error unwrapped.
+    private static <T> CompletableFuture<T> newCallerFuture(CompletableFuture<T> request) {
+        CompletableFuture<T> callerFuture = new CompletableFuture<>();
+        request.whenComplete((data, error) -> completeLikeRequest(callerFuture, data, error));
+        return callerFuture;
+    }
+
+    private static <T> void completeLikeRequest(CompletableFuture<T> callerFuture, T data, Throwable error) {
+        if (error != null) {
+            callerFuture.completeExceptionally(error);
+            return;
+        }
+        callerFuture.complete(data);
     }
 
     private void failAfterInFlightTimeout(CompletableFuture<?> request) {
@@ -158,8 +184,8 @@ public class QueryCacheImpl implements QueryCache {
     }
 
     private <T> void revalidate(QueryKey key, Supplier<CompletableFuture<T>> fetcher) {
-        CompletableFuture<T> request = fetchWithDeduplication(key, fetcher);
-        request.exceptionally(error -> {
+        CompletableFuture<T> revalidation = fetchWithDeduplication(key, fetcher);
+        revalidation.exceptionally(error -> {
             LOGGER.log(Level.WARNING, "Background revalidation failed for " + key, error);
             return null;
         });
@@ -268,7 +294,7 @@ public class QueryCacheImpl implements QueryCache {
 
     @Override
     public Set<QueryKey> getKeys() {
-        return Set.copyOf(cache.asMap().keySet());
+        return cache.asMap().keySet();
     }
 
     /**

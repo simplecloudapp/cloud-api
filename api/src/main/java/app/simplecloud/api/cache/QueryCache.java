@@ -162,9 +162,9 @@ public interface QueryCache {
     CacheStats getStats();
 
     /**
-     * Returns a snapshot of the current cache keys (for debugging).
+     * Returns all current cache keys (for debugging).
      *
-     * @return an unmodifiable copy of the cached keys
+     * @return the set of cached keys
      */
     Set<QueryKey> getKeys();
 
