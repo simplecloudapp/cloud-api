@@ -86,7 +86,7 @@ public class QueryCacheImpl implements QueryCache {
      * returned to its callers but not cached.
      */
     @SuppressWarnings("unchecked")
-    <T> CompletableFuture<T> fetchWithDeduplication(QueryKey key, Supplier<CompletableFuture<T>> fetcher) {
+    private <T> CompletableFuture<T> fetchWithDeduplication(QueryKey key, Supplier<CompletableFuture<T>> fetcher) {
         CompletableFuture<T> request = new CompletableFuture<>();
         CompletableFuture<?> existingRequest = inFlightRequests.putIfAbsent(key, request);
         if (existingRequest != null) {
@@ -114,8 +114,8 @@ public class QueryCacheImpl implements QueryCache {
         }
     }
 
-    // Not request.copy(): a copy wraps the request's error in a CompletionException, and callers'
-    // exceptionally() handlers get that error unwrapped.
+    // Not request.copy(): a copy would hand callers' exceptionally() handlers a CompletionException
+    // instead of the request's own error, which they have always received.
     private static <T> CompletableFuture<T> newCallerFuture(CompletableFuture<T> request) {
         CompletableFuture<T> callerFuture = new CompletableFuture<>();
         request.whenComplete((data, error) -> completeLikeRequest(callerFuture, data, error));
@@ -150,7 +150,7 @@ public class QueryCacheImpl implements QueryCache {
 
         // invalidate() and set() remove the key's request before touching the entry. Checking and
         // caching inside the map's per-key lock keeps a result fetched before them from landing after.
-        inFlightRequests.computeIfPresent(key, (ignored, current) -> cacheIfOwner(key, request, current, data));
+        inFlightRequests.computeIfPresent(key, (ignored, current) -> cacheAndUnregisterIfOwner(key, request, current, data));
         request.complete(data);
     }
 
@@ -158,7 +158,7 @@ public class QueryCacheImpl implements QueryCache {
      * Caches the data if {@code request} still owns the key, and returns the map's new value for
      * the key: null to unregister the finished request, or the other owner unchanged.
      */
-    private <T> CompletableFuture<?> cacheIfOwner(
+    private <T> CompletableFuture<?> cacheAndUnregisterIfOwner(
             QueryKey key,
             CompletableFuture<T> request,
             CompletableFuture<?> currentOwner,

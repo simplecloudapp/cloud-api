@@ -213,10 +213,10 @@ public interface QueryCache {
         return fetch(key, fetcher);
     }
 
-    // Checking and invalidating are separate calls, so anything cached between them, by set() or
-    // another lookup, is dropped too, and a request another lookup has running for the key is no
-    // longer cached. The next lookup fetches again. Closing that needs a conditional remove on this
-    // interface.
+    // get() and invalidate() are separate calls, so data that set() or another lookup caches between
+    // them is dropped too. invalidate() also unregisters any request running for the key, so its
+    // result is not cached. Either way the next lookup asks the source again. Closing the first needs
+    // a conditional remove on this interface.
     private <T> void dropCachedMiss(QueryKey key, Predicate<T> isTransientMiss) {
         CacheEntry<T> entry = get(key);
         if (entry != null && isTransientMiss.test(entry.getData())) {

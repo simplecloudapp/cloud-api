@@ -60,14 +60,7 @@ class TransientMissRecoveryTest {
     }
 
     private String recover(Supplier<CompletableFuture<String>> source) throws Exception {
-        CompletableFuture<String> result = cache.fetchWithTransientMissRecovery(
-                KEY,
-                source,
-                Objects::isNull,
-                RETRY_DELAY,
-                MAX_RETRIES
-        );
-        return result.get(1, TimeUnit.SECONDS);
+        return startRecovery(source, cache).get(1, TimeUnit.SECONDS);
     }
 
     /**
@@ -87,8 +80,11 @@ class TransientMissRecoveryTest {
         }
     }
 
-    private CompletableFuture<String> startRecovery(Supplier<CompletableFuture<String>> source, QueryCache cache) {
-        return cache.fetchWithTransientMissRecovery(KEY, source, Objects::isNull, RETRY_DELAY, MAX_RETRIES);
+    private static CompletableFuture<String> startRecovery(
+            Supplier<CompletableFuture<String>> source,
+            QueryCache queryCache
+    ) {
+        return queryCache.fetchWithTransientMissRecovery(KEY, source, Objects::isNull, RETRY_DELAY, MAX_RETRIES);
     }
 
     private static void awaitRetryStarted(MissThenPendingRetry source) throws InterruptedException {
@@ -96,6 +92,16 @@ class TransientMissRecoveryTest {
         while (source.calls.get() < 2) {
             if (System.currentTimeMillis() > deadline) {
                 throw new AssertionError("retry never reached the source");
+            }
+            Thread.sleep(5);
+        }
+    }
+
+    private void awaitMissCount(long expected) throws InterruptedException {
+        long deadline = System.currentTimeMillis() + 2_000;
+        while (cache.getStats().getMissCount() < expected) {
+            if (System.currentTimeMillis() > deadline) {
+                throw new AssertionError("retry never looked up the key");
             }
             Thread.sleep(5);
         }
@@ -305,14 +311,14 @@ class TransientMissRecoveryTest {
     void retry_joinsRequestAlreadyRunningForKey() throws Exception {
         ScriptedSource recoverySource = new ScriptedSource((String) null);
         CompletableFuture<String> runningRequest = new CompletableFuture<>();
-        Duration retryDelay = Duration.ofMillis(200);
+        Duration retryDelay = Duration.ofMillis(500);
 
         CompletableFuture<String> result = cache.fetchWithTransientMissRecovery(
                 KEY, recoverySource, Objects::isNull, retryDelay, MAX_RETRIES);
         cache.invalidate(KEY);
         cache.fetch(KEY, () -> runningRequest);
-        // Let the retry fire while the request is still running, so it has to join it.
-        Thread.sleep(retryDelay.toMillis() * 2);
+        // Misses: the first lookup, the running request, and the retry joining it while it still runs.
+        awaitMissCount(3);
         runningRequest.complete("server");
 
         assertEquals("server", result.get(1, TimeUnit.SECONDS));

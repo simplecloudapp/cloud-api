@@ -116,7 +116,7 @@ class QueryCacheImplInFlightTest {
      * {@code inFlightTimeout} so the map self-cleans.
      */
     @Test
-    void fetch_hangingFetcher_storedFutureTimesOut() throws Exception {
+    void fetch_hangingFetcher_callerFailsAfterInFlightTimeout() throws Exception {
         QueryCacheImpl cache = new QueryCacheImpl(baseConfig(), SHORT_TIMEOUT);
         QueryKey key = QueryKey.of("test", "hang");
         CompletableFuture<String> neverCompletes = new CompletableFuture<>();
@@ -191,32 +191,6 @@ class QueryCacheImplInFlightTest {
         String recovered = cache.fetch(key, () -> CompletableFuture.completedFuture("ok"))
                 .get(1, TimeUnit.SECONDS);
         assertEquals("ok", recovered, "failed attempt must not leave a zombie in-flight entry");
-    }
-
-    /**
-     * Directly exercises {@link QueryCacheImpl#fetchWithDeduplication} with a supplier
-     * whose returned future never completes. The stored in-flight future must still
-     * complete (exceptionally, via the in-flight timeout) so the map entry is cleared
-     * and subsequent callers are not trapped in the zombie dedup slot.
-     */
-    @Test
-    void fetchWithDeduplication_supplierReturnsNeverCompletingFuture_returnedFutureStillCompletes()
-            throws Exception {
-        QueryCacheImpl cache = new QueryCacheImpl(baseConfig(), SHORT_TIMEOUT);
-        QueryKey key = QueryKey.of("test", "never-completes");
-        CompletableFuture<String> neverCompletes = new CompletableFuture<>();
-
-        CompletableFuture<String> returned = cache.fetchWithDeduplication(key, () -> neverCompletes);
-
-        // The key guarantee: the returned future must not hang forever.
-        ExecutionException ex = assertThrows(
-                ExecutionException.class,
-                () -> returned.get(1, TimeUnit.SECONDS),
-                "fetchWithDeduplication must return a future that eventually completes"
-        );
-        assertUnavailable(ex.getCause(),
-                "in-flight timeout must complete the future exceptionally with CloudApiException");
-        assertTrue(returned.isDone(), "returned future must be marked done after timeout");
     }
 
     @Test

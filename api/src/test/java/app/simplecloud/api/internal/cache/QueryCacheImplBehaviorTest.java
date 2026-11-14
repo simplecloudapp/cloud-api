@@ -32,18 +32,18 @@ class QueryCacheImplBehaviorTest {
     private static final QueryKey SERVER_KEY = QueryKey.of("server", "server-1");
     private static final QueryKey GROUP_KEY = QueryKey.of("group", "group-1");
 
-    private QueryCacheImpl cache;
+    private QueryCacheImpl cacheToShutDown;
 
     @AfterEach
     void shutdownCache() {
-        if (cache != null) {
-            cache.shutdown();
+        if (cacheToShutDown != null) {
+            cacheToShutDown.shutdown();
         }
     }
 
     private QueryCacheImpl newCache(CacheConfig config) {
-        cache = new QueryCacheImpl(config, IN_FLIGHT_TIMEOUT);
-        return cache;
+        cacheToShutDown = new QueryCacheImpl(config, IN_FLIGHT_TIMEOUT);
+        return cacheToShutDown;
     }
 
     private static CacheConfig longLivedConfig() {
