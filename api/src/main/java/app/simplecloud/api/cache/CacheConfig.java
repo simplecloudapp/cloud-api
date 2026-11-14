@@ -237,9 +237,9 @@ public class CacheConfig {
         /**
          * Sets the batching window for event-based cache invalidation.
          * The first event opens the window, and events arriving before it closes are
-         * applied together when it does. Later events do not extend the window, so a
-         * steady stream of events, such as a rolling restart, still invalidates the
-         * cache at least once per window.
+         * applied together when it does. Later events do not extend the window, so every
+         * event is applied at most one window after it arrives, even while events keep
+         * coming, such as during a rolling restart.
          *
          * @param batchWindow the window length (default: 50ms)
          * @return this builder

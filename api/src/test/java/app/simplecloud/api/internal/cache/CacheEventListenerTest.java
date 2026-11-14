@@ -121,10 +121,13 @@ class CacheEventListenerTest {
     void steadyEventStream_stillInvalidatesWhileEventsKeepArriving() throws Exception {
         RecordingCache cache = new RecordingCache();
         FakeEventApi eventApi = new FakeEventApi();
-        CacheEventListener listener = new CacheEventListener(cache, eventApi, SHORT_WINDOW_MS);
-        long eventIntervalMs = SHORT_WINDOW_MS / 5;
+        // A window far above the event interval: the old timer restart only escapes this test if
+        // one sleep overshoots by the whole window.
+        long batchWindowMs = 300;
+        long eventIntervalMs = 10;
+        CacheEventListener listener = new CacheEventListener(cache, eventApi, batchWindowMs);
 
-        long giveUpAfterMs = 2_000;
+        long giveUpAfterMs = 5_000;
         long giveUpAt = System.currentTimeMillis() + giveUpAfterMs;
         while (cache.invalidations.isEmpty() && System.currentTimeMillis() < giveUpAt) {
             eventApi.fire("server.onUpdated");

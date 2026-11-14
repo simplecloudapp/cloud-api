@@ -22,8 +22,8 @@ import java.util.concurrent.TimeUnit;
  *
  * <p>Invalidations are batched: the first event opens a window of {@code batchWindowMs}, events
  * arriving inside it join the batch, and the batch is applied when the window closes. Later
- * events never postpone a pending batch, so a steady stream of events, such as a rolling
- * restart, still invalidates the cache at least once per window.
+ * events never postpone a pending batch, so every event is applied at most one window after it
+ * arrives, even while events keep coming, such as during a rolling restart.
  */
 public class CacheEventListener {
 
