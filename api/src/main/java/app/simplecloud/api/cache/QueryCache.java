@@ -215,8 +215,8 @@ public interface QueryCache {
 
     // get() and invalidate() are separate calls, so data that set() or another lookup caches between
     // them is dropped too. invalidate() also unregisters any request running for the key, so its
-    // result is not cached. Either way the next lookup asks the source again. Closing the first needs
-    // a conditional remove on this interface.
+    // result is not cached. Either way the next lookup asks the source again. Keeping data cached
+    // between get() and invalidate() would need a conditional remove on this interface.
     private <T> void dropCachedMiss(QueryKey key, Predicate<T> isTransientMiss) {
         CacheEntry<T> entry = get(key);
         if (entry != null && isTransientMiss.test(entry.getData())) {

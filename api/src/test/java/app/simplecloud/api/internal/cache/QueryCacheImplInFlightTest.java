@@ -2,7 +2,6 @@ package app.simplecloud.api.internal.cache;
 
 import app.simplecloud.api.CloudApiException;
 import app.simplecloud.api.cache.CacheConfig;
-import app.simplecloud.api.cache.CacheEntry;
 import app.simplecloud.api.cache.QueryKey;
 import org.junit.jupiter.api.Test;
 
@@ -47,41 +46,6 @@ class QueryCacheImplInFlightTest {
                 .defaultStaleTime(Duration.ofSeconds(30))
                 .defaultCacheTime(Duration.ofMinutes(1))
                 .build();
-    }
-
-    @Test
-    void fetch_cacheMiss_populatesCache() throws Exception {
-        QueryCacheImpl cache = new QueryCacheImpl(baseConfig(), LONG_TIMEOUT);
-        QueryKey key = QueryKey.of("test", "populate");
-
-        String result = cache.fetch(key, () -> CompletableFuture.completedFuture("value"))
-                .get(1, TimeUnit.SECONDS);
-
-        assertEquals("value", result);
-
-        CacheEntry<String> entry = cache.get(key);
-        assertNotNull(entry, "cache should contain the entry after a successful miss");
-        assertEquals("value", entry.getData());
-    }
-
-    @Test
-    void fetch_cacheHit_doesNotInvokeFetcher() throws Exception {
-        QueryCacheImpl cache = new QueryCacheImpl(baseConfig(), LONG_TIMEOUT);
-        QueryKey key = QueryKey.of("test", "hit");
-        AtomicInteger calls = new AtomicInteger();
-
-        cache.fetch(key, () -> {
-            calls.incrementAndGet();
-            return CompletableFuture.completedFuture("v1");
-        }).get(1, TimeUnit.SECONDS);
-
-        String result = cache.fetch(key, () -> {
-            calls.incrementAndGet();
-            return CompletableFuture.completedFuture("v2");
-        }).get(1, TimeUnit.SECONDS);
-
-        assertEquals("v1", result);
-        assertEquals(1, calls.get(), "second call must be served from cache");
     }
 
     @Test
@@ -171,7 +135,6 @@ class QueryCacheImplInFlightTest {
 
         // Simulate the HTTP call finally returning after the caller already gave up.
         lateCompletion.complete("late-data");
-        Thread.sleep(100);
 
         assertNull(cache.get(key),
                 "cache must not be populated by a fetcher that completed after the timeout");

@@ -80,8 +80,8 @@ public class QueryCacheImpl implements QueryCache {
      * Each caller gets its own future, so a caller cancelling it leaves the shared request, the
      * other callers and the cache write untouched.
      *
-     * <p>The shared request fails after {@code inFlightTimeout} even if the source never answers,
-     * so a hanging request cannot block the key forever; a result arriving after that is dropped.
+     * <p>The shared request fails after {@code inFlightTimeout} if the source has not answered by
+     * then, so a hanging request cannot block the key forever; a result arriving after that is dropped.
      * A result that arrives after the key was invalidated or overwritten with {@link #set} is
      * returned to its callers but not cached.
      */
