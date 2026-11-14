@@ -98,7 +98,7 @@ public final class NatsFailoverConnectionManager {
      * jnats {@code close()} discards what still waits in the outgoing queue, so this pushes it out first.
      * A connection that is down is skipped: jnats would wait up to the timeout for it to come back.
      */
-    private static void flushIfConnected(Connection connection) {
+    static void flushIfConnected(Connection connection) {
         if (connection.getStatus() != Connection.Status.CONNECTED) {
             return;
         }

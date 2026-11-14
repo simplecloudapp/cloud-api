@@ -20,6 +20,8 @@ class FlushBeforeCloseIntegrationTest {
 
     private static final int MESSAGE_COUNT = 2_000;
     private static final int MESSAGE_SIZE = 16 * 1024;
+    // Long enough that close() is already waiting for the executor, short enough to fit its one-second budget.
+    private static final Duration PUBLISH_DELAY = Duration.ofMillis(200);
 
     // Run against an isolated broker with NATS_TEST_URL=nats://127.0.0.1:4222.
     @Test
@@ -68,7 +70,7 @@ class FlushBeforeCloseIntegrationTest {
             cloudApi.getExecutor().execute(() -> {
                 taskStarted.countDown();
                 try {
-                    Thread.sleep(200);
+                    Thread.sleep(PUBLISH_DELAY);
                 } catch (InterruptedException e) {
                     Thread.currentThread().interrupt();
                 }
