@@ -22,7 +22,6 @@ import java.util.Set;
 import java.util.concurrent.ConcurrentHashMap;
 import java.util.concurrent.CopyOnWriteArrayList;
 import java.util.concurrent.atomic.AtomicInteger;
-import java.util.function.BooleanSupplier;
 import java.util.function.Consumer;
 import java.util.stream.Collectors;
 import java.util.stream.Stream;
@@ -100,16 +99,14 @@ class CacheEventListenerTest {
     }
 
     @Test
-    void eventsInsideOneWindow_areAppliedOnce() throws Exception {
+    void eventsInsideOneWindow_areAppliedOnce() {
         RecordingCache cache = new RecordingCache();
         FakeEventApi eventApi = new FakeEventApi();
-        CacheEventListener listener = new CacheEventListener(cache, eventApi, SHORT_WINDOW_MS);
+        CacheEventListener listener = new CacheEventListener(cache, eventApi, LONG_WINDOW_MS);
 
         eventApi.fire("server.onUpdated");
         eventApi.fire("server.onUpdated");
         eventApi.fire("server.onUpdated");
-        // The batch applies patterns before keys, so a recorded key means the whole batch is done.
-        awaitTrue(() -> !cache.invalidations.isEmpty(), "batch should be applied after the window");
         listener.shutdown();
 
         assertEquals(List.of(QueryKey.of("server", "getServerId")), cache.invalidations);
@@ -126,10 +123,10 @@ class CacheEventListenerTest {
         FakeEventApi eventApi = new FakeEventApi();
         CacheEventListener listener = new CacheEventListener(cache, eventApi, SHORT_WINDOW_MS);
         long eventIntervalMs = SHORT_WINDOW_MS / 5;
-        long streamDurationMs = SHORT_WINDOW_MS * 10;
 
-        long streamEndsAt = System.currentTimeMillis() + streamDurationMs;
-        while (System.currentTimeMillis() < streamEndsAt) {
+        long giveUpAfterMs = 2_000;
+        long giveUpAt = System.currentTimeMillis() + giveUpAfterMs;
+        while (cache.invalidations.isEmpty() && System.currentTimeMillis() < giveUpAt) {
             eventApi.fire("server.onUpdated");
             Thread.sleep(eventIntervalMs);
         }
@@ -184,16 +181,6 @@ class CacheEventListenerTest {
         listener.shutdown();
 
         assertEquals(eventApi.handlers.size(), eventApi.closedSubscriptions.get());
-    }
-
-    private static void awaitTrue(BooleanSupplier condition, String message) throws InterruptedException {
-        long deadline = System.currentTimeMillis() + 2_000;
-        while (!condition.getAsBoolean()) {
-            if (System.currentTimeMillis() > deadline) {
-                throw new AssertionError(message);
-            }
-            Thread.sleep(5);
-        }
     }
 
     private static final class RecordingCache extends NoOpQueryCache {
