@@ -22,9 +22,11 @@ import app.simplecloud.api.player.PlayerApi;
 import app.simplecloud.api.server.ServerApi;
 import io.nats.client.Connection;
 
+import java.time.Duration;
 import java.util.concurrent.Executor;
 import java.util.concurrent.ExecutorService;
 import java.util.concurrent.Executors;
+import java.util.concurrent.TimeUnit;
 import java.util.concurrent.atomic.AtomicBoolean;
 import java.util.logging.Level;
 import java.util.logging.Logger;
@@ -32,6 +34,7 @@ import java.util.logging.Logger;
 public class CloudApiImpl implements CloudApi {
 
     private static final Logger LOGGER = Logger.getLogger(CloudApiImpl.class.getName());
+    private static final Duration EXECUTOR_SHUTDOWN_TIMEOUT = Duration.ofSeconds(1);
 
     private final CloudApiOptions options;
     private final ApiClient httpClient;
@@ -154,6 +157,17 @@ public class CloudApiImpl implements CloudApi {
                 LOGGER.log(Level.WARNING, "Failed to shutdown query cache", e);
             }
         }
+        // Player session reports publish on NATS from this executor,
+        // so they get a short time to finish before NATS closes.
+        executor.shutdown();
+        try {
+            if (!executor.awaitTermination(EXECUTOR_SHUTDOWN_TIMEOUT.toMillis(), TimeUnit.MILLISECONDS)) {
+                LOGGER.warning("Tasks still running after waiting " + EXECUTOR_SHUTDOWN_TIMEOUT.toMillis()
+                        + " ms at close; NATS messages they send may be lost");
+            }
+        } catch (InterruptedException e) {
+            Thread.currentThread().interrupt();
+        }
         try {
             natsConnectionManager.shutdown();
         } catch (RuntimeException e) {
@@ -161,7 +175,6 @@ public class CloudApiImpl implements CloudApi {
         }
         httpClient.getHttpClient().dispatcher().executorService().shutdown();
         httpClient.getHttpClient().connectionPool().evictAll();
-        executor.shutdown();
     }
 
 }

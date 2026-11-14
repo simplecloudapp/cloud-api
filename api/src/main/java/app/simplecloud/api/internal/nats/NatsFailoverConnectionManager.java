@@ -31,6 +31,7 @@ import java.util.logging.Logger;
 public final class NatsFailoverConnectionManager {
 
     private static final Logger LOGGER = Logger.getLogger(NatsFailoverConnectionManager.class.getName());
+    private static final Duration FLUSH_BEFORE_CLOSE_TIMEOUT = Duration.ofSeconds(1);
 
     private final String natsUrl;
     private final String networkId;
@@ -84,11 +85,30 @@ public final class NatsFailoverConnectionManager {
             connection = connectionRef.get();
         }
         if (connection != null) {
+            flushIfConnected(connection);
             try {
                 connection.close();
             } catch (InterruptedException e) {
                 throw new RuntimeException(e);
             }
+        }
+    }
+
+    /**
+     * jnats {@code close()} discards what still waits in the outgoing queue, so this pushes it out first.
+     * A connection that is down is skipped: jnats would wait up to the timeout for it to come back.
+     */
+    private static void flushIfConnected(Connection connection) {
+        if (connection.getStatus() != Connection.Status.CONNECTED) {
+            return;
+        }
+        try {
+            connection.flush(FLUSH_BEFORE_CLOSE_TIMEOUT);
+        } catch (InterruptedException e) {
+            Thread.currentThread().interrupt();
+            LOGGER.warning("Interrupted while flushing NATS connection before close; unsent messages may be lost");
+        } catch (Exception e) {
+            LOGGER.warning("Failed to flush NATS connection before close; unsent messages may be lost: " + e);
         }
     }
 
@@ -175,6 +195,7 @@ public final class NatsFailoverConnectionManager {
                 // Draining flushes the old connection, which blocks while it is down, so it must not hold bindLock.
                 drainQuietly(previousDispatchers);
                 if (oldConnection != null && oldConnection != newConnection) {
+                    flushIfConnected(oldConnection);
                     oldConnection.close();
                 }
                 if (initialConnection) {
