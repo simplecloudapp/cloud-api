@@ -150,9 +150,11 @@ public class CacheConfig {
             Map<EntityType, EntityCacheConfig> configs = new HashMap<>();
             // Server metrics (CPU, memory, player count) change without events.
             configs.put(EntityType.SERVER, staleAfter(Duration.ofSeconds(3)));
-            // Group configuration rarely changes, and events invalidate the actual updates.
+            // Groups and persistent servers rarely change, and events invalidate their entries
+            // when they do.
             configs.put(EntityType.GROUP, staleAfter(Duration.ofSeconds(10)));
             configs.put(EntityType.PERSISTENT_SERVER, staleAfter(Duration.ofSeconds(10)));
+            // Players: a balance between freshness and load on the controller.
             configs.put(EntityType.PLAYER, staleAfter(Duration.ofSeconds(5)));
             return configs;
         }

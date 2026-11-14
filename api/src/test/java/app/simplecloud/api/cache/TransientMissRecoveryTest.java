@@ -16,6 +16,7 @@ import java.util.concurrent.CompletableFuture;
 import java.util.concurrent.ExecutionException;
 import java.util.concurrent.TimeUnit;
 import java.util.concurrent.atomic.AtomicInteger;
+import java.util.function.BooleanSupplier;
 import java.util.function.Supplier;
 
 import static org.junit.jupiter.api.Assertions.assertEquals;
@@ -59,10 +60,6 @@ class TransientMissRecoveryTest {
         }
     }
 
-    private String recover(Supplier<CompletableFuture<String>> source) throws Exception {
-        return startRecovery(source, cache).get(1, TimeUnit.SECONDS);
-    }
-
     /**
      * Answers "not found" on the first call and returns {@link #retry} from the second call on.
      */
@@ -87,21 +84,23 @@ class TransientMissRecoveryTest {
         return queryCache.fetchWithTransientMissRecovery(KEY, source, Objects::isNull, RETRY_DELAY, MAX_RETRIES);
     }
 
+    private String recover(Supplier<CompletableFuture<String>> source) throws Exception {
+        return startRecovery(source, cache).get(1, TimeUnit.SECONDS);
+    }
+
     private static void awaitRetryStarted(MissThenPendingRetry source) throws InterruptedException {
-        long deadline = System.currentTimeMillis() + 2_000;
-        while (source.calls.get() < 2) {
-            if (System.currentTimeMillis() > deadline) {
-                throw new AssertionError("retry never reached the source");
-            }
-            Thread.sleep(5);
-        }
+        awaitTrue(() -> source.calls.get() >= 2, "retry never reached the source");
     }
 
     private void awaitMissCount(long expected) throws InterruptedException {
+        awaitTrue(() -> cache.getStats().getMissCount() >= expected, "retry never looked up the key");
+    }
+
+    private static void awaitTrue(BooleanSupplier condition, String message) throws InterruptedException {
         long deadline = System.currentTimeMillis() + 2_000;
-        while (cache.getStats().getMissCount() < expected) {
+        while (!condition.getAsBoolean()) {
             if (System.currentTimeMillis() > deadline) {
-                throw new AssertionError("retry never looked up the key");
+                throw new AssertionError(message);
             }
             Thread.sleep(5);
         }

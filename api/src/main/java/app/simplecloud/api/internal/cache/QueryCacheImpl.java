@@ -80,10 +80,10 @@ public class QueryCacheImpl implements QueryCache {
      * Each caller gets its own future, so a caller cancelling it leaves the shared request, the
      * other callers and the cache write untouched.
      *
-     * <p>The shared request fails after {@code inFlightTimeout} even if the source never answers,
-     * so a hanging request cannot block the key forever; a result arriving after that is not cached.
-     * A request still running when the key is invalidated or set returns its result to its callers
-     * but does not cache it.
+     * <p>The shared request fails after {@code inFlightTimeout} if the source has not answered by
+     * then, so a hanging request cannot block the key forever; a result arriving after that is not
+     * cached. A request still running when the key is invalidated or set returns its result to its
+     * callers but does not cache it.
      */
     @SuppressWarnings("unchecked")
     private <T> CompletableFuture<T> fetchWithDeduplication(QueryKey key, Supplier<CompletableFuture<T>> fetcher) {

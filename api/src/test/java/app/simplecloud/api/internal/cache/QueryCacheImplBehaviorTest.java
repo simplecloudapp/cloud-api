@@ -56,6 +56,28 @@ class QueryCacheImplBehaviorTest {
     }
 
     @Test
+    void fetch_cacheMiss_returnsAndCachesSourceData() throws Exception {
+        QueryCacheImpl cache = newCache(longLivedConfig());
+
+        String result = await(cache.fetch(SERVER_KEY, () -> CompletableFuture.completedFuture("value")));
+
+        assertEquals("value", result);
+        assertEquals("value", cachedData(cache, SERVER_KEY));
+    }
+
+    @Test
+    void fetch_freshEntry_isServedWithoutAskingSource() throws Exception {
+        QueryCacheImpl cache = newCache(longLivedConfig());
+        AtomicInteger calls = new AtomicInteger();
+        await(cache.fetch(SERVER_KEY, countingFetcher(calls, "first")));
+
+        String result = await(cache.fetch(SERVER_KEY, countingFetcher(calls, "second")));
+
+        assertEquals("first", result);
+        assertEquals(1, calls.get(), "a fresh entry must be served from the cache");
+    }
+
+    @Test
     void fetch_staleEntry_returnsCachedValueAndRefreshesInBackground() throws Exception {
         QueryCacheImpl cache = newCache(longLivedConfig());
         cache.set(SERVER_KEY, "old");
