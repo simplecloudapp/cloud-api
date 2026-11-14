@@ -3,8 +3,12 @@ package app.simplecloud.api.internal.cache;
 import app.simplecloud.api.CloudApiException;
 import app.simplecloud.api.cache.CacheConfig;
 import app.simplecloud.api.cache.CacheEntry;
+import app.simplecloud.api.cache.EntityType;
 import app.simplecloud.api.cache.QueryKey;
 import org.junit.jupiter.api.Test;
+import org.junit.jupiter.params.ParameterizedTest;
+import org.junit.jupiter.params.provider.Arguments;
+import org.junit.jupiter.params.provider.MethodSource;
 
 import java.time.Duration;
 import java.util.concurrent.CompletableFuture;
@@ -12,7 +16,9 @@ import java.util.concurrent.CountDownLatch;
 import java.util.concurrent.ExecutionException;
 import java.util.concurrent.TimeUnit;
 import java.util.concurrent.atomic.AtomicInteger;
+import java.util.function.Consumer;
 import java.util.function.Supplier;
+import java.util.stream.Stream;
 
 import static app.simplecloud.api.internal.cache.QueryCacheTestSupport.await;
 import static app.simplecloud.api.internal.cache.QueryCacheTestSupport.awaitTrue;
@@ -194,6 +200,35 @@ class QueryCacheImplInFlightTest {
     }
 
     @Test
+    void fetch_sourceFails_fetchFromErrorHandlerAsksSourceAgain() throws Exception {
+        QueryCacheImpl cache = new QueryCacheImpl(baseConfig(), LONG_TIMEOUT);
+        CompletableFuture<String> failingSource = new CompletableFuture<>();
+        AtomicInteger retryCalls = new AtomicInteger();
+        Supplier<CompletableFuture<String>> retrySource = countingFetcher(retryCalls, "value");
+
+        CompletableFuture<String> firstCall = cache.fetch(SERVER_KEY, () -> failingSource);
+        CompletableFuture<String> retried = firstCall.exceptionallyCompose(error -> cache.fetch(SERVER_KEY, retrySource));
+        failingSource.completeExceptionally(new RuntimeException("controller down"));
+
+        assertEquals("value", await(retried));
+        assertEquals(1, retryCalls.get());
+    }
+
+    @Test
+    void fetch_inFlightTimeout_fetchFromErrorHandlerAsksSourceAgain() throws Exception {
+        QueryCacheImpl cache = new QueryCacheImpl(baseConfig(), SHORT_TIMEOUT);
+        CompletableFuture<String> neverCompletes = new CompletableFuture<>();
+        AtomicInteger retryCalls = new AtomicInteger();
+        Supplier<CompletableFuture<String>> retrySource = countingFetcher(retryCalls, "value");
+
+        CompletableFuture<String> firstCall = cache.fetch(SERVER_KEY, () -> neverCompletes);
+        CompletableFuture<String> retried = firstCall.exceptionallyCompose(error -> cache.fetch(SERVER_KEY, retrySource));
+
+        assertEquals("value", await(retried));
+        assertEquals(1, retryCalls.get());
+    }
+
+    @Test
     void fetch_sharedHangingFuture_allCallersSeeTimeout() throws Exception {
         QueryCacheImpl cache = new QueryCacheImpl(baseConfig(), SHORT_TIMEOUT);
         QueryKey key = QueryKey.of("test", "shared-hang");
@@ -266,6 +301,35 @@ class QueryCacheImplInFlightTest {
 
         assertEquals("outdated", await(result));
         assertNull(cache.get(SERVER_KEY), "a result fetched before the invalidation must not be cached");
+    }
+
+    private static Stream<Arguments> invalidationsCoveringLobbyServers() {
+        Consumer<QueryCacheImpl> invalidateAllServers = cache -> cache.invalidateAll(QueryKey.of("servers"));
+        Consumer<QueryCacheImpl> invalidateServerType = cache -> cache.invalidateByType(EntityType.SERVER);
+        Consumer<QueryCacheImpl> clear = QueryCacheImpl::clear;
+        return Stream.of(
+                Arguments.of("invalidateAll", invalidateAllServers),
+                Arguments.of("invalidateByType", invalidateServerType),
+                Arguments.of("clear", clear)
+        );
+    }
+
+    @ParameterizedTest(name = "{0}")
+    @MethodSource("invalidationsCoveringLobbyServers")
+    void invalidationCoveringKey_whileFetchInFlight_callerGetsResultButCacheStaysEmpty(
+            String invalidationName,
+            Consumer<QueryCacheImpl> invalidation
+    ) throws Exception {
+        QueryCacheImpl cache = new QueryCacheImpl(baseConfig(), LONG_TIMEOUT);
+        QueryKey lobbyServersKey = QueryKey.of("servers", "group", "Lobby");
+        CompletableFuture<String> source = new CompletableFuture<>();
+
+        CompletableFuture<String> result = cache.fetch(lobbyServersKey, () -> source);
+        invalidation.accept(cache);
+        source.complete("outdated");
+
+        assertEquals("outdated", await(result));
+        assertNull(cache.get(lobbyServersKey), "a result fetched before " + invalidationName + " must not be cached");
     }
 
     @Test

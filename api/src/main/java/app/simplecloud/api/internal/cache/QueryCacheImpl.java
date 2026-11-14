@@ -81,9 +81,9 @@ public class QueryCacheImpl implements QueryCache {
      * other callers and the cache write untouched.
      *
      * <p>The shared request fails after {@code inFlightTimeout} even if the source never answers,
-     * so a hanging request cannot block the key forever; a result arriving after that is dropped.
-     * A result that arrives after the key was invalidated or overwritten with {@link #set} is
-     * returned to its callers but not cached.
+     * so a hanging request cannot block the key forever; a result arriving after that is not cached.
+     * A request still running when the key is invalidated or set returns its result to its callers
+     * but does not cache it.
      */
     @SuppressWarnings("unchecked")
     private <T> CompletableFuture<T> fetchWithDeduplication(QueryKey key, Supplier<CompletableFuture<T>> fetcher) {
@@ -102,15 +102,14 @@ public class QueryCacheImpl implements QueryCache {
             CompletableFuture<T> request,
             Supplier<CompletableFuture<T>> fetcher
     ) {
-        request.whenComplete((data, error) -> inFlightRequests.remove(key, request));
-        failAfterInFlightTimeout(request);
+        failAfterInFlightTimeout(key, request);
 
         // A fetcher that throws or returns null fails the shared request instead of leaving it to the timeout.
         try {
             CompletableFuture<T> sourceResponse = Objects.requireNonNull(fetcher.get(), "fetcher returned null");
             sourceResponse.whenComplete((data, error) -> completeAndCacheIfOwner(key, request, data, error));
         } catch (Throwable error) {
-            request.completeExceptionally(error);
+            unregisterAndFail(key, request, error);
         }
     }
 
@@ -130,9 +129,16 @@ public class QueryCacheImpl implements QueryCache {
         callerFuture.complete(data);
     }
 
-    private void failAfterInFlightTimeout(CompletableFuture<?> request) {
+    private void failAfterInFlightTimeout(QueryKey key, CompletableFuture<?> request) {
         Executor afterTimeout = CompletableFuture.delayedExecutor(inFlightTimeout.toMillis(), TimeUnit.MILLISECONDS);
-        afterTimeout.execute(() -> request.completeExceptionally(newTimeoutException()));
+        afterTimeout.execute(() -> unregisterAndFail(key, request, newTimeoutException()));
+    }
+
+    // Unregister before failing: callers' futures fail inside completeExceptionally(), and a caller
+    // that fetches again from its error handler must start a new request, not join this failed one.
+    private void unregisterAndFail(QueryKey key, CompletableFuture<?> request, Throwable error) {
+        inFlightRequests.remove(key, request);
+        request.completeExceptionally(error);
     }
 
     private CloudApiException newTimeoutException() {
@@ -144,12 +150,13 @@ public class QueryCacheImpl implements QueryCache {
 
     private <T> void completeAndCacheIfOwner(QueryKey key, CompletableFuture<T> request, T data, Throwable error) {
         if (error != null) {
-            request.completeExceptionally(error);
+            unregisterAndFail(key, request, error);
             return;
         }
 
-        // invalidate() and set() remove the key's request before touching the entry. Checking and
-        // caching inside the map's per-key lock keeps a result fetched before them from landing after.
+        // Every invalidation and set() removes the key's request before touching the entry, and
+        // computeIfPresent is atomic with a remove of the same key, so a result fetched before them
+        // cannot land after them.
         inFlightRequests.computeIfPresent(key, (ignored, current) -> cacheAndUnregisterIfOwner(key, request, current, data));
         request.complete(data);
     }
