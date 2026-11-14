@@ -7,6 +7,7 @@ import java.lang.reflect.Proxy;
 import java.util.concurrent.TimeoutException;
 import java.util.concurrent.atomic.AtomicInteger;
 
+import static org.junit.jupiter.api.Assertions.assertDoesNotThrow;
 import static org.junit.jupiter.api.Assertions.assertEquals;
 
 class FlushIfConnectedTest {
@@ -43,7 +44,7 @@ class FlushIfConnectedTest {
                 }
         );
 
-        NatsFailoverConnectionManager.flushIfConnected(connection);
+        assertDoesNotThrow(() -> NatsFailoverConnectionManager.flushIfConnected(connection));
     }
 
     private static Connection connectionWithStatus(Connection.Status status, AtomicInteger flushCalls) {

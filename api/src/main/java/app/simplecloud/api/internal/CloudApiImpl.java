@@ -137,6 +137,10 @@ public class CloudApiImpl implements CloudApi {
         return queryCache;
     }
 
+    /**
+     * Blocks for up to about two seconds more than the NATS close itself: up to one second for running tasks,
+     * then up to one second to send the NATS messages already queued.
+     */
     @Override
     public void close() {
         if (!closed.compareAndSet(false, true)) {
