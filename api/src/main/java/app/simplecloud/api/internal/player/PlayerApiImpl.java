@@ -457,30 +457,35 @@ public class PlayerApiImpl implements PlayerApi {
     public CompletableFuture<ConnectOutcome> connectTo(UUID uniqueId, ConnectTarget target) {
         Objects.requireNonNull(uniqueId, "uniqueId");
         Objects.requireNonNull(target, "target");
-        String value = target.getValue();
-        ModelsConnectPlayerRequest request = new ModelsConnectPlayerRequest();
-        return switch (target.getKind()) {
-            case REGISTERED_SERVER_NAME -> connectViaProxy(uniqueId, value);
+        ConnectTargetFields fields = ConnectTargetFields.readFrom(target);
+        String nameOrId = fields.nameOrId();
+        return switch (fields.kind()) {
+            case REGISTERED_SERVER_NAME -> connectViaProxy(uniqueId, nameOrId);
             case SERVER_ID -> {
-                request.setServerId(value);
+                ModelsConnectPlayerRequest request = new ModelsConnectPlayerRequest();
+                request.setServerId(nameOrId);
                 yield connectViaController(uniqueId, request);
             }
             case SERVER_NAME -> {
-                request.setServerName(value);
+                ModelsConnectPlayerRequest request = new ModelsConnectPlayerRequest();
+                request.setServerName(nameOrId);
                 yield connectViaController(uniqueId, request);
             }
             case GROUP_ID -> {
-                request.setServerGroupId(value);
-                request.setSelectionMode(selectionModeName(target));
+                ModelsConnectPlayerRequest request = new ModelsConnectPlayerRequest();
+                request.setServerGroupId(nameOrId);
+                request.setSelectionMode(selectionModeName(fields));
                 yield connectViaController(uniqueId, request);
             }
             case GROUP_NAME -> {
-                request.setServerGroupName(value);
-                request.setSelectionMode(selectionModeName(target));
+                ModelsConnectPlayerRequest request = new ModelsConnectPlayerRequest();
+                request.setServerGroupName(nameOrId);
+                request.setSelectionMode(selectionModeName(fields));
                 yield connectViaController(uniqueId, request);
             }
             case PERSISTENT_SERVER_ID -> {
-                request.setPersistentServerId(value);
+                ModelsConnectPlayerRequest request = new ModelsConnectPlayerRequest();
+                request.setPersistentServerId(nameOrId);
                 yield connectViaController(uniqueId, request);
             }
         };
@@ -489,8 +494,8 @@ public class PlayerApiImpl implements PlayerApi {
     /**
      * Returns the target's selection mode for the request, or null, which leaves the choice to the controller.
      */
-    private static @Nullable String selectionModeName(ConnectTarget target) {
-        ServerSelectionMode selectionMode = target.getSelectionMode();
+    private static @Nullable String selectionModeName(ConnectTargetFields fields) {
+        ServerSelectionMode selectionMode = fields.selectionMode();
         return selectionMode != null ? selectionMode.name() : null;
     }
 

@@ -1,6 +1,8 @@
 package app.simplecloud.api.player;
 
 import app.simplecloud.api.group.Group;
+import app.simplecloud.api.internal.player.ConnectTargetFields;
+import app.simplecloud.api.internal.player.ConnectTargetFields.Kind;
 import app.simplecloud.api.persistentserver.PersistentServer;
 import app.simplecloud.api.server.Server;
 import org.jetbrains.annotations.Nullable;
@@ -21,14 +23,15 @@ import java.util.Objects;
  */
 public final class ConnectTarget {
 
-    private final Kind kind;
-    private final String value;
-    private final @Nullable ServerSelectionMode selectionMode;
+    static {
+        ConnectTargetFields.registerReader(target -> target.fields);
+    }
 
-    private ConnectTarget(Kind kind, String value, @Nullable ServerSelectionMode selectionMode) {
-        this.kind = kind;
-        this.value = Objects.requireNonNull(value, kind.parameterName);
-        this.selectionMode = selectionMode;
+    private final ConnectTargetFields fields;
+
+    private ConnectTarget(Kind kind, String nameOrId, @Nullable ServerSelectionMode selectionMode) {
+        Objects.requireNonNull(nameOrId, kind.parameterName());
+        this.fields = new ConnectTargetFields(kind, nameOrId, selectionMode);
     }
 
     /**
@@ -165,34 +168,6 @@ public final class ConnectTarget {
         return new ConnectTarget(Kind.REGISTERED_SERVER_NAME, registeredServerName, null);
     }
 
-    /**
-     * Returns the kind of target. For the library's implementation only; it may change in any release.
-     *
-     * @return the kind
-     */
-    public Kind getKind() {
-        return kind;
-    }
-
-    /**
-     * Returns the name or ID. For the library's implementation only; it may change in any release.
-     *
-     * @return the name or ID
-     */
-    public String getValue() {
-        return value;
-    }
-
-    /**
-     * Returns the selection mode of a group target. For the library's implementation only; it may change
-     * in any release.
-     *
-     * @return the selection mode, or null for the controller's default and for targets that aren't groups
-     */
-    public @Nullable ServerSelectionMode getSelectionMode() {
-        return selectionMode;
-    }
-
     @Override
     public boolean equals(Object other) {
         if (this == other) {
@@ -201,35 +176,23 @@ public final class ConnectTarget {
         if (!(other instanceof ConnectTarget target)) {
             return false;
         }
-        return kind == target.kind && value.equals(target.value) && selectionMode == target.selectionMode;
+        return fields.equals(target.fields);
     }
 
     @Override
     public int hashCode() {
-        return Objects.hash(kind, value, selectionMode);
-    }
-
-    @Override
-    public String toString() {
-        String mode = selectionMode != null ? ", selectionMode=" + selectionMode : "";
-        return "ConnectTarget[" + kind.parameterName + "=" + value + mode + "]";
+        return fields.hashCode();
     }
 
     /**
-     * The kinds of targets. For the library's implementation only; it may change in any release.
+     * Describes the target for logs. The format is not part of the API.
+     *
+     * @return the description
      */
-    public enum Kind {
-        SERVER_ID("serverId"),
-        SERVER_NAME("serverName"),
-        GROUP_ID("groupId"),
-        GROUP_NAME("groupName"),
-        PERSISTENT_SERVER_ID("persistentServerId"),
-        REGISTERED_SERVER_NAME("registeredServerName");
-
-        private final String parameterName;
-
-        Kind(String parameterName) {
-            this.parameterName = parameterName;
-        }
+    @Override
+    public String toString() {
+        ServerSelectionMode selectionMode = fields.selectionMode();
+        String mode = selectionMode != null ? ", selectionMode=" + selectionMode : "";
+        return "ConnectTarget[" + fields.kind().parameterName() + "=" + fields.nameOrId() + mode + "]";
     }
 }

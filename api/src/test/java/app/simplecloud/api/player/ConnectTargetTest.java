@@ -1,6 +1,7 @@
 package app.simplecloud.api.player;
 
 import app.simplecloud.api.group.Group;
+import app.simplecloud.api.internal.player.ConnectTargetFields;
 import org.junit.jupiter.api.Test;
 
 import static org.junit.jupiter.api.Assertions.assertEquals;
@@ -22,5 +23,15 @@ class ConnectTargetTest {
         assertEquals(ConnectTarget.groupName("lobby"), ConnectTarget.groupName("lobby", null));
         assertNotEquals(ConnectTarget.groupName("lobby"), ConnectTarget.groupName("lobby", ServerSelectionMode.RANDOM));
         assertNotEquals(ConnectTarget.serverName("lobby"), ConnectTarget.registeredServerName("lobby"));
+    }
+
+    @Test
+    void registerReader_afterConnectTargetRegisteredItsReader_throws() {
+        ConnectTarget.serverName("lobby-1");
+        ConnectTargetFields.Reader otherReader = target -> new ConnectTargetFields(
+                ConnectTargetFields.Kind.SERVER_NAME, "other", null
+        );
+
+        assertThrows(IllegalStateException.class, () -> ConnectTargetFields.registerReader(otherReader));
     }
 }
