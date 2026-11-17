@@ -35,6 +35,11 @@ final class ViewRuleChecks {
     private static final long LAST_AUDIT_MILLIS = 30 * 60_000;
     private static final long AUDIT_WAIT_LIMIT_MILLIS = LAST_AUDIT_MILLIS + 60_000;
     private static final double HIGHEST_RANDOM_NUMBER = 0.999_999;
+    private static final long HIGHEST_SIGNED = Long.MAX_VALUE;
+    /**
+     * 2^63 as a uint64: above {@link #HIGHEST_SIGNED} unsigned, below every other number signed.
+     */
+    private static final long LOWEST_PAST_SIGNED = Long.MIN_VALUE;
 
     private ViewRuleChecks() {
     }
@@ -69,6 +74,16 @@ final class ViewRuleChecks {
                         ViewRuleChecks::reloadsOnBatchFromAnotherEpoch),
                 new ViewCheck("batch: compares revisions as unsigned numbers",
                         ViewRuleChecks::comparesRevisionsUnsigned),
+                new ViewCheck("batch: a base past 2^63 is ahead of a copy below it",
+                        ViewRuleChecks::holdsBaseAboveCopyUnsigned),
+                new ViewCheck("batch: a missing batch that arrives at exactly 3 s is on time",
+                        ViewRuleChecks::missingBatchAtExactlyThreeSecondsIsOnTime),
+                new ViewCheck("batch: a held batch's 3 s count from its arrival during a load",
+                        ViewRuleChecks::batchHeldDuringLoadCountsFromArrival),
+                new ViewCheck("batch: the gap's 3 s count from the oldest held batch",
+                        ViewRuleChecks::gapCountsFromOldestHeldBatch),
+                new ViewCheck("batch: reloads on a batch from a lower epoch",
+                        ViewRuleChecks::reloadsOnBatchFromLowerEpoch),
                 new ViewCheck("references: a new group and its first server in one batch",
                         ViewRuleChecks::acceptsGroupAndFirstServerInOneBatch),
                 new ViewCheck("references: reloads when a server's group is missing",
@@ -79,10 +94,26 @@ final class ViewRuleChecks {
                         ViewRuleChecks::reloadsWhenBlueprintMissing),
                 new ViewCheck("references: reloads when a batch deletes a group a server still uses",
                         ViewRuleChecks::reloadsWhenDeletedGroupStillUsed),
+                new ViewCheck("references: a batch with a missing item is not applied",
+                        ViewRuleChecks::batchWithMissingItemIsNotApplied),
+                new ViewCheck("references: a snapshot with a missing item is not taken",
+                        ViewRuleChecks::snapshotWithMissingItemIsNotTaken),
                 new ViewCheck("references: a snapshot with a missing item counts as a failed load",
                         ViewRuleChecks::brokenSnapshotCountsAsFailedLoad),
                 new ViewCheck("pulse: reloads on a pulse from another epoch",
                         ViewRuleChecks::reloadsOnPulseFromAnotherEpoch),
+                new ViewCheck("pulse: reloads on a pulse from a lower epoch",
+                        ViewRuleChecks::reloadsOnPulseFromLowerEpoch),
+                new ViewCheck("pulse: a pulse past 2^63 is ahead of a copy below it",
+                        ViewRuleChecks::pulseAboveCopyUnsigned),
+                new ViewCheck("pulse: a pulse past 2^63 is further ahead than one below it",
+                        ViewRuleChecks::furtherPulseUnsigned),
+                new ViewCheck("pulse: a copy past 2^63 has reached a pulse below it",
+                        ViewRuleChecks::copyReachesPulseUnsigned),
+                new ViewCheck("pulse: the 3 s behind a pulse count from the first pulse ahead",
+                        ViewRuleChecks::behindCountsFromFirstPulseAhead),
+                new ViewCheck("pulse: a pulse replaces the metrics also while disconnected",
+                        ViewRuleChecks::pulseReplacesMetricsWhileDisconnected),
                 new ViewCheck("pulse: a lower revision neither reloads nor counts as good",
                         ViewRuleChecks::lowerPulseNeitherReloadsNorCounts),
                 new ViewCheck("pulse: not live 15 s after the last good pulse",
@@ -104,12 +135,20 @@ final class ViewRuleChecks {
                 new ViewCheck("connection: ignores batches until the subscriptions are active again",
                         ViewRuleChecks::ignoresBatchesWhileDisconnected),
                 new ViewCheck("connection: reloads after a reconnect", ViewRuleChecks::reloadsAfterReconnect),
+                new ViewCheck("connection: a loss drops a wanted reload",
+                        ViewRuleChecks::lossDropsWantedReload),
+                new ViewCheck("connection: a loss abandons an audit waiting to compare",
+                        ViewRuleChecks::lossAbandonsComparingAudit),
+                new ViewCheck("connection: a failed answer of an abandoned load is no failed load",
+                        ViewRuleChecks::failedAbandonedLoadIsNoFailedLoad),
                 new ViewCheck("connection: ignores the answer of a load that ran across the loss",
                         ViewRuleChecks::ignoresLoadRunningAcrossLoss),
                 new ViewCheck("reload: loads at least 2 s apart", ViewRuleChecks::loadsTwoSecondsApart),
                 new ViewCheck("reload: backs off up to 30 s after failed loads",
                         ViewRuleChecks::backsOffAfterFailedLoads),
                 new ViewCheck("reload: a taken snapshot ends the back-off", ViewRuleChecks::takenSnapshotEndsBackOff),
+                new ViewCheck("reload: every random delay draws a new number",
+                        ViewRuleChecks::everyRandomDelayDrawsNewNumber),
                 new ViewCheck("reload: adds 2 s times a random number to every reload",
                         ViewRuleChecks::addsRandomDelayToReloads),
                 new ViewCheck("audit: first audit 20 min after the snapshot with the lowest number",
@@ -132,6 +171,14 @@ final class ViewRuleChecks {
                         ViewRuleChecks::auditNotReachedTakesSnapshot),
                 new ViewCheck("audit: a reload waits for the running audit load",
                         ViewRuleChecks::reloadWaitsForAuditLoad),
+                new ViewCheck("audit: reaching S at exactly 3 s is a compare",
+                        ViewRuleChecks::auditReachingSAtExactlyThreeSecondsCompares),
+                new ViewCheck("audit: the audit's deadline acts before the gap's",
+                        ViewRuleChecks::auditDeadlineActsBeforeGapDeadline),
+                new ViewCheck("audit: compares revisions past 2^63 unsigned",
+                        ViewRuleChecks::auditComparesUnsigned),
+                new ViewCheck("audit: no audit starts while the view is not live",
+                        ViewRuleChecks::noAuditWhileNotLive),
                 new ViewCheck("audit: after a match, the next audit comes 20 min later",
                         ViewRuleChecks::auditsAgainTwentyMinutesAfterMatch),
                 new ViewCheck("audit: after a failed audit load, the next audit comes 20 min later",
@@ -154,6 +201,10 @@ final class ViewRuleChecks {
                         ViewRuleChecks::earlierEpochWriteHoldsNothing),
                 new ViewCheck("own write: a write the copy already has holds nothing",
                         ViewRuleChecks::writeInCopyHoldsNothing),
+                new ViewCheck("own write: compares revisions past 2^63 unsigned",
+                        ViewRuleChecks::ownWriteRevisionsUnsigned),
+                new ViewCheck("own write: compares epochs past 2^63 unsigned",
+                        ViewRuleChecks::ownWriteEpochsUnsigned),
                 new ViewCheck("own write: the highest write holds, also when responses come out of order",
                         ViewRuleChecks::highestOwnWriteHolds)
         );
@@ -616,18 +667,22 @@ final class ViewRuleChecks {
     static void takenSnapshotEndsBackOff(ViewStarter starter) {
         ViewDriver view = ViewDriver.start(starter);
         view.subscribe();
-        view.failLoad();
-        view.waitForLoad(5_000);
-        view.failLoad();
-        view.waitForLoad(5_000);
+        for (int failure = 0; failure < 4; failure++) {
+            view.failLoad();
+            view.waitForLoad(40_000);
+        }
         view.loadSnapshot(network(10));
         long tookSnapshotAt = view.now();
         view.advance(1_000);
         view.batch(batch(EPOCH + 1, 2, 3).build());
-
         long reloadAt = view.waitForLoad(10_000);
+        view.failLoad();
+
+        long loadAfterFailure = view.waitForLoad(40_000);
 
         assertEquals(tookSnapshotAt + 2_000, reloadAt, "after a taken snapshot only the 2 s spacing applies");
+        assertEquals(reloadAt + 2_000, loadAfterFailure,
+                "the first failure after a taken snapshot backs off 2 s, not 30 s");
     }
 
     static void addsRandomDelayToReloads(ViewStarter starter) {
@@ -934,6 +989,278 @@ final class ViewRuleChecks {
         assertEquals(Set.of(id(1)), view.copy().servers().keySet(), "a deleted id removes its server");
         assertEquals(11, view.copy().revision());
         assertTrue(view.isLive(), "deleting an unknown id is no error");
+    }
+
+    // Decisions taken during the build, and the edges they settle.
+
+    static void holdsBaseAboveCopyUnsigned(ViewStarter starter) {
+        ViewDriver view = ViewDriver.liveAt(starter, network(HIGHEST_SIGNED));
+        view.batch(serverStateBatch(LOWEST_PAST_SIGNED, LOWEST_PAST_SIGNED + 1, "STOPPING"));
+
+        assertEquals(HIGHEST_SIGNED, view.copy().revision(), "a base of 2^63 is above a copy at 2^63 - 1");
+        assertFalse(view.isLive(), "the batch is held");
+    }
+
+    static void missingBatchAtExactlyThreeSecondsIsOnTime(ViewStarter starter) {
+        ViewDriver view = ViewDriver.liveAt(starter, network(10));
+        view.advance(800);
+        view.batch(serverStateBatch(12, 13, "STOPPING"));
+        long heldAt = view.now();
+        view.advanceWithoutLoadTo(heldAt + 2_999, "a gap waits 3 s");
+        view.jumpTo(heldAt + 3_000);
+        view.batch(serverStateBatch(10, 12, "STARTING"));
+
+        assertFalse(view.requestedLoad(), "the input acts before the deadline in the same step");
+        assertEquals(13, view.copy().revision());
+        assertTrue(view.isLive());
+    }
+
+    static void batchHeldDuringLoadCountsFromArrival(ViewStarter starter) {
+        ViewDriver view = ViewDriver.start(starter);
+        view.subscribe();
+        view.advance(100);
+        view.batch(serverStateBatch(11, 12, "STOPPING"));
+        long heldAt = view.now();
+        view.advance(2_000);
+        view.loadSnapshot(network(10));
+
+        long reloadAt = view.waitForLoad(10_000);
+
+        assertEquals(heldAt + 3_000, reloadAt, "the 3 s count from the batch's arrival, not from the snapshot");
+    }
+
+    static void gapCountsFromOldestHeldBatch(ViewStarter starter) {
+        ViewDriver view = ViewDriver.liveAt(starter, network(10));
+        view.advance(800);
+        view.batch(serverStateBatch(12, 13, "STOPPING"));
+        long firstHeldAt = view.now();
+        view.advance(2_000);
+        view.batch(serverStateBatch(13, 14, "STARTING"));
+
+        long reloadAt = view.waitForLoad(10_000);
+
+        assertEquals(firstHeldAt + 3_000, reloadAt, "the gap's 3 s count from the oldest held batch");
+    }
+
+    static void reloadsOnBatchFromLowerEpoch(ViewStarter starter) {
+        ViewDriver view = ViewDriver.liveAt(starter, network(10));
+        view.advance(2_000);
+        view.batch(batch(EPOCH - 1, 10, 11).addServers(groupServer(1, 10, "STOPPING")).build());
+
+        view.assertLoadRequested("a batch from a lower epoch means reload too");
+        assertEquals(10, view.copy().revision(), "a batch from another epoch is not applied");
+    }
+
+    static void batchWithMissingItemIsNotApplied(ViewStarter starter) {
+        ViewDriver view = ViewDriver.liveAt(starter, network(10));
+        NetworkCopy before = view.copy();
+        view.advance(2_000);
+        StateBatch broken = batch(10, 11)
+                .addServers(groupServer(1, 10, "STOPPING"))
+                .addServers(groupServer(3, 99, "PREPARING"))
+                .build();
+        view.batch(broken);
+
+        view.assertLoadRequested("a batch with a missing item means reload");
+        assertEquals(before, view.copy(), "the view keeps the last copy whose references resolve");
+    }
+
+    static void snapshotWithMissingItemIsNotTaken(ViewStarter starter) {
+        NetworkState broken = network(EPOCH, 12).addServers(groupServer(3, 99, "PREPARING")).build();
+        ViewDriver fresh = ViewDriver.start(starter);
+        fresh.subscribe();
+        fresh.loadSnapshot(broken);
+        ViewDriver reloading = ViewDriver.liveAt(starter, network(10));
+        NetworkCopy before = reloading.copy();
+        reloading.advance(3_000);
+        reloading.loseConnection();
+        reloading.subscribe();
+        reloading.assertLoadRequested("a reconnect means reload");
+        reloading.loadSnapshot(broken);
+
+        assertTrue(fresh.copyIfAny().isEmpty(), "a first snapshot with a missing item leaves no copy");
+        assertEquals(before, reloading.copy(), "the view keeps the last copy whose references resolve");
+    }
+
+    static void reloadsOnPulseFromLowerEpoch(ViewStarter starter) {
+        ViewDriver view = ViewDriver.liveAt(starter, network(10));
+        view.advance(2_000);
+        view.pulse(pulse(EPOCH - 1, 10));
+
+        view.assertLoadRequested("a pulse from a lower epoch means reload too");
+        assertFalse(view.isLive());
+    }
+
+    static void pulseAboveCopyUnsigned(ViewStarter starter) {
+        ViewDriver view = ViewDriver.liveAt(starter, network(HIGHEST_SIGNED));
+        view.advance(100);
+        view.pulse(pulse(LOWEST_PAST_SIGNED));
+
+        assertFalse(view.isLive(), "a pulse at 2^63 is ahead of a copy at 2^63 - 1");
+    }
+
+    static void furtherPulseUnsigned(ViewStarter starter) {
+        ViewDriver view = ViewDriver.liveAt(starter, network(HIGHEST_SIGNED - 1));
+        view.advance(100);
+        view.pulse(pulse(HIGHEST_SIGNED));
+        view.advance(100);
+        view.pulse(pulse(LOWEST_PAST_SIGNED));
+        view.advance(100);
+        view.batch(serverStateBatch(HIGHEST_SIGNED - 1, HIGHEST_SIGNED, "STOPPING"));
+
+        assertFalse(view.isLive(), "a pulse at 2^63 is further ahead than one at 2^63 - 1");
+    }
+
+    static void copyReachesPulseUnsigned(ViewStarter starter) {
+        ViewDriver view = ViewDriver.liveAt(starter, network(HIGHEST_SIGNED - 1));
+        view.advance(100);
+        view.pulse(pulse(HIGHEST_SIGNED));
+        view.advance(100);
+        view.batch(serverStateBatch(HIGHEST_SIGNED - 1, LOWEST_PAST_SIGNED, "STOPPING"));
+
+        assertTrue(view.isLive(), "a copy at 2^63 has reached a pulse at 2^63 - 1");
+    }
+
+    static void behindCountsFromFirstPulseAhead(ViewStarter starter) {
+        ViewDriver view = ViewDriver.liveAt(starter, network(10));
+        view.advance(800);
+        view.pulse(pulse(12));
+        long firstAheadAt = view.now();
+        view.advance(1_000);
+        view.pulse(pulse(14));
+
+        long reloadAt = view.waitForLoad(10_000);
+
+        assertEquals(firstAheadAt + 3_000, reloadAt, "the 3 s count from the first pulse ahead");
+    }
+
+    static void pulseReplacesMetricsWhileDisconnected(ViewStarter starter) {
+        ViewDriver view = ViewDriver.liveAt(starter, network(10));
+        view.advance(2_000);
+        view.loseConnection();
+        view.pulse(pulse(10).toBuilder().addMetrics(metrics(2, 40)).build());
+
+        assertEquals(Map.of(id(2), metrics(2, 40)), view.copy().metrics(), "a pulse replaces metrics in every state");
+    }
+
+    static void lossDropsWantedReload(ViewStarter starter) {
+        ViewDriver view = ViewDriver.liveAt(starter, network(10));
+        view.advance(300);
+        view.batch(batch(EPOCH + 1, 2, 3).build());
+        view.advance(100);
+        view.loseConnection();
+        view.advanceWithoutLoadTo(5_000, "a view starts no load while disconnected");
+        view.subscribe();
+
+        view.assertLoadRequested("the reconnect reloads");
+    }
+
+    static void lossAbandonsComparingAudit(ViewStarter starter) {
+        ViewDriver view = auditLoading(starter);
+        view.loadSnapshot(network(12));
+        view.loseConnection();
+        long lostAt = view.now();
+        while (view.now() < lostAt + 5_000) {
+            view.advance(100);
+            assertEquals(Optional.empty(), view.lastAuditOutcome(), "a lost connection abandons the audit");
+        }
+
+        assertEquals(10, view.copy().revision(), "the abandoned audit's snapshot is not taken");
+        assertFalse(view.isLive());
+    }
+
+    static void failedAbandonedLoadIsNoFailedLoad(ViewStarter starter) {
+        ViewDriver view = ViewDriver.start(starter);
+        view.subscribe();
+        view.advance(50);
+        view.loseConnection();
+        view.advance(50);
+        view.subscribe();
+        view.advance(100);
+        view.failLoad();
+        long secondLoad = view.waitForLoad(10_000);
+        view.failLoad();
+
+        long thirdLoad = view.waitForLoad(10_000);
+
+        assertEquals(2_000, secondLoad, "the abandoned load's failure does not back off the new load");
+        assertEquals(secondLoad + 2_000, thirdLoad, "the next failure is the first in a row");
+    }
+
+    static void everyRandomDelayDrawsNewNumber(ViewStarter starter) {
+        RandomSequence zeroFirstThenHalf = index -> index == 0 ? 0.0 : 0.5;
+        ViewDriver view = ViewDriver.startWithSequence(starter, zeroFirstThenHalf);
+        view.subscribe();
+        view.assertLoadRequested("the first number is 0, so the first load starts at once");
+        view.failLoad();
+
+        long secondLoad = view.waitForLoad(10_000);
+
+        assertEquals(3_000, secondLoad, "the second delay draws a later number, 0.5: 2 s back-off + 1 s");
+    }
+
+    static void auditReachingSAtExactlyThreeSecondsCompares(ViewStarter starter) {
+        ViewDriver view = auditLoading(starter);
+        view.loadSnapshot(network(11));
+        long comparingSince = view.now();
+        view.advanceWithoutLoadTo(comparingSince + 2_999, "the audit waits 3 s");
+        view.jumpTo(comparingSince + 3_000);
+        view.batch(serverStateBatch(10, 11, "AVAILABLE"));
+
+        assertEquals(Optional.of(AuditOutcome.MATCHED), view.lastAuditOutcome(),
+                "the batch acts before the audit's deadline in the same step");
+    }
+
+    static void auditDeadlineActsBeforeGapDeadline(ViewStarter starter) {
+        ViewDriver view = auditLoading(starter);
+        view.loadSnapshot(network(12));
+        view.batch(serverStateBatch(12, 14, "STOPPING"));
+        long bothSince = view.now();
+        view.advanceWithoutLoadTo(bothSince + 2_999, "both wait 3 s");
+        view.advance(1);
+
+        assertEquals(Optional.of(AuditOutcome.NOT_REACHED), view.lastAuditOutcome(), "the audit's deadline acts first");
+        assertEquals(14, view.copy().revision(), "its snapshot at 12 lets the held batch apply");
+        assertFalse(view.requestedLoad(), "so the gap is closed and nothing reloads");
+    }
+
+    static void auditComparesUnsigned(ViewStarter starter) {
+        ViewDriver view = ViewDriver.liveAt(starter, network(HIGHEST_SIGNED - 1));
+        view.waitForLoadKeepingLive(AUDIT_WAIT_LIMIT_MILLIS);
+        view.loadSnapshot(network(HIGHEST_SIGNED));
+        view.advance(100);
+        view.batch(serverStateBatch(HIGHEST_SIGNED - 1, LOWEST_PAST_SIGNED, "STOPPING"));
+
+        assertEquals(Optional.of(AuditOutcome.JUMPED_PAST), view.lastAuditOutcome(),
+                "a copy at 2^63 is past an audit snapshot at 2^63 - 1");
+    }
+
+    static void noAuditWhileNotLive(ViewStarter starter) {
+        ViewDriver view = ViewDriver.liveAt(starter, network(10));
+        long auditDueAt = 100 + FIRST_AUDIT_MILLIS;
+        view.keepLiveWithoutLoadUntil(auditDueAt - 16_000);
+        view.advanceWithoutLoadTo(auditDueAt, "no load before the audit is due");
+        boolean liveWhenDue = view.isLive();
+
+        view.advanceWithoutLoadTo(auditDueAt + 10_000, "a view that is not live starts no audit");
+
+        assertFalse(liveWhenDue, "the last good pulse is over 15 s old when the audit is due");
+    }
+
+    static void ownWriteRevisionsUnsigned(ViewStarter starter) {
+        ViewDriver view = ViewDriver.liveAt(starter, network(HIGHEST_SIGNED - 1));
+        view.wrote(WriteKind.SERVER, EPOCH, HIGHEST_SIGNED);
+        view.advance(100);
+        view.batch(serverStateBatch(HIGHEST_SIGNED - 1, LOWEST_PAST_SIGNED, "STOPPING"));
+
+        assertTrue(view.mayAnswer(ReadKind.SERVER), "a copy at 2^63 has reached a write at 2^63 - 1");
+    }
+
+    static void ownWriteEpochsUnsigned(ViewStarter starter) {
+        ViewDriver view = ViewDriver.liveAt(starter, network(LOWEST_PAST_SIGNED, 3).build());
+        view.wrote(WriteKind.SERVER, 1, 50);
+
+        assertTrue(view.mayAnswer(ReadKind.SERVER), "a copy in epoch 2^63 is after a write in epoch 1");
     }
 
     // Helpers.

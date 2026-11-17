@@ -33,6 +33,10 @@ final class ViewDriver {
         return new ViewDriver(starter.start(index -> randomNumber));
     }
 
+    static ViewDriver startWithSequence(ViewStarter starter, RandomSequence random) {
+        return new ViewDriver(starter.start(random));
+    }
+
     static ViewDriver start(ViewStarter starter) {
         return start(starter, 0.0);
     }
@@ -97,6 +101,13 @@ final class ViewDriver {
     }
 
     /**
+     * Moves the time without a step, so the next input is the first step at {@code time}.
+     */
+    void jumpTo(long time) {
+        now = time;
+    }
+
+    /**
      * Lets time pass in steps of 1 ms until {@code time}, and fails if the view asks for a load before it.
      */
     void advanceWithoutLoadTo(long time, String message) {
@@ -143,6 +154,24 @@ final class ViewDriver {
             }
         }
         return fail("the view asked for no load within " + maxMillis + " ms");
+    }
+
+    /**
+     * Lets time pass in steps of 100 ms until {@code time}, with a pulse at the copy's revision every 5 s,
+     * and fails if the view asks for a load meanwhile.
+     */
+    void keepLiveWithoutLoadUntil(long time) {
+        long nextPulseAt = now + PULSE_INTERVAL_MILLIS;
+        while (now < time) {
+            advance(100);
+            if (now >= nextPulseAt) {
+                sendPulseAtCopy();
+                nextPulseAt += PULSE_INTERVAL_MILLIS;
+            }
+            if (requestedLoad()) {
+                fail("the view asked for a load at " + now + " ms");
+            }
+        }
     }
 
     void sendPulseAtCopy() {

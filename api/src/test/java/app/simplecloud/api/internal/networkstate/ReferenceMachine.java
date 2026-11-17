@@ -86,18 +86,21 @@ class ReferenceMachine {
         static Position of(NetworkCopy copy) {
             return new Position(copy.epoch(), copy.revision());
         }
+    }
 
-        boolean isAtOrAfter(Position other) {
-            int epochOrder = Long.compareUnsigned(epoch, other.epoch);
-            if (epochOrder != 0) {
-                return epochOrder > 0;
-            }
-            return Long.compareUnsigned(revision, other.revision) >= 0;
-        }
-
-        static Position later(Position first, Position second) {
-            return first.isAtOrAfter(second) ? first : second;
-        }
+    /**
+     * Every place where the machine orders two uint64 values, so a wrong machine can compare one of them
+     * signed.
+     */
+    enum Comparison {
+        BATCH_REVISION,
+        BATCH_BASE,
+        PULSE_REVISION,
+        FURTHER_PULSE,
+        REACHED_PULSE,
+        OWN_WRITE_EPOCH,
+        OWN_WRITE_REVISION,
+        AUDIT_REVISION
     }
 
     /**
@@ -153,11 +156,6 @@ class ReferenceMachine {
             ownWritesByRead = new EnumMap<>(source.ownWritesByRead);
         }
 
-        double drawNumber() {
-            double number = random.at(numbersDrawn);
-            numbersDrawn++;
-            return number;
-        }
     }
 
     static final class View implements NetworkView {
@@ -173,8 +171,7 @@ class ReferenceMachine {
         public ViewStep step(ViewInput input, long nowMillis) {
             Memory next = new Memory(memory);
             List<ViewEffect> effects = new ArrayList<>();
-            machine.handle(next, input, nowMillis, effects);
-            machine.actOnDeadlines(next, nowMillis, effects);
+            machine.runStep(next, input, nowMillis, effects);
             return new ViewStep(new View(machine, next), effects);
         }
 
@@ -192,6 +189,25 @@ class ReferenceMachine {
         public Optional<NetworkCopy> copy() {
             return Optional.ofNullable(memory.copy);
         }
+    }
+
+    int compare(Comparison where, long first, long second) {
+        return Long.compareUnsigned(first, second);
+    }
+
+    double drawNumber(Memory m) {
+        double number = m.random.at(m.numbersDrawn);
+        m.numbersDrawn++;
+        return number;
+    }
+
+    /**
+     * The input acts first and the deadlines after it, so an input that arrives exactly at a deadline is on
+     * time.
+     */
+    void runStep(Memory m, ViewInput input, long now, List<ViewEffect> effects) {
+        handle(m, input, now, effects);
+        actOnDeadlines(m, now, effects);
     }
 
     void handle(Memory m, ViewInput input, long now, List<ViewEffect> effects) {
@@ -232,7 +248,7 @@ class ReferenceMachine {
         if (m.failedLoadsInRow > 0) {
             earliest = Math.max(earliest, m.lastLoadFailedAt + backOff(m.failedLoadsInRow));
         }
-        long jitter = (long) (RELOAD_JITTER_MILLIS * m.drawNumber());
+        long jitter = (long) (RELOAD_JITTER_MILLIS * drawNumber(m));
         return earliest + jitter;
     }
 
@@ -304,7 +320,12 @@ class ReferenceMachine {
     }
 
     void takeSnapshot(Memory m, NetworkState snapshot, long now, List<ViewEffect> effects) {
-        m.copy = copyOf(snapshot);
+        NetworkCopy taken = copyOf(snapshot);
+        if (!referencesResolve(taken)) {
+            countFailedLoad(m, now);
+            return;
+        }
+        m.copy = taken;
         m.mode = Mode.SYNCED;
         m.snapshotTakenAt = now;
         m.goodPulseAt = null;
@@ -312,10 +333,6 @@ class ReferenceMachine {
         m.auditPhase = AuditPhase.NONE;
         m.auditSnapshot = null;
         m.auditDueAt = now + auditInterval(m);
-        if (!referencesResolve(m.copy)) {
-            countFailedLoad(m, now);
-            return;
-        }
         m.failedLoadsInRow = 0;
         settleHeldBatches(m, now, effects);
     }
@@ -367,23 +384,24 @@ class ReferenceMachine {
         if (batch.getEpoch() != copy.epoch()) {
             return BatchFit.OTHER_EPOCH;
         }
-        if (Long.compareUnsigned(batch.getRevision(), copy.revision()) <= 0) {
+        if (compare(Comparison.BATCH_REVISION, batch.getRevision(), copy.revision()) <= 0) {
             return BatchFit.ALREADY_IN_COPY;
         }
-        if (Long.compareUnsigned(batch.getBaseRevision(), copy.revision()) <= 0) {
+        if (compare(Comparison.BATCH_BASE, batch.getBaseRevision(), copy.revision()) <= 0) {
             return BatchFit.FITS_COPY;
         }
         return BatchFit.AHEAD_OF_COPY;
     }
 
     void applyBatch(Memory m, StateBatch batch, long now, List<ViewEffect> effects) {
-        m.copy = applied(m.copy, batch);
-        if (!referencesResolve(m.copy)) {
+        NetworkCopy applied = applied(m.copy, batch);
+        if (!referencesResolve(applied)) {
             wantReload(m, now);
             return;
         }
+        m.copy = applied;
         boolean reachedBehindPulse = m.behindPulse != null
-                && Long.compareUnsigned(m.copy.revision(), m.behindPulse.revision()) >= 0;
+                && compare(Comparison.REACHED_PULSE, m.copy.revision(), m.behindPulse.revision()) >= 0;
         if (reachedBehindPulse) {
             m.behindPulse = null;
         }
@@ -445,7 +463,7 @@ class ReferenceMachine {
         if (pulse.getEpoch() != copy.epoch()) {
             return PulseFit.OTHER_EPOCH;
         }
-        int order = Long.compareUnsigned(pulse.getRevision(), copy.revision());
+        int order = compare(Comparison.PULSE_REVISION, pulse.getRevision(), copy.revision());
         if (order > 0) {
             return PulseFit.AHEAD_OF_COPY;
         }
@@ -455,12 +473,12 @@ class ReferenceMachine {
         return PulseFit.BEHIND_COPY;
     }
 
-    private static void markBehindPulse(Memory m, StatePulse pulse, long now) {
+    private void markBehindPulse(Memory m, StatePulse pulse, long now) {
         if (m.behindPulse == null) {
             m.behindPulse = new BehindPulse(pulse.getRevision(), now);
             return;
         }
-        boolean furtherAhead = Long.compareUnsigned(pulse.getRevision(), m.behindPulse.revision()) > 0;
+        boolean furtherAhead = compare(Comparison.FURTHER_PULSE, pulse.getRevision(), m.behindPulse.revision()) > 0;
         if (furtherAhead) {
             m.behindPulse = new BehindPulse(pulse.getRevision(), m.behindPulse.since());
         }
@@ -469,7 +487,7 @@ class ReferenceMachine {
     void onWriteReturned(Memory m, ViewInput.WriteReturned write) {
         Position written = new Position(write.epoch(), write.revision());
         for (ReadKind read : readsChangedBy(write.written())) {
-            m.ownWritesByRead.merge(read, written, Position::later);
+            m.ownWritesByRead.merge(read, written, this::later);
         }
     }
 
@@ -490,11 +508,18 @@ class ReferenceMachine {
         startAuditIfDue(m, now, effects);
     }
 
+    /**
+     * The audit's deadline comes first: taking its snapshot can settle the held batches.
+     */
     void actOnSyncedDeadlines(Memory m, long now, List<ViewEffect> effects) {
-        if (heldTooLong(m, now) || behindPulseTooLong(m, now)) {
+        takeAuditSnapshotIfNotReached(m, now, effects);
+        boolean stillSynced = m.mode == Mode.SYNCED;
+        if (stillSynced && (heldTooLong(m, now) || behindPulseTooLong(m, now))) {
             wantReload(m, now);
-            return;
         }
+    }
+
+    void takeAuditSnapshotIfNotReached(Memory m, long now, List<ViewEffect> effects) {
         boolean auditWaitedTooLong = m.auditPhase == AuditPhase.COMPARING
                 && now - m.auditComparingSince >= AUDIT_REACH_WAIT_MILLIS;
         if (auditWaitedTooLong) {
@@ -531,11 +556,15 @@ class ReferenceMachine {
                 && !m.loadRunning
                 && now >= m.auditDueAt
                 && spaced
-                && isLive(m, now);
+                && auditMayStart(m, now);
         if (due) {
             startLoad(m, now, effects);
             m.auditPhase = AuditPhase.LOADING;
         }
+    }
+
+    boolean auditMayStart(Memory m, long now) {
+        return isLive(m, now);
     }
 
     private static void startLoad(Memory m, long now, List<ViewEffect> effects) {
@@ -557,7 +586,7 @@ class ReferenceMachine {
     }
 
     void continueAudit(Memory m, long now, List<ViewEffect> effects) {
-        int order = Long.compareUnsigned(m.copy.revision(), m.auditSnapshot.getRevision());
+        int order = compare(Comparison.AUDIT_REVISION, m.copy.revision(), m.auditSnapshot.getRevision());
         if (order == 0) {
             compareAudit(m, now, effects);
         } else if (order > 0) {
@@ -578,16 +607,16 @@ class ReferenceMachine {
         takeSnapshot(m, snapshot, now, effects);
     }
 
-    private static void auditAgainSoon(Memory m, long now, List<ViewEffect> effects) {
+    private void auditAgainSoon(Memory m, long now, List<ViewEffect> effects) {
         effects.add(new ViewEffect.AuditFinished(AuditOutcome.JUMPED_PAST));
         m.auditPhase = AuditPhase.NONE;
         m.auditSnapshot = null;
-        long retryDelay = AUDIT_RETRY_MIN_MILLIS + (long) (AUDIT_RETRY_SPREAD_MILLIS * m.drawNumber());
+        long retryDelay = AUDIT_RETRY_MIN_MILLIS + (long) (AUDIT_RETRY_SPREAD_MILLIS * drawNumber(m));
         m.auditDueAt = now + retryDelay;
     }
 
-    static long auditInterval(Memory m) {
-        return AUDIT_INTERVAL_MIN_MILLIS + (long) (AUDIT_INTERVAL_SPREAD_MILLIS * m.drawNumber());
+    long auditInterval(Memory m) {
+        return AUDIT_INTERVAL_MIN_MILLIS + (long) (AUDIT_INTERVAL_SPREAD_MILLIS * drawNumber(m));
     }
 
     boolean isLive(Memory m, long now) {
@@ -602,9 +631,21 @@ class ReferenceMachine {
         return isLive(m, now) && m.viewsMayAnswer && reachedOwnWrites(m, kind);
     }
 
-    static boolean reachedOwnWrites(Memory m, ReadKind read) {
+    boolean reachedOwnWrites(Memory m, ReadKind read) {
         Position ownWrite = m.ownWritesByRead.get(read);
-        return ownWrite == null || Position.of(m.copy).isAtOrAfter(ownWrite);
+        return ownWrite == null || isAtOrAfter(Position.of(m.copy), ownWrite);
+    }
+
+    boolean isAtOrAfter(Position position, Position other) {
+        int epochOrder = compare(Comparison.OWN_WRITE_EPOCH, position.epoch(), other.epoch());
+        if (epochOrder != 0) {
+            return epochOrder > 0;
+        }
+        return compare(Comparison.OWN_WRITE_REVISION, position.revision(), other.revision()) >= 0;
+    }
+
+    Position later(Position first, Position second) {
+        return isAtOrAfter(first, second) ? first : second;
     }
 
     static NetworkCopy copyOf(NetworkState snapshot) {

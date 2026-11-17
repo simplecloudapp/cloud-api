@@ -4,6 +4,7 @@ import build.buf.gen.simplecloud.controller.v2.NetworkState;
 import build.buf.gen.simplecloud.controller.v2.StateBatch;
 import build.buf.gen.simplecloud.controller.v2.StatePulse;
 
+import java.util.ArrayList;
 import java.util.List;
 
 /**
@@ -31,9 +32,67 @@ final class WrongMachines {
                         random -> new AppliesBatchFromAnotherEpoch().start(random),
                         List.of("batch: reloads on a batch from another epoch",
                                 ViewSimulation.SHORT_RUNS_CHECK)),
-                new WrongMachine("compares revisions as signed numbers",
-                        random -> new ComparesRevisionsSigned().start(random),
-                        List.of("batch: compares revisions as unsigned numbers")),
+                signedAt(ReferenceMachine.Comparison.BATCH_REVISION, "batch: compares revisions as unsigned numbers"),
+                signedAt(ReferenceMachine.Comparison.BATCH_BASE, "batch: a base past 2^63 is ahead of a copy below it"),
+                signedAt(ReferenceMachine.Comparison.PULSE_REVISION,
+                        "pulse: a pulse past 2^63 is ahead of a copy below it"),
+                signedAt(ReferenceMachine.Comparison.FURTHER_PULSE,
+                        "pulse: a pulse past 2^63 is further ahead than one below it"),
+                signedAt(ReferenceMachine.Comparison.REACHED_PULSE,
+                        "pulse: a copy past 2^63 has reached a pulse below it"),
+                signedAt(ReferenceMachine.Comparison.OWN_WRITE_EPOCH, "own write: compares epochs past 2^63 unsigned"),
+                signedAt(ReferenceMachine.Comparison.OWN_WRITE_REVISION,
+                        "own write: compares revisions past 2^63 unsigned"),
+                signedAt(ReferenceMachine.Comparison.AUDIT_REVISION, "audit: compares revisions past 2^63 unsigned"),
+                new WrongMachine("acts on deadlines before the step's input",
+                        random -> new DeadlinesBeforeInput().start(random),
+                        List.of("batch: a missing batch that arrives at exactly 3 s is on time",
+                                "audit: reaching S at exactly 3 s is a compare")),
+                new WrongMachine("acts on the gap's deadline before the audit's",
+                        random -> new GapDeadlineBeforeAudit().start(random),
+                        List.of("audit: the audit's deadline acts before the gap's")),
+                new WrongMachine("counts a held batch's 3 s from the taken snapshot",
+                        random -> new GapCountsFromSnapshot().start(random),
+                        List.of("batch: a held batch's 3 s count from its arrival during a load")),
+                new WrongMachine("counts the gap's 3 s from the newest held batch",
+                        random -> new GapCountsFromNewestBatch().start(random),
+                        List.of("batch: the gap's 3 s count from the oldest held batch")),
+                new WrongMachine("counts the 3 s behind a pulse from the latest pulse ahead",
+                        random -> new BehindCountsFromLatestPulse().start(random),
+                        List.of("pulse: the 3 s behind a pulse count from the first pulse ahead")),
+                new WrongMachine("applies a batch with a missing item",
+                        random -> new AppliesBatchWithMissingItem().start(random),
+                        List.of("references: a batch with a missing item is not applied")),
+                new WrongMachine("takes a snapshot with a missing item",
+                        random -> new TakesSnapshotWithMissingItem().start(random),
+                        List.of("references: a snapshot with a missing item is not taken")),
+                new WrongMachine("drops a batch from a lower epoch",
+                        random -> new DropsBatchFromLowerEpoch().start(random),
+                        List.of("batch: reloads on a batch from a lower epoch")),
+                new WrongMachine("ignores a pulse from a lower epoch",
+                        random -> new IgnoresPulseFromLowerEpoch().start(random),
+                        List.of("pulse: reloads on a pulse from a lower epoch")),
+                new WrongMachine("keeps the failed loads in a row after a taken snapshot",
+                        random -> new KeepsFailuresAfterSnapshot().start(random),
+                        List.of("reload: a taken snapshot ends the back-off")),
+                new WrongMachine("keeps a wanted reload when the connection is lost",
+                        random -> new KeepsWantedReloadOnLoss().start(random),
+                        List.of("connection: a loss drops a wanted reload")),
+                new WrongMachine("keeps an audit waiting to compare when the connection is lost",
+                        random -> new KeepsComparingAuditOnLoss().start(random),
+                        List.of("connection: a loss abandons an audit waiting to compare")),
+                new WrongMachine("counts the failure of an abandoned load",
+                        random -> new CountsFailureOfAbandonedLoad().start(random),
+                        List.of("connection: a failed answer of an abandoned load is no failed load")),
+                new WrongMachine("replaces metrics only while synced",
+                        random -> new ReplacesMetricsOnlyWhileSynced().start(random),
+                        List.of("pulse: a pulse replaces the metrics also while disconnected")),
+                new WrongMachine("starts an audit while the view is not live",
+                        random -> new AuditsWhileNotLive().start(random),
+                        List.of("audit: no audit starts while the view is not live")),
+                new WrongMachine("always draws the first random number",
+                        random -> new AlwaysDrawsFirstNumber().start(random),
+                        List.of("reload: every random delay draws a new number")),
                 new WrongMachine("waits for a missing batch for ever",
                         random -> new WaitsForGapForever().start(random),
                         List.of("batch: reloads after a gap held for 3 s",
@@ -134,19 +193,197 @@ final class WrongMachines {
         }
     }
 
-    static final class ComparesRevisionsSigned extends ReferenceMachine {
+    private static WrongMachine signedAt(ReferenceMachine.Comparison where, String caughtBy) {
+        String brokenRule = "compares " + where + " signed";
+        return new WrongMachine(brokenRule, random -> new ComparesSignedAt(where).start(random), List.of(caughtBy));
+    }
+
+    static final class ComparesSignedAt extends ReferenceMachine {
+        private final Comparison signedComparison;
+
+        ComparesSignedAt(Comparison signedComparison) {
+            this.signedComparison = signedComparison;
+        }
+
+        @Override
+        int compare(Comparison where, long first, long second) {
+            if (where == signedComparison) {
+                return Long.compare(first, second);
+            }
+            return super.compare(where, first, second);
+        }
+    }
+
+    static final class DeadlinesBeforeInput extends ReferenceMachine {
+        @Override
+        void runStep(Memory m, ViewInput input, long now, List<ViewEffect> effects) {
+            actOnDeadlines(m, now, effects);
+            handle(m, input, now, effects);
+        }
+    }
+
+    static final class GapDeadlineBeforeAudit extends ReferenceMachine {
+        @Override
+        void actOnSyncedDeadlines(Memory m, long now, List<ViewEffect> effects) {
+            if (heldTooLong(m, now) || behindPulseTooLong(m, now)) {
+                wantReload(m, now);
+                return;
+            }
+            takeAuditSnapshotIfNotReached(m, now, effects);
+        }
+    }
+
+    static final class GapCountsFromSnapshot extends ReferenceMachine {
+        @Override
+        void takeSnapshot(Memory m, NetworkState snapshot, long now, List<ViewEffect> effects) {
+            List<HeldBatch> restamped = new ArrayList<>();
+            for (HeldBatch held : m.heldBatches) {
+                restamped.add(new HeldBatch(held.batch(), now));
+            }
+            m.heldBatches = restamped;
+            super.takeSnapshot(m, snapshot, now, effects);
+        }
+    }
+
+    static final class GapCountsFromNewestBatch extends ReferenceMachine {
+        @Override
+        boolean heldTooLong(Memory m, long now) {
+            if (m.heldBatches.isEmpty()) {
+                return false;
+            }
+            HeldBatch newest = m.heldBatches.get(m.heldBatches.size() - 1);
+            return now - newest.arrivedAt() >= GAP_WAIT_MILLIS;
+        }
+    }
+
+    static final class BehindCountsFromLatestPulse extends ReferenceMachine {
+        @Override
+        void onPulse(Memory m, StatePulse pulse, long now) {
+            BehindPulse before = m.behindPulse;
+            super.onPulse(m, pulse, now);
+            boolean raised = before != null && m.behindPulse != null && m.behindPulse.revision() != before.revision();
+            if (raised) {
+                m.behindPulse = new BehindPulse(m.behindPulse.revision(), now);
+            }
+        }
+    }
+
+    static final class AppliesBatchWithMissingItem extends ReferenceMachine {
+        @Override
+        void applyBatch(Memory m, StateBatch batch, long now, List<ViewEffect> effects) {
+            NetworkCopy applied = applied(m.copy, batch);
+            if (!referencesResolve(applied)) {
+                m.copy = applied;
+            }
+            super.applyBatch(m, batch, now, effects);
+        }
+    }
+
+    static final class TakesSnapshotWithMissingItem extends ReferenceMachine {
+        @Override
+        void takeSnapshot(Memory m, NetworkState snapshot, long now, List<ViewEffect> effects) {
+            NetworkCopy taken = copyOf(snapshot);
+            if (!referencesResolve(taken)) {
+                m.copy = taken;
+            }
+            super.takeSnapshot(m, snapshot, now, effects);
+        }
+    }
+
+    static final class DropsBatchFromLowerEpoch extends ReferenceMachine {
         @Override
         BatchFit fitOf(NetworkCopy copy, StateBatch batch) {
-            if (batch.getEpoch() != copy.epoch()) {
-                return BatchFit.OTHER_EPOCH;
+            boolean lowerEpoch = Long.compareUnsigned(batch.getEpoch(), copy.epoch()) < 0;
+            return lowerEpoch ? BatchFit.ALREADY_IN_COPY : super.fitOf(copy, batch);
+        }
+    }
+
+    static final class IgnoresPulseFromLowerEpoch extends ReferenceMachine {
+        @Override
+        PulseFit fitOf(NetworkCopy copy, StatePulse pulse) {
+            boolean lowerEpoch = Long.compareUnsigned(pulse.getEpoch(), copy.epoch()) < 0;
+            return lowerEpoch ? PulseFit.BEHIND_COPY : super.fitOf(copy, pulse);
+        }
+    }
+
+    static final class KeepsFailuresAfterSnapshot extends ReferenceMachine {
+        @Override
+        void takeSnapshot(Memory m, NetworkState snapshot, long now, List<ViewEffect> effects) {
+            int failedLoadsInRow = m.failedLoadsInRow;
+            long lastLoadFailedAt = m.lastLoadFailedAt;
+            super.takeSnapshot(m, snapshot, now, effects);
+            if (m.mode == Mode.SYNCED) {
+                m.failedLoadsInRow = failedLoadsInRow;
+                m.lastLoadFailedAt = lastLoadFailedAt;
             }
-            if (batch.getRevision() <= copy.revision()) {
-                return BatchFit.ALREADY_IN_COPY;
+        }
+    }
+
+    static final class KeepsWantedReloadOnLoss extends ReferenceMachine {
+        @Override
+        void loseConnection(Memory m) {
+            if (m.mode != Mode.RELOAD_WANTED) {
+                super.loseConnection(m);
             }
-            if (batch.getBaseRevision() <= copy.revision()) {
-                return BatchFit.FITS_COPY;
+        }
+    }
+
+    static final class KeepsComparingAuditOnLoss extends ReferenceMachine {
+        @Override
+        void loseConnection(Memory m) {
+            AuditPhase phase = m.auditPhase;
+            NetworkState snapshot = m.auditSnapshot;
+            super.loseConnection(m);
+            if (phase == AuditPhase.COMPARING) {
+                m.auditPhase = phase;
+                m.auditSnapshot = snapshot;
             }
-            return BatchFit.AHEAD_OF_COPY;
+        }
+
+        @Override
+        void actOnDeadlines(Memory m, long now, List<ViewEffect> effects) {
+            super.actOnDeadlines(m, now, effects);
+            if (m.mode == Mode.DISCONNECTED) {
+                takeAuditSnapshotIfNotReached(m, now, effects);
+            }
+        }
+    }
+
+    static final class CountsFailureOfAbandonedLoad extends ReferenceMachine {
+        @Override
+        void onSnapshotFailed(Memory m, long now) {
+            boolean abandoned = m.loadRunning && m.loadAnswerIgnored;
+            if (abandoned) {
+                m.failedLoadsInRow++;
+                m.lastLoadFailedAt = now;
+            }
+            super.onSnapshotFailed(m, now);
+        }
+    }
+
+    static final class ReplacesMetricsOnlyWhileSynced extends ReferenceMachine {
+        @Override
+        void onPulse(Memory m, StatePulse pulse, long now) {
+            NetworkCopy copyBefore = m.copy;
+            boolean synced = m.mode == Mode.SYNCED;
+            super.onPulse(m, pulse, now);
+            if (!synced) {
+                m.copy = copyBefore;
+            }
+        }
+    }
+
+    static final class AuditsWhileNotLive extends ReferenceMachine {
+        @Override
+        boolean auditMayStart(Memory m, long now) {
+            return true;
+        }
+    }
+
+    static final class AlwaysDrawsFirstNumber extends ReferenceMachine {
+        @Override
+        double drawNumber(Memory m) {
+            return m.random.at(0);
         }
     }
 

@@ -13,40 +13,49 @@ import java.util.Optional;
  * reference machine in the tests.
  *
  * <p>Times are milliseconds of a monotonic clock. Each call passes a time at or after the time of the step
- * that made this view. A deadline acts in the first step at or after it. Epochs and revisions are uint64
- * values held in a {@code long}, so they compare unsigned. A random delay is cut to whole milliseconds.
- * "Local" is the revision of the copy. A view is
- * "synced" while it holds a copy, its connection is up, and it neither wants nor runs a reload.
+ * that made this view. A deadline acts in the first step at or after it. In a step, the input acts first
+ * and the deadlines after it, so an input that arrives exactly at a deadline is on time: a missing batch
+ * that arrives exactly 3 s after a batch was held closes the gap, and a copy that reaches the audit's
+ * revision exactly 3 s after the audit snapshot arrived is compared. When the audit's deadline and a 3 s
+ * deadline of rule 2 or 3 fall in one step, the audit's acts first. Revisions, and epochs where an own
+ * write orders them, are uint64 values held in a {@code long}, so they compare unsigned; everywhere else
+ * epochs compare only for equality. A random delay is cut to whole milliseconds, and each one draws the
+ * next number from the sequence. "Local" is the revision of the copy. A view is "synced" while it holds a
+ * copy, its connection is up, and it neither wants nor runs a reload.
  *
  * <h2>Rules</h2>
  *
  * <ol>
  *   <li><b>Start.</b> A view starts with no copy and no connection, and waits for
- *   {@link ViewInput.SubscriptionsActive}. Then it reloads (rule 6). Batches that arrive while that load
+ *   {@link ViewInput.SubscriptionsActive}. Then it reloads (rule 6). A second
+ *   {@link ViewInput.SubscriptionsActive} without a {@link ViewInput.ConnectionLost} in between is outside
+ *   this contract. Batches that arrive while that load
  *   runs wait; once the snapshot is taken, they go through rule 2, with local = the snapshot's revision.
  *   Batches that arrived before the load started are in the snapshot already, so the view need not keep
  *   them.</li>
  *
- *   <li><b>Batch.</b> In a synced view, a batch from another epoch than the copy's means reload. In the same
+ *   <li><b>Batch.</b> In a synced view, a batch from another epoch than the copy's means reload, also from a
+ *   lower one: after a restore without a raised generation, a lower epoch can be the newer one. In the same
  *   epoch:
  *   <ul>
  *     <li>{@code revision <= local}: drop it, a duplicate or a former owner's;</li>
  *     <li>{@code base_revision <= local < revision}: apply it and set local = {@code revision}. Each item in
  *     the batch replaces the copy's item with the same id, or adds it; each deleted id removes its item,
  *     and an unknown id is no error. Then the held batches, oldest first, go through this rule again;</li>
- *     <li>{@code base_revision > local}: hold it. A batch held for 3 s means reload.</li>
+ *     <li>{@code base_revision > local}: hold it. A batch held for 3 s means reload. The 3 s count from
+ *     the batch's own arrival, also when it arrived during a load.</li>
  *   </ul>
- *   After each applied batch, every reference in the copy must resolve: a server's group and its persistent
- *   server, each if the server names one, and a group's blueprint, if the group names one. A missing item
- *   means reload. The check runs after the whole batch, because a new group and its first server can come
- *   in one batch.</li>
+ *   Every reference in the copy a batch would make must resolve: a server's group and its persistent
+ *   server, each if the server names one, and a group's blueprint, if the group names one. A batch with a
+ *   missing item is not applied: the copy stays as it was, and the view reloads. The check runs on the whole
+ *   batch, because a new group and its first server can come in one batch.</li>
  *
  *   <li><b>Pulse.</b> Every pulse, in every state, sets the "views may answer" flag and replaces the
  *   copy's metrics. In a synced view, the first of these that holds decides:
  *   <ul>
  *     <li>the last good pulse is 15 s old or older, or there was none since the last snapshot was taken and
  *     that is 15 s old or older: reload, whatever the pulse says;</li>
- *     <li>another epoch than the copy's: reload;</li>
+ *     <li>another epoch than the copy's, lower or higher: reload;</li>
  *     <li>{@code revision > local}: the copy is behind, and the view is not live until local reaches the
  *     highest revision such a pulse showed. If the copy is still behind 3 s after the first of these
  *     pulses, the view reloads;</li>
@@ -56,8 +65,9 @@ import java.util.Optional;
  *   </ul></li>
  *
  *   <li><b>Connection.</b> After {@link ViewInput.ConnectionLost} the view is not live at once. It drops
- *   held batches, a wanted reload and a running audit, and ignores batches until the next
- *   {@link ViewInput.SubscriptionsActive}, which means reload.</li>
+ *   held batches, a wanted reload, and a running audit, also one that waits for the copy to reach its
+ *   revision. It starts no load and ignores batches until the next {@link ViewInput.SubscriptionsActive},
+ *   which means reload.</li>
  *
  *   <li><b>Live.</b> A view is live only while it is synced, no batch is held, the copy is not behind a
  *   pulse, and a good pulse arrived after the last snapshot was taken and is under 15 s old.</li>
@@ -69,12 +79,13 @@ import java.util.Optional;
  *   sequence more, so that an epoch change does not reload every process in the same second. A view runs one
  *   load at a time, and every load starts at least 2 s after the previous one. A failed audit load does not
  *   count as a failed load. A load that is no longer wanted when it ends, because the connection was lost or
- *   a new reload was wanted while it ran, is waited for and its answer ignored.
+ *   a new reload was wanted while it ran, is waited for and its answer ignored; a failure of such a load is
+ *   no failed load.
  *   <p>Taking a snapshot: the copy becomes the snapshot, items and metrics; the good pulse and the pulse the
  *   copy was behind are cleared, so the view is not live until the next good pulse; held batches go through
  *   rule 2; and the next audit is due 20 min + 10 min &times; a number from the sequence later. A taken
- *   snapshot ends a row of failed loads, unless a reference in it does not resolve: that counts as a failed
- *   load, and the view reloads.</li>
+ *   snapshot ends a row of failed loads. A snapshot in which a reference does not resolve, as in rule 2, is
+ *   not taken: the view keeps its last copy, counts a failed load, and reloads.</li>
  *
  *   <li><b>Audit.</b> When an audit is due, the view is live and no load runs, the view loads a snapshot at
  *   some revision S and stays live. When the copy is at exactly S, it compares the items, without metrics.
