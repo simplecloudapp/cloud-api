@@ -10,10 +10,8 @@ val minecraftVersions = listOf("26.2", "26.3")
 
 dependencies {
     implementation(libs.neoforge)
-    implementation(project(":platform:shared"))
     implementation(project(":api"))
 
-    shade(project(":platform:shared"))
     shade(project(":api"))
 }
 

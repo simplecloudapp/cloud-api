@@ -8,7 +8,6 @@ dependencies {
     compileOnly(libs.adventure.proto)
     compileOnly(libs.adventure.api)
     compileOnly(libs.adventure.gson)
-    implementation(project(":platform:shared"))
     implementation(project(":api")) {
         exclude(group = "net.kyori")
     }
