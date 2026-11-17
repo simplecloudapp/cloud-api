@@ -54,6 +54,15 @@ final class WrongMachines {
                 new WrongMachine("counts a held batch's 3 s from the taken snapshot",
                         random -> new GapCountsFromSnapshot().start(random),
                         List.of("batch: a held batch's 3 s count from its arrival during a load")),
+                new WrongMachine("acts on the behind-pulse deadline before the step's input",
+                        random -> new BehindDeadlineBeforeInput().start(random),
+                        List.of("pulse: a batch that reaches a pulse ahead at exactly 3 s is on time")),
+                new WrongMachine("skips the gap deadline in the step that takes a snapshot",
+                        random -> new SkipsGapDeadlineWhenTaking().start(random),
+                        List.of("batch: a held batch's 3 s that ran out during the load reload when it is taken")),
+                new WrongMachine("acts on the gap deadline while a reload's load runs",
+                        random -> new GapDeadlineWhileReloading().start(random),
+                        List.of("batch: a load longer than 3 s is not abandoned for a waiting batch")),
                 new WrongMachine("counts the gap's 3 s from the newest held batch",
                         random -> new GapCountsFromNewestBatch().start(random),
                         List.of("batch: the gap's 3 s count from the oldest held batch")),
@@ -242,6 +251,33 @@ final class WrongMachines {
             }
             m.heldBatches = restamped;
             super.takeSnapshot(m, snapshot, now, effects);
+        }
+    }
+
+    static final class BehindDeadlineBeforeInput extends ReferenceMachine {
+        @Override
+        void runStep(Memory m, ViewInput input, long now, List<ViewEffect> effects) {
+            if (m.mode == Mode.SYNCED && behindPulseTooLong(m, now)) {
+                wantReload(m, now);
+            }
+            super.runStep(m, input, now, effects);
+        }
+    }
+
+    static final class SkipsGapDeadlineWhenTaking extends ReferenceMachine {
+        @Override
+        boolean heldTooLong(Memory m, long now) {
+            return m.snapshotTakenAt != now && super.heldTooLong(m, now);
+        }
+    }
+
+    static final class GapDeadlineWhileReloading extends ReferenceMachine {
+        @Override
+        void actOnDeadlines(Memory m, long now, List<ViewEffect> effects) {
+            if (m.mode == Mode.RELOADING && heldTooLong(m, now)) {
+                wantReload(m, now);
+            }
+            super.actOnDeadlines(m, now, effects);
         }
     }
 

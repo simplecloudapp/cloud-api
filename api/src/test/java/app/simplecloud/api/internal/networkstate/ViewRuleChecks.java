@@ -80,6 +80,10 @@ final class ViewRuleChecks {
                         ViewRuleChecks::missingBatchAtExactlyThreeSecondsIsOnTime),
                 new ViewCheck("batch: a held batch's 3 s count from its arrival during a load",
                         ViewRuleChecks::batchHeldDuringLoadCountsFromArrival),
+                new ViewCheck("batch: a held batch's 3 s that ran out during the load reload when it is taken",
+                        ViewRuleChecks::heldBatchExpiredDuringLoadReloadsOnTake),
+                new ViewCheck("batch: a load longer than 3 s is not abandoned for a waiting batch",
+                        ViewRuleChecks::longLoadIsNotAbandonedForWaitingBatch),
                 new ViewCheck("batch: the gap's 3 s count from the oldest held batch",
                         ViewRuleChecks::gapCountsFromOldestHeldBatch),
                 new ViewCheck("batch: reloads on a batch from a lower epoch",
@@ -110,6 +114,8 @@ final class ViewRuleChecks {
                         ViewRuleChecks::furtherPulseUnsigned),
                 new ViewCheck("pulse: a copy past 2^63 has reached a pulse below it",
                         ViewRuleChecks::copyReachesPulseUnsigned),
+                new ViewCheck("pulse: a batch that reaches a pulse ahead at exactly 3 s is on time",
+                        ViewRuleChecks::batchReachingPulseAtExactlyThreeSecondsIsOnTime),
                 new ViewCheck("pulse: the 3 s behind a pulse count from the first pulse ahead",
                         ViewRuleChecks::behindCountsFromFirstPulseAhead),
                 new ViewCheck("pulse: a pulse replaces the metrics also while disconnected",
@@ -1029,6 +1035,31 @@ final class ViewRuleChecks {
         assertEquals(heldAt + 3_000, reloadAt, "the 3 s count from the batch's arrival, not from the snapshot");
     }
 
+    static void heldBatchExpiredDuringLoadReloadsOnTake(ViewStarter starter) {
+        ViewDriver view = ViewDriver.start(starter);
+        view.subscribe();
+        view.advance(100);
+        view.batch(serverStateBatch(11, 12, "STOPPING"));
+        view.advanceWithoutLoadTo(3_500, "a held batch's deadline does not act while the load runs");
+        view.loadSnapshot(network(10));
+
+        assertEquals(10, view.copy().revision(), "the load's snapshot is taken");
+        view.assertLoadRequested("the held batch waited over 3 s, so the step that takes the snapshot reloads");
+    }
+
+    static void longLoadIsNotAbandonedForWaitingBatch(ViewStarter starter) {
+        ViewDriver view = ViewDriver.start(starter);
+        view.subscribe();
+        view.advance(100);
+        view.batch(serverStateBatch(9, 11, "STOPPING"));
+        view.advanceWithoutLoadTo(5_000, "the running load is not replaced");
+        view.loadSnapshot(network(10));
+
+        assertEquals(11, view.copy().revision(), "the snapshot is taken, and the waiting batch applies on it");
+        assertEquals("STOPPING", view.copy().servers().get(id(1)).getState());
+        assertFalse(view.requestedLoad(), "nothing is missing after the snapshot, so nothing reloads");
+    }
+
     static void gapCountsFromOldestHeldBatch(ViewStarter starter) {
         ViewDriver view = ViewDriver.liveAt(starter, network(10));
         view.advance(800);
@@ -1119,6 +1150,19 @@ final class ViewRuleChecks {
         view.batch(serverStateBatch(HIGHEST_SIGNED - 1, LOWEST_PAST_SIGNED, "STOPPING"));
 
         assertTrue(view.isLive(), "a copy at 2^63 has reached a pulse at 2^63 - 1");
+    }
+
+    static void batchReachingPulseAtExactlyThreeSecondsIsOnTime(ViewStarter starter) {
+        ViewDriver view = ViewDriver.liveAt(starter, network(10));
+        view.advance(800);
+        view.pulse(pulse(12));
+        long aheadSince = view.now();
+        view.advanceWithoutLoadTo(aheadSince + 2_999, "the copy may stay behind a pulse for 3 s");
+        view.jumpTo(aheadSince + 3_000);
+        view.batch(serverStateBatch(10, 12, "STOPPING"));
+
+        assertFalse(view.requestedLoad(), "the batch acts before the 3 s deadline in the same step");
+        assertTrue(view.isLive());
     }
 
     static void behindCountsFromFirstPulseAhead(ViewStarter starter) {
