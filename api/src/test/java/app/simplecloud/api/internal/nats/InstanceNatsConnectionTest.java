@@ -11,6 +11,7 @@ import java.time.Duration;
 import java.util.List;
 import java.util.concurrent.CopyOnWriteArrayList;
 import java.util.concurrent.atomic.AtomicBoolean;
+import java.util.concurrent.atomic.AtomicInteger;
 
 import static org.junit.jupiter.api.Assertions.assertDoesNotThrow;
 import static org.junit.jupiter.api.Assertions.assertEquals;
@@ -26,10 +27,10 @@ class InstanceNatsConnectionTest {
     void closeEndsOnlyThisInstancesDispatchersAndSubscriptions() {
         InstanceNatsConnection closing = new InstanceNatsConnection(shared.connection);
         InstanceNatsConnection remaining = new InstanceNatsConnection(shared.connection);
-        Dispatcher closingDispatcher = closing.connection().createDispatcher(null);
-        Subscription closingSubscription = closing.connection().subscribe("network-1.closing");
-        remaining.connection().createDispatcher(null);
-        Subscription remainingSubscription = remaining.connection().subscribe("network-1.remaining");
+        Dispatcher closingDispatcher = closing.asConnection().createDispatcher(null);
+        Subscription closingSubscription = closing.asConnection().subscribe("network-1.closing");
+        remaining.asConnection().createDispatcher(null);
+        Subscription remainingSubscription = remaining.asConnection().subscribe("network-1.remaining");
 
         closing.close();
 
@@ -37,7 +38,7 @@ class InstanceNatsConnectionTest {
         assertFalse(closingSubscription.isActive());
         assertTrue(remainingSubscription.isActive());
         assertFalse(shared.closed.get());
-        assertEquals(Connection.Status.CONNECTED, remaining.connection().getStatus());
+        assertEquals(Connection.Status.CONNECTED, remaining.asConnection().getStatus());
     }
 
     @Test
@@ -47,46 +48,47 @@ class InstanceNatsConnectionTest {
         closed.close();
 
         byte[] payload = new byte[0];
-        assertEquals(Connection.Status.CLOSED, closed.connection().getStatus());
-        assertThrows(IllegalStateException.class, () -> closed.connection().publish("network-1.closed", payload));
+        assertEquals(Connection.Status.CLOSED, closed.asConnection().getStatus());
+        assertThrows(IllegalStateException.class, () -> closed.asConnection().publish("network-1.closed", payload));
         assertTrue(shared.published.isEmpty());
     }
 
     @Test
     void closingTheConnectionLeavesTheSharedConnectionOpen() throws InterruptedException {
         InstanceNatsConnection instance = new InstanceNatsConnection(shared.connection);
-        Dispatcher dispatcher = instance.connection().createDispatcher(null);
+        Dispatcher dispatcher = instance.asConnection().createDispatcher(null);
 
-        instance.connection().close();
+        instance.asConnection().close();
 
         assertEquals(List.of(dispatcher), shared.closedDispatchers);
         assertFalse(shared.closed.get());
-        assertEquals(Connection.Status.CLOSED, instance.connection().getStatus());
+        assertEquals(Connection.Status.CLOSED, instance.asConnection().getStatus());
     }
 
     @Test
     void drainingTheConnectionLeavesTheSharedConnectionOpen() throws Exception {
         InstanceNatsConnection instance = new InstanceNatsConnection(shared.connection);
-        Subscription subscription = instance.connection().subscribe("network-1.draining");
+        Subscription subscription = instance.asConnection().subscribe("network-1.draining");
 
-        instance.connection().drain(Duration.ofSeconds(1)).get();
+        instance.asConnection().drain(Duration.ofSeconds(1)).get();
 
         assertFalse(subscription.isActive());
         assertFalse(shared.closed.get());
-        assertEquals(Connection.Status.CLOSED, instance.connection().getStatus());
+        assertEquals(Connection.Status.CLOSED, instance.asConnection().getStatus());
     }
 
     @Test
     void closeSkipsWhatTheCallerClosedAlready() {
         InstanceNatsConnection instance = new InstanceNatsConnection(shared.connection);
-        Dispatcher dispatcher = instance.connection().createDispatcher(null);
-        Subscription subscription = instance.connection().subscribe("network-1.unsubscribed");
-        instance.connection().closeDispatcher(dispatcher);
+        Dispatcher dispatcher = instance.asConnection().createDispatcher(null);
+        Subscription subscription = instance.asConnection().subscribe("network-1.unsubscribed");
+        instance.asConnection().closeDispatcher(dispatcher);
         subscription.unsubscribe();
 
         assertDoesNotThrow(instance::close);
 
         assertEquals(List.of(dispatcher), shared.closedDispatchers);
+        assertEquals(1, shared.unsubscribeCalls.get());
     }
 
     /**
@@ -97,6 +99,7 @@ class InstanceNatsConnectionTest {
         private final List<Dispatcher> closedDispatchers = new CopyOnWriteArrayList<>();
         private final List<String> published = new CopyOnWriteArrayList<>();
         private final AtomicBoolean closed = new AtomicBoolean(false);
+        private final AtomicInteger unsubscribeCalls = new AtomicInteger();
         private final Connection connection = (Connection) Proxy.newProxyInstance(
                 Connection.class.getClassLoader(),
                 new Class<?>[]{Connection.class},
@@ -115,7 +118,7 @@ class InstanceNatsConnectionTest {
             };
         }
 
-        private static Subscription newSubscription() {
+        private Subscription newSubscription() {
             AtomicBoolean active = new AtomicBoolean(true);
             return (Subscription) Proxy.newProxyInstance(
                     Subscription.class.getClassLoader(),
@@ -124,7 +127,7 @@ class InstanceNatsConnectionTest {
             );
         }
 
-        private static Object handleSubscriptionCall(AtomicBoolean active, Method method) {
+        private Object handleSubscriptionCall(AtomicBoolean active, Method method) {
             return switch (method.getName()) {
                 case "isActive" -> active.get();
                 case "unsubscribe" -> unsubscribe(active);
@@ -132,7 +135,8 @@ class InstanceNatsConnectionTest {
             };
         }
 
-        private static Object unsubscribe(AtomicBoolean active) {
+        private Object unsubscribe(AtomicBoolean active) {
+            unsubscribeCalls.incrementAndGet();
             if (!active.getAndSet(false)) {
                 throw new IllegalStateException("This subscription is inactive.");
             }

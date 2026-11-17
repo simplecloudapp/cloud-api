@@ -34,14 +34,9 @@ final class SharedResources<K, R> {
      * opens a new one; it runs under this registry's lock, so it must not block.
      */
     synchronized Handle<R> acquire(K key, Opener<R> opener) {
-        Entry<R> entry = entries.get(key);
-        if (entry == null) {
-            entry = new Entry<>(opener.open());
-            entries.put(key, entry);
-        }
+        Entry<R> entry = entries.computeIfAbsent(key, absentKey -> new Entry<>(opener.open()));
         entry.openHandles++;
-        Entry<R> acquired = entry;
-        return new Handle<>(acquired.resource, () -> release(key, acquired));
+        return new Handle<>(entry.resource, () -> release(key, entry));
     }
 
     private void release(K key, Entry<R> entry) {

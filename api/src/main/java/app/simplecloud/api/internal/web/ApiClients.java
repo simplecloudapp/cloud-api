@@ -58,6 +58,7 @@ public final class ApiClients {
     }
 
     public static OkHttpClient newHttpClient() {
+        // Built by the generated ApiClient, so it has the progress interceptor the generated code adds.
         return new ApiClient().getHttpClient();
     }
 

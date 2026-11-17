@@ -90,8 +90,8 @@ public class CloudApiImpl implements CloudApi {
 
             // Initialize APIs with cache
             this.apiClient = ApiClients.create(options, httpClientHandle.resource());
-            this.playerApi = new PlayerApiImpl(options, natsConnection.connection(), apiClient, executor);
-            this.eventApi = new EventApiImpl(natsConnection.connection(), options.getNetworkId(), playerApi);
+            this.playerApi = new PlayerApiImpl(options, natsConnection.asConnection(), apiClient, executor);
+            this.eventApi = new EventApiImpl(natsConnection.asConnection(), options.getNetworkId(), playerApi);
             this.serverApi = new ServerApiImpl(options, queryCache, apiClient, executor);
             this.groupApi = new GroupApiImpl(options, queryCache, apiClient, executor);
             this.persistentServerApi = new PersistentServerApiImpl(options, queryCache, apiClient, executor);
@@ -104,15 +104,7 @@ public class CloudApiImpl implements CloudApi {
                 this.cacheEventListener = null;
             }
         } catch (RuntimeException | Error e) {
-            if (natsConnection != null) {
-                natsConnection.close();
-            }
-            if (natsConnectionHandle != null) {
-                natsConnectionHandle.close();
-            }
-            if (httpClientHandle != null) {
-                httpClientHandle.close();
-            }
+            closeConnections(natsConnection, natsConnectionHandle, httpClientHandle);
             if (queryCache instanceof QueryCacheImpl queryCacheImpl) {
                 queryCacheImpl.shutdown();
             }
@@ -154,7 +146,7 @@ public class CloudApiImpl implements CloudApi {
      * @return this instance's NATS connection
      */
     public Connection getNatsConnection() {
-        return natsConnection.connection();
+        return natsConnection.asConnection();
     }
 
     public Executor getExecutor() {
@@ -207,13 +199,31 @@ public class CloudApiImpl implements CloudApi {
         } catch (InterruptedException e) {
             Thread.currentThread().interrupt();
         }
-        natsConnection.close();
-        try {
-            natsConnectionHandle.close();
-        } catch (RuntimeException e) {
-            LOGGER.log(Level.WARNING, "Failed to shutdown NATS connection", e);
+        closeConnections(natsConnection, natsConnectionHandle, httpClientHandle);
+    }
+
+    /**
+     * Closes this instance's NATS connection and its handles on the shared connections. Takes nulls,
+     * for a constructor that failed before it had them all.
+     */
+    private static void closeConnections(
+            InstanceNatsConnection natsConnection,
+            SharedResources.Handle<NatsFailoverConnectionManager> natsConnectionHandle,
+            SharedResources.Handle<OkHttpClient> httpClientHandle
+    ) {
+        if (natsConnection != null) {
+            natsConnection.close();
         }
-        httpClientHandle.close();
+        if (natsConnectionHandle != null) {
+            try {
+                natsConnectionHandle.close();
+            } catch (RuntimeException e) {
+                LOGGER.log(Level.WARNING, "Failed to shutdown NATS connection", e);
+            }
+        }
+        if (httpClientHandle != null) {
+            httpClientHandle.close();
+        }
     }
 
     private record NatsConnectionSettings(

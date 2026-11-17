@@ -41,7 +41,7 @@ public final class InstanceNatsConnection {
         );
     }
 
-    public Connection connection() {
+    public Connection asConnection() {
         return connection;
     }
 
@@ -88,8 +88,6 @@ public final class InstanceNatsConnection {
 
     private synchronized Subscription subscribe(Method method, Object[] args) throws Throwable {
         Subscription subscription = (Subscription) invokeUnlessClosed(method, args);
-        // A subscription that ended needs no unsubscribe at close; dropping it keeps the list from growing.
-        subscriptions.removeIf(remembered -> !remembered.isActive());
         subscriptions.add(subscription);
         return subscription;
     }

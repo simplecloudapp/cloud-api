@@ -97,6 +97,22 @@ class SharedCloudApiResourcesTest {
     }
 
     @Test
+    void closingAnInstanceClosesOnlyItsOwnEventDispatchers() throws Exception {
+        CloudApiOptions sharedOptions = options(UnaryOperator.identity());
+
+        try (CloudApiImpl remaining = (CloudApiImpl) CloudApi.create(sharedOptions)) {
+            NatsFailoverConnectionManager sharedManager = natsConnectionManager(remaining);
+            int remainingDispatchers = dispatcherCount(sharedManager);
+            CloudApiImpl closing = (CloudApiImpl) CloudApi.create(sharedOptions);
+            assertTrue(dispatcherCount(sharedManager) > remainingDispatchers);
+
+            closing.close();
+
+            assertEquals(remainingDispatchers, dispatcherCount(sharedManager));
+        }
+    }
+
+    @Test
     void closedInstanceReportsItsNatsConnectionClosedAndRejectsPublishes() {
         CloudApiImpl closed = (CloudApiImpl) CloudApi.create(options(UnaryOperator.identity()));
         Connection connection = closed.getNatsConnection();
@@ -238,6 +254,13 @@ class SharedCloudApiResourcesTest {
         field.setAccessible(true);
         SharedResources.Handle<?> handle = (SharedResources.Handle<?>) field.get(api);
         return (NatsFailoverConnectionManager) handle.resource();
+    }
+
+    private static int dispatcherCount(NatsFailoverConnectionManager manager) throws ReflectiveOperationException {
+        Field field = NatsFailoverConnectionManager.class.getDeclaredField("dispatchers");
+        field.setAccessible(true);
+        List<?> dispatchers = (List<?>) field.get(manager);
+        return dispatchers.size();
     }
 
     private static OkHttpClient httpClient(CloudApi api) throws ReflectiveOperationException {
