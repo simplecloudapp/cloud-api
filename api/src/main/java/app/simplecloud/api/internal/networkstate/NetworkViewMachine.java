@@ -34,7 +34,7 @@ public final class NetworkViewMachine implements NetworkView {
     private static final long LONGEST_BACK_OFF_MILLIS = 30_000;
     private static final long RANDOM_LOAD_DELAY_BOUND_MILLIS = 2_000;
     private static final long GAP_WAIT_MILLIS = 3_000;
-    private static final long BEHIND_PULSE_WAIT_MILLIS = 3_000;
+    private static final long PULSE_AHEAD_WAIT_MILLIS = 3_000;
     private static final long GOOD_PULSE_LIFETIME_MILLIS = 15_000;
     private static final long AUDIT_REACH_WAIT_MILLIS = 3_000;
     private static final long SHORTEST_AUDIT_INTERVAL_MILLIS = 20 * 60_000;
@@ -62,7 +62,7 @@ public final class NetworkViewMachine implements NetworkView {
         OTHER_EPOCH,
         IN_COPY,
         FITS,
-        AHEAD_OF_COPY
+        AFTER_GAP
     }
 
     private enum PulseFit {
@@ -75,7 +75,7 @@ public final class NetworkViewMachine implements NetworkView {
     private record HeldBatch(StateBatch batch, long receivedAt) {
     }
 
-    private record BehindPulse(long highestRevision, long since) {
+    private record PulseAhead(long highestRevision, long firstReceivedAt) {
     }
 
     private record PendingAudit(NetworkCopy snapshot, long receivedAt) {
@@ -114,7 +114,7 @@ public final class NetworkViewMachine implements NetworkView {
     private final List<HeldBatch> heldBatches;
     private long snapshotTakenAt;
     private Long lastGoodPulseAt;
-    private BehindPulse behindPulse;
+    private PulseAhead pulseAhead;
     private long nextAuditAt;
     private PendingAudit pendingAudit;
     private final Map<ReadKind, Position> highestOwnWriteByRead;
@@ -141,7 +141,7 @@ public final class NetworkViewMachine implements NetworkView {
         heldBatches = new ArrayList<>(previous.heldBatches);
         snapshotTakenAt = previous.snapshotTakenAt;
         lastGoodPulseAt = previous.lastGoodPulseAt;
-        behindPulse = previous.behindPulse;
+        pulseAhead = previous.pulseAhead;
         nextAuditAt = previous.nextAuditAt;
         pendingAudit = previous.pendingAudit;
         highestOwnWriteByRead = new EnumMap<>(previous.highestOwnWriteByRead);
@@ -158,8 +158,8 @@ public final class NetworkViewMachine implements NetworkView {
     public ViewStep step(ViewInput input, long nowMillis) {
         NetworkViewMachine next = new NetworkViewMachine(this);
         List<ViewEffect> effects = new ArrayList<>();
-        // The waits for a gap, a pulse ahead and an audit end before the input, because they ran out by the
-        // time it arrived. A load starts after the input, because the input can make one due.
+        // Deadlines that ran out by the time of the input act before it, and only while the view is synced. A
+        // load starts after the input, because the input can make one due.
         next.actOnDeadlines(nowMillis, effects);
         next.handle(input, nowMillis, effects);
         next.startDueLoad(nowMillis, effects);
@@ -170,7 +170,7 @@ public final class NetworkViewMachine implements NetworkView {
     public boolean isLive(long nowMillis) {
         boolean goodPulseIsRecent = lastGoodPulseAt != null
                 && nowMillis - lastGoodPulseAt < GOOD_PULSE_LIFETIME_MILLIS;
-        return isSynced() && heldBatches.isEmpty() && behindPulse == null && goodPulseIsRecent;
+        return isSynced() && heldBatches.isEmpty() && pulseAhead == null && goodPulseIsRecent;
     }
 
     @Override
@@ -239,8 +239,8 @@ public final class NetworkViewMachine implements NetworkView {
     private void reloadIfCopyWaitedTooLong(long now) {
         boolean gapHeldTooLong = !heldBatches.isEmpty()
                 && now >= heldBatches.getFirst().receivedAt() + GAP_WAIT_MILLIS;
-        boolean behindPulseTooLong = behindPulse != null && now >= behindPulse.since() + BEHIND_PULSE_WAIT_MILLIS;
-        if (gapHeldTooLong || behindPulseTooLong) {
+        boolean pulseAheadTooLong = pulseAhead != null && now >= pulseAhead.firstReceivedAt() + PULSE_AHEAD_WAIT_MILLIS;
+        if (gapHeldTooLong || pulseAheadTooLong) {
             wantReload(now);
         }
     }
@@ -272,7 +272,7 @@ public final class NetworkViewMachine implements NetworkView {
 
     private void abandonPendingWork() {
         heldBatches.clear();
-        behindPulse = null;
+        pulseAhead = null;
         pendingAudit = null;
         if (runningLoad != RunningLoad.NONE) {
             runningLoad = RunningLoad.ABANDONED;
@@ -332,7 +332,7 @@ public final class NetworkViewMachine implements NetworkView {
     private void receiveSnapshot(NetworkState snapshot, long now, List<ViewEffect> effects) {
         switch (endRunningLoad()) {
             case RELOAD -> takeSnapshotOrReload(copyOf(snapshot), now, effects);
-            case AUDIT -> compareAuditSnapshotOrReload(copyOf(snapshot), now, effects);
+            case AUDIT -> keepAuditSnapshotOrReload(copyOf(snapshot), now, effects);
             case ABANDONED, NONE -> {
             }
         }
@@ -366,7 +366,7 @@ public final class NetworkViewMachine implements NetworkView {
         failedLoadsInRow = 0;
         snapshotTakenAt = now;
         lastGoodPulseAt = null;
-        behindPulse = null;
+        pulseAhead = null;
         nextAuditAt = now + drawAuditInterval();
         applyHeldBatches(now, effects);
     }
@@ -387,15 +387,15 @@ public final class NetworkViewMachine implements NetworkView {
     }
 
     /**
-     * Goes through the held batches oldest first until only batches ahead of the copy are left. Each applied
-     * batch starts again from the oldest, as it may close the gap in front of an older one.
+     * Goes through the held batches oldest first until only batches after a gap are left, or until it wants a
+     * reload. Each applied batch starts again from the oldest, as it may close the gap in front of an older one.
      */
     private void applyHeldBatches(long now, List<ViewEffect> effects) {
         int index = 0;
         while (isSynced() && index < heldBatches.size()) {
             StateBatch batch = heldBatches.get(index).batch();
             switch (fitOf(batch)) {
-                case AHEAD_OF_COPY -> index++;
+                case AFTER_GAP -> index++;
                 case IN_COPY -> heldBatches.remove(index);
                 case OTHER_EPOCH -> wantReload(now);
                 case FITS -> {
@@ -415,7 +415,7 @@ public final class NetworkViewMachine implements NetworkView {
             return BatchFit.IN_COPY;
         }
         if (Long.compareUnsigned(batch.getBaseRevision(), copy.revision()) > 0) {
-            return BatchFit.AHEAD_OF_COPY;
+            return BatchFit.AFTER_GAP;
         }
         return BatchFit.FITS;
     }
@@ -427,10 +427,10 @@ public final class NetworkViewMachine implements NetworkView {
             return;
         }
         copy = applied;
-        boolean reachedBehindPulse = behindPulse != null
-                && Long.compareUnsigned(copy.revision(), behindPulse.highestRevision()) >= 0;
-        if (reachedBehindPulse) {
-            behindPulse = null;
+        boolean reachedPulseAhead = pulseAhead != null
+                && Long.compareUnsigned(copy.revision(), pulseAhead.highestRevision()) >= 0;
+        if (reachedPulseAhead) {
+            pulseAhead = null;
         }
         continueAudit(now, effects);
     }
@@ -451,7 +451,7 @@ public final class NetworkViewMachine implements NetworkView {
         }
         switch (fitOf(pulse)) {
             case OTHER_EPOCH -> wantReload(now);
-            case AHEAD_OF_COPY -> markBehind(pulse.getRevision(), now);
+            case AHEAD_OF_COPY -> markPulseAhead(pulse.getRevision(), now);
             case AT_COPY -> lastGoodPulseAt = now;
             case BEHIND_COPY -> {
             }
@@ -477,19 +477,19 @@ public final class NetworkViewMachine implements NetworkView {
         return PulseFit.BEHIND_COPY;
     }
 
-    private void markBehind(long pulseRevision, long now) {
-        if (behindPulse == null) {
-            behindPulse = new BehindPulse(pulseRevision, now);
+    private void markPulseAhead(long pulseRevision, long now) {
+        if (pulseAhead == null) {
+            pulseAhead = new PulseAhead(pulseRevision, now);
             return;
         }
-        if (Long.compareUnsigned(pulseRevision, behindPulse.highestRevision()) > 0) {
-            behindPulse = new BehindPulse(pulseRevision, behindPulse.since());
+        if (Long.compareUnsigned(pulseRevision, pulseAhead.highestRevision()) > 0) {
+            pulseAhead = new PulseAhead(pulseRevision, pulseAhead.firstReceivedAt());
         }
     }
 
     // Audit (rule 7).
 
-    private void compareAuditSnapshotOrReload(NetworkCopy snapshot, long now, List<ViewEffect> effects) {
+    private void keepAuditSnapshotOrReload(NetworkCopy snapshot, long now, List<ViewEffect> effects) {
         if (snapshot.epoch() != copy.epoch()) {
             wantReload(now);
             return;
@@ -551,11 +551,11 @@ public final class NetworkViewMachine implements NetworkView {
         return new NetworkCopy(
                 snapshot.getEpoch(),
                 snapshot.getRevision(),
-                byId(snapshot.getServersList(), StateServer::getId),
-                byId(snapshot.getServerGroupsList(), StateServerGroup::getId),
-                byId(snapshot.getPersistentServersList(), StatePersistentServer::getId),
-                byId(snapshot.getBlueprintsList(), StateBlueprint::getId),
-                byId(snapshot.getMetricsList(), StateServerMetrics::getServerId)
+                indexById(snapshot.getServersList(), StateServer::getId),
+                indexById(snapshot.getServerGroupsList(), StateServerGroup::getId),
+                indexById(snapshot.getPersistentServersList(), StatePersistentServer::getId),
+                indexById(snapshot.getBlueprintsList(), StateBlueprint::getId),
+                indexById(snapshot.getMetricsList(), StateServerMetrics::getServerId)
         );
     }
 
@@ -577,21 +577,21 @@ public final class NetworkViewMachine implements NetworkView {
 
     private static NetworkCopy withMetrics(NetworkCopy copy, List<StateServerMetrics> metrics) {
         return new NetworkCopy(copy.epoch(), copy.revision(), copy.servers(), copy.serverGroups(),
-                copy.persistentServers(), copy.blueprints(), byId(metrics, StateServerMetrics::getServerId));
+                copy.persistentServers(), copy.blueprints(), indexById(metrics, StateServerMetrics::getServerId));
     }
 
-    private static <T> Map<ByteString, T> byId(List<T> items, Function<T, ByteString> idOf) {
-        Map<ByteString, T> byId = new HashMap<>();
+    private static <T> Map<ByteString, T> indexById(List<T> items, Function<T, ByteString> idOf) {
+        Map<ByteString, T> itemsById = new HashMap<>();
         for (T item : items) {
-            byId.put(idOf.apply(item), item);
+            itemsById.put(idOf.apply(item), item);
         }
-        return byId;
+        return itemsById;
     }
 
     private static <T> Map<ByteString, T> withChanges(Map<ByteString, T> current, List<T> changed,
                                                       List<ByteString> deletedIds, Function<T, ByteString> idOf) {
         Map<ByteString, T> itemsAfterChanges = new HashMap<>(current);
-        itemsAfterChanges.putAll(byId(changed, idOf));
+        itemsAfterChanges.putAll(indexById(changed, idOf));
         for (ByteString deletedId : deletedIds) {
             itemsAfterChanges.remove(deletedId);
         }
