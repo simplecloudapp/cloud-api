@@ -457,11 +457,7 @@ public class PlayerApiImpl implements PlayerApi {
     public CompletableFuture<ConnectOutcome> connectTo(UUID uniqueId, ConnectTarget target) {
         Objects.requireNonNull(uniqueId, "uniqueId");
         Objects.requireNonNull(target, "target");
-        if (!(target instanceof ConnectTargetImpl targetImpl)) {
-            String message = "A ConnectTarget must come from its factory methods, but was "
-                    + target.getClass().getName();
-            throw new IllegalArgumentException(message);
-        }
+        ConnectTargetImpl targetImpl = requireFactoryTarget(target);
         String nameOrId = targetImpl.nameOrId();
         return switch (targetImpl.kind()) {
             case REGISTERED_SERVER_NAME -> connectViaProxy(uniqueId, nameOrId);
@@ -493,6 +489,18 @@ public class PlayerApiImpl implements PlayerApi {
                 yield connectViaController(uniqueId, request);
             }
         };
+    }
+
+    /**
+     * Returns the target as the record the factory methods create. Plugins don't implement ConnectTarget.
+     */
+    private static ConnectTargetImpl requireFactoryTarget(ConnectTarget target) {
+        if (target instanceof ConnectTargetImpl targetImpl) {
+            return targetImpl;
+        }
+        String message = "A ConnectTarget must come from its factory methods, but was "
+                + target.getClass().getName();
+        throw new IllegalArgumentException(message);
     }
 
     /**
@@ -584,7 +592,8 @@ public class PlayerApiImpl implements PlayerApi {
     }
 
     /**
-     * Tells the two 404 answers apart. Only their text differs, and {@code .61} reads the same text.
+     * Tells an offline player apart from an unknown target. The controller answers both with 404, and only
+     * the text differs. {@code .61} matches the same text, so the controller can't change it.
      */
     private static ConnectOutcome notFoundOutcome(ApiException notFound) {
         String body = notFound.getResponseBody();
