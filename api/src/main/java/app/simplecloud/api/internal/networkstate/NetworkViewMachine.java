@@ -32,15 +32,15 @@ public final class NetworkViewMachine implements NetworkView {
     private static final long LOAD_SPACING_MILLIS = 2_000;
     private static final long FIRST_BACK_OFF_MILLIS = 2_000;
     private static final long LONGEST_BACK_OFF_MILLIS = 30_000;
-    private static final long LONGEST_RANDOM_LOAD_DELAY_MILLIS = 2_000;
+    private static final long RANDOM_LOAD_DELAY_BOUND_MILLIS = 2_000;
     private static final long GAP_WAIT_MILLIS = 3_000;
     private static final long BEHIND_PULSE_WAIT_MILLIS = 3_000;
     private static final long GOOD_PULSE_LIFETIME_MILLIS = 15_000;
     private static final long AUDIT_REACH_WAIT_MILLIS = 3_000;
     private static final long SHORTEST_AUDIT_INTERVAL_MILLIS = 20 * 60_000;
-    private static final long LONGEST_RANDOM_AUDIT_DELAY_MILLIS = 10 * 60_000;
+    private static final long RANDOM_AUDIT_DELAY_BOUND_MILLIS = 10 * 60_000;
     private static final long SHORTEST_AUDIT_RETRY_MILLIS = 2_000;
-    private static final long LONGEST_RANDOM_AUDIT_RETRY_DELAY_MILLIS = 8_000;
+    private static final long RANDOM_AUDIT_RETRY_DELAY_BOUND_MILLIS = 8_000;
 
     private enum RunningLoad {
         NONE,
@@ -48,6 +48,14 @@ public final class NetworkViewMachine implements NetworkView {
         AUDIT,
         /** A load that is no longer wanted. The view waits for its answer and ignores it. */
         ABANDONED
+    }
+
+    private enum Phase {
+        DISCONNECTED,
+        RELOAD_WANTED,
+        RELOADING,
+        /** The view holds a copy: every way into this phase takes a snapshot first. */
+        SYNCED
     }
 
     private enum BatchFit {
@@ -150,8 +158,8 @@ public final class NetworkViewMachine implements NetworkView {
     public ViewStep step(ViewInput input, long nowMillis) {
         NetworkViewMachine next = new NetworkViewMachine(this);
         List<ViewEffect> effects = new ArrayList<>();
-        // A deadline that passed before the input acts as if a tick had come just before it. The load starts
-        // last, because the input can make one due.
+        // The waits for a gap, a pulse ahead and an audit end before the input, because they ran out by the
+        // time it arrived. A load starts after the input, because the input can make one due.
         next.actOnDeadlines(nowMillis, effects);
         next.handle(input, nowMillis, effects);
         next.startDueLoad(nowMillis, effects);
@@ -180,8 +188,20 @@ public final class NetworkViewMachine implements NetworkView {
     }
 
     private boolean isSynced() {
-        boolean reloadWantedOrRunning = wantedReloadStartsAt != null || runningLoad == RunningLoad.RELOAD;
-        return copy != null && subscriptionsActive && !reloadWantedOrRunning;
+        return phase() == Phase.SYNCED;
+    }
+
+    private Phase phase() {
+        if (!subscriptionsActive) {
+            return Phase.DISCONNECTED;
+        }
+        if (wantedReloadStartsAt != null) {
+            return Phase.RELOAD_WANTED;
+        }
+        if (runningLoad == RunningLoad.RELOAD) {
+            return Phase.RELOADING;
+        }
+        return Phase.SYNCED;
     }
 
     private void handle(ViewInput input, long now, List<ViewEffect> effects) {
@@ -198,7 +218,7 @@ public final class NetworkViewMachine implements NetworkView {
         }
     }
 
-    // Deadlines and load starts (rules 6 and 7).
+    // Deadlines and load starts (rules 2, 3, 6 and 7).
 
     private void actOnDeadlines(long now, List<ViewEffect> effects) {
         if (!isSynced()) {
@@ -230,13 +250,11 @@ public final class NetworkViewMachine implements NetworkView {
             return;
         }
         boolean reloadDue = wantedReloadStartsAt != null && now >= wantedReloadStartsAt;
+        boolean auditDue = pendingAudit == null && now >= nextAuditAt && now >= nextLoadAllowedAt && isLive(now);
         if (reloadDue) {
             wantedReloadStartsAt = null;
             startLoad(RunningLoad.RELOAD, now, effects);
-            return;
-        }
-        boolean auditDue = pendingAudit == null && now >= nextAuditAt && now >= nextLoadAllowedAt && isLive(now);
-        if (auditDue) {
+        } else if (auditDue) {
             startLoad(RunningLoad.AUDIT, now, effects);
         }
     }
@@ -249,7 +267,7 @@ public final class NetworkViewMachine implements NetworkView {
 
     private void wantReload(long now) {
         abandonPendingWork();
-        wantedReloadStartsAt = earliestLoadStart(now) + drawDelayUpTo(LONGEST_RANDOM_LOAD_DELAY_MILLIS);
+        wantedReloadStartsAt = earliestLoadStart(now) + drawDelayBelow(RANDOM_LOAD_DELAY_BOUND_MILLIS);
     }
 
     private void abandonPendingWork() {
@@ -277,18 +295,18 @@ public final class NetworkViewMachine implements NetworkView {
         return Math.min(backOff, LONGEST_BACK_OFF_MILLIS);
     }
 
-    private long drawDelayUpTo(long longestDelayMillis) {
+    private long drawDelayBelow(long boundMillis) {
         double number = random.at(numbersDrawn);
         numbersDrawn++;
-        return (long) (longestDelayMillis * number);
+        return (long) (boundMillis * number);
     }
 
     private long drawAuditInterval() {
-        return SHORTEST_AUDIT_INTERVAL_MILLIS + drawDelayUpTo(LONGEST_RANDOM_AUDIT_DELAY_MILLIS);
+        return SHORTEST_AUDIT_INTERVAL_MILLIS + drawDelayBelow(RANDOM_AUDIT_DELAY_BOUND_MILLIS);
     }
 
     private long drawAuditRetryDelay() {
-        return SHORTEST_AUDIT_RETRY_MILLIS + drawDelayUpTo(LONGEST_RANDOM_AUDIT_RETRY_DELAY_MILLIS);
+        return SHORTEST_AUDIT_RETRY_MILLIS + drawDelayBelow(RANDOM_AUDIT_RETRY_DELAY_BOUND_MILLIS);
     }
 
     private void countFailedLoad(long now) {
@@ -314,7 +332,7 @@ public final class NetworkViewMachine implements NetworkView {
     private void receiveSnapshot(NetworkState snapshot, long now, List<ViewEffect> effects) {
         switch (endRunningLoad()) {
             case RELOAD -> takeSnapshotOrReload(copyOf(snapshot), now, effects);
-            case AUDIT -> startComparing(copyOf(snapshot), now, effects);
+            case AUDIT -> compareAuditSnapshotOrReload(copyOf(snapshot), now, effects);
             case ABANDONED, NONE -> {
             }
         }
@@ -357,13 +375,14 @@ public final class NetworkViewMachine implements NetworkView {
 
     private void receiveBatch(StateBatch batch, long now, List<ViewEffect> effects) {
         HeldBatch received = new HeldBatch(batch, now);
-        if (runningLoad == RunningLoad.RELOAD) {
-            heldBatches.add(received);
-            return;
-        }
-        if (isSynced()) {
-            heldBatches.add(received);
-            applyHeldBatches(now, effects);
+        switch (phase()) {
+            case DISCONNECTED, RELOAD_WANTED -> {
+            }
+            case RELOADING -> heldBatches.add(received);
+            case SYNCED -> {
+                heldBatches.add(received);
+                applyHeldBatches(now, effects);
+            }
         }
     }
 
@@ -470,7 +489,7 @@ public final class NetworkViewMachine implements NetworkView {
 
     // Audit (rule 7).
 
-    private void startComparing(NetworkCopy snapshot, long now, List<ViewEffect> effects) {
+    private void compareAuditSnapshotOrReload(NetworkCopy snapshot, long now, List<ViewEffect> effects) {
         if (snapshot.epoch() != copy.epoch()) {
             wantReload(now);
             return;
@@ -544,13 +563,13 @@ public final class NetworkViewMachine implements NetworkView {
         return new NetworkCopy(
                 copy.epoch(),
                 batch.getRevision(),
-                replaced(copy.servers(), batch.getServersList(), batch.getDeletedServerIdsList(),
+                withChanges(copy.servers(), batch.getServersList(), batch.getDeletedServerIdsList(),
                         StateServer::getId),
-                replaced(copy.serverGroups(), batch.getServerGroupsList(), batch.getDeletedServerGroupIdsList(),
+                withChanges(copy.serverGroups(), batch.getServerGroupsList(), batch.getDeletedServerGroupIdsList(),
                         StateServerGroup::getId),
-                replaced(copy.persistentServers(), batch.getPersistentServersList(),
+                withChanges(copy.persistentServers(), batch.getPersistentServersList(),
                         batch.getDeletedPersistentServerIdsList(), StatePersistentServer::getId),
-                replaced(copy.blueprints(), batch.getBlueprintsList(), batch.getDeletedBlueprintIdsList(),
+                withChanges(copy.blueprints(), batch.getBlueprintsList(), batch.getDeletedBlueprintIdsList(),
                         StateBlueprint::getId),
                 copy.metrics()
         );
@@ -569,14 +588,14 @@ public final class NetworkViewMachine implements NetworkView {
         return byId;
     }
 
-    private static <T> Map<ByteString, T> replaced(Map<ByteString, T> current, List<T> changed,
-                                                   List<ByteString> deletedIds, Function<T, ByteString> idOf) {
-        Map<ByteString, T> replaced = new HashMap<>(current);
-        replaced.putAll(byId(changed, idOf));
+    private static <T> Map<ByteString, T> withChanges(Map<ByteString, T> current, List<T> changed,
+                                                      List<ByteString> deletedIds, Function<T, ByteString> idOf) {
+        Map<ByteString, T> itemsAfterChanges = new HashMap<>(current);
+        itemsAfterChanges.putAll(byId(changed, idOf));
         for (ByteString deletedId : deletedIds) {
-            replaced.remove(deletedId);
+            itemsAfterChanges.remove(deletedId);
         }
-        return replaced;
+        return itemsAfterChanges;
     }
 
     private static boolean referencesResolve(NetworkCopy copy) {
