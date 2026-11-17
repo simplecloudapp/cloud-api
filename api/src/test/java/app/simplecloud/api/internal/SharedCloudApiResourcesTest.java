@@ -26,6 +26,7 @@ import java.util.concurrent.BlockingQueue;
 import java.util.concurrent.CopyOnWriteArrayList;
 import java.util.concurrent.ExecutorService;
 import java.util.concurrent.TimeUnit;
+import java.util.concurrent.atomic.AtomicInteger;
 import java.util.function.UnaryOperator;
 
 import static org.junit.jupiter.api.Assertions.assertEquals;
@@ -42,6 +43,10 @@ class SharedCloudApiResourcesTest {
 
     private static final String SUBJECT = "network-1.shared-test";
 
+    private static final AtomicInteger TEST_NETWORKS = new AtomicInteger();
+
+    // Each test gets its own network, so an instance a failed test leaves open shares nothing with the next test.
+    private final String networkId = "network-" + TEST_NETWORKS.incrementAndGet();
     private final List<String> requestComponents = new CopyOnWriteArrayList<>();
     private HttpServer controller;
 
@@ -284,7 +289,7 @@ class SharedCloudApiResourcesTest {
         CloudApiOptions.Builder builder = CloudApiOptions.builder()
                 .natsUrl("nats://127.0.0.1:1")
                 .controllerUrl("http://127.0.0.1:" + controller.getAddress().getPort())
-                .networkId("network-1")
+                .networkId(networkId)
                 .networkSecret("secret");
         return customizer.apply(builder).build();
     }

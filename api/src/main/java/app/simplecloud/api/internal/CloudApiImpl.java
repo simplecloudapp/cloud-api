@@ -43,7 +43,7 @@ public class CloudApiImpl implements CloudApi {
     // Pooled connections go to the controller, so instances of one controller share a pool; each ApiClient
     // sets its own headers and timeouts on top of it.
     private static final SharedResources<String, OkHttpClient> HTTP_CLIENTS_BY_CONTROLLER_URL =
-            new SharedResources<>(ApiClients::shutdown);
+            new SharedResources<>(CloudApiImpl::shutdownHttpClient);
 
     private final CloudApiOptions options;
     private final SharedResources.Handle<OkHttpClient> httpClientHandle;
@@ -73,7 +73,7 @@ public class CloudApiImpl implements CloudApi {
             NatsConnectionSettings natsSettings = NatsConnectionSettings.of(options);
             natsConnectionManagerHandle = NATS_CONNECTION_MANAGERS.acquire(natsSettings, natsSettings::openConnectionManager);
             this.natsConnectionManagerHandle = natsConnectionManagerHandle;
-            httpClientHandle = HTTP_CLIENTS_BY_CONTROLLER_URL.acquire(options.getControllerUrl(), ApiClients::newHttpClient);
+            httpClientHandle = HTTP_CLIENTS_BY_CONTROLLER_URL.acquire(options.getControllerUrl(), CloudApiImpl::newHttpClient);
             this.httpClientHandle = httpClientHandle;
             natsConnection = new InstanceNatsConnection(natsConnectionManagerHandle.resource().getConnection());
             this.natsConnection = natsConnection;
@@ -164,8 +164,8 @@ public class CloudApiImpl implements CloudApi {
 
     /**
      * Blocks for up to about two seconds more than the NATS close itself: up to one second for running tasks,
-     * then up to one second to send the NATS messages already queued. The NATS connection closes only when
-     * this is the last open instance that uses it; otherwise close waits only for the running tasks.
+     * then up to one second to send the NATS messages already queued. The shared NATS connection closes only
+     * when this is the last open instance that uses it; otherwise close waits only for the running tasks.
      */
     @Override
     public void close() {
@@ -223,6 +223,19 @@ public class CloudApiImpl implements CloudApi {
         if (httpClientHandle != null) {
             httpClientHandle.close();
         }
+    }
+
+    private static OkHttpClient newHttpClient() {
+        // Built by the generated ApiClient, so it has the progress interceptor the generated code adds.
+        return new ApiClient().getHttpClient();
+    }
+
+    /**
+     * Stops the threads that run asynchronous calls of {@code httpClient} and closes its idle connections.
+     */
+    private static void shutdownHttpClient(OkHttpClient httpClient) {
+        httpClient.dispatcher().executorService().shutdown();
+        httpClient.connectionPool().evictAll();
     }
 
     private record NatsConnectionSettings(
