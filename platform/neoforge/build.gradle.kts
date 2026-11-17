@@ -27,16 +27,11 @@ neoForge {
 }
 
 dependencies {
-    implementation(project(":platform:shared")) {
-        exclude(group = "com.google.code.gson")
-        exclude(group = "org.jspecify")
-    }
     implementation(project(":api")) {
         exclude(group = "com.google.code.gson")
         exclude(group = "org.jspecify")
     }
 
-    shade(project(":platform:shared"))
     shade(project(":api"))
 }
 

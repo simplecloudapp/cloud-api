@@ -7,7 +7,6 @@ plugins {
 dependencies {
     compileOnly(libs.minestom)
     compileOnly(libs.slf4j.api)
-    implementation(project(":platform:shared"))
     implementation(project(":api")) {
         exclude(group = "net.kyori")
     }

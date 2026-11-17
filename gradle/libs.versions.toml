@@ -21,7 +21,6 @@ paper = "1.21.4-R0.1-SNAPSHOT"
 luckperms = "5.5"
 fabric-minecraft = "26.2"
 fabric-loader = "0.19.3"
-fabric-api = "0.156.0+26.2"
 neoforge = "26.2.0.40-beta"
 minestom = "26_3-SNAPSHOT"
 slf4j = "2.0.20"
@@ -54,7 +53,6 @@ velocity = { module = "com.velocitypowered:velocity-api", version.ref = "velocit
 bungeecord = { module = "net.md-5:bungeecord-api", version.ref = "bungeecord" }
 luckperms = { module = "net.luckperms:api", version.ref = "luckperms" }
 fabric-loader = { module = "net.fabricmc:fabric-loader", version.ref = "fabric-loader" }
-fabric-api = { module = "net.fabricmc.fabric-api:fabric-api", version.ref = "fabric-api" }
 minestom = { module = "net.minestom:minestom", version.ref = "minestom" }
 slf4j-api = { module = "org.slf4j:slf4j-api", version.ref = "slf4j" }
 

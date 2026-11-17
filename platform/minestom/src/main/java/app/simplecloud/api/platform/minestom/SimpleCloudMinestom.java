@@ -3,15 +3,11 @@ package app.simplecloud.api.platform.minestom;
 import app.simplecloud.api.CloudApi;
 import app.simplecloud.api.internal.CloudApiImpl;
 import app.simplecloud.api.internal.integration.adventure.AdventureIntegration;
-import app.simplecloud.api.platform.shared.PlayerSynchronizer;
-import app.simplecloud.api.platform.shared.player.OnlinePlayerTracker;
 import app.simplecloud.api.runtime.SimpleCloudRuntime;
 import net.minestom.server.MinecraftServer;
-import net.minestom.server.entity.Player;
 import net.minestom.server.event.Event;
 import net.minestom.server.event.EventNode;
 import net.minestom.server.event.player.PlayerDisconnectEvent;
-import net.minestom.server.event.player.PlayerSpawnEvent;
 import org.slf4j.Logger;
 import org.slf4j.LoggerFactory;
 
@@ -23,8 +19,6 @@ public final class SimpleCloudMinestom {
 
     private final CloudApiImpl cloudApi;
     private final AdventureIntegration adventureIntegration;
-    private final OnlinePlayerTracker onlinePlayerTracker = new OnlinePlayerTracker();
-    private final PlayerSynchronizer playerSynchronizer;
     private final EventNode<Event> node = EventNode.all("simplecloud-api");
 
     private SimpleCloudMinestom(CloudApiImpl cloudApi) {
@@ -38,7 +32,6 @@ public final class SimpleCloudMinestom {
                 serverId,
                 groupName == null || groupName.isBlank() ? serverId : groupName
         );
-        this.playerSynchronizer = new PlayerSynchronizer(cloudApi, onlinePlayerTracker);
     }
 
     public static synchronized CloudApi init() {
@@ -88,28 +81,13 @@ public final class SimpleCloudMinestom {
 
     private void start() {
         adventureIntegration.start();
-
-        onlinePlayerTracker.reset(MinecraftServer.getConnectionManager().getOnlinePlayers().stream()
-                .map(Player::getUuid)
-                .toList());
-        node.addListener(PlayerSpawnEvent.class, event -> {
-            onlinePlayerTracker.add(event.getPlayer().getUuid());
-            playerSynchronizer.updatePlayerCount();
-        });
-        node.addListener(PlayerDisconnectEvent.class, event -> {
-            onlinePlayerTracker.remove(event.getPlayer().getUuid());
-            adventureIntegration.forgetPlayer(event.getPlayer().getUuid());
-            playerSynchronizer.updatePlayerCount();
-        });
+        node.addListener(PlayerDisconnectEvent.class,
+                event -> adventureIntegration.forgetPlayer(event.getPlayer().getUuid()));
         MinecraftServer.getGlobalEventHandler().addChild(node);
-
-        playerSynchronizer.start();
-        playerSynchronizer.updatePlayerCount();
     }
 
     private void stop() {
         MinecraftServer.getGlobalEventHandler().removeChild(node);
-        playerSynchronizer.stop();
         adventureIntegration.stop();
         cloudApi.close();
     }
