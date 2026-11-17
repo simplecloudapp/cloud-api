@@ -54,7 +54,10 @@ public final class NetworkViewMachine implements NetworkView {
         DISCONNECTED,
         RELOAD_WANTED,
         RELOADING,
-        /** The view holds a copy: every way into this phase takes a snapshot first. */
+        /**
+         * Between steps, a view in this phase holds a copy: only a taken snapshot ends a reload without wanting
+         * another.
+         */
         SYNCED
     }
 
@@ -158,8 +161,8 @@ public final class NetworkViewMachine implements NetworkView {
     public ViewStep step(ViewInput input, long nowMillis) {
         NetworkViewMachine next = new NetworkViewMachine(this);
         List<ViewEffect> effects = new ArrayList<>();
-        // Deadlines that ran out by the time of the input act before it, and only while the view is synced. A
-        // load starts after the input, because the input can make one due.
+        // The 3 s waits for a gap, a pulse ahead and an audit snapshot end before the input, as they ran out by
+        // the time it arrived. Loads start after the input, because the input can make one due.
         next.actOnDeadlines(nowMillis, effects);
         next.handle(input, nowMillis, effects);
         next.startDueLoad(nowMillis, effects);
@@ -225,11 +228,11 @@ public final class NetworkViewMachine implements NetworkView {
             return;
         }
         // The audit goes first: the snapshot it takes can close a gap without another load.
-        takeAuditSnapshotIfNotReached(now, effects);
+        finishAuditIfNotReached(now, effects);
         reloadIfCopyWaitedTooLong(now);
     }
 
-    private void takeAuditSnapshotIfNotReached(long now, List<ViewEffect> effects) {
+    private void finishAuditIfNotReached(long now, List<ViewEffect> effects) {
         boolean notReached = pendingAudit != null && now >= pendingAudit.receivedAt() + AUDIT_REACH_WAIT_MILLIS;
         if (notReached) {
             finishAudit(AuditOutcome.NOT_REACHED, now, effects);
@@ -330,16 +333,18 @@ public final class NetworkViewMachine implements NetworkView {
     // Load answers (rules 6 and 7).
 
     private void receiveSnapshot(NetworkState snapshot, long now, List<ViewEffect> effects) {
-        switch (endRunningLoad()) {
+        RunningLoad answeredLoad = endRunningLoad();
+        switch (answeredLoad) {
             case RELOAD -> takeSnapshotOrReload(copyOf(snapshot), now, effects);
-            case AUDIT -> keepAuditSnapshotOrReload(copyOf(snapshot), now, effects);
+            case AUDIT -> beginComparingOrReload(copyOf(snapshot), now, effects);
             case ABANDONED, NONE -> {
             }
         }
     }
 
     private void receiveLoadFailure(long now) {
-        switch (endRunningLoad()) {
+        RunningLoad answeredLoad = endRunningLoad();
+        switch (answeredLoad) {
             case RELOAD -> {
                 countFailedLoad(now);
                 wantReload(now);
@@ -388,7 +393,8 @@ public final class NetworkViewMachine implements NetworkView {
 
     /**
      * Goes through the held batches oldest first until only batches after a gap are left, or until it wants a
-     * reload. Each applied batch starts again from the oldest, as it may close the gap in front of an older one.
+     * reload. Each applied batch starts again from the oldest: it may close the gap in front of an older one, and
+     * an audit it ends may take a snapshot, which goes through the held batches itself.
      */
     private void applyHeldBatches(long now, List<ViewEffect> effects) {
         int index = 0;
@@ -489,7 +495,7 @@ public final class NetworkViewMachine implements NetworkView {
 
     // Audit (rule 7).
 
-    private void keepAuditSnapshotOrReload(NetworkCopy snapshot, long now, List<ViewEffect> effects) {
+    private void beginComparingOrReload(NetworkCopy snapshot, long now, List<ViewEffect> effects) {
         if (snapshot.epoch() != copy.epoch()) {
             wantReload(now);
             return;
