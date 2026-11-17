@@ -113,7 +113,7 @@ final class WrongMachines {
                         List.of("own write: a server write holds server, group and persistent server reads",
                                 "own write: a group write holds group and server reads",
                                 "own write: a persistent server write holds persistent server and server reads",
-                                "own write: a blueprint write holds blueprint, group and server reads",
+                                "own write: a blueprint write holds group and server reads",
                                 ViewSimulation.SHORT_RUNS_CHECK))
         );
     }
@@ -204,7 +204,7 @@ final class WrongMachines {
 
     static final class IgnoresViewsMayAnswer extends ReferenceMachine {
         @Override
-        boolean mayAnswer(Memory m, ItemKind kind, long now) {
+        boolean mayAnswer(Memory m, ReadKind kind, long now) {
             return isLive(m, now) && reachedOwnWrites(m, kind);
         }
     }
@@ -317,7 +317,7 @@ final class WrongMachines {
         @Override
         void onWriteReturned(Memory m, ViewInput.WriteReturned write) {
             Position written = new Position(write.epoch(), write.revision());
-            for (ItemKind read : readsChangedBy(write.written())) {
+            for (ReadKind read : readsChangedBy(write.written())) {
                 m.ownWritesByRead.put(read, written);
             }
         }

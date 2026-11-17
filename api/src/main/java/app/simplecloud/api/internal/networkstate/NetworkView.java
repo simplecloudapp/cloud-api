@@ -101,7 +101,7 @@ import java.util.Optional;
  *   <li>a server: servers, server groups (their stats) and persistent servers (their player count);</li>
  *   <li>a server group: server groups and servers (a server contains its group);</li>
  *   <li>a persistent server: persistent servers and servers;</li>
- *   <li>a blueprint: blueprints, server groups and servers.</li>
+ *   <li>a blueprint: server groups and servers (a group contains its blueprint).</li>
  * </ul>
  */
 public interface NetworkView {
@@ -121,7 +121,7 @@ public interface NetworkView {
      * Returns whether reads of {@code kind} may be answered from {@link #copy()} at {@code nowMillis}, instead
      * of over HTTP.
      */
-    boolean mayAnswer(ItemKind kind, long nowMillis);
+    boolean mayAnswer(ReadKind kind, long nowMillis);
 
     /**
      * Returns the copy, or empty before the first snapshot is taken. A view keeps its copy while it is not

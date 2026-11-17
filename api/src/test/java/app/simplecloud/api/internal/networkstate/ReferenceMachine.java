@@ -14,10 +14,8 @@ import java.util.ArrayList;
 import java.util.EnumMap;
 import java.util.EnumSet;
 import java.util.HashMap;
-import java.util.HashSet;
 import java.util.List;
 import java.util.Map;
-import java.util.Objects;
 import java.util.Optional;
 import java.util.Set;
 
@@ -126,7 +124,7 @@ class ReferenceMachine {
         long auditDueAt;
         NetworkState auditSnapshot;
         long auditComparingSince;
-        Map<ItemKind, Position> ownWritesByRead = new EnumMap<>(ItemKind.class);
+        Map<ReadKind, Position> ownWritesByRead = new EnumMap<>(ReadKind.class);
 
         Memory(RandomSequence random) {
             this.random = random;
@@ -175,10 +173,8 @@ class ReferenceMachine {
         public ViewStep step(ViewInput input, long nowMillis) {
             Memory next = new Memory(memory);
             List<ViewEffect> effects = new ArrayList<>();
-            NetworkCopy copyBefore = next.copy;
             machine.handle(next, input, nowMillis, effects);
             machine.actOnDeadlines(next, nowMillis, effects);
-            reportChangedItems(copyBefore, next.copy, effects);
             return new ViewStep(new View(machine, next), effects);
         }
 
@@ -188,7 +184,7 @@ class ReferenceMachine {
         }
 
         @Override
-        public boolean mayAnswer(ItemKind kind, long nowMillis) {
+        public boolean mayAnswer(ReadKind kind, long nowMillis) {
             return machine.mayAnswer(memory, kind, nowMillis);
         }
 
@@ -472,17 +468,17 @@ class ReferenceMachine {
 
     void onWriteReturned(Memory m, ViewInput.WriteReturned write) {
         Position written = new Position(write.epoch(), write.revision());
-        for (ItemKind read : readsChangedBy(write.written())) {
+        for (ReadKind read : readsChangedBy(write.written())) {
             m.ownWritesByRead.merge(read, written, Position::later);
         }
     }
 
-    static Set<ItemKind> readsChangedBy(ItemKind written) {
+    static Set<ReadKind> readsChangedBy(WriteKind written) {
         return switch (written) {
-            case SERVER -> EnumSet.of(ItemKind.SERVER, ItemKind.SERVER_GROUP, ItemKind.PERSISTENT_SERVER);
-            case SERVER_GROUP -> EnumSet.of(ItemKind.SERVER_GROUP, ItemKind.SERVER);
-            case PERSISTENT_SERVER -> EnumSet.of(ItemKind.PERSISTENT_SERVER, ItemKind.SERVER);
-            case BLUEPRINT -> EnumSet.of(ItemKind.BLUEPRINT, ItemKind.SERVER_GROUP, ItemKind.SERVER);
+            case SERVER -> EnumSet.of(ReadKind.SERVER, ReadKind.SERVER_GROUP, ReadKind.PERSISTENT_SERVER);
+            case SERVER_GROUP -> EnumSet.of(ReadKind.SERVER_GROUP, ReadKind.SERVER);
+            case PERSISTENT_SERVER -> EnumSet.of(ReadKind.PERSISTENT_SERVER, ReadKind.SERVER);
+            case BLUEPRINT -> EnumSet.of(ReadKind.SERVER_GROUP, ReadKind.SERVER);
         };
     }
 
@@ -602,11 +598,11 @@ class ReferenceMachine {
                 && now - m.goodPulseAt < GOOD_PULSE_MAX_AGE_MILLIS;
     }
 
-    boolean mayAnswer(Memory m, ItemKind kind, long now) {
+    boolean mayAnswer(Memory m, ReadKind kind, long now) {
         return isLive(m, now) && m.viewsMayAnswer && reachedOwnWrites(m, kind);
     }
 
-    static boolean reachedOwnWrites(Memory m, ItemKind read) {
+    static boolean reachedOwnWrites(Memory m, ReadKind read) {
         Position ownWrite = m.ownWritesByRead.get(read);
         return ownWrite == null || Position.of(m.copy).isAtOrAfter(ownWrite);
     }
@@ -684,32 +680,5 @@ class ReferenceMachine {
                 && first.serverGroups().equals(second.serverGroups())
                 && first.persistentServers().equals(second.persistentServers())
                 && first.blueprints().equals(second.blueprints());
-    }
-
-    private static void reportChangedItems(NetworkCopy before, NetworkCopy after, List<ViewEffect> effects) {
-        if (after == null) {
-            return;
-        }
-        NetworkCopy empty = new NetworkCopy(0, 0, Map.of(), Map.of(), Map.of(), Map.of(), Map.of());
-        NetworkCopy previous = before != null ? before : empty;
-        Set<ItemId> changed = new HashSet<>();
-        addChanged(ItemKind.SERVER, previous.servers(), after.servers(), changed);
-        addChanged(ItemKind.SERVER_GROUP, previous.serverGroups(), after.serverGroups(), changed);
-        addChanged(ItemKind.PERSISTENT_SERVER, previous.persistentServers(), after.persistentServers(), changed);
-        addChanged(ItemKind.BLUEPRINT, previous.blueprints(), after.blueprints(), changed);
-        if (!changed.isEmpty()) {
-            effects.add(new ViewEffect.ItemsChanged(changed));
-        }
-    }
-
-    private static <T> void addChanged(ItemKind kind, Map<ByteString, T> before, Map<ByteString, T> after,
-                                       Set<ItemId> changed) {
-        Set<ByteString> ids = new HashSet<>(before.keySet());
-        ids.addAll(after.keySet());
-        for (ByteString id : ids) {
-            if (!Objects.equals(before.get(id), after.get(id))) {
-                changed.add(new ItemId(kind, id));
-            }
-        }
     }
 }

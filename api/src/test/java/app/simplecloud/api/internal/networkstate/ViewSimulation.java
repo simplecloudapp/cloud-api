@@ -215,7 +215,7 @@ final class ViewSimulation {
     private final List<OwnerSlot> owners = new ArrayList<>();
     private final AgedRevisions batchesOlderThanLag = new AgedRevisions(LIVE_VIEW_LAGS_AT_MOST_MILLIS);
     private final AgedRevisions batchesOlderThanReach = new AgedRevisions(CHANGE_REACHES_VIEW_MILLIS);
-    private final Map<ItemKind, Position> ownWritesByRead = new EnumMap<>(ItemKind.class);
+    private final Map<ReadKind, Position> ownWritesByRead = new EnumMap<>(ReadKind.class);
     private final long endAt;
     private final long faultGapMillis;
     private final double lossChance;
@@ -303,8 +303,6 @@ final class ViewSimulation {
         switch (effect) {
             case ViewEffect.LoadSnapshot load -> startLoad();
             case ViewEffect.AuditFinished finished -> auditOutcomes.add(finished.outcome());
-            case ViewEffect.ItemsChanged changed -> {
-            }
         }
     }
 
@@ -404,7 +402,7 @@ final class ViewSimulation {
 
     private void returnOwnWrite(ModelDatabase.Commit commit, ViewInput.WriteReturned response) {
         Position committed = new Position(commit.epoch(), commit.revision());
-        for (ItemKind read : readsChangedBy(commit.route())) {
+        for (ReadKind read : readsChangedBy(commit.route())) {
             ownWritesByRead.merge(read, committed, Position::later);
         }
         step(response);
@@ -414,12 +412,12 @@ final class ViewSimulation {
      * The reads a write can change, as {@link NetworkView} states them. The simulator states this, and
      * {@link Position}, itself instead of using the reference machine's, so a bug there cannot hide here.
      */
-    private static Set<ItemKind> readsChangedBy(ItemKind route) {
+    private static Set<ReadKind> readsChangedBy(WriteKind route) {
         return switch (route) {
-            case SERVER -> EnumSet.of(ItemKind.SERVER, ItemKind.SERVER_GROUP, ItemKind.PERSISTENT_SERVER);
-            case SERVER_GROUP -> EnumSet.of(ItemKind.SERVER_GROUP, ItemKind.SERVER);
-            case PERSISTENT_SERVER -> EnumSet.of(ItemKind.PERSISTENT_SERVER, ItemKind.SERVER);
-            case BLUEPRINT -> EnumSet.of(ItemKind.BLUEPRINT, ItemKind.SERVER_GROUP, ItemKind.SERVER);
+            case SERVER -> EnumSet.of(ReadKind.SERVER, ReadKind.SERVER_GROUP, ReadKind.PERSISTENT_SERVER);
+            case SERVER_GROUP -> EnumSet.of(ReadKind.SERVER_GROUP, ReadKind.SERVER);
+            case PERSISTENT_SERVER -> EnumSet.of(ReadKind.PERSISTENT_SERVER, ReadKind.SERVER);
+            case BLUEPRINT -> EnumSet.of(ReadKind.SERVER_GROUP, ReadKind.SERVER);
         };
     }
 
@@ -713,8 +711,8 @@ final class ViewSimulation {
     }
 
     private void checkOwnWritesAreSeen() {
-        for (Map.Entry<ItemKind, Position> ownWrite : ownWritesByRead.entrySet()) {
-            ItemKind read = ownWrite.getKey();
+        for (Map.Entry<ReadKind, Position> ownWrite : ownWritesByRead.entrySet()) {
+            ReadKind read = ownWrite.getKey();
             if (!view.mayAnswer(read, now)) {
                 continue;
             }

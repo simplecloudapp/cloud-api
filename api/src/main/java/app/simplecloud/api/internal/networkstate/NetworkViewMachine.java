@@ -29,7 +29,7 @@ public final class NetworkViewMachine implements NetworkView {
     }
 
     @Override
-    public boolean mayAnswer(ItemKind kind, long nowMillis) {
+    public boolean mayAnswer(ReadKind kind, long nowMillis) {
         throw new UnsupportedOperationException("NetworkViewMachine is not implemented yet");
     }
 

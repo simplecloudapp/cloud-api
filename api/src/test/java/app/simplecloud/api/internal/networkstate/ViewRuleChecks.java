@@ -20,7 +20,6 @@ import static app.simplecloud.api.internal.networkstate.StateItems.metrics;
 import static app.simplecloud.api.internal.networkstate.StateItems.network;
 import static app.simplecloud.api.internal.networkstate.StateItems.persistentServerInstance;
 import static app.simplecloud.api.internal.networkstate.StateItems.pulse;
-import static app.simplecloud.api.internal.networkstate.StateItems.serverItem;
 import static app.simplecloud.api.internal.networkstate.StateItems.serverStateBatch;
 import static org.junit.jupiter.api.Assertions.assertEquals;
 import static org.junit.jupiter.api.Assertions.assertFalse;
@@ -57,6 +56,8 @@ final class ViewRuleChecks {
                 new ViewCheck("start: drops batches during the load that the snapshot holds",
                         ViewRuleChecks::dropsBatchesTheSnapshotHolds),
                 new ViewCheck("batch: drops a duplicate", ViewRuleChecks::dropsDuplicateBatch),
+                new ViewCheck("batch: deletes items, and an unknown id is no error",
+                        ViewRuleChecks::deletesItemsAndIgnoresUnknownIds),
                 new ViewCheck("batch: applies an overlapping batch", ViewRuleChecks::appliesOverlappingBatch),
                 new ViewCheck("batch: holds a batch ahead of the copy until the gap fills",
                         ViewRuleChecks::holdsBatchUntilGapFills),
@@ -145,7 +146,7 @@ final class ViewRuleChecks {
                         ViewRuleChecks::groupWriteHoldsItsReads),
                 new ViewCheck("own write: a persistent server write holds persistent server and server reads",
                         ViewRuleChecks::persistentServerWriteHoldsItsReads),
-                new ViewCheck("own write: a blueprint write holds blueprint, group and server reads",
+                new ViewCheck("own write: a blueprint write holds group and server reads",
                         ViewRuleChecks::blueprintWriteHoldsItsReads),
                 new ViewCheck("own write: a write in a later epoch holds reads until the copy is in it",
                         ViewRuleChecks::laterEpochWriteHoldsReads),
@@ -154,12 +155,7 @@ final class ViewRuleChecks {
                 new ViewCheck("own write: a write the copy already has holds nothing",
                         ViewRuleChecks::writeInCopyHoldsNothing),
                 new ViewCheck("own write: the highest write holds, also when responses come out of order",
-                        ViewRuleChecks::highestOwnWriteHolds),
-                new ViewCheck("changes: the first snapshot reports every item",
-                        ViewRuleChecks::firstSnapshotReportsEveryItem),
-                new ViewCheck("changes: a batch reports only the items it changed",
-                        ViewRuleChecks::batchReportsOnlyChangedItems),
-                new ViewCheck("changes: a reload reports the difference", ViewRuleChecks::reloadReportsDifference)
+                        ViewRuleChecks::highestOwnWriteHolds)
         );
     }
 
@@ -261,11 +257,11 @@ final class ViewRuleChecks {
         ViewDriver view = ViewDriver.liveAt(starter, network(10));
         StateBatch batch = serverStateBatch(10, 11, "STOPPING");
         view.batch(batch);
+        NetworkCopy afterFirst = view.copy();
         view.advance(100);
         view.batch(batch);
 
-        assertEquals(Set.of(), view.lastChangedItems(), "a duplicate changes nothing");
-        assertEquals(11, view.copy().revision());
+        assertEquals(afterFirst, view.copy(), "a duplicate changes nothing");
         assertTrue(view.isLive());
     }
 
@@ -524,18 +520,18 @@ final class ViewRuleChecks {
 
     static void flagFalseStopsAnswers(ViewStarter starter) {
         ViewDriver view = ViewDriver.liveAt(starter, network(10));
-        boolean answeredAfterTrue = view.mayAnswer(ItemKind.SERVER);
+        boolean answeredAfterTrue = view.mayAnswer(ReadKind.SERVER);
         view.advance(100);
         view.pulse(pulse(10).toBuilder().setViewsMayAnswer(false).build());
         boolean liveAfterFalse = view.isLive();
-        Set<ItemKind> answeredAfterFalse = answeredKinds(view);
+        Set<ReadKind> answeredAfterFalse = answeredKinds(view);
         view.advance(100);
         view.pulse(pulse(10));
 
         assertTrue(answeredAfterTrue);
         assertTrue(liveAfterFalse, "the flag stops answers, not live");
         assertEquals(Set.of(), answeredAfterFalse, "views_may_answer false stops every answer");
-        assertEquals(EnumSet.allOf(ItemKind.class), answeredKinds(view), "the next true pulse allows answers again");
+        assertEquals(EnumSet.allOf(ReadKind.class), answeredKinds(view), "the next true pulse allows answers again");
     }
 
     // Connection (rule 4).
@@ -673,13 +669,14 @@ final class ViewRuleChecks {
 
     static void auditMatchesAtSameRevision(ViewStarter starter) {
         ViewDriver view = auditLoading(starter);
+        NetworkCopy beforeAudit = view.copy();
         NetworkState otherMetrics = network(EPOCH, 10).clearMetrics().addMetrics(metrics(1, 77)).build();
         view.loadSnapshot(otherMetrics);
 
         assertEquals(Optional.of(AuditOutcome.MATCHED), view.lastAuditOutcome(),
                 "metrics are left out of the comparison");
         assertTrue(view.isLive(), "a matching audit keeps the view live");
-        assertEquals(Set.of(), view.lastChangedItems());
+        assertEquals(beforeAudit, view.copy(), "a matching audit keeps the copy, its metrics too");
     }
 
     static void auditDifferenceTakesSnapshot(ViewStarter starter) {
@@ -847,45 +844,44 @@ final class ViewRuleChecks {
     // Own writes (design 6.4).
 
     static void serverWriteHoldsItsReads(ViewStarter starter) {
-        assertOwnWriteHolds(starter, ItemKind.SERVER,
-                EnumSet.of(ItemKind.SERVER, ItemKind.SERVER_GROUP, ItemKind.PERSISTENT_SERVER));
+        assertOwnWriteHolds(starter, WriteKind.SERVER,
+                EnumSet.of(ReadKind.SERVER, ReadKind.SERVER_GROUP, ReadKind.PERSISTENT_SERVER));
     }
 
     static void groupWriteHoldsItsReads(ViewStarter starter) {
-        assertOwnWriteHolds(starter, ItemKind.SERVER_GROUP, EnumSet.of(ItemKind.SERVER_GROUP, ItemKind.SERVER));
+        assertOwnWriteHolds(starter, WriteKind.SERVER_GROUP, EnumSet.of(ReadKind.SERVER_GROUP, ReadKind.SERVER));
     }
 
     static void persistentServerWriteHoldsItsReads(ViewStarter starter) {
-        assertOwnWriteHolds(starter, ItemKind.PERSISTENT_SERVER,
-                EnumSet.of(ItemKind.PERSISTENT_SERVER, ItemKind.SERVER));
+        assertOwnWriteHolds(starter, WriteKind.PERSISTENT_SERVER,
+                EnumSet.of(ReadKind.PERSISTENT_SERVER, ReadKind.SERVER));
     }
 
     static void blueprintWriteHoldsItsReads(ViewStarter starter) {
-        assertOwnWriteHolds(starter, ItemKind.BLUEPRINT,
-                EnumSet.of(ItemKind.BLUEPRINT, ItemKind.SERVER_GROUP, ItemKind.SERVER));
+        assertOwnWriteHolds(starter, WriteKind.BLUEPRINT, EnumSet.of(ReadKind.SERVER_GROUP, ReadKind.SERVER));
     }
 
-    private static void assertOwnWriteHolds(ViewStarter starter, ItemKind written, Set<ItemKind> heldReads) {
-        Set<ItemKind> otherReads = EnumSet.complementOf(EnumSet.copyOf(heldReads));
+    private static void assertOwnWriteHolds(ViewStarter starter, WriteKind written, Set<ReadKind> heldReads) {
+        Set<ReadKind> otherReads = EnumSet.complementOf(EnumSet.copyOf(heldReads));
         ViewDriver view = ViewDriver.liveAt(starter, network(10));
         view.wrote(written, EPOCH, 12);
-        Set<ItemKind> answeredAfterWrite = answeredKinds(view);
+        Set<ReadKind> answeredAfterWrite = answeredKinds(view);
         view.advance(100);
         view.batch(serverStateBatch(10, 11, "STARTING"));
-        Set<ItemKind> answeredBelowWrite = answeredKinds(view);
+        Set<ReadKind> answeredBelowWrite = answeredKinds(view);
         view.advance(100);
         view.batch(serverStateBatch(11, 12, "STOPPING"));
 
         assertEquals(otherReads, answeredAfterWrite, "a " + written + " write holds exactly these reads: " + heldReads);
         assertEquals(otherReads, answeredBelowWrite, "a copy below the write's revision does not answer them");
-        assertEquals(EnumSet.allOf(ItemKind.class), answeredKinds(view),
+        assertEquals(EnumSet.allOf(ReadKind.class), answeredKinds(view),
                 "a copy at the write's revision answers again");
     }
 
     static void laterEpochWriteHoldsReads(ViewStarter starter) {
         ViewDriver view = ViewDriver.liveAt(starter, network(10));
-        view.wrote(ItemKind.SERVER, EPOCH + 1, 3);
-        boolean answeredAfterWrite = view.mayAnswer(ItemKind.SERVER);
+        view.wrote(WriteKind.SERVER, EPOCH + 1, 3);
+        boolean answeredAfterWrite = view.mayAnswer(ReadKind.SERVER);
         view.advance(2_000);
         view.pulse(pulse(EPOCH + 1, 3));
         view.assertLoadRequested("a pulse from another epoch means reload");
@@ -895,79 +891,49 @@ final class ViewRuleChecks {
         view.pulse(pulse(EPOCH + 1, 3));
 
         assertFalse(answeredAfterWrite, "a copy in an earlier epoch than the write does not have it");
-        assertTrue(view.mayAnswer(ItemKind.SERVER), "a copy in the write's epoch at its revision has it");
+        assertTrue(view.mayAnswer(ReadKind.SERVER), "a copy in the write's epoch at its revision has it");
     }
 
     static void earlierEpochWriteHoldsNothing(ViewStarter starter) {
         ViewDriver view = ViewDriver.liveAt(starter, network(EPOCH + 1, 3).build());
-        view.wrote(ItemKind.SERVER, EPOCH, 50);
+        view.wrote(WriteKind.SERVER, EPOCH, 50);
 
-        assertEquals(EnumSet.allOf(ItemKind.class), answeredKinds(view),
+        assertEquals(EnumSet.allOf(ReadKind.class), answeredKinds(view),
                 "a copy in a later epoch than the write answers");
     }
 
     static void writeInCopyHoldsNothing(ViewStarter starter) {
         ViewDriver view = ViewDriver.liveAt(starter, network(10));
-        view.wrote(ItemKind.SERVER, EPOCH, 10);
+        view.wrote(WriteKind.SERVER, EPOCH, 10);
 
-        assertEquals(EnumSet.allOf(ItemKind.class), answeredKinds(view));
+        assertEquals(EnumSet.allOf(ReadKind.class), answeredKinds(view));
     }
 
     static void highestOwnWriteHolds(ViewStarter starter) {
         ViewDriver view = ViewDriver.liveAt(starter, network(10));
-        view.wrote(ItemKind.SERVER, EPOCH, 14);
-        view.wrote(ItemKind.SERVER, EPOCH, 12);
+        view.wrote(WriteKind.SERVER, EPOCH, 14);
+        view.wrote(WriteKind.SERVER, EPOCH, 12);
         view.advance(100);
         view.batch(serverStateBatch(10, 12, "STARTING"));
-        boolean answeredAtLowerWrite = view.mayAnswer(ItemKind.SERVER);
+        boolean answeredAtLowerWrite = view.mayAnswer(ReadKind.SERVER);
         view.advance(100);
         view.batch(serverStateBatch(12, 14, "STOPPING"));
 
         assertFalse(answeredAtLowerWrite, "a later response with a lower revision does not lower the bar");
-        assertTrue(view.mayAnswer(ItemKind.SERVER));
+        assertTrue(view.mayAnswer(ReadKind.SERVER));
     }
 
-    // Changed items.
-
-    static void firstSnapshotReportsEveryItem(ViewStarter starter) {
-        ViewDriver view = ViewDriver.start(starter);
-        view.subscribe();
-        view.loadSnapshot(network(10));
-
-        Set<ItemId> expected = Set.of(
-                serverItem(1),
-                serverItem(2),
-                new ItemId(ItemKind.SERVER_GROUP, id(10)),
-                new ItemId(ItemKind.PERSISTENT_SERVER, id(20)),
-                new ItemId(ItemKind.BLUEPRINT, id(30)));
-        assertEquals(expected, view.lastChangedItems());
-    }
-
-    static void batchReportsOnlyChangedItems(ViewStarter starter) {
+    static void deletesItemsAndIgnoresUnknownIds(ViewStarter starter) {
         ViewDriver view = ViewDriver.liveAt(starter, network(10));
         StateBatch batch = batch(10, 11)
-                .addServers(groupServer(1, 10, "STOPPING"))
-                .addServerGroups(groupOfBlueprint(10, 30))
                 .addDeletedServerIds(id(2))
                 .addDeletedServerIds(id(98))
                 .build();
         view.batch(batch);
 
-        assertEquals(Set.of(serverItem(1), serverItem(2)), view.lastChangedItems(),
-                "unchanged repeats and unknown deleted ids are not reported");
+        assertEquals(Set.of(id(1)), view.copy().servers().keySet(), "a deleted id removes its server");
+        assertEquals(11, view.copy().revision());
         assertTrue(view.isLive(), "deleting an unknown id is no error");
-    }
-
-    static void reloadReportsDifference(ViewStarter starter) {
-        ViewDriver view = ViewDriver.liveAt(starter, network(10));
-        view.advance(2_000);
-        view.loseConnection();
-        view.subscribe();
-        view.assertLoadRequested("a reconnect means reload");
-        NetworkState reloaded = network(EPOCH, 12).setServers(0, groupServer(1, 10, "STOPPING")).build();
-        view.loadSnapshot(reloaded);
-
-        assertEquals(Set.of(serverItem(1)), view.lastChangedItems());
     }
 
     // Helpers.
@@ -976,9 +942,9 @@ final class ViewRuleChecks {
         return view.copy().servers().get(id(serverNumber)).getState();
     }
 
-    private static Set<ItemKind> answeredKinds(ViewDriver view) {
-        Set<ItemKind> answered = EnumSet.noneOf(ItemKind.class);
-        for (ItemKind kind : ItemKind.values()) {
+    private static Set<ReadKind> answeredKinds(ViewDriver view) {
+        Set<ReadKind> answered = EnumSet.noneOf(ReadKind.class);
+        for (ReadKind kind : ReadKind.values()) {
             if (view.mayAnswer(kind)) {
                 answered.add(kind);
             }

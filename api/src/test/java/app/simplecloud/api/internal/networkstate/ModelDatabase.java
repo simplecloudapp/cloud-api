@@ -34,7 +34,17 @@ final class ModelDatabase {
     private static final int STATES_A_FAILOVER_CAN_LOSE = 4;
     private static final List<String> SERVER_STATES = List.of("PREPARING", "STARTING", "AVAILABLE", "STOPPING");
 
-    record EntityKey(ItemKind kind, ByteString id) {
+    enum Table {
+        SERVERS,
+        SERVER_GROUPS,
+        PERSISTENT_SERVERS,
+        BLUEPRINTS
+    }
+
+    /**
+     * One row that a transaction changed, as a change log entry names it.
+     */
+    record EntityKey(Table table, ByteString id) {
     }
 
     record Items(
@@ -70,7 +80,7 @@ final class ModelDatabase {
     /**
      * A committed write. {@code route} is the kind of item the HTTP route that made it writes.
      */
-    record Commit(long epoch, long revision, ItemKind route) {
+    record Commit(long epoch, long revision, WriteKind route) {
     }
 
     private final Random random;
@@ -105,7 +115,7 @@ final class ModelDatabase {
 
     Commit commitRandomWrite() {
         WriteBuilder write = new WriteBuilder(current.items());
-        ItemKind route = write.makeRandomChange();
+        WriteKind route = write.makeRandomChange();
         long revision = current.counter() + 1;
         NavigableMap<Long, Set<EntityKey>> changeLog = new TreeMap<>(current.changeLog());
         changeLog.put(revision, Set.copyOf(write.changed));
@@ -189,7 +199,7 @@ final class ModelDatabase {
             return new Items(servers, groups, persistentServers, blueprints);
         }
 
-        ItemKind makeRandomChange() {
+        WriteKind makeRandomChange() {
             int roll = random.nextInt(100);
             if (roll < 55) {
                 return changeServer();
@@ -203,7 +213,7 @@ final class ModelDatabase {
             return changeBlueprint();
         }
 
-        private ItemKind changeServer() {
+        private WriteKind changeServer() {
             boolean parentExists = !groups.isEmpty() || !persistentServers.isEmpty();
             if (!parentExists) {
                 return createGroupWithFirstServer();
@@ -217,10 +227,10 @@ final class ModelDatabase {
             } else {
                 deleteServer(pick(servers).getId());
             }
-            return ItemKind.SERVER;
+            return WriteKind.SERVER;
         }
 
-        private ItemKind changeGroup() {
+        private WriteKind changeGroup() {
             int roll = random.nextInt(100);
             if (groups.isEmpty() || (roll < 30 && groups.size() < MAX_GROUPS)) {
                 return createGroupWithFirstServer();
@@ -231,17 +241,17 @@ final class ModelDatabase {
             } else {
                 deleteGroupWithItsServers(group.getId());
             }
-            return ItemKind.SERVER_GROUP;
+            return WriteKind.SERVER_GROUP;
         }
 
-        private ItemKind createGroupWithFirstServer() {
+        private WriteKind createGroupWithFirstServer() {
             StateServerGroup group = newGroup(randomId());
             putGroup(group);
             putServer(newServer(group.getId()));
-            return ItemKind.SERVER_GROUP;
+            return WriteKind.SERVER_GROUP;
         }
 
-        private ItemKind changePersistentServer() {
+        private WriteKind changePersistentServer() {
             int roll = random.nextInt(100);
             if (persistentServers.isEmpty() || (roll < 30 && persistentServers.size() < MAX_PERSISTENT_SERVERS)) {
                 StatePersistentServer persistentServer = newPersistentServer(randomId());
@@ -252,23 +262,23 @@ final class ModelDatabase {
             } else {
                 deletePersistentServerWithItsServers(pick(persistentServers).getId());
             }
-            return ItemKind.PERSISTENT_SERVER;
+            return WriteKind.PERSISTENT_SERVER;
         }
 
-        private ItemKind changeBlueprint() {
+        private WriteKind changeBlueprint() {
             int roll = random.nextInt(100);
             if (blueprints.isEmpty() || (roll < 35 && blueprints.size() < MAX_BLUEPRINTS)) {
                 putBlueprint(newBlueprint(randomId()));
-                return ItemKind.BLUEPRINT;
+                return WriteKind.BLUEPRINT;
             }
             StateBlueprint blueprint = pick(blueprints);
             if (roll < 85 || isUsed(blueprint.getId())) {
                 putBlueprint(newBlueprint(blueprint.getId()));
             } else {
                 blueprints.remove(blueprint.getId());
-                changed.add(new EntityKey(ItemKind.BLUEPRINT, blueprint.getId()));
+                changed.add(new EntityKey(Table.BLUEPRINTS, blueprint.getId()));
             }
-            return ItemKind.BLUEPRINT;
+            return WriteKind.BLUEPRINT;
         }
 
         private boolean isUsed(ByteString blueprintId) {
@@ -287,7 +297,7 @@ final class ModelDatabase {
                 }
             }
             groups.remove(groupId);
-            changed.add(new EntityKey(ItemKind.SERVER_GROUP, groupId));
+            changed.add(new EntityKey(Table.SERVER_GROUPS, groupId));
         }
 
         private void deletePersistentServerWithItsServers(ByteString persistentServerId) {
@@ -297,32 +307,32 @@ final class ModelDatabase {
                 }
             }
             persistentServers.remove(persistentServerId);
-            changed.add(new EntityKey(ItemKind.PERSISTENT_SERVER, persistentServerId));
+            changed.add(new EntityKey(Table.PERSISTENT_SERVERS, persistentServerId));
         }
 
         private void putServer(StateServer server) {
             servers.put(server.getId(), server);
-            changed.add(new EntityKey(ItemKind.SERVER, server.getId()));
+            changed.add(new EntityKey(Table.SERVERS, server.getId()));
         }
 
         private void deleteServer(ByteString serverId) {
             servers.remove(serverId);
-            changed.add(new EntityKey(ItemKind.SERVER, serverId));
+            changed.add(new EntityKey(Table.SERVERS, serverId));
         }
 
         private void putGroup(StateServerGroup group) {
             groups.put(group.getId(), group);
-            changed.add(new EntityKey(ItemKind.SERVER_GROUP, group.getId()));
+            changed.add(new EntityKey(Table.SERVER_GROUPS, group.getId()));
         }
 
         private void putPersistentServer(StatePersistentServer persistentServer) {
             persistentServers.put(persistentServer.getId(), persistentServer);
-            changed.add(new EntityKey(ItemKind.PERSISTENT_SERVER, persistentServer.getId()));
+            changed.add(new EntityKey(Table.PERSISTENT_SERVERS, persistentServer.getId()));
         }
 
         private void putBlueprint(StateBlueprint blueprint) {
             blueprints.put(blueprint.getId(), blueprint);
-            changed.add(new EntityKey(ItemKind.BLUEPRINT, blueprint.getId()));
+            changed.add(new EntityKey(Table.BLUEPRINTS, blueprint.getId()));
         }
 
         /**

@@ -15,8 +15,9 @@ import java.util.Random;
 import java.util.Set;
 
 /**
- * The simulator's relay in one controller while it owns the network (design 4.2 and 4.3). Between rounds it
- * remembers only what its last successful round read, so a new owner starts from the stored number.
+ * The simulator's relay in one controller while it owns the network (design 4.2 and 4.3, with the
+ * contract's decision on the pulse head). Between rounds it remembers what its last successful round read
+ * and the last batch it published, so a new owner starts from the stored number.
  */
 final class ModelOwner {
 
@@ -24,7 +25,9 @@ final class ModelOwner {
 
     private Long lastRoundAt;
     private long roundEpoch;
-    private long roundRevision;
+    private long roundStoredNumber;
+    private Long publishedEpoch;
+    private long publishedRevision;
 
     /**
      * Runs one relay round on one consistent read of the database, and returns the batch to publish, or null
@@ -35,22 +38,24 @@ final class ModelOwner {
         long head = read.counter();
         lastRoundAt = now;
         roundEpoch = read.epoch();
-        roundRevision = Math.max(lastRelayed, head);
+        roundStoredNumber = lastRelayed;
         if (head <= lastRelayed) {
             return null;
         }
         NavigableMap<Long, Set<ModelDatabase.EntityKey>> unrelayed =
                 read.changeLog().subMap(lastRelayed, false, head, true);
         boolean entriesMissing = unrelayed.size() < head - lastRelayed;
-        if (entriesMissing) {
-            return batchThatMakesViewsBehindReload(read.epoch(), head);
-        }
-        return batchOfChanges(read, lastRelayed, unrelayed);
+        StateBatch batch = entriesMissing
+                ? batchThatMakesViewsBehindReload(read.epoch(), head)
+                : batchOfChanges(read, lastRelayed, unrelayed);
+        publishedEpoch = batch.getEpoch();
+        publishedRevision = batch.getRevision();
+        return batch;
     }
 
     /**
-     * Returns the pulse, or null when the last successful round is 3 s old or older. Its revision is the
-     * last relayed number as of that round, in that round's epoch.
+     * Returns the pulse, or null when the last successful round is 3 s old or older. It states that round's
+     * epoch, and the higher of the stored number that round read and this owner's last batch in that epoch.
      */
     StatePulse pulse(ModelDatabase.State read, long now, Random random) {
         boolean keepingUp = lastRoundAt != null && now - lastRoundAt < PULSE_NEEDS_ROUND_WITHIN_MILLIS;
@@ -59,7 +64,7 @@ final class ModelOwner {
         }
         StatePulse.Builder pulse = StatePulse.newBuilder()
                 .setEpoch(roundEpoch)
-                .setRevision(roundRevision)
+                .setRevision(pulseRevision())
                 .setViewsMayAnswer(true);
         for (StateServer server : read.items().servers().values()) {
             StateServerMetrics metrics = StateServerMetrics.newBuilder()
@@ -69,6 +74,14 @@ final class ModelOwner {
             pulse.addMetrics(metrics);
         }
         return pulse.build();
+    }
+
+    private long pulseRevision() {
+        boolean publishedInRoundEpoch = publishedEpoch != null && publishedEpoch == roundEpoch;
+        if (publishedInRoundEpoch) {
+            return Math.max(roundStoredNumber, publishedRevision);
+        }
+        return roundStoredNumber;
     }
 
     private static StateBatch batchThatMakesViewsBehindReload(long epoch, long head) {
@@ -98,8 +111,8 @@ final class ModelOwner {
     private static void addRowOrDeletedId(StateBatch.Builder batch, ModelDatabase.Items items,
                                           ModelDatabase.EntityKey entity) {
         ByteString id = entity.id();
-        switch (entity.kind()) {
-            case SERVER -> {
+        switch (entity.table()) {
+            case SERVERS -> {
                 StateServer row = items.servers().get(id);
                 if (row != null) {
                     batch.addServers(row);
@@ -107,7 +120,7 @@ final class ModelOwner {
                     batch.addDeletedServerIds(id);
                 }
             }
-            case SERVER_GROUP -> {
+            case SERVER_GROUPS -> {
                 StateServerGroup row = items.serverGroups().get(id);
                 if (row != null) {
                     batch.addServerGroups(row);
@@ -115,7 +128,7 @@ final class ModelOwner {
                     batch.addDeletedServerGroupIds(id);
                 }
             }
-            case PERSISTENT_SERVER -> {
+            case PERSISTENT_SERVERS -> {
                 StatePersistentServer row = items.persistentServers().get(id);
                 if (row != null) {
                     batch.addPersistentServers(row);
@@ -123,7 +136,7 @@ final class ModelOwner {
                     batch.addDeletedPersistentServerIds(id);
                 }
             }
-            case BLUEPRINT -> {
+            case BLUEPRINTS -> {
                 StateBlueprint row = items.blueprints().get(id);
                 if (row != null) {
                     batch.addBlueprints(row);

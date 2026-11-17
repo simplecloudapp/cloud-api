@@ -55,10 +55,10 @@ public sealed interface ViewInput {
      * {@code X-SC-State-Epoch} and {@code X-SC-State-Revision}. The controller reads them after the commit, so
      * the revision is at or above the write's own.
      *
-     * @param written the kind of item the write's route writes, for example {@link ItemKind#SERVER_GROUP}
+     * @param written the kind of item the write's route writes, for example {@link WriteKind#SERVER_GROUP}
      *                for deleting a group, even when that also deletes the group's servers
      */
-    record WriteReturned(ItemKind written, long epoch, long revision) implements ViewInput {
+    record WriteReturned(WriteKind written, long epoch, long revision) implements ViewInput {
     }
 
     /**

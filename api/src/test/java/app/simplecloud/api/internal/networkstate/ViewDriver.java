@@ -6,7 +6,6 @@ import build.buf.gen.simplecloud.controller.v2.StatePulse;
 
 import java.util.List;
 import java.util.Optional;
-import java.util.Set;
 
 import static org.junit.jupiter.api.Assertions.assertTrue;
 import static org.junit.jupiter.api.Assertions.fail;
@@ -88,7 +87,7 @@ final class ViewDriver {
         send(new ViewInput.PulseReceived(pulse));
     }
 
-    void wrote(ItemKind written, long epoch, long revision) {
+    void wrote(WriteKind written, long epoch, long revision) {
         send(new ViewInput.WriteReturned(written, epoch, revision));
     }
 
@@ -164,15 +163,6 @@ final class ViewDriver {
         assertTrue(requestedLoad(), message);
     }
 
-    Set<ItemId> lastChangedItems() {
-        for (ViewEffect effect : lastEffects) {
-            if (effect instanceof ViewEffect.ItemsChanged changed) {
-                return changed.items();
-            }
-        }
-        return Set.of();
-    }
-
     Optional<AuditOutcome> lastAuditOutcome() {
         for (ViewEffect effect : lastEffects) {
             if (effect instanceof ViewEffect.AuditFinished finished) {
@@ -193,7 +183,7 @@ final class ViewDriver {
         return view.isLive(time);
     }
 
-    boolean mayAnswer(ItemKind kind) {
+    boolean mayAnswer(ReadKind kind) {
         return view.mayAnswer(kind, now);
     }
 

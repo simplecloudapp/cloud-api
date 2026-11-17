@@ -1,7 +1,5 @@
 package app.simplecloud.api.internal.networkstate;
 
-import java.util.Set;
-
 /**
  * Something a view asks the shell to do or to report.
  */
@@ -16,20 +14,8 @@ public sealed interface ViewEffect {
     }
 
     /**
-     * Items of the copy changed in this step: each one was added, replaced by an item that differs, or
-     * removed. An item that a batch repeats unchanged is not in the set. A step reports at most one such
-     * effect, and the copy of the step's view holds the new items.
-     */
-    record ItemsChanged(Set<ItemId> items) implements ViewEffect {
-
-        public ItemsChanged {
-            items = Set.copyOf(items);
-        }
-    }
-
-    /**
-     * An audit ended. The shell counts {@link AuditOutcome#DIFFERED} and {@link AuditOutcome#JUMPED_PAST}
-     * as errors.
+     * An audit ended. The shell counts each outcome on its own; only {@link AuditOutcome#DIFFERED} and
+     * {@link AuditOutcome#NOT_REACHED} are errors.
      */
     record AuditFinished(AuditOutcome outcome) implements ViewEffect {
     }

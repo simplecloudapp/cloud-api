@@ -31,10 +31,6 @@ final class StateItems {
         return ByteString.copyFrom(bytes.array());
     }
 
-    static ItemId serverItem(int number) {
-        return new ItemId(ItemKind.SERVER, id(number));
-    }
-
     static StateServer groupServer(int number, int groupNumber, String state) {
         return StateServer.newBuilder()
                 .setId(id(number))
