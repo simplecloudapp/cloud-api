@@ -23,8 +23,9 @@ import java.util.function.Function;
 /**
  * The production machine of {@link NetworkView}.
  *
- * <p>{@link #step} copies the view and changes only that copy before it returns it, so a view that has been
- * returned never changes. Every method that changes a field is private and runs only inside that step.
+ * <p>{@link #step} builds the next view from this one and changes only the new view before it returns it, so
+ * a view that has been returned never changes. Every method that changes a field is private and runs only
+ * inside that step.
  */
 public final class NetworkViewMachine implements NetworkView {
 
@@ -36,9 +37,9 @@ public final class NetworkViewMachine implements NetworkView {
     private static final long BEHIND_PULSE_WAIT_MILLIS = 3_000;
     private static final long GOOD_PULSE_LIFETIME_MILLIS = 15_000;
     private static final long AUDIT_REACH_WAIT_MILLIS = 3_000;
-    private static final long AUDIT_INTERVAL_MILLIS = 20 * 60_000;
+    private static final long SHORTEST_AUDIT_INTERVAL_MILLIS = 20 * 60_000;
     private static final long LONGEST_RANDOM_AUDIT_DELAY_MILLIS = 10 * 60_000;
-    private static final long AUDIT_RETRY_MILLIS = 2_000;
+    private static final long SHORTEST_AUDIT_RETRY_MILLIS = 2_000;
     private static final long LONGEST_RANDOM_AUDIT_RETRY_DELAY_MILLIS = 8_000;
 
     private enum RunningLoad {
@@ -57,7 +58,6 @@ public final class NetworkViewMachine implements NetworkView {
     }
 
     private enum PulseFit {
-        TOO_LONG_WITHOUT_GOOD_PULSE,
         OTHER_EPOCH,
         AHEAD_OF_COPY,
         AT_COPY,
@@ -96,10 +96,10 @@ public final class NetworkViewMachine implements NetworkView {
     private final RandomSequence random;
     private long numbersDrawn;
     private NetworkCopy copy;
-    private boolean subscribed;
+    private boolean subscriptionsActive;
     private boolean viewsMayAnswer;
     private RunningLoad runningLoad;
-    private Long lastLoadStartedAt;
+    private long nextLoadAllowedAt;
     private int failedLoadsInRow;
     private long lastFailedLoadAt;
     private Long wantedReloadStartsAt;
@@ -114,6 +114,7 @@ public final class NetworkViewMachine implements NetworkView {
     private NetworkViewMachine(RandomSequence random) {
         this.random = random;
         runningLoad = RunningLoad.NONE;
+        nextLoadAllowedAt = Long.MIN_VALUE;
         heldBatches = new ArrayList<>();
         highestOwnWriteByRead = new EnumMap<>(ReadKind.class);
     }
@@ -122,10 +123,10 @@ public final class NetworkViewMachine implements NetworkView {
         random = previous.random;
         numbersDrawn = previous.numbersDrawn;
         copy = previous.copy;
-        subscribed = previous.subscribed;
+        subscriptionsActive = previous.subscriptionsActive;
         viewsMayAnswer = previous.viewsMayAnswer;
         runningLoad = previous.runningLoad;
-        lastLoadStartedAt = previous.lastLoadStartedAt;
+        nextLoadAllowedAt = previous.nextLoadAllowedAt;
         failedLoadsInRow = previous.failedLoadsInRow;
         lastFailedLoadAt = previous.lastFailedLoadAt;
         wantedReloadStartsAt = previous.wantedReloadStartsAt;
@@ -178,13 +179,13 @@ public final class NetworkViewMachine implements NetworkView {
 
     private boolean isSynced() {
         boolean reloads = wantedReloadStartsAt != null || runningLoad == RunningLoad.RELOAD;
-        return copy != null && subscribed && !reloads;
+        return copy != null && subscriptionsActive && !reloads;
     }
 
     private void handle(ViewInput input, long now, List<ViewEffect> effects) {
         switch (input) {
-            case ViewInput.SubscriptionsActive active -> subscribe(now);
-            case ViewInput.ConnectionLost lost -> loseConnection();
+            case ViewInput.SubscriptionsActive active -> receiveSubscriptionsActive(now);
+            case ViewInput.ConnectionLost lost -> receiveConnectionLoss();
             case ViewInput.SnapshotLoaded loaded -> receiveSnapshot(loaded.snapshot(), now, effects);
             case ViewInput.SnapshotFailed failed -> receiveLoadFailure(now);
             case ViewInput.BatchReceived received -> receiveBatch(received.batch(), now, effects);
@@ -198,14 +199,21 @@ public final class NetworkViewMachine implements NetworkView {
     // Deadlines and loads.
 
     private void actOnDeadlines(long now, List<ViewEffect> effects) {
-        boolean auditWaitedLongEnough = pendingAudit != null
-                && now >= pendingAudit.arrivedAt() + AUDIT_REACH_WAIT_MILLIS;
-        if (auditWaitedLongEnough) {
-            finishAudit(AuditOutcome.NOT_REACHED, now, effects);
-        }
         if (!isSynced()) {
             return;
         }
+        takeAuditSnapshotIfNotReached(now, effects);
+        reloadIfCopyWaitedTooLong(now);
+    }
+
+    private void takeAuditSnapshotIfNotReached(long now, List<ViewEffect> effects) {
+        boolean notReached = pendingAudit != null && now >= pendingAudit.arrivedAt() + AUDIT_REACH_WAIT_MILLIS;
+        if (notReached) {
+            finishAudit(AuditOutcome.NOT_REACHED, now, effects);
+        }
+    }
+
+    private void reloadIfCopyWaitedTooLong(long now) {
         boolean gapHeldTooLong = !heldBatches.isEmpty()
                 && now >= heldBatches.getFirst().receivedAt() + GAP_WAIT_MILLIS;
         boolean behindPulseTooLong = behindPulse != null && now >= behindPulse.since() + BEHIND_PULSE_WAIT_MILLIS;
@@ -224,8 +232,7 @@ public final class NetworkViewMachine implements NetworkView {
             startLoad(RunningLoad.RELOAD, now, effects);
             return;
         }
-        boolean spacedFromLastLoad = lastLoadStartedAt == null || now >= lastLoadStartedAt + LOAD_SPACING_MILLIS;
-        boolean auditDue = pendingAudit == null && now >= nextAuditAt && spacedFromLastLoad && isLive(now);
+        boolean auditDue = pendingAudit == null && now >= nextAuditAt && now >= nextLoadAllowedAt && isLive(now);
         if (auditDue) {
             startLoad(RunningLoad.AUDIT, now, effects);
         }
@@ -233,7 +240,7 @@ public final class NetworkViewMachine implements NetworkView {
 
     private void startLoad(RunningLoad load, long now, List<ViewEffect> effects) {
         runningLoad = load;
-        lastLoadStartedAt = now;
+        nextLoadAllowedAt = now + LOAD_SPACING_MILLIS;
         effects.add(new ViewEffect.LoadSnapshot());
     }
 
@@ -252,10 +259,7 @@ public final class NetworkViewMachine implements NetworkView {
     }
 
     private long earliestLoadStart(long now) {
-        long start = now;
-        if (lastLoadStartedAt != null) {
-            start = Math.max(start, lastLoadStartedAt + LOAD_SPACING_MILLIS);
-        }
+        long start = Math.max(now, nextLoadAllowedAt);
         if (failedLoadsInRow > 0) {
             start = Math.max(start, lastFailedLoadAt + backOffAfter(failedLoadsInRow));
         }
@@ -277,7 +281,7 @@ public final class NetworkViewMachine implements NetworkView {
     }
 
     private long drawAuditInterval() {
-        return AUDIT_INTERVAL_MILLIS + drawDelayUpTo(LONGEST_RANDOM_AUDIT_DELAY_MILLIS);
+        return SHORTEST_AUDIT_INTERVAL_MILLIS + drawDelayUpTo(LONGEST_RANDOM_AUDIT_DELAY_MILLIS);
     }
 
     private void countFailedLoad(long now) {
@@ -287,13 +291,13 @@ public final class NetworkViewMachine implements NetworkView {
 
     // Connection (rule 4).
 
-    private void subscribe(long now) {
-        subscribed = true;
+    private void receiveSubscriptionsActive(long now) {
+        subscriptionsActive = true;
         wantReload(now);
     }
 
-    private void loseConnection() {
-        subscribed = false;
+    private void receiveConnectionLoss() {
+        subscriptionsActive = false;
         wantedReloadStartsAt = null;
         abandonPendingWork();
     }
@@ -343,12 +347,15 @@ public final class NetworkViewMachine implements NetworkView {
     // Batches (rule 2).
 
     private void receiveBatch(StateBatch batch, long now, List<ViewEffect> effects) {
-        boolean keepsBatches = isSynced() || runningLoad == RunningLoad.RELOAD;
-        if (!keepsBatches) {
+        HeldBatch received = new HeldBatch(batch, now);
+        if (runningLoad == RunningLoad.RELOAD) {
+            heldBatches.add(received);
             return;
         }
-        heldBatches.add(new HeldBatch(batch, now));
-        applyHeldBatches(now, effects);
+        if (isSynced()) {
+            heldBatches.add(received);
+            applyHeldBatches(now, effects);
+        }
     }
 
     /**
@@ -410,8 +417,12 @@ public final class NetworkViewMachine implements NetworkView {
         if (!isSynced()) {
             return;
         }
-        switch (fitOf(pulse, now)) {
-            case TOO_LONG_WITHOUT_GOOD_PULSE, OTHER_EPOCH -> wantReload(now);
+        if (isTooLongWithoutGoodPulse(now)) {
+            wantReload(now);
+            return;
+        }
+        switch (fitOf(pulse)) {
+            case OTHER_EPOCH -> wantReload(now);
             case AHEAD_OF_COPY -> markBehind(pulse.getRevision(), now);
             case AT_COPY -> lastGoodPulseAt = now;
             case BEHIND_COPY -> {
@@ -419,11 +430,12 @@ public final class NetworkViewMachine implements NetworkView {
         }
     }
 
-    private PulseFit fitOf(StatePulse pulse, long now) {
+    private boolean isTooLongWithoutGoodPulse(long now) {
         long lastConfirmedAt = lastGoodPulseAt != null ? lastGoodPulseAt : snapshotTakenAt;
-        if (now - lastConfirmedAt >= GOOD_PULSE_LIFETIME_MILLIS) {
-            return PulseFit.TOO_LONG_WITHOUT_GOOD_PULSE;
-        }
+        return now - lastConfirmedAt >= GOOD_PULSE_LIFETIME_MILLIS;
+    }
+
+    private PulseFit fitOf(StatePulse pulse) {
         if (pulse.getEpoch() != copy.epoch()) {
             return PulseFit.OTHER_EPOCH;
         }
@@ -483,13 +495,13 @@ public final class NetworkViewMachine implements NetworkView {
         effects.add(new ViewEffect.AuditFinished(outcome));
         switch (outcome) {
             case MATCHED -> nextAuditAt = now + drawAuditInterval();
-            case JUMPED_PAST -> nextAuditAt = now + AUDIT_RETRY_MILLIS
+            case JUMPED_PAST -> nextAuditAt = now + SHORTEST_AUDIT_RETRY_MILLIS
                     + drawDelayUpTo(LONGEST_RANDOM_AUDIT_RETRY_DELAY_MILLIS);
             case DIFFERED, NOT_REACHED -> takeSnapshot(snapshot, now, effects);
         }
     }
 
-    // Own writes (design 6.4).
+    // Own writes (Answers).
 
     private void recordOwnWrite(ViewInput.WriteReturned write) {
         Position written = new Position(write.epoch(), write.revision());
