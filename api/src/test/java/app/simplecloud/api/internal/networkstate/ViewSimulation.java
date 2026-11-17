@@ -65,7 +65,7 @@ final class ViewSimulation {
     /**
      * How old a batch a live view may lack while faults happen: 15 s for its last good pulse to age, 5 s to
      * the next pulse, 3 s in which a former owner's pulses can still match the copy, and the wire's longest
-     * delay of 2.5 s.
+     * delay of 2.5 s; the rest is margin.
      */
     private static final long LIVE_VIEW_LAGS_AT_MOST_MILLIS = 30_000;
     private static final long QUIET_END_MILLIS = 90_000;
@@ -89,8 +89,9 @@ final class ViewSimulation {
     }
 
     /**
-     * One seeded run. Dense faults test the rules under stress; sparse faults leave the view live long enough
-     * for its audits.
+     * One seeded run. Dense faults test the rules under stress. Sparse faults come about every 20 min, and
+     * the wire then loses, repeats and delays nothing, because every reload moves the next audit 20 to 30 min
+     * away.
      */
     record RunPlan(long seed, long faultsEndAt, boolean sparseFaults) {
     }
@@ -247,8 +248,8 @@ final class ViewSimulation {
         database = new ModelDatabase(random);
         view = starter.start(RandomSequence.seeded(plan.seed()));
         endAt = plan.faultsEndAt() + QUIET_END_MILLIS;
-        double faultScale = plan.sparseFaults() ? 0.01 : 1;
-        faultGapMillis = plan.sparseFaults() ? 15 * 60_000 : 2_000 + random.nextInt(25_000);
+        double faultScale = plan.sparseFaults() ? 0 : 1;
+        faultGapMillis = plan.sparseFaults() ? 20 * 60_000 : 2_000 + random.nextInt(25_000);
         lossChance = random.nextDouble() * 0.1 * faultScale;
         repeatChance = random.nextDouble() * 0.05 * faultScale;
         delayChance = random.nextDouble() * 0.05 * faultScale;
@@ -373,7 +374,7 @@ final class ViewSimulation {
             notifyOwners();
             boolean ownWrite = random.nextInt(10) < 3;
             if (ownWrite) {
-                schedule(5 + random.nextInt(150), () -> returnOwnWrite(commit));
+                schedule(random.nextInt(20), () -> readRevisionHeaders(commit));
             }
         }
         schedule(nextWriteDelay(), this::write);
@@ -390,17 +391,28 @@ final class ViewSimulation {
         return 50 + random.nextInt(1_400);
     }
 
-    private void returnOwnWrite(ModelDatabase.Commit commit) {
+    /**
+     * The controller reads the headers after the commit; the response then takes its own time, so the
+     * responses of two writes can arrive in the other order.
+     */
+    private void readRevisionHeaders(ModelDatabase.Commit commit) {
+        ModelDatabase.State afterCommit = database.current();
+        ViewInput.WriteReturned response = new ViewInput.WriteReturned(commit.route(), afterCommit.epoch(),
+                afterCommit.counter());
+        schedule(5 + random.nextInt(300), () -> returnOwnWrite(commit, response));
+    }
+
+    private void returnOwnWrite(ModelDatabase.Commit commit, ViewInput.WriteReturned response) {
         Position committed = new Position(commit.epoch(), commit.revision());
         for (ItemKind read : readsChangedBy(commit.route())) {
             ownWritesByRead.merge(read, committed, Position::later);
         }
-        ModelDatabase.State afterCommit = database.current();
-        step(new ViewInput.WriteReturned(commit.route(), afterCommit.epoch(), afterCommit.counter()));
+        step(response);
     }
 
     /**
-     * The reads a write can change, as the design (6.4) and {@link NetworkView} state them.
+     * The reads a write can change, as {@link NetworkView} states them. The simulator states this, and
+     * {@link Position}, itself instead of using the reference machine's, so a bug there cannot hide here.
      */
     private static Set<ItemKind> readsChangedBy(ItemKind route) {
         return switch (route) {
@@ -531,17 +543,25 @@ final class ViewSimulation {
         } else if (roll < 55) {
             leaveWithoutOwner();
         } else if (roll < 67) {
-            database.failOver();
-            epochChangedAt = now;
-            failovers++;
+            failOverDatabase();
         } else if (roll < 77) {
-            roundsFailUntil = now + 1_000 + random.nextInt(20_000);
+            failRelayRounds();
         } else if (roll < 85) {
             database.loseChangeLogEntry();
         } else {
             cutConnectionSilently();
         }
         schedule(nextFaultDelay(), this::injectFault);
+    }
+
+    private void failOverDatabase() {
+        database.failOver();
+        epochChangedAt = now;
+        failovers++;
+    }
+
+    private void failRelayRounds() {
+        roundsFailUntil = now + 1_000 + random.nextInt(20_000);
     }
 
     private void cutConnection() {

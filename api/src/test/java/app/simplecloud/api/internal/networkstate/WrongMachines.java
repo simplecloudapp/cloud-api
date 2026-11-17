@@ -84,6 +84,27 @@ final class WrongMachines {
                 new WrongMachine("compares the audit snapshot on arrival",
                         random -> new ComparesAuditOnArrival().start(random),
                         List.of("audit: compares when the copy reaches exactly S")),
+                new WrongMachine("keeps the first pulse ahead, not the highest",
+                        random -> new KeepsFirstPulseAhead().start(random),
+                        List.of("pulse: a pulse further ahead keeps the copy behind until it reaches that")),
+                new WrongMachine("reloads after 15 s without a good pulse only if one came since the snapshot",
+                        random -> new NeedsGoodPulseBeforeSilenceReload().start(random),
+                        List.of("pulse: without a good pulse, the first pulse 15 s after the snapshot reloads")),
+                new WrongMachine("audits again 2 s after a match",
+                        random -> new AuditsAgainSoonAfterMatch().start(random),
+                        List.of("audit: after a match, the next audit comes 20 min later")),
+                new WrongMachine("retries a failed audit load at once",
+                        random -> new RetriesFailedAuditLoadAtOnce().start(random),
+                        List.of("audit: after a failed audit load, the next audit comes 20 min later")),
+                new WrongMachine("counts a failed audit load as a failed reload",
+                        random -> new CountsFailedAuditLoadAsFailedReload().start(random),
+                        List.of("audit: a failed audit load does not back off reloads")),
+                new WrongMachine("compares an audit snapshot from another epoch",
+                        random -> new ComparesAuditOfAnotherEpoch().start(random),
+                        List.of("audit: an audit snapshot from another epoch reloads")),
+                new WrongMachine("keeps only the last own write",
+                        random -> new KeepsLastOwnWrite().start(random),
+                        List.of("own write: the highest write holds, also when responses come out of order")),
                 new WrongMachine("answers before the copy has the own write",
                         random -> new AnswersBeforeOwnWrite().start(random),
                         List.of("own write: a server write holds server, group and persistent server reads",
@@ -215,6 +236,76 @@ final class WrongMachines {
         void onAuditSnapshot(Memory m, NetworkState snapshot, long now, List<ViewEffect> effects) {
             m.auditSnapshot = snapshot;
             compareAudit(m, now, effects);
+        }
+    }
+
+    static final class KeepsFirstPulseAhead extends ReferenceMachine {
+        @Override
+        void onPulse(Memory m, StatePulse pulse, long now) {
+            BehindPulse first = m.behindPulse;
+            super.onPulse(m, pulse, now);
+            if (first != null && m.behindPulse != null) {
+                m.behindPulse = first;
+            }
+        }
+    }
+
+    static final class NeedsGoodPulseBeforeSilenceReload extends ReferenceMachine {
+        @Override
+        boolean lacksGoodPulse(Memory m, long now) {
+            return m.goodPulseAt != null && super.lacksGoodPulse(m, now);
+        }
+    }
+
+    static final class AuditsAgainSoonAfterMatch extends ReferenceMachine {
+        @Override
+        void compareAudit(Memory m, long now, List<ViewEffect> effects) {
+            super.compareAudit(m, now, effects);
+            if (m.mode == Mode.SYNCED && m.auditPhase == AuditPhase.NONE) {
+                m.auditDueAt = now + AUDIT_RETRY_MIN_MILLIS;
+            }
+        }
+    }
+
+    static final class RetriesFailedAuditLoadAtOnce extends ReferenceMachine {
+        @Override
+        void onSnapshotFailed(Memory m, long now) {
+            long dueBefore = m.auditDueAt;
+            boolean auditLoad = m.loadRunning && !m.loadAnswerIgnored && m.auditPhase == AuditPhase.LOADING;
+            super.onSnapshotFailed(m, now);
+            if (auditLoad) {
+                m.auditDueAt = dueBefore;
+            }
+        }
+    }
+
+    static final class CountsFailedAuditLoadAsFailedReload extends ReferenceMachine {
+        @Override
+        void onSnapshotFailed(Memory m, long now) {
+            boolean auditLoad = m.loadRunning && !m.loadAnswerIgnored && m.auditPhase == AuditPhase.LOADING;
+            super.onSnapshotFailed(m, now);
+            if (auditLoad) {
+                m.failedLoadsInRow++;
+                m.lastLoadFailedAt = now;
+            }
+        }
+    }
+
+    static final class ComparesAuditOfAnotherEpoch extends ReferenceMachine {
+        @Override
+        void onAuditSnapshot(Memory m, NetworkState snapshot, long now, List<ViewEffect> effects) {
+            NetworkState asIfSameEpoch = snapshot.toBuilder().setEpoch(m.copy.epoch()).build();
+            super.onAuditSnapshot(m, asIfSameEpoch, now, effects);
+        }
+    }
+
+    static final class KeepsLastOwnWrite extends ReferenceMachine {
+        @Override
+        void onWriteReturned(Memory m, ViewInput.WriteReturned write) {
+            Position written = new Position(write.epoch(), write.revision());
+            for (ItemKind read : readsChangedBy(write.written())) {
+                m.ownWritesByRead.put(read, written);
+            }
         }
     }
 

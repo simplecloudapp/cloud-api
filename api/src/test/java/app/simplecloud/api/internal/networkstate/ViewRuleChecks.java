@@ -42,60 +42,121 @@ final class ViewRuleChecks {
 
     static List<ViewCheck> all() {
         return List.of(
-                new ViewCheck("start: loads only once the subscriptions are active", ViewRuleChecks::loadsOnlyOnceSubscribed),
-                new ViewCheck("start: delays the first load by up to 2 s of random delay", ViewRuleChecks::delaysFirstLoadByRandomNumber),
-                new ViewCheck("start: live only after the first good pulse", ViewRuleChecks::liveOnlyAfterFirstGoodPulse),
-                new ViewCheck("start: a snapshot alone never makes the view live", ViewRuleChecks::snapshotAloneNeverMakesLive),
-                new ViewCheck("start: holds batches that arrive during the load", ViewRuleChecks::holdsBatchesArrivingDuringLoad),
-                new ViewCheck("start: drops batches during the load that the snapshot holds", ViewRuleChecks::dropsBatchesTheSnapshotHolds),
+                new ViewCheck("start: loads only once the subscriptions are active",
+                        ViewRuleChecks::loadsOnlyOnceSubscribed),
+                new ViewCheck("start: delays the first load by up to 2 s of random delay",
+                        ViewRuleChecks::delaysFirstLoadByRandomNumber),
+                new ViewCheck("start: live only after the first good pulse",
+                        ViewRuleChecks::liveOnlyAfterFirstGoodPulse),
+                new ViewCheck("start: a snapshot alone never makes the view live",
+                        ViewRuleChecks::snapshotAloneNeverMakesLive),
+                new ViewCheck("start: holds batches that arrive during the load",
+                        ViewRuleChecks::holdsBatchesArrivingDuringLoad),
+                new ViewCheck("start: drops batches during the load that the snapshot holds",
+                        ViewRuleChecks::dropsBatchesTheSnapshotHolds),
                 new ViewCheck("batch: drops a duplicate", ViewRuleChecks::dropsDuplicateBatch),
                 new ViewCheck("batch: applies an overlapping batch", ViewRuleChecks::appliesOverlappingBatch),
-                new ViewCheck("batch: holds a batch ahead of the copy until the gap fills", ViewRuleChecks::holdsBatchUntilGapFills),
-                new ViewCheck("batch: reloads after a gap held for 3 s", ViewRuleChecks::reloadsAfterGapHeldThreeSeconds),
-                new ViewCheck("batch: reloads after a batch with base = revision above the copy", ViewRuleChecks::reloadsAfterEmptyBatchAboveCopy),
-                new ViewCheck("batch: reloads on a batch from another epoch", ViewRuleChecks::reloadsOnBatchFromAnotherEpoch),
-                new ViewCheck("batch: compares revisions as unsigned numbers", ViewRuleChecks::comparesRevisionsUnsigned),
-                new ViewCheck("references: a new group and its first server in one batch", ViewRuleChecks::acceptsGroupAndFirstServerInOneBatch),
-                new ViewCheck("references: reloads when a server's group is missing", ViewRuleChecks::reloadsWhenGroupMissing),
-                new ViewCheck("references: reloads when a server's persistent server is missing", ViewRuleChecks::reloadsWhenPersistentServerMissing),
-                new ViewCheck("references: reloads when a group's blueprint is missing", ViewRuleChecks::reloadsWhenBlueprintMissing),
-                new ViewCheck("references: reloads when a batch deletes a group a server still uses", ViewRuleChecks::reloadsWhenDeletedGroupStillUsed),
-                new ViewCheck("references: a snapshot with a missing item counts as a failed load", ViewRuleChecks::brokenSnapshotCountsAsFailedLoad),
-                new ViewCheck("pulse: reloads on a pulse from another epoch", ViewRuleChecks::reloadsOnPulseFromAnotherEpoch),
-                new ViewCheck("pulse: a lower revision neither reloads nor counts as good", ViewRuleChecks::lowerPulseNeitherReloadsNorCounts),
-                new ViewCheck("pulse: not live 15 s after the last good pulse", ViewRuleChecks::notLiveFifteenSecondsAfterGoodPulse),
-                new ViewCheck("pulse: the first pulse after 15 s without a good one reloads", ViewRuleChecks::reloadsOnPulseAfterFifteenSecondsWithoutGoodPulse),
-                new ViewCheck("pulse: a pulse ahead of the copy ends live until the copy reaches it", ViewRuleChecks::pulseAheadEndsLiveUntilReached),
-                new ViewCheck("pulse: reloads when the copy stays behind a pulse for 3 s", ViewRuleChecks::reloadsWhenBehindPulseThreeSeconds),
+                new ViewCheck("batch: holds a batch ahead of the copy until the gap fills",
+                        ViewRuleChecks::holdsBatchUntilGapFills),
+                new ViewCheck("batch: reloads after a gap held for 3 s",
+                        ViewRuleChecks::reloadsAfterGapHeldThreeSeconds),
+                new ViewCheck("batch: reloads after a batch with base = revision above the copy",
+                        ViewRuleChecks::reloadsAfterEmptyBatchAboveCopy),
+                new ViewCheck("batch: reloads on a batch from another epoch",
+                        ViewRuleChecks::reloadsOnBatchFromAnotherEpoch),
+                new ViewCheck("batch: compares revisions as unsigned numbers",
+                        ViewRuleChecks::comparesRevisionsUnsigned),
+                new ViewCheck("references: a new group and its first server in one batch",
+                        ViewRuleChecks::acceptsGroupAndFirstServerInOneBatch),
+                new ViewCheck("references: reloads when a server's group is missing",
+                        ViewRuleChecks::reloadsWhenGroupMissing),
+                new ViewCheck("references: reloads when a server's persistent server is missing",
+                        ViewRuleChecks::reloadsWhenPersistentServerMissing),
+                new ViewCheck("references: reloads when a group's blueprint is missing",
+                        ViewRuleChecks::reloadsWhenBlueprintMissing),
+                new ViewCheck("references: reloads when a batch deletes a group a server still uses",
+                        ViewRuleChecks::reloadsWhenDeletedGroupStillUsed),
+                new ViewCheck("references: a snapshot with a missing item counts as a failed load",
+                        ViewRuleChecks::brokenSnapshotCountsAsFailedLoad),
+                new ViewCheck("pulse: reloads on a pulse from another epoch",
+                        ViewRuleChecks::reloadsOnPulseFromAnotherEpoch),
+                new ViewCheck("pulse: a lower revision neither reloads nor counts as good",
+                        ViewRuleChecks::lowerPulseNeitherReloadsNorCounts),
+                new ViewCheck("pulse: not live 15 s after the last good pulse",
+                        ViewRuleChecks::notLiveFifteenSecondsAfterGoodPulse),
+                new ViewCheck("pulse: the first pulse after 15 s without a good one reloads",
+                        ViewRuleChecks::reloadsOnPulseAfterFifteenSecondsWithoutGoodPulse),
+                new ViewCheck("pulse: a pulse ahead of the copy ends live until the copy reaches it",
+                        ViewRuleChecks::pulseAheadEndsLiveUntilReached),
+                new ViewCheck("pulse: reloads when the copy stays behind a pulse for 3 s",
+                        ViewRuleChecks::reloadsWhenBehindPulseThreeSeconds),
+                new ViewCheck("pulse: a pulse further ahead keeps the copy behind until it reaches that",
+                        ViewRuleChecks::furtherPulseKeepsCopyBehind),
+                new ViewCheck("pulse: without a good pulse, the first pulse 15 s after the snapshot reloads",
+                        ViewRuleChecks::reloadsOnPulseFifteenSecondsAfterSnapshotWithoutGoodPulse),
                 new ViewCheck("pulse: every pulse replaces the metrics", ViewRuleChecks::everyPulseReplacesMetrics),
                 new ViewCheck("pulse: views_may_answer false stops answers", ViewRuleChecks::flagFalseStopsAnswers),
-                new ViewCheck("connection: not live at once after the loss", ViewRuleChecks::notLiveAtOnceAfterConnectionLoss),
-                new ViewCheck("connection: ignores batches until the subscriptions are active again", ViewRuleChecks::ignoresBatchesWhileDisconnected),
+                new ViewCheck("connection: not live at once after the loss",
+                        ViewRuleChecks::notLiveAtOnceAfterConnectionLoss),
+                new ViewCheck("connection: ignores batches until the subscriptions are active again",
+                        ViewRuleChecks::ignoresBatchesWhileDisconnected),
                 new ViewCheck("connection: reloads after a reconnect", ViewRuleChecks::reloadsAfterReconnect),
-                new ViewCheck("connection: ignores the answer of a load that ran across the loss", ViewRuleChecks::ignoresLoadRunningAcrossLoss),
+                new ViewCheck("connection: ignores the answer of a load that ran across the loss",
+                        ViewRuleChecks::ignoresLoadRunningAcrossLoss),
                 new ViewCheck("reload: loads at least 2 s apart", ViewRuleChecks::loadsTwoSecondsApart),
-                new ViewCheck("reload: backs off up to 30 s after failed loads", ViewRuleChecks::backsOffAfterFailedLoads),
+                new ViewCheck("reload: backs off up to 30 s after failed loads",
+                        ViewRuleChecks::backsOffAfterFailedLoads),
                 new ViewCheck("reload: a taken snapshot ends the back-off", ViewRuleChecks::takenSnapshotEndsBackOff),
-                new ViewCheck("reload: adds 2 s times a random number to every reload", ViewRuleChecks::addsRandomDelayToReloads),
-                new ViewCheck("audit: first audit 20 min after the snapshot with the lowest number", ViewRuleChecks::auditsTwentyMinutesAfterSnapshot),
-                new ViewCheck("audit: first audit within 30 min with the highest number", ViewRuleChecks::auditsWithinThirtyMinutes),
-                new ViewCheck("audit: matches when the copy at S equals the snapshot, metrics left out", ViewRuleChecks::auditMatchesAtSameRevision),
-                new ViewCheck("audit: a difference at S takes the snapshot", ViewRuleChecks::auditDifferenceTakesSnapshot),
-                new ViewCheck("audit: compares when the copy reaches exactly S", ViewRuleChecks::auditComparesAtExactlyS),
-                new ViewCheck("audit: a difference found only at exactly S", ViewRuleChecks::auditFindsDifferenceAtExactlyS),
-                new ViewCheck("audit: the copy jumping past S audits again 2 s later", ViewRuleChecks::auditJumpedPastRetriesSoon),
-                new ViewCheck("audit: a snapshot behind the copy counts as jumped past", ViewRuleChecks::auditSnapshotBehindCopyJumpedPast),
-                new ViewCheck("audit: S not reached within 3 s takes the snapshot", ViewRuleChecks::auditNotReachedTakesSnapshot),
-                new ViewCheck("audit: a reload waits for the running audit load", ViewRuleChecks::reloadWaitsForAuditLoad),
-                new ViewCheck("own write: a server write holds server, group and persistent server reads", ViewRuleChecks::serverWriteHoldsItsReads),
-                new ViewCheck("own write: a group write holds group and server reads", ViewRuleChecks::groupWriteHoldsItsReads),
-                new ViewCheck("own write: a persistent server write holds persistent server and server reads", ViewRuleChecks::persistentServerWriteHoldsItsReads),
-                new ViewCheck("own write: a blueprint write holds blueprint, group and server reads", ViewRuleChecks::blueprintWriteHoldsItsReads),
-                new ViewCheck("own write: a write in a later epoch holds reads until the copy is in it", ViewRuleChecks::laterEpochWriteHoldsReads),
-                new ViewCheck("own write: a write in an earlier epoch holds nothing", ViewRuleChecks::earlierEpochWriteHoldsNothing),
-                new ViewCheck("own write: a write the copy already has holds nothing", ViewRuleChecks::writeInCopyHoldsNothing),
-                new ViewCheck("changes: the first snapshot reports every item", ViewRuleChecks::firstSnapshotReportsEveryItem),
-                new ViewCheck("changes: a batch reports only the items it changed", ViewRuleChecks::batchReportsOnlyChangedItems),
+                new ViewCheck("reload: adds 2 s times a random number to every reload",
+                        ViewRuleChecks::addsRandomDelayToReloads),
+                new ViewCheck("audit: first audit 20 min after the snapshot with the lowest number",
+                        ViewRuleChecks::auditsTwentyMinutesAfterSnapshot),
+                new ViewCheck("audit: first audit within 30 min with the highest number",
+                        ViewRuleChecks::auditsWithinThirtyMinutes),
+                new ViewCheck("audit: matches when the copy at S equals the snapshot, metrics left out",
+                        ViewRuleChecks::auditMatchesAtSameRevision),
+                new ViewCheck("audit: a difference at S takes the snapshot",
+                        ViewRuleChecks::auditDifferenceTakesSnapshot),
+                new ViewCheck("audit: compares when the copy reaches exactly S",
+                        ViewRuleChecks::auditComparesAtExactlyS),
+                new ViewCheck("audit: a difference found only at exactly S",
+                        ViewRuleChecks::auditFindsDifferenceAtExactlyS),
+                new ViewCheck("audit: the copy jumping past S audits again 2 s later",
+                        ViewRuleChecks::auditJumpedPastRetriesSoon),
+                new ViewCheck("audit: a snapshot behind the copy counts as jumped past",
+                        ViewRuleChecks::auditSnapshotBehindCopyJumpedPast),
+                new ViewCheck("audit: S not reached within 3 s takes the snapshot",
+                        ViewRuleChecks::auditNotReachedTakesSnapshot),
+                new ViewCheck("audit: a reload waits for the running audit load",
+                        ViewRuleChecks::reloadWaitsForAuditLoad),
+                new ViewCheck("audit: after a match, the next audit comes 20 min later",
+                        ViewRuleChecks::auditsAgainTwentyMinutesAfterMatch),
+                new ViewCheck("audit: after a failed audit load, the next audit comes 20 min later",
+                        ViewRuleChecks::auditsAgainTwentyMinutesAfterFailedLoad),
+                new ViewCheck("audit: a failed audit load does not back off reloads",
+                        ViewRuleChecks::failedAuditLoadDoesNotBackOff),
+                new ViewCheck("audit: an audit snapshot from another epoch reloads",
+                        ViewRuleChecks::auditSnapshotFromAnotherEpochReloads),
+                new ViewCheck("own write: a server write holds server, group and persistent server reads",
+                        ViewRuleChecks::serverWriteHoldsItsReads),
+                new ViewCheck("own write: a group write holds group and server reads",
+                        ViewRuleChecks::groupWriteHoldsItsReads),
+                new ViewCheck("own write: a persistent server write holds persistent server and server reads",
+                        ViewRuleChecks::persistentServerWriteHoldsItsReads),
+                new ViewCheck("own write: a blueprint write holds blueprint, group and server reads",
+                        ViewRuleChecks::blueprintWriteHoldsItsReads),
+                new ViewCheck("own write: a write in a later epoch holds reads until the copy is in it",
+                        ViewRuleChecks::laterEpochWriteHoldsReads),
+                new ViewCheck("own write: a write in an earlier epoch holds nothing",
+                        ViewRuleChecks::earlierEpochWriteHoldsNothing),
+                new ViewCheck("own write: a write the copy already has holds nothing",
+                        ViewRuleChecks::writeInCopyHoldsNothing),
+                new ViewCheck("own write: the highest write holds, also when responses come out of order",
+                        ViewRuleChecks::highestOwnWriteHolds),
+                new ViewCheck("changes: the first snapshot reports every item",
+                        ViewRuleChecks::firstSnapshotReportsEveryItem),
+                new ViewCheck("changes: a batch reports only the items it changed",
+                        ViewRuleChecks::batchReportsOnlyChangedItems),
                 new ViewCheck("changes: a reload reports the difference", ViewRuleChecks::reloadReportsDifference)
         );
     }
@@ -403,6 +464,39 @@ final class ViewRuleChecks {
         assertEquals(behindSince + 3_000, loadAt, "a copy still behind a pulse after 3 s reloads");
     }
 
+    static void furtherPulseKeepsCopyBehind(ViewStarter starter) {
+        ViewDriver view = ViewDriver.liveAt(starter, network(10));
+        view.advance(100);
+        view.pulse(pulse(12));
+        view.advance(1_000);
+        view.pulse(pulse(14));
+        view.advance(100);
+        view.batch(serverStateBatch(10, 12, "STARTING"));
+        boolean liveAtFirstPulse = view.isLive();
+        view.advance(100);
+        view.batch(serverStateBatch(12, 14, "STOPPING"));
+
+        assertFalse(liveAtFirstPulse, "the copy is behind until it reaches the highest revision a pulse showed");
+        assertTrue(view.isLive());
+    }
+
+    static void reloadsOnPulseFifteenSecondsAfterSnapshotWithoutGoodPulse(ViewStarter starter) {
+        ViewDriver view = ViewDriver.start(starter);
+        view.subscribe();
+        view.advance(100);
+        view.loadSnapshot(network(10));
+        long tookSnapshotAt = view.now();
+        while (view.now() < tookSnapshotAt + 10_000) {
+            view.advance(5_000);
+            view.pulse(pulse(9));
+            assertFalse(view.requestedLoad(), "a lower pulse within 15 s of the snapshot does not reload");
+        }
+        view.advance(5_000);
+        view.pulse(pulse(9));
+
+        view.assertLoadRequested("the first pulse 15 s after the snapshot, without a good pulse since, reloads");
+    }
+
     static void everyPulseReplacesMetrics(ViewStarter starter) {
         ViewDriver view = ViewDriver.liveAt(starter, network(10));
         StatePulse lowerWithMetrics = pulse(9).toBuilder().addMetrics(metrics(2, 40)).build();
@@ -567,7 +661,8 @@ final class ViewRuleChecks {
         NetworkState otherMetrics = network(EPOCH, 10).clearMetrics().addMetrics(metrics(1, 77)).build();
         view.loadSnapshot(otherMetrics);
 
-        assertEquals(Optional.of(AuditOutcome.MATCHED), view.lastAuditOutcome(), "metrics are left out of the comparison");
+        assertEquals(Optional.of(AuditOutcome.MATCHED), view.lastAuditOutcome(),
+                "metrics are left out of the comparison");
         assertTrue(view.isLive(), "a matching audit keeps the view live");
         assertEquals(Set.of(), view.lastChangedItems());
     }
@@ -629,7 +724,8 @@ final class ViewRuleChecks {
         long retryAt = view.waitForLoad(5_000);
 
         assertEquals(Optional.of(AuditOutcome.JUMPED_PAST), outcome);
-        assertEquals(jumpedAt + 2_000, retryAt, "after jumping past S, the audit runs again 2 s + 8 s x the number later");
+        assertEquals(jumpedAt + 2_000, retryAt,
+                "after jumping past S, the audit runs again 2 s + 8 s x the number later");
     }
 
     static void auditSnapshotBehindCopyJumpedPast(ViewStarter starter) {
@@ -671,6 +767,57 @@ final class ViewRuleChecks {
         assertFalse(loadedWhileAuditRuns);
         assertEquals(Optional.empty(), view.lastAuditOutcome(), "a reload abandons the audit");
         assertTrue(reloadedAfterAuditAnswer, "the reload starts once the audit load has answered");
+    }
+
+    static void auditsAgainTwentyMinutesAfterMatch(ViewStarter starter) {
+        ViewDriver view = auditLoading(starter);
+        view.loadSnapshot(network(10));
+        long matchedAt = view.now();
+
+        long nextAuditAt = view.waitForLoadKeepingLive(AUDIT_WAIT_LIMIT_MILLIS);
+
+        assertEquals(matchedAt + FIRST_AUDIT_MILLIS, nextAuditAt,
+                "after a match, the next audit is 20 min + 10 min x the number later");
+    }
+
+    static void auditsAgainTwentyMinutesAfterFailedLoad(ViewStarter starter) {
+        ViewDriver view = auditLoading(starter);
+        view.advance(1_000);
+        view.failLoad();
+        long failedAt = view.now();
+
+        long nextAuditAt = view.waitForLoadKeepingLive(AUDIT_WAIT_LIMIT_MILLIS);
+
+        assertEquals(failedAt + FIRST_AUDIT_MILLIS, nextAuditAt,
+                "after a failed audit load, the next audit is 20 min later");
+    }
+
+    static void failedAuditLoadDoesNotBackOff(ViewStarter starter) {
+        ViewDriver view = auditLoading(starter);
+        long auditStartedAt = view.now();
+        view.advance(1_000);
+        view.failLoad();
+        view.advance(100);
+        view.batch(batch(EPOCH + 1, 2, 3).build());
+
+        long reloadAt = view.waitForLoad(5_000);
+
+        assertEquals(auditStartedAt + 2_000, reloadAt,
+                "only the 2 s spacing applies; a failed reload would delay it to 2 s after the failure");
+    }
+
+    static void auditSnapshotFromAnotherEpochReloads(ViewStarter starter) {
+        ViewDriver view = auditLoading(starter);
+        long auditStartedAt = view.now();
+        view.loadSnapshot(network(EPOCH + 1, 3).build());
+        Optional<AuditOutcome> outcome = view.lastAuditOutcome();
+        boolean liveAfterAnswer = view.isLive();
+
+        long reloadAt = view.waitForLoad(5_000);
+
+        assertEquals(Optional.empty(), outcome, "an audit snapshot from another epoch is no audit outcome");
+        assertFalse(liveAfterAnswer, "an audit snapshot from another epoch means reload");
+        assertEquals(auditStartedAt + 2_000, reloadAt);
     }
 
     /**
@@ -716,7 +863,8 @@ final class ViewRuleChecks {
 
         assertEquals(otherReads, answeredAfterWrite, "a " + written + " write holds exactly these reads: " + heldReads);
         assertEquals(otherReads, answeredBelowWrite, "a copy below the write's revision does not answer them");
-        assertEquals(EnumSet.allOf(ItemKind.class), answeredKinds(view), "a copy at the write's revision answers again");
+        assertEquals(EnumSet.allOf(ItemKind.class), answeredKinds(view),
+                "a copy at the write's revision answers again");
     }
 
     static void laterEpochWriteHoldsReads(ViewStarter starter) {
@@ -739,7 +887,8 @@ final class ViewRuleChecks {
         ViewDriver view = ViewDriver.liveAt(starter, network(EPOCH + 1, 3).build());
         view.wrote(ItemKind.SERVER, EPOCH, 50);
 
-        assertEquals(EnumSet.allOf(ItemKind.class), answeredKinds(view), "a copy in a later epoch than the write answers");
+        assertEquals(EnumSet.allOf(ItemKind.class), answeredKinds(view),
+                "a copy in a later epoch than the write answers");
     }
 
     static void writeInCopyHoldsNothing(ViewStarter starter) {
@@ -747,6 +896,20 @@ final class ViewRuleChecks {
         view.wrote(ItemKind.SERVER, EPOCH, 10);
 
         assertEquals(EnumSet.allOf(ItemKind.class), answeredKinds(view));
+    }
+
+    static void highestOwnWriteHolds(ViewStarter starter) {
+        ViewDriver view = ViewDriver.liveAt(starter, network(10));
+        view.wrote(ItemKind.SERVER, EPOCH, 14);
+        view.wrote(ItemKind.SERVER, EPOCH, 12);
+        view.advance(100);
+        view.batch(serverStateBatch(10, 12, "STARTING"));
+        boolean answeredAtLowerWrite = view.mayAnswer(ItemKind.SERVER);
+        view.advance(100);
+        view.batch(serverStateBatch(12, 14, "STOPPING"));
+
+        assertFalse(answeredAtLowerWrite, "a later response with a lower revision does not lower the bar");
+        assertTrue(view.mayAnswer(ItemKind.SERVER));
     }
 
     // Changed items.
@@ -769,7 +932,6 @@ final class ViewRuleChecks {
         ViewDriver view = ViewDriver.liveAt(starter, network(10));
         StateBatch batch = batch(10, 11)
                 .addServers(groupServer(1, 10, "STOPPING"))
-                .addServers(persistentServerInstance(2, 20))
                 .addServerGroups(groupOfBlueprint(10, 30))
                 .addDeletedServerIds(id(2))
                 .addDeletedServerIds(id(98))

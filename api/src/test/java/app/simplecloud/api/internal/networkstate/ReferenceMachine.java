@@ -77,6 +77,9 @@ class ReferenceMachine {
     record HeldBatch(StateBatch batch, long arrivedAt) {
     }
 
+    /**
+     * The highest revision that pulses showed above the copy, and when the first of them arrived.
+     */
     record BehindPulse(long revision, long since) {
     }
 
@@ -209,14 +212,12 @@ class ReferenceMachine {
         }
     }
 
-    // Rule 4.
     void loseConnection(Memory m) {
         ignoreRunningLoad(m);
         m.mode = Mode.DISCONNECTED;
         dropPendingWork(m);
     }
 
-    // Rule 6.
     void wantReload(Memory m, long now) {
         if (m.mode == Mode.RELOAD_WANTED) {
             return;
@@ -240,9 +241,11 @@ class ReferenceMachine {
     }
 
     static long backOff(int failedLoadsInRow) {
-        int doublings = Math.min(failedLoadsInRow - 1, 10);
-        long doubled = FIRST_BACK_OFF_MILLIS << doublings;
-        return Math.min(MAX_BACK_OFF_MILLIS, doubled);
+        long delay = FIRST_BACK_OFF_MILLIS;
+        for (int failure = 1; failure < failedLoadsInRow && delay < MAX_BACK_OFF_MILLIS; failure++) {
+            delay *= 2;
+        }
+        return Math.min(MAX_BACK_OFF_MILLIS, delay);
     }
 
     private static void ignoreRunningLoad(Memory m) {
@@ -321,7 +324,6 @@ class ReferenceMachine {
         settleHeldBatches(m, now, effects);
     }
 
-    // Rule 2.
     void onBatch(Memory m, StateBatch batch, long now, List<ViewEffect> effects) {
         switch (m.mode) {
             case DISCONNECTED, RELOAD_WANTED -> {
@@ -417,7 +419,6 @@ class ReferenceMachine {
         return !groupMissing && !persistentServerMissing;
     }
 
-    // Rule 3.
     void onPulse(Memory m, StatePulse pulse, long now) {
         m.viewsMayAnswer = pulse.getViewsMayAnswer();
         if (m.copy != null) {
@@ -461,10 +462,14 @@ class ReferenceMachine {
     private static void markBehindPulse(Memory m, StatePulse pulse, long now) {
         if (m.behindPulse == null) {
             m.behindPulse = new BehindPulse(pulse.getRevision(), now);
+            return;
+        }
+        boolean furtherAhead = Long.compareUnsigned(pulse.getRevision(), m.behindPulse.revision()) > 0;
+        if (furtherAhead) {
+            m.behindPulse = new BehindPulse(pulse.getRevision(), m.behindPulse.since());
         }
     }
 
-    // Read-your-writes (design 6.4).
     void onWriteReturned(Memory m, ViewInput.WriteReturned write) {
         Position written = new Position(write.epoch(), write.revision());
         for (ItemKind read : readsChangedBy(write.written())) {
@@ -481,7 +486,6 @@ class ReferenceMachine {
         };
     }
 
-    // Deadlines of rules 2, 3, 6 and 7.
     void actOnDeadlines(Memory m, long now, List<ViewEffect> effects) {
         if (m.mode == Mode.SYNCED) {
             actOnSyncedDeadlines(m, now, effects);
@@ -545,7 +549,6 @@ class ReferenceMachine {
         m.lastLoadStartedAt = now;
     }
 
-    // Rule 7.
     void onAuditSnapshot(Memory m, NetworkState snapshot, long now, List<ViewEffect> effects) {
         if (snapshot.getEpoch() != m.copy.epoch()) {
             wantReload(m, now);
@@ -591,7 +594,6 @@ class ReferenceMachine {
         return AUDIT_INTERVAL_MIN_MILLIS + (long) (AUDIT_INTERVAL_SPREAD_MILLIS * m.drawNumber());
     }
 
-    // Rule 5 and the answers.
     boolean isLive(Memory m, long now) {
         return m.mode == Mode.SYNCED
                 && m.heldBatches.isEmpty()
@@ -609,7 +611,6 @@ class ReferenceMachine {
         return ownWrite == null || Position.of(m.copy).isAtOrAfter(ownWrite);
     }
 
-    // The copy as data.
     static NetworkCopy copyOf(NetworkState snapshot) {
         Map<ByteString, StateServer> servers = new HashMap<>();
         for (StateServer server : snapshot.getServersList()) {

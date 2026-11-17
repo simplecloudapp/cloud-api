@@ -59,7 +59,8 @@ final class ModelDatabase {
     /**
      * One state of the database. {@code changeLog} maps a revision to the entities its transaction changed.
      */
-    record State(long epoch, long counter, long lastRelayed, Items items, NavigableMap<Long, Set<EntityKey>> changeLog) {
+    record State(long epoch, long counter, long lastRelayed, Items items,
+                 NavigableMap<Long, Set<EntityKey>> changeLog) {
 
         State {
             changeLog = Collections.unmodifiableNavigableMap(new TreeMap<>(changeLog));

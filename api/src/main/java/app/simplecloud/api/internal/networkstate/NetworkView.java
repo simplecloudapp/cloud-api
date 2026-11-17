@@ -14,7 +14,8 @@ import java.util.Optional;
  *
  * <p>Times are milliseconds of a monotonic clock. Each call passes a time at or after the time of the step
  * that made this view. A deadline acts in the first step at or after it. Epochs and revisions are uint64
- * values held in a {@code long}, so they compare unsigned. "Local" is the revision of the copy. A view is
+ * values held in a {@code long}, so they compare unsigned. A random delay is cut to whole milliseconds.
+ * "Local" is the revision of the copy. A view is
  * "synced" while it holds a copy, its connection is up, and it neither wants nor runs a reload.
  *
  * <h2>Rules</h2>
@@ -45,8 +46,9 @@ import java.util.Optional;
  *     <li>the last good pulse is 15 s old or older, or there was none since the last snapshot was taken and
  *     that is 15 s old or older: reload, whatever the pulse says;</li>
  *     <li>another epoch than the copy's: reload;</li>
- *     <li>{@code revision > local}: the copy is behind, and the view is not live until local reaches that
- *     revision. If it has not within 3 s, the view reloads;</li>
+ *     <li>{@code revision > local}: the copy is behind, and the view is not live until local reaches the
+ *     highest revision such a pulse showed. If the copy is still behind 3 s after the first of these
+ *     pulses, the view reloads;</li>
  *     <li>{@code revision == local}: a good pulse;</li>
  *     <li>{@code revision < local}: nothing more. It is a former owner's, or the snapshot was newer than
  *     the relay's last round.</li>
@@ -64,11 +66,13 @@ import java.util.Optional;
  *   was wanted; 2 s after the previous load started; and, after n failed loads in a row,
  *   min(30 s, 2 s &times; 2^(n-1)) after the last failure. Then it waits 2 s &times; a number from the
  *   sequence more, so that an epoch change does not reload every process in the same second. A view runs one
- *   load at a time, and every load starts at least 2 s after the previous one. A load that is no longer
+ *   load at a time, and every load starts at least 2 s after the previous one. A failed audit load does
+ *   not count as a failed load. A load that is no longer
  *   wanted when it ends, because the connection was lost or a new reload was wanted while it ran, is waited
  *   for and its answer ignored.
- *   <p>Taking a snapshot: the copy becomes the snapshot, items and metrics; the good pulse is cleared, so the
- *   view is not live until the next good pulse; held batches go through rule 2; and the next audit is due
+ *   <p>Taking a snapshot: the copy becomes the snapshot, items and metrics; the good pulse and the pulse the
+ *   copy was behind are cleared, so the view is not live until the next good pulse; held batches go
+ *   through rule 2; and the next audit is due
  *   20 min + 10 min &times; a number from the sequence later. A taken snapshot ends a row of failed loads,
  *   unless a reference in it does not resolve: that counts as a failed load, and the view reloads.</li>
  *

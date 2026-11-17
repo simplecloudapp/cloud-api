@@ -39,7 +39,8 @@ final class ModelOwner {
         if (head <= lastRelayed) {
             return null;
         }
-        NavigableMap<Long, Set<ModelDatabase.EntityKey>> unrelayed = read.changeLog().subMap(lastRelayed, false, head, true);
+        NavigableMap<Long, Set<ModelDatabase.EntityKey>> unrelayed =
+                read.changeLog().subMap(lastRelayed, false, head, true);
         boolean entriesMissing = unrelayed.size() < head - lastRelayed;
         if (entriesMissing) {
             return batchThatMakesViewsBehindReload(read.epoch(), head);

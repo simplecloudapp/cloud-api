@@ -7,11 +7,11 @@ package app.simplecloud.api.internal.networkstate;
 public enum AuditOutcome {
     /** The copy at S equals the snapshot. */
     MATCHED,
-    /** The copy at S differs from the snapshot. The view counts an error and takes the snapshot. */
+    /** The copy at S differs from the snapshot. The shell counts an error, and the view takes the snapshot. */
     DIFFERED,
     /**
      * The copy went past S without being at S, because one batch covered several revisions, or it was past
-     * S already. Nothing was compared. The view counts an error and audits again soon.
+     * S already. Nothing was compared. The shell counts an error, and the view audits again soon.
      */
     JUMPED_PAST,
     /** The copy did not reach S within 3 s, so a batch is missing. The view takes the snapshot. */
