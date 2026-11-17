@@ -2,21 +2,26 @@ package app.simplecloud.api.internal.integration.adventure;
 
 import net.kyori.adventure.audience.Audience;
 
-import java.util.Optional;
 import java.util.UUID;
 
 /**
- * The players on this server, as audiences for adventure actions.
+ * Runs adventure actions for the players on this server.
  */
 public interface PlayerAudiences {
 
     /**
-     * Returns the player if they are on this server.
+     * Runs the action for the player if they are on this server, otherwise does nothing.
      */
-    Optional<Audience> findPlayer(UUID playerId);
+    void runForPlayer(UUID playerId, PlayerAction action);
 
     /**
-     * Returns all players on this server.
+     * Runs the action once for every player on this server.
      */
-    Audience allPlayers();
+    void runForAllPlayers(PlayerAction action);
+
+    @FunctionalInterface
+    interface PlayerAction {
+
+        void run(UUID playerId, Audience player);
+    }
 }

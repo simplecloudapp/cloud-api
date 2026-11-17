@@ -4,6 +4,7 @@ import app.simplecloud.api.CloudApi;
 import app.simplecloud.api.internal.CloudApiImpl;
 import app.simplecloud.api.internal.integration.adventure.AdventureIntegration;
 import app.simplecloud.api.runtime.SimpleCloudRuntime;
+import org.bukkit.Bukkit;
 import org.bukkit.plugin.java.JavaPlugin;
 
 public class PaperApiProvider extends JavaPlugin {
@@ -20,11 +21,12 @@ public class PaperApiProvider extends JavaPlugin {
 
         this.adventureIntegration = new AdventureIntegration(
                 cloudApi,
-                new PaperPlayerAudiences(),
+                new PaperPlayerAudiences(this),
                 serverId,
                 groupName != null ? groupName : serverId
         );
         adventureIntegration.start();
+        Bukkit.getPluginManager().registerEvents(new PlayerConnectionListener(adventureIntegration), this);
 
         getLogger().info("SimpleCloud v3 API provider initialized!");
     }

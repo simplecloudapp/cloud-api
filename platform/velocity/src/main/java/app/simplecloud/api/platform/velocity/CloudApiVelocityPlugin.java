@@ -9,8 +9,8 @@ import app.simplecloud.api.internal.integration.presence.ProxyPresenceTracker;
 import app.simplecloud.api.presence.ProxyPresencePlayer;
 import app.simplecloud.api.presence.ProxyPresencePlayerProvider;
 import app.simplecloud.api.runtime.SimpleCloudRuntime;
-import app.simplecloud.api.platform.shared.LuckPermsPrimaryGroupSynchronizer;
-import app.simplecloud.api.platform.shared.LuckPermsSynchronizer;
+import app.simplecloud.api.platform.shared.luckperms.LuckPermsPrimaryGroupSynchronizer;
+import app.simplecloud.api.platform.shared.luckperms.LuckPermsSynchronizer;
 import com.google.inject.Inject;
 import com.velocitypowered.api.event.Subscribe;
 import com.velocitypowered.api.event.proxy.ProxyInitializeEvent;
@@ -28,7 +28,7 @@ import java.util.Locale;
 @Plugin(
         id = "simplecloud-api",
         name = "SimpleCloud API",
-        version = "1.0",
+        version = BuildConstants.VERSION,
         authors = {"Fllip"},
         dependencies = {@Dependency(id = "luckperms", optional = true)}
 )

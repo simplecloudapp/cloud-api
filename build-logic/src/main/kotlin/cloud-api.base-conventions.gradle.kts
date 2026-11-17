@@ -16,6 +16,9 @@ repositories {
     maven("https://repo.papermc.io/repository/maven-public")
     maven("https://repo.simplecloud.app/snapshots")
     maven("https://buf.build/gen/maven")
+    maven("https://central.sonatype.com/repository/maven-snapshots/") {
+        mavenContent { snapshotsOnly() }
+    }
 }
 
 java {

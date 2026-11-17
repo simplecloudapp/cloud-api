@@ -51,5 +51,5 @@ sourceSets.main {
 }
 
 modrinth {
-    loaders.add("paper")
+    loaders.addAll("paper", "folia")
 }
