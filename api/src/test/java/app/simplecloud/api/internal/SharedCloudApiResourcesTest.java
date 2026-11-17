@@ -41,7 +41,7 @@ import static org.junit.jupiter.api.Assumptions.assumeTrue;
 
 class SharedCloudApiResourcesTest {
 
-    private static final String SUBJECT = "network-1.shared-test";
+    private static final String SUBJECT = "shared-test";
 
     private static final AtomicInteger TEST_NETWORKS = new AtomicInteger();
 
@@ -129,7 +129,7 @@ class SharedCloudApiResourcesTest {
 
         byte[] payload = new byte[0];
         assertEquals(Connection.Status.CLOSED, connection.getStatus());
-        assertThrows(IllegalStateException.class, () -> connection.publish("network-1.closed", payload));
+        assertThrows(IllegalStateException.class, () -> connection.publish("closed-test", payload));
     }
 
     @Test

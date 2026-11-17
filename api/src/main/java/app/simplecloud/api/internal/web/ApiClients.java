@@ -29,9 +29,9 @@ public final class ApiClients {
     }
 
     /**
-     * Creates an isolated client that sends its requests through {@code httpClient}. The client derives
-     * its own {@link OkHttpClient} for its timeouts, which keeps the connection pool and dispatcher of
-     * {@code httpClient}.
+     * Creates a client with its own credential, headers and timeouts that sends its requests through the
+     * connection pool and dispatcher of {@code httpClient}. For its timeouts it derives its own
+     * {@link OkHttpClient}, which keeps that pool and dispatcher.
      */
     public static ApiClient create(CloudApiOptions options, OkHttpClient httpClient) {
         return configure(new ResponseValidatingApiClient(httpClient), options);
