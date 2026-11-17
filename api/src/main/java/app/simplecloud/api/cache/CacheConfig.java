@@ -12,8 +12,8 @@ import java.util.Map;
  * <ul>
  *   <li><b>staleTime</b>: How long data is considered fresh. Fresh data is returned immediately
  *       without network request. Default: 5 seconds (varies by entity type).</li>
- *   <li><b>cacheTime</b>: How long unused data stays in memory before garbage collection.
- *       Default: 2 minutes.</li>
+ *   <li><b>cacheTime</b>: How long data stays in memory after it was last fetched or set.
+ *       Reads do not extend it, so it is not an idle timeout. Default: 2 minutes.</li>
  *   <li><b>autoInvalidateOnEvents</b>: When enabled, NATS events automatically invalidate
  *       affected cache entries. Default: true.</li>
  * </ul>
@@ -21,8 +21,8 @@ import java.util.Map;
  * <p>Default stale times by entity type (optimized for typical usage patterns):
  * <ul>
  *   <li>SERVER: 3 seconds (metrics like CPU/memory may change without events)</li>
- *   <li>GROUP: 30 seconds (configuration rarely changes, events handle updates)</li>
- *   <li>PERSISTENT_SERVER: 30 seconds (similar to groups)</li>
+ *   <li>GROUP: 10 seconds (configuration rarely changes, events handle updates)</li>
+ *   <li>PERSISTENT_SERVER: 10 seconds (similar to groups)</li>
  *   <li>PLAYER: 5 seconds (balance between freshness and load)</li>
  * </ul>
  *
@@ -59,7 +59,7 @@ public class CacheConfig {
     private final Map<EntityType, EntityCacheConfig> entityConfigs;
     private final boolean autoInvalidateOnEvents;
     private final int maxEntries;
-    private final Duration eventDebounceTime;
+    private final Duration eventBatchWindow;
 
     private CacheConfig(Builder builder) {
         this.enabled = builder.enabled;
@@ -68,7 +68,7 @@ public class CacheConfig {
         this.entityConfigs = Collections.unmodifiableMap(new HashMap<>(builder.entityConfigs));
         this.autoInvalidateOnEvents = builder.autoInvalidateOnEvents;
         this.maxEntries = builder.maxEntries;
-        this.eventDebounceTime = builder.eventDebounceTime;
+        this.eventBatchWindow = builder.eventBatchWindow;
     }
 
     /**
@@ -114,11 +114,23 @@ public class CacheConfig {
     }
 
     /**
-     * Returns the debounce time for event-based cache invalidation.
-     * Multiple events within this window are coalesced into a single invalidation.
+     * Returns the batching window for event-based cache invalidation.
+     * The first event opens the window, and events arriving before it closes are applied together
+     * when it does. Later events do not extend the window.
      */
+    public Duration getEventBatchWindow() {
+        return eventBatchWindow;
+    }
+
+    /**
+     * Returns the batching window for event-based cache invalidation.
+     *
+     * @deprecated Use {@link #getEventBatchWindow()} instead. The window is fixed; later events
+     *             do not extend it as a debounce would.
+     */
+    @Deprecated
     public Duration getEventDebounceTime() {
-        return eventDebounceTime;
+        return getEventBatchWindow();
     }
 
     public static Builder builder() {
@@ -132,27 +144,25 @@ public class CacheConfig {
         private Map<EntityType, EntityCacheConfig> entityConfigs = createDefaultEntityConfigs();
         private boolean autoInvalidateOnEvents = true;
         private int maxEntries = 500;
-        private Duration eventDebounceTime = Duration.ofMillis(50);
+        private Duration eventBatchWindow = Duration.ofMillis(50);
 
         private static Map<EntityType, EntityCacheConfig> createDefaultEntityConfigs() {
             Map<EntityType, EntityCacheConfig> configs = new HashMap<>();
-            // Servers: 3 seconds - metrics (CPU, memory, player count) may update without events
-            configs.put(EntityType.SERVER, EntityCacheConfig.builder()
-                    .staleTime(Duration.ofSeconds(3))
-                    .build());
-            // Groups: 10 seconds - configuration rarely changes, events handle actual updates
-            configs.put(EntityType.GROUP, EntityCacheConfig.builder()
-                    .staleTime(Duration.ofSeconds(10))
-                    .build());
-            // Persistent servers: 10 seconds - similar to groups
-            configs.put(EntityType.PERSISTENT_SERVER, EntityCacheConfig.builder()
-                    .staleTime(Duration.ofSeconds(10))
-                    .build());
-            // Players: 5 seconds - balance between freshness and reducing load
-            configs.put(EntityType.PLAYER, EntityCacheConfig.builder()
-                    .staleTime(Duration.ofSeconds(5))
-                    .build());
+            // Server metrics (CPU, memory, player count) change without events.
+            configs.put(EntityType.SERVER, staleAfter(Duration.ofSeconds(3)));
+            // Groups and persistent servers rarely change, and events invalidate their entries
+            // when they do.
+            configs.put(EntityType.GROUP, staleAfter(Duration.ofSeconds(10)));
+            configs.put(EntityType.PERSISTENT_SERVER, staleAfter(Duration.ofSeconds(10)));
+            // Players: a balance between freshness and load on the controller.
+            configs.put(EntityType.PLAYER, staleAfter(Duration.ofSeconds(5)));
             return configs;
+        }
+
+        private static EntityCacheConfig staleAfter(Duration staleTime) {
+            return EntityCacheConfig.builder()
+                    .staleTime(staleTime)
+                    .build();
         }
 
         /**
@@ -227,17 +237,31 @@ public class CacheConfig {
         }
 
         /**
-         * Sets the debounce time for event-based cache invalidation.
-         * When multiple events arrive within this window, they are coalesced
-         * into a single invalidation operation. This is useful during rolling
-         * restarts or bulk operations.
+         * Sets the batching window for event-based cache invalidation.
+         * The first event opens the window, and events arriving before it closes are
+         * applied together when it does. Later events do not extend the window, so every
+         * event is applied at most one window after it arrives, even while events keep
+         * coming, such as during a rolling restart.
          *
-         * @param debounceTime the debounce time (default: 50ms)
+         * @param batchWindow the window length (default: 50ms)
          * @return this builder
          */
-        public Builder eventDebounceTime(Duration debounceTime) {
-            this.eventDebounceTime = debounceTime;
+        public Builder eventBatchWindow(Duration batchWindow) {
+            this.eventBatchWindow = batchWindow;
             return this;
+        }
+
+        /**
+         * Sets the batching window for event-based cache invalidation.
+         *
+         * @param debounceTime the window length (default: 50ms)
+         * @return this builder
+         * @deprecated Use {@link #eventBatchWindow(Duration)} instead. The window is fixed; later
+         *             events do not extend it as a debounce would.
+         */
+        @Deprecated
+        public Builder eventDebounceTime(Duration debounceTime) {
+            return eventBatchWindow(debounceTime);
         }
 
         public CacheConfig build() {
