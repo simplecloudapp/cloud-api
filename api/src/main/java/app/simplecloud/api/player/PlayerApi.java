@@ -407,6 +407,7 @@ public interface PlayerApi {
      * @param target where to send the player
      * @return a future containing the outcome
      * @throws NullPointerException if the player's UUID or the target is null
+     * @throws IllegalArgumentException if the target doesn't come from a {@link ConnectTarget} factory method
      */
     CompletableFuture<ConnectOutcome> connectTo(UUID uniqueId, ConnectTarget target);
 

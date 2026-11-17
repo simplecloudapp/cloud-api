@@ -344,6 +344,15 @@ class PlayerApiImplTest {
     }
 
     @Test
+    void connectTo_withTargetAPluginImplemented_throwsRightAway() {
+        PlayerApiImpl api = new PlayerApiImpl(options(), null, new FakePlayersApi());
+        ConnectTarget pluginTarget = new ConnectTarget() {
+        };
+
+        assertThrows(IllegalArgumentException.class, () -> api.connectTo(PLAYER_ID, pluginTarget));
+    }
+
+    @Test
     void connectTo_returnsTheServerTheControllerTried() {
         FakePlayersApi playersApi = new FakePlayersApi();
         playersApi.connectResult = ModelsConnectResult.ConnectResultSuccess;

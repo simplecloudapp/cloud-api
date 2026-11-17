@@ -1,8 +1,8 @@
 package app.simplecloud.api.player;
 
 import app.simplecloud.api.group.Group;
-import app.simplecloud.api.internal.player.ConnectTargetFields;
-import app.simplecloud.api.internal.player.ConnectTargetFields.Kind;
+import app.simplecloud.api.internal.player.ConnectTargetImpl;
+import app.simplecloud.api.internal.player.ConnectTargetImpl.Kind;
 import app.simplecloud.api.persistentserver.PersistentServer;
 import app.simplecloud.api.server.Server;
 import org.jetbrains.annotations.Nullable;
@@ -20,19 +20,12 @@ import java.util.Objects;
  *
  * <p>The factory methods throw a {@link NullPointerException} for a null argument. Later releases may add
  * kinds of targets.
+ *
+ * <p>cloud-api implements this interface. Plugins create targets with the factory methods and don't implement
+ * it; {@code connectTo} rejects any other implementation. Two targets from the same factory method with equal
+ * arguments are equal.
  */
-public final class ConnectTarget {
-
-    static {
-        ConnectTargetFields.registerReader(target -> target.fields);
-    }
-
-    private final ConnectTargetFields fields;
-
-    private ConnectTarget(Kind kind, String nameOrId, @Nullable ServerSelectionMode selectionMode) {
-        Objects.requireNonNull(nameOrId, kind.parameterName());
-        this.fields = new ConnectTargetFields(kind, nameOrId, selectionMode);
-    }
+public interface ConnectTarget {
 
     /**
      * Targets a server.
@@ -40,7 +33,7 @@ public final class ConnectTarget {
      * @param server the server
      * @return the target
      */
-    public static ConnectTarget server(Server server) {
+    static ConnectTarget server(Server server) {
         Objects.requireNonNull(server, "server");
         return serverId(server.getServerId());
     }
@@ -51,8 +44,8 @@ public final class ConnectTarget {
      * @param serverId the UUID of the server
      * @return the target
      */
-    public static ConnectTarget serverId(String serverId) {
-        return new ConnectTarget(Kind.SERVER_ID, serverId, null);
+    static ConnectTarget serverId(String serverId) {
+        return new ConnectTargetImpl(Kind.SERVER_ID, serverId, null);
     }
 
     /**
@@ -64,8 +57,8 @@ public final class ConnectTarget {
      * @param serverName the cloud name of the server
      * @return the target
      */
-    public static ConnectTarget serverName(String serverName) {
-        return new ConnectTarget(Kind.SERVER_NAME, serverName, null);
+    static ConnectTarget serverName(String serverName) {
+        return new ConnectTargetImpl(Kind.SERVER_NAME, serverName, null);
     }
 
     /**
@@ -75,7 +68,7 @@ public final class ConnectTarget {
      * @param group the group
      * @return the target
      */
-    public static ConnectTarget group(Group group) {
+    static ConnectTarget group(Group group) {
         return group(group, null);
     }
 
@@ -86,7 +79,7 @@ public final class ConnectTarget {
      * @param selectionMode how the server is chosen, or null for the controller's default
      * @return the target
      */
-    public static ConnectTarget group(Group group, @Nullable ServerSelectionMode selectionMode) {
+    static ConnectTarget group(Group group, @Nullable ServerSelectionMode selectionMode) {
         Objects.requireNonNull(group, "group");
         return groupId(group.getServerGroupId(), selectionMode);
     }
@@ -98,7 +91,7 @@ public final class ConnectTarget {
      * @param groupId the UUID of the group
      * @return the target
      */
-    public static ConnectTarget groupId(String groupId) {
+    static ConnectTarget groupId(String groupId) {
         return groupId(groupId, null);
     }
 
@@ -109,8 +102,8 @@ public final class ConnectTarget {
      * @param selectionMode how the server is chosen, or null for the controller's default
      * @return the target
      */
-    public static ConnectTarget groupId(String groupId, @Nullable ServerSelectionMode selectionMode) {
-        return new ConnectTarget(Kind.GROUP_ID, groupId, selectionMode);
+    static ConnectTarget groupId(String groupId, @Nullable ServerSelectionMode selectionMode) {
+        return new ConnectTargetImpl(Kind.GROUP_ID, groupId, selectionMode);
     }
 
     /**
@@ -120,7 +113,7 @@ public final class ConnectTarget {
      * @param groupName the name of the group
      * @return the target
      */
-    public static ConnectTarget groupName(String groupName) {
+    static ConnectTarget groupName(String groupName) {
         return groupName(groupName, null);
     }
 
@@ -131,8 +124,8 @@ public final class ConnectTarget {
      * @param selectionMode how the server is chosen, or null for the controller's default
      * @return the target
      */
-    public static ConnectTarget groupName(String groupName, @Nullable ServerSelectionMode selectionMode) {
-        return new ConnectTarget(Kind.GROUP_NAME, groupName, selectionMode);
+    static ConnectTarget groupName(String groupName, @Nullable ServerSelectionMode selectionMode) {
+        return new ConnectTargetImpl(Kind.GROUP_NAME, groupName, selectionMode);
     }
 
     /**
@@ -141,7 +134,7 @@ public final class ConnectTarget {
      * @param persistentServer the persistent server
      * @return the target
      */
-    public static ConnectTarget persistentServer(PersistentServer persistentServer) {
+    static ConnectTarget persistentServer(PersistentServer persistentServer) {
         Objects.requireNonNull(persistentServer, "persistentServer");
         return persistentServerId(persistentServer.getPersistentServerId());
     }
@@ -153,8 +146,8 @@ public final class ConnectTarget {
      * @param persistentServerId the UUID of the persistent server
      * @return the target
      */
-    public static ConnectTarget persistentServerId(String persistentServerId) {
-        return new ConnectTarget(Kind.PERSISTENT_SERVER_ID, persistentServerId, null);
+    static ConnectTarget persistentServerId(String persistentServerId) {
+        return new ConnectTargetImpl(Kind.PERSISTENT_SERVER_ID, persistentServerId, null);
     }
 
     /**
@@ -164,35 +157,7 @@ public final class ConnectTarget {
      * @param registeredServerName the name of the server on the player's proxy
      * @return the target
      */
-    public static ConnectTarget registeredServerName(String registeredServerName) {
-        return new ConnectTarget(Kind.REGISTERED_SERVER_NAME, registeredServerName, null);
-    }
-
-    @Override
-    public boolean equals(Object other) {
-        if (this == other) {
-            return true;
-        }
-        if (!(other instanceof ConnectTarget target)) {
-            return false;
-        }
-        return fields.equals(target.fields);
-    }
-
-    @Override
-    public int hashCode() {
-        return fields.hashCode();
-    }
-
-    /**
-     * Describes the target for logs. The format is not part of the API.
-     *
-     * @return the description
-     */
-    @Override
-    public String toString() {
-        ServerSelectionMode selectionMode = fields.selectionMode();
-        String mode = selectionMode != null ? ", selectionMode=" + selectionMode : "";
-        return "ConnectTarget[" + fields.kind().parameterName() + "=" + fields.nameOrId() + mode + "]";
+    static ConnectTarget registeredServerName(String registeredServerName) {
+        return new ConnectTargetImpl(Kind.REGISTERED_SERVER_NAME, registeredServerName, null);
     }
 }

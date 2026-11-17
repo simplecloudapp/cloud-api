@@ -140,6 +140,7 @@ public interface CloudPlayer extends Audience {
      * @param target where to send the player
      * @return a future containing the outcome
      * @throws NullPointerException if the target is null
+     * @throws IllegalArgumentException if the target doesn't come from a {@link ConnectTarget} factory method
      */
     CompletableFuture<ConnectOutcome> connectTo(ConnectTarget target);
 

@@ -457,9 +457,13 @@ public class PlayerApiImpl implements PlayerApi {
     public CompletableFuture<ConnectOutcome> connectTo(UUID uniqueId, ConnectTarget target) {
         Objects.requireNonNull(uniqueId, "uniqueId");
         Objects.requireNonNull(target, "target");
-        ConnectTargetFields fields = ConnectTargetFields.readFrom(target);
-        String nameOrId = fields.nameOrId();
-        return switch (fields.kind()) {
+        if (!(target instanceof ConnectTargetImpl targetImpl)) {
+            String message = "A ConnectTarget must come from its factory methods, but was "
+                    + target.getClass().getName();
+            throw new IllegalArgumentException(message);
+        }
+        String nameOrId = targetImpl.nameOrId();
+        return switch (targetImpl.kind()) {
             case REGISTERED_SERVER_NAME -> connectViaProxy(uniqueId, nameOrId);
             case SERVER_ID -> {
                 ModelsConnectPlayerRequest request = new ModelsConnectPlayerRequest();
@@ -474,13 +478,13 @@ public class PlayerApiImpl implements PlayerApi {
             case GROUP_ID -> {
                 ModelsConnectPlayerRequest request = new ModelsConnectPlayerRequest();
                 request.setServerGroupId(nameOrId);
-                request.setSelectionMode(selectionModeName(fields));
+                request.setSelectionMode(selectionModeName(targetImpl));
                 yield connectViaController(uniqueId, request);
             }
             case GROUP_NAME -> {
                 ModelsConnectPlayerRequest request = new ModelsConnectPlayerRequest();
                 request.setServerGroupName(nameOrId);
-                request.setSelectionMode(selectionModeName(fields));
+                request.setSelectionMode(selectionModeName(targetImpl));
                 yield connectViaController(uniqueId, request);
             }
             case PERSISTENT_SERVER_ID -> {
@@ -494,8 +498,8 @@ public class PlayerApiImpl implements PlayerApi {
     /**
      * Returns the target's selection mode for the request, or null, which leaves the choice to the controller.
      */
-    private static @Nullable String selectionModeName(ConnectTargetFields fields) {
-        ServerSelectionMode selectionMode = fields.selectionMode();
+    private static @Nullable String selectionModeName(ConnectTargetImpl target) {
+        ServerSelectionMode selectionMode = target.selectionMode();
         return selectionMode != null ? selectionMode.name() : null;
     }
 
