@@ -25,14 +25,13 @@ tasks.named<ShadowJar>("shadowJar") {
     configurations = listOf(shade)
 }
 
-tasks.processResources {
-    val properties = mapOf(
-        "version" to project.version.toString(),
-        "minecraftVersionRange" to ">=${minecraftVersions.first()} <=${minecraftVersions.last()}"
-    )
-    inputs.properties(properties)
-    filesMatching("fabric.mod.json") {
-        expand(properties)
+sourceSets {
+    main {
+        blossom {
+            resources {
+                property("minecraftVersionRange", ">=${minecraftVersions.first()} <=${minecraftVersions.last()}")
+            }
+        }
     }
 }
 

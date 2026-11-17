@@ -3,6 +3,17 @@ import com.github.jengelman.gradle.plugins.shadow.tasks.ShadowJar
 plugins {
     id("cloud-api.shadow-conventions")
     id("com.modrinth.minotaur")
+    id("net.kyori.blossom")
+}
+
+sourceSets {
+    main {
+        blossom {
+            resources {
+                property("version", project.version.toString())
+            }
+        }
+    }
 }
 
 val modrinthVersion = version.toString().substringBefore("-dev.")
