@@ -70,7 +70,7 @@ public final class NetworkViewMachine implements NetworkView {
     private record BehindPulse(long highestRevision, long since) {
     }
 
-    private record PendingAudit(NetworkCopy snapshot, long arrivedAt) {
+    private record PendingAudit(NetworkCopy snapshot, long receivedAt) {
     }
 
     private record Position(long epoch, long revision) {
@@ -150,6 +150,8 @@ public final class NetworkViewMachine implements NetworkView {
     public ViewStep step(ViewInput input, long nowMillis) {
         NetworkViewMachine next = new NetworkViewMachine(this);
         List<ViewEffect> effects = new ArrayList<>();
+        // A deadline that passed before the input acts as if a tick had come just before it. The load starts
+        // last, because the input can make one due.
         next.actOnDeadlines(nowMillis, effects);
         next.handle(input, nowMillis, effects);
         next.startDueLoad(nowMillis, effects);
@@ -178,8 +180,8 @@ public final class NetworkViewMachine implements NetworkView {
     }
 
     private boolean isSynced() {
-        boolean reloads = wantedReloadStartsAt != null || runningLoad == RunningLoad.RELOAD;
-        return copy != null && subscriptionsActive && !reloads;
+        boolean reloadWantedOrRunning = wantedReloadStartsAt != null || runningLoad == RunningLoad.RELOAD;
+        return copy != null && subscriptionsActive && !reloadWantedOrRunning;
     }
 
     private void handle(ViewInput input, long now, List<ViewEffect> effects) {
@@ -196,18 +198,19 @@ public final class NetworkViewMachine implements NetworkView {
         }
     }
 
-    // Deadlines and loads.
+    // Deadlines and load starts (rules 6 and 7).
 
     private void actOnDeadlines(long now, List<ViewEffect> effects) {
         if (!isSynced()) {
             return;
         }
+        // The audit goes first: the snapshot it takes can close a gap without another load.
         takeAuditSnapshotIfNotReached(now, effects);
         reloadIfCopyWaitedTooLong(now);
     }
 
     private void takeAuditSnapshotIfNotReached(long now, List<ViewEffect> effects) {
-        boolean notReached = pendingAudit != null && now >= pendingAudit.arrivedAt() + AUDIT_REACH_WAIT_MILLIS;
+        boolean notReached = pendingAudit != null && now >= pendingAudit.receivedAt() + AUDIT_REACH_WAIT_MILLIS;
         if (notReached) {
             finishAudit(AuditOutcome.NOT_REACHED, now, effects);
         }
@@ -284,6 +287,10 @@ public final class NetworkViewMachine implements NetworkView {
         return SHORTEST_AUDIT_INTERVAL_MILLIS + drawDelayUpTo(LONGEST_RANDOM_AUDIT_DELAY_MILLIS);
     }
 
+    private long drawAuditRetryDelay() {
+        return SHORTEST_AUDIT_RETRY_MILLIS + drawDelayUpTo(LONGEST_RANDOM_AUDIT_RETRY_DELAY_MILLIS);
+    }
+
     private void countFailedLoad(long now) {
         failedLoadsInRow++;
         lastFailedLoadAt = now;
@@ -302,13 +309,11 @@ public final class NetworkViewMachine implements NetworkView {
         abandonPendingWork();
     }
 
-    // Snapshots (rule 6).
+    // Load answers (rules 6 and 7).
 
     private void receiveSnapshot(NetworkState snapshot, long now, List<ViewEffect> effects) {
-        RunningLoad answered = runningLoad;
-        runningLoad = RunningLoad.NONE;
-        switch (answered) {
-            case RELOAD -> takeSnapshot(copyOf(snapshot), now, effects);
+        switch (endRunningLoad()) {
+            case RELOAD -> takeSnapshotOrReload(copyOf(snapshot), now, effects);
             case AUDIT -> startComparing(copyOf(snapshot), now, effects);
             case ABANDONED, NONE -> {
             }
@@ -316,9 +321,7 @@ public final class NetworkViewMachine implements NetworkView {
     }
 
     private void receiveLoadFailure(long now) {
-        RunningLoad answered = runningLoad;
-        runningLoad = RunningLoad.NONE;
-        switch (answered) {
+        switch (endRunningLoad()) {
             case RELOAD -> {
                 countFailedLoad(now);
                 wantReload(now);
@@ -329,7 +332,13 @@ public final class NetworkViewMachine implements NetworkView {
         }
     }
 
-    private void takeSnapshot(NetworkCopy snapshot, long now, List<ViewEffect> effects) {
+    private RunningLoad endRunningLoad() {
+        RunningLoad answered = runningLoad;
+        runningLoad = RunningLoad.NONE;
+        return answered;
+    }
+
+    private void takeSnapshotOrReload(NetworkCopy snapshot, long now, List<ViewEffect> effects) {
         if (!referencesResolve(snapshot)) {
             countFailedLoad(now);
             wantReload(now);
@@ -372,7 +381,7 @@ public final class NetworkViewMachine implements NetworkView {
                 case OTHER_EPOCH -> wantReload(now);
                 case FITS -> {
                     heldBatches.remove(index);
-                    apply(batch, now, effects);
+                    applyBatchOrReload(batch, now, effects);
                     index = 0;
                 }
             }
@@ -392,7 +401,7 @@ public final class NetworkViewMachine implements NetworkView {
         return BatchFit.FITS;
     }
 
-    private void apply(StateBatch batch, long now, List<ViewEffect> effects) {
+    private void applyBatchOrReload(StateBatch batch, long now, List<ViewEffect> effects) {
         NetworkCopy applied = withBatch(copy, batch);
         if (!referencesResolve(applied)) {
             wantReload(now);
@@ -495,9 +504,8 @@ public final class NetworkViewMachine implements NetworkView {
         effects.add(new ViewEffect.AuditFinished(outcome));
         switch (outcome) {
             case MATCHED -> nextAuditAt = now + drawAuditInterval();
-            case JUMPED_PAST -> nextAuditAt = now + SHORTEST_AUDIT_RETRY_MILLIS
-                    + drawDelayUpTo(LONGEST_RANDOM_AUDIT_RETRY_DELAY_MILLIS);
-            case DIFFERED, NOT_REACHED -> takeSnapshot(snapshot, now, effects);
+            case JUMPED_PAST -> nextAuditAt = now + drawAuditRetryDelay();
+            case DIFFERED, NOT_REACHED -> takeSnapshotOrReload(snapshot, now, effects);
         }
     }
 
