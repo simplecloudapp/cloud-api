@@ -16,21 +16,25 @@ import java.time.Duration;
  */
 public final class ApiClients {
 
-    // Never shut down, because every CloudApi instance in this class loader sends its requests through it.
-    private static final OkHttpClient HTTP_CLIENT = new ApiClient().getHttpClient();
-
     private ApiClients() {
     }
 
     /**
-     * Creates an isolated client. Generated API no-arg constructors use a global
-     * default client, so configuring that client would change headers and timeouts
-     * for other CloudApi instances in the same class loader. The client derives its own
-     * {@link OkHttpClient} for its timeouts, which keeps the connection pool and dispatcher
-     * that all clients share.
+     * Creates an isolated client with its own connection pool.
      */
     public static ApiClient create(CloudApiOptions options) {
-        ApiClient client = new ResponseValidatingApiClient(HTTP_CLIENT);
+        return create(options, newHttpClient());
+    }
+
+    /**
+     * Creates an isolated client that sends its requests through {@code httpClient}. Generated API
+     * no-arg constructors use a global default client, so configuring that client would change headers
+     * and timeouts for other CloudApi instances in the same class loader. The client derives its own
+     * {@link OkHttpClient} for its timeouts, which keeps the connection pool and dispatcher of
+     * {@code httpClient}.
+     */
+    public static ApiClient create(CloudApiOptions options, OkHttpClient httpClient) {
+        ApiClient client = new ResponseValidatingApiClient(httpClient);
         applyTimeouts(client, options);
         ApiKeyAuth credential = (ApiKeyAuth) client.getAuthentication("NetworkCredential");
         credential.setApiKey(options.getNetworkSecret());
@@ -51,6 +55,18 @@ public final class ApiClients {
         client.setConnectTimeout(toMillis(options.getHttpConnectTimeout()));
         client.setReadTimeout(toMillis(options.getHttpReadTimeout()));
         client.setWriteTimeout(toMillis(options.getHttpWriteTimeout()));
+    }
+
+    public static OkHttpClient newHttpClient() {
+        return new ApiClient().getHttpClient();
+    }
+
+    /**
+     * Stops the threads that run asynchronous calls of {@code httpClient} and closes its idle connections.
+     */
+    public static void shutdown(OkHttpClient httpClient) {
+        httpClient.dispatcher().executorService().shutdown();
+        httpClient.connectionPool().evictAll();
     }
 
     public static Duration maxRequestDuration(CloudApiOptions options) {

@@ -60,12 +60,11 @@ public interface CloudApi extends AutoCloseable {
     /**
      * Creates a CloudAPI instance with custom options.
      *
-     * <p>All instances in one class loader share one HTTP connection pool. On a server or proxy,
-     * an instance created after the SimpleCloud platform plugin created its own, with the same NATS
-     * URL, network, secret and failover reconnect delay, uses the plugin's NATS connection, and
-     * {@link #close()} leaves that connection open. When the platform plugin closes its instance, on
-     * server stop or plugin disable, the NATS calls and event subscriptions of such an instance stop
-     * working. Otherwise the instance opens its own NATS connection, which {@link #close()} closes.
+     * <p>Instances whose API classes come from one class loader share connections: those with the same
+     * NATS URL, network, secret and failover reconnect delay use one NATS connection, and those with the
+     * same controller URL use one HTTP connection pool. So plugins that load the API from the SimpleCloud
+     * platform plugin share them, and a plugin that bundles its own copy of the API does not. A shared
+     * connection stays open until the last instance that uses it is closed.
      *
      * @param options the configuration options for the API client
      * @return a new CloudApi instance
