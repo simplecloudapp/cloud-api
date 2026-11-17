@@ -1,4 +1,4 @@
-package app.simplecloud.api.internal.nats;
+package app.simplecloud.api.internal;
 
 import io.nats.client.Connection;
 import io.nats.client.Dispatcher;
@@ -19,10 +19,10 @@ import java.util.logging.Logger;
  *
  * <p>It remembers the dispatchers and subscriptions the instance creates. {@code close} and
  * {@code drain} close only those, never the shared connection. Once closed, {@code getStatus}
- * returns {@code CLOSED}, {@code close} and {@code drain} do nothing, and every other call throws
- * {@link IllegalStateException}.
+ * returns {@code CLOSED}, {@code close} and {@code drain} do nothing, and every other {@code Connection}
+ * method throws {@link IllegalStateException}.
  */
-public final class InstanceNatsConnection {
+final class InstanceNatsConnection {
 
     private static final Logger LOGGER = Logger.getLogger(InstanceNatsConnection.class.getName());
 
@@ -32,7 +32,7 @@ public final class InstanceNatsConnection {
     private final Connection connection;
     private boolean closed;
 
-    public InstanceNatsConnection(Connection sharedConnection) {
+    InstanceNatsConnection(Connection sharedConnection) {
         this.sharedConnection = sharedConnection;
         this.connection = (Connection) Proxy.newProxyInstance(
                 Connection.class.getClassLoader(),
@@ -41,12 +41,12 @@ public final class InstanceNatsConnection {
         );
     }
 
-    public Connection asConnection() {
+    Connection asConnection() {
         return connection;
     }
 
     // Synchronized with subscribe and createDispatcher, so nothing is created after close went through the lists.
-    public synchronized void close() {
+    synchronized void close() {
         closed = true;
         for (Dispatcher dispatcher : dispatchers) {
             closeDispatcherQuietly(dispatcher);
@@ -101,7 +101,9 @@ public final class InstanceNatsConnection {
     private synchronized Object closeDispatcher(Method method, Object[] args) throws Throwable {
         Dispatcher dispatcher = (Dispatcher) args[0];
         Object result = invokeUnlessClosed(method, args);
-        dispatchers.remove(dispatcher);
+        // By identity: once connected, the failover manager's dispatcher passes equals on to the jnats
+        // dispatcher behind it, so it is not equal to itself.
+        dispatchers.removeIf(remembered -> remembered == dispatcher);
         return result;
     }
 

@@ -88,9 +88,12 @@ class SharedCloudApiResourcesTest {
         platformPlugin.close();
         CloudApiImpl reenabledPlatformPlugin = (CloudApiImpl) CloudApi.create(sharedOptions);
         assertSame(sharedManager, natsConnectionManager(reenabledPlatformPlugin));
+        assertFalse(isShutDown(sharedManager));
 
         otherPlugin.close();
+        assertFalse(isShutDown(sharedManager));
         reenabledPlatformPlugin.close();
+        assertTrue(isShutDown(sharedManager));
         try (CloudApiImpl afterRestart = (CloudApiImpl) CloudApi.create(sharedOptions)) {
             assertNotSame(sharedManager, natsConnectionManager(afterRestart));
         }
@@ -250,10 +253,17 @@ class SharedCloudApiResourcesTest {
     }
 
     private static NatsFailoverConnectionManager natsConnectionManager(CloudApiImpl api) throws ReflectiveOperationException {
-        Field field = CloudApiImpl.class.getDeclaredField("natsConnectionHandle");
+        Field field = CloudApiImpl.class.getDeclaredField("natsConnectionManagerHandle");
         field.setAccessible(true);
         SharedResources.Handle<?> handle = (SharedResources.Handle<?>) field.get(api);
         return (NatsFailoverConnectionManager) handle.resource();
+    }
+
+    private static boolean isShutDown(NatsFailoverConnectionManager manager) throws ReflectiveOperationException {
+        Field field = NatsFailoverConnectionManager.class.getDeclaredField("monitorExecutor");
+        field.setAccessible(true);
+        ExecutorService monitorExecutor = (ExecutorService) field.get(manager);
+        return monitorExecutor.isShutdown();
     }
 
     private static int dispatcherCount(NatsFailoverConnectionManager manager) throws ReflectiveOperationException {

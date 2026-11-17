@@ -1,4 +1,4 @@
-package app.simplecloud.api.internal.nats;
+package app.simplecloud.api.internal;
 
 import io.nats.client.Connection;
 import io.nats.client.Dispatcher;
@@ -16,6 +16,7 @@ import java.util.concurrent.atomic.AtomicInteger;
 import static org.junit.jupiter.api.Assertions.assertDoesNotThrow;
 import static org.junit.jupiter.api.Assertions.assertEquals;
 import static org.junit.jupiter.api.Assertions.assertFalse;
+import static org.junit.jupiter.api.Assertions.assertSame;
 import static org.junit.jupiter.api.Assertions.assertThrows;
 import static org.junit.jupiter.api.Assertions.assertTrue;
 
@@ -34,7 +35,7 @@ class InstanceNatsConnectionTest {
 
         closing.close();
 
-        assertEquals(List.of(closingDispatcher), shared.closedDispatchers);
+        assertClosedOnce(closingDispatcher);
         assertFalse(closingSubscription.isActive());
         assertTrue(remainingSubscription.isActive());
         assertFalse(shared.closed.get());
@@ -60,7 +61,7 @@ class InstanceNatsConnectionTest {
 
         instance.asConnection().close();
 
-        assertEquals(List.of(dispatcher), shared.closedDispatchers);
+        assertClosedOnce(dispatcher);
         assertFalse(shared.closed.get());
         assertEquals(Connection.Status.CLOSED, instance.asConnection().getStatus());
     }
@@ -87,13 +88,19 @@ class InstanceNatsConnectionTest {
 
         assertDoesNotThrow(instance::close);
 
-        assertEquals(List.of(dispatcher), shared.closedDispatchers);
+        assertClosedOnce(dispatcher);
         assertEquals(1, shared.unsubscribeCalls.get());
+    }
+
+    private void assertClosedOnce(Dispatcher dispatcher) {
+        assertEquals(1, shared.closedDispatchers.size());
+        assertSame(dispatcher, shared.closedDispatchers.getFirst());
     }
 
     /**
      * Records what the instance connections do to the connection they share. A subscription that is
-     * unsubscribed twice throws, as in jnats.
+     * unsubscribed twice throws, as in jnats. A dispatcher is not equal to itself, as the failover
+     * manager's dispatcher once it is connected.
      */
     private static final class SharedConnection {
         private final List<Dispatcher> closedDispatchers = new CopyOnWriteArrayList<>();
@@ -154,7 +161,7 @@ class InstanceNatsConnectionTest {
         private static Object handleDispatcherCall(Object dispatcher, Method method, Object[] args) {
             return switch (method.getName()) {
                 case "hashCode" -> System.identityHashCode(dispatcher);
-                case "equals" -> dispatcher == args[0];
+                case "equals" -> false;
                 default -> throw new AssertionError("Unexpected call on a dispatcher: " + method.getName());
             };
         }
