@@ -1,5 +1,6 @@
 import app.simplecloud.gradle.AddProtoDependencyToPom
 import app.simplecloud.gradle.FixOpenApiGeneratedCode
+import app.simplecloud.gradle.GenerateNativeImageMetadata
 import com.github.jengelman.gradle.plugins.shadow.tasks.ShadowJar
 
 plugins {
@@ -107,6 +108,21 @@ val prepareGeneratedSources = tasks.register("prepareGeneratedSources") {
 
 tasks.compileJava {
     dependsOn(prepareGeneratedSources)
+}
+
+val generateNativeImageMetadata = tasks.register<GenerateNativeImageMetadata>("generateNativeImageMetadata") {
+    classesDirs.from(sourceSets.main.map { it.output.classesDirs })
+    dependencies.from(configurations.runtimeClasspath)
+    metadataPath = "META-INF/native-image/app.simplecloud.api/api"
+    reflectiveTypes.addAll(
+        "app.simplecloud.api.internal.blueprint.ManifestServerUrlResolver\$ManifestEntry",
+        "app.simplecloud.api.internal.blueprint.ManifestServerUrlResolver\$ManifestDownloadLink",
+    )
+    outputDir = layout.buildDirectory.dir("generated/native-image")
+}
+
+sourceSets.main {
+    resources.srcDir(generateNativeImageMetadata)
 }
 
 tasks.named<Javadoc>("javadoc") {
