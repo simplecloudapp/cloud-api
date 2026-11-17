@@ -21,7 +21,8 @@ public enum ConnectStatus {
     /**
      * The target exists, but has no game server in state {@code AVAILABLE}, so the player was not sent
      * anywhere. Examples: an empty group, a server that is starting or stopping, a persistent server that
-     * is not running, or a proxy such as {@code proxy-1}, because a proxy is not a game server.
+     * is not running, or a proxy such as {@code proxy-1}, because a proxy is not a game server. A full
+     * server counts as available, so a full group doesn't answer this.
      */
     NO_SERVER_AVAILABLE,
 
@@ -48,8 +49,8 @@ public enum ConnectStatus {
     PLAYER_NOT_ONLINE,
 
     /**
-     * The player's proxy tried to move the player, and that failed, for example because the server
-     * refused the player.
+     * The player's proxy could not move the player, for example because the server refused the player,
+     * another plugin cancelled the move, or a move was already in progress.
      */
     FAILED
 }

@@ -397,11 +397,13 @@ public interface PlayerApi {
      *     or an ID that is not a UUID;</li>
      *     <li>a persistent server and a group server share the server name ({@code CONFLICT});</li>
      *     <li>the player's proxy doesn't answer in time. The player may still have been moved. For a target
-     *     from {@link ConnectTarget#registeredServerName(String)}, this is also how an offline player
-     *     ends, because only the proxy that holds the player answers;</li>
+     *     from {@link ConnectTarget#registeredServerName(String)}, the wait is 30 seconds, and this is also
+     *     how an offline player ends, because only the proxy that holds the player answers;</li>
      *     <li>the request can't be sent to the controller or over NATS;</li>
      *     <li>the controller fails, or the controller or proxy answers something this version doesn't know.</li>
      * </ul>
+     * Only the reasons {@code INVALID_REQUEST} and {@code CONFLICT} are promised. The other failures may carry
+     * any {@link app.simplecloud.api.CloudApiException.Reason}, and it can differ between targets.
      *
      * @param uniqueId the player's UUID
      * @param target where to send the player

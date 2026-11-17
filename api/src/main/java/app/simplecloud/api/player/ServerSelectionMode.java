@@ -20,7 +20,7 @@ public enum ServerSelectionMode {
     MAX_PLAYERS,
 
     /**
-     * Picks the first available server.
+     * Picks the available server with the lowest number, such as {@code lobby-1} before {@code lobby-2}.
      */
     FIRST
 }

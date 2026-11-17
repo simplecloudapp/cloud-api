@@ -23,7 +23,7 @@ import java.util.Objects;
  *
  * <p>cloud-api implements this interface. Plugins create targets with the factory methods and don't implement
  * it; {@code connectTo} rejects any other implementation. Two targets from the same factory method with equal
- * arguments are equal.
+ * arguments are equal. {@code toString} describes a target for logs; its format is not part of the API.
  */
 public interface ConnectTarget {
 

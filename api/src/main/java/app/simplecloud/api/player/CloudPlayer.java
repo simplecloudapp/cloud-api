@@ -148,9 +148,11 @@ public interface CloudPlayer extends Audience {
      * Connects the player to a server by the name the proxy registered it under, without the controller.
      *
      * @param serverName the name of the server on the proxy
-     * @return a future containing the connection result
+     * @return a future containing the connection result; a connect that fails, can't be sent or gets no
+     * answer gives {@link ConnectResult#CONNECTION_FAILED}
      * @throws NullPointerException if the server name is null
-     * @deprecated Use {@link #connectTo(ConnectTarget)} with {@link ConnectTarget#registeredServerName(String)}.
+     * @deprecated Use {@link #connectTo(ConnectTarget)} with {@link ConnectTarget#registeredServerName(String)},
+     * whose {@link ConnectOutcome} says why a connect failed.
      */
     @Deprecated
     CompletableFuture<ConnectResult> connectDirect(String serverName);
@@ -162,8 +164,8 @@ public interface CloudPlayer extends Audience {
      * @param serverName the name of the server on the proxy
      * @return a future containing the connection result
      * @throws NullPointerException if the server name is null
-     * @deprecated Use {@link #connectTo(ConnectTarget)} with {@link ConnectTarget#registeredServerName(String)}
-     * for the proxy's name, or with {@link ConnectTarget#serverName(String)} for the cloud name.
+     * @deprecated The name doesn't say which name it takes. Use {@link #connectTo(ConnectTarget)} with
+     * {@link ConnectTarget#registeredServerName(String)} for the proxy's name, or with {@link ConnectTarget#serverName(String)} for the cloud name.
      */
     @Deprecated
     CompletableFuture<ConnectResult> connect(String serverName);
@@ -171,11 +173,12 @@ public interface CloudPlayer extends Audience {
     /**
      * Connects the player to a server of the group with the given name, through the controller.
      *
-     * @param groupName the name of the target server group
+     * @param groupName the name of the target server group, matched case-insensitively
      * @param selectionMode how the target server is chosen, or null for {@link ServerSelectionMode#RANDOM}
      * @return a future containing the connection result
      * @throws NullPointerException if the group name is null
-     * @deprecated Use {@link #connectTo(ConnectTarget)} with {@link ConnectTarget#groupName(String, ServerSelectionMode)}.
+     * @deprecated The name doesn't say whether it takes a group name or ID. Use {@link #connectTo(ConnectTarget)}
+     * with {@link ConnectTarget#groupName(String, ServerSelectionMode)}.
      */
     @Deprecated
     CompletableFuture<ConnectResult> connectToGroup(String groupName, @Nullable ServerSelectionMode selectionMode);
@@ -183,10 +186,11 @@ public interface CloudPlayer extends Audience {
     /**
      * Connects the player to a random server of the group with the given name, through the controller.
      *
-     * @param groupName the name of the target server group
+     * @param groupName the name of the target server group, matched case-insensitively
      * @return a future containing the connection result
      * @throws NullPointerException if the group name is null
-     * @deprecated Use {@link #connectTo(ConnectTarget)} with {@link ConnectTarget#groupName(String)}.
+     * @deprecated The name doesn't say whether it takes a group name or ID. Use {@link #connectTo(ConnectTarget)}
+     * with {@link ConnectTarget#groupName(String)}.
      */
     @Deprecated
     default CompletableFuture<ConnectResult> connectToGroup(String groupName) {
@@ -199,7 +203,8 @@ public interface CloudPlayer extends Audience {
      * @param persistentServerId the UUID of the target persistent server
      * @return a future containing the connection result
      * @throws NullPointerException if the persistent server ID is null
-     * @deprecated Use {@link #connectTo(ConnectTarget)} with {@link ConnectTarget#persistentServerId(String)}.
+     * @deprecated The name doesn't say that it takes an ID. Use {@link #connectTo(ConnectTarget)} with
+     * {@link ConnectTarget#persistentServerId(String)}.
      */
     @Deprecated
     CompletableFuture<ConnectResult> connectToPersistentServer(String persistentServerId);
