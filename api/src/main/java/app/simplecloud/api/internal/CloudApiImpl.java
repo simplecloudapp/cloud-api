@@ -24,10 +24,12 @@ import app.simplecloud.api.player.PlayerApi;
 import app.simplecloud.api.server.ServerApi;
 import io.nats.client.Connection;
 
+import java.time.Duration;
 import java.util.Optional;
 import java.util.concurrent.Executor;
 import java.util.concurrent.ExecutorService;
 import java.util.concurrent.Executors;
+import java.util.concurrent.TimeUnit;
 import java.util.concurrent.atomic.AtomicBoolean;
 import java.util.logging.Level;
 import java.util.logging.Logger;
@@ -35,6 +37,7 @@ import java.util.logging.Logger;
 public class CloudApiImpl implements CloudApi {
 
     private static final Logger LOGGER = Logger.getLogger(CloudApiImpl.class.getName());
+    private static final Duration EXECUTOR_SHUTDOWN_TIMEOUT = Duration.ofSeconds(1);
 
     private final CloudApiOptions options;
     private final ApiClient apiClient;
@@ -174,6 +177,11 @@ public class CloudApiImpl implements CloudApi {
         return queryCache;
     }
 
+    /**
+     * Blocks for up to about two seconds more than the NATS close itself: up to one second for running tasks,
+     * then up to one second to send the NATS messages already queued. An instance that uses the platform
+     * plugin's NATS connection leaves it open, so it waits only for the running tasks.
+     */
     @Override
     public void close() {
         if (!closed.compareAndSet(false, true)) {
@@ -194,6 +202,17 @@ public class CloudApiImpl implements CloudApi {
                 LOGGER.log(Level.WARNING, "Failed to shutdown query cache", e);
             }
         }
+        // Player session reports publish on NATS from this executor,
+        // so they get a short time to finish before the NATS view closes.
+        executor.shutdown();
+        try {
+            if (!executor.awaitTermination(EXECUTOR_SHUTDOWN_TIMEOUT.toMillis(), TimeUnit.MILLISECONDS)) {
+                LOGGER.warning("Tasks still running after waiting " + EXECUTOR_SHUTDOWN_TIMEOUT.toMillis()
+                        + " ms at close; NATS messages they send may be lost");
+            }
+        } catch (InterruptedException e) {
+            Thread.currentThread().interrupt();
+        }
         instanceNatsView.close();
         if (ownNatsConnectionManager != null) {
             // Unregistered first, so instances created from now on open their own connection instead of this closing one.
@@ -204,7 +223,6 @@ public class CloudApiImpl implements CloudApi {
                 LOGGER.log(Level.WARNING, "Failed to shutdown NATS connection", e);
             }
         }
-        executor.shutdown();
     }
 
 }
