@@ -161,10 +161,10 @@ public final class NetworkViewMachine implements NetworkView {
     public ViewStep step(ViewInput input, long nowMillis) {
         NetworkViewMachine next = new NetworkViewMachine(this);
         List<ViewEffect> effects = new ArrayList<>();
-        // The 3 s waits for a gap, a pulse ahead and an audit snapshot end before the input, as they ran out by
-        // the time it arrived. Loads start after the input, because the input can make one due.
-        next.actOnDeadlines(nowMillis, effects);
+        // The input goes first, so one that arrives exactly at a deadline is on time. Loads start last, because
+        // the input and the deadlines can each make one due.
         next.handle(input, nowMillis, effects);
+        next.actOnDeadlines(nowMillis, effects);
         next.startDueLoad(nowMillis, effects);
         return new ViewStep(next, effects);
     }
