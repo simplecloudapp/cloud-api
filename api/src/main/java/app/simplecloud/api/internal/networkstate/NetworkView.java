@@ -24,7 +24,8 @@ import java.util.Optional;
  *   <li><b>Start.</b> A view starts with no copy and no connection, and waits for
  *   {@link ViewInput.SubscriptionsActive}. Then it reloads (rule 6). Batches that arrive while that load
  *   runs wait; once the snapshot is taken, they go through rule 2, with local = the snapshot's revision.
- *   Batches that arrived before the load started are in the snapshot already.</li>
+ *   Batches that arrived before the load started are in the snapshot already, so the view need not keep
+ *   them.</li>
  *
  *   <li><b>Batch.</b> In a synced view, a batch from another epoch than the copy's means reload. In the same
  *   epoch:
@@ -62,19 +63,18 @@ import java.util.Optional;
  *   pulse, and a good pulse arrived after the last snapshot was taken and is under 15 s old.</li>
  *
  *   <li><b>Reload.</b> A reload drops held batches and the pulse the copy was behind, and abandons a running
- *   audit. Batches are dropped until the load starts. The load starts at the latest of: the time the reload
- *   was wanted; 2 s after the previous load started; and, after n failed loads in a row,
- *   min(30 s, 2 s &times; 2^(n-1)) after the last failure. Then it waits 2 s &times; a number from the
+ *   audit. Until the load starts, batches need not be kept, as in rule 1. The load starts at the latest of:
+ *   the time the reload was wanted; 2 s after the previous load started; and, after n failed loads in a
+ *   row, min(30 s, 2 s &times; 2^(n-1)) after the last failure. Then it waits 2 s &times; a number from the
  *   sequence more, so that an epoch change does not reload every process in the same second. A view runs one
- *   load at a time, and every load starts at least 2 s after the previous one. A failed audit load does
- *   not count as a failed load. A load that is no longer
- *   wanted when it ends, because the connection was lost or a new reload was wanted while it ran, is waited
- *   for and its answer ignored.
+ *   load at a time, and every load starts at least 2 s after the previous one. A failed audit load does not
+ *   count as a failed load. A load that is no longer wanted when it ends, because the connection was lost or
+ *   a new reload was wanted while it ran, is waited for and its answer ignored.
  *   <p>Taking a snapshot: the copy becomes the snapshot, items and metrics; the good pulse and the pulse the
- *   copy was behind are cleared, so the view is not live until the next good pulse; held batches go
- *   through rule 2; and the next audit is due
- *   20 min + 10 min &times; a number from the sequence later. A taken snapshot ends a row of failed loads,
- *   unless a reference in it does not resolve: that counts as a failed load, and the view reloads.</li>
+ *   copy was behind are cleared, so the view is not live until the next good pulse; held batches go through
+ *   rule 2; and the next audit is due 20 min + 10 min &times; a number from the sequence later. A taken
+ *   snapshot ends a row of failed loads, unless a reference in it does not resolve: that counts as a failed
+ *   load, and the view reloads.</li>
  *
  *   <li><b>Audit.</b> When an audit is due, the view is live and no load runs, the view loads a snapshot at
  *   some revision S and stays live. When the copy is at exactly S, it compares the items, without metrics.

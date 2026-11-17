@@ -84,6 +84,9 @@ final class WrongMachines {
                 new WrongMachine("compares the audit snapshot on arrival",
                         random -> new ComparesAuditOnArrival().start(random),
                         List.of("audit: compares when the copy reaches exactly S")),
+                new WrongMachine("keeps the metrics when it takes a snapshot",
+                        random -> new KeepsMetricsOnSnapshot().start(random),
+                        List.of("start: the snapshot gives the copy its metrics")),
                 new WrongMachine("keeps the first pulse ahead, not the highest",
                         random -> new KeepsFirstPulseAhead().start(random),
                         List.of("pulse: a pulse further ahead keeps the copy behind until it reaches that")),
@@ -236,6 +239,17 @@ final class WrongMachines {
         void onAuditSnapshot(Memory m, NetworkState snapshot, long now, List<ViewEffect> effects) {
             m.auditSnapshot = snapshot;
             compareAudit(m, now, effects);
+        }
+    }
+
+    static final class KeepsMetricsOnSnapshot extends ReferenceMachine {
+        @Override
+        void takeSnapshot(Memory m, NetworkState snapshot, long now, List<ViewEffect> effects) {
+            NetworkCopy before = m.copy;
+            super.takeSnapshot(m, snapshot, now, effects);
+            if (before != null) {
+                m.copy = withMetrics(m.copy, List.copyOf(before.metrics().values()));
+            }
         }
     }
 

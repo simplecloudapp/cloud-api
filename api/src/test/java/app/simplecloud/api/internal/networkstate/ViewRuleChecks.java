@@ -50,6 +50,8 @@ final class ViewRuleChecks {
                         ViewRuleChecks::liveOnlyAfterFirstGoodPulse),
                 new ViewCheck("start: a snapshot alone never makes the view live",
                         ViewRuleChecks::snapshotAloneNeverMakesLive),
+                new ViewCheck("start: the snapshot gives the copy its metrics",
+                        ViewRuleChecks::snapshotGivesCopyItsMetrics),
                 new ViewCheck("start: holds batches that arrive during the load",
                         ViewRuleChecks::holdsBatchesArrivingDuringLoad),
                 new ViewCheck("start: drops batches during the load that the snapshot holds",
@@ -211,6 +213,19 @@ final class ViewRuleChecks {
 
         assertFalse(liveWithoutPulse, "a view without a pulse is not live");
         assertFalse(view.isLive(), "a pulse below the copy is not a good pulse");
+    }
+
+    static void snapshotGivesCopyItsMetrics(ViewStarter starter) {
+        ViewDriver view = ViewDriver.liveAt(starter, network(10));
+        view.advance(100);
+        view.pulse(pulse(10).toBuilder().addMetrics(metrics(2, 40)).build());
+        view.advance(2_000);
+        view.loseConnection();
+        view.subscribe();
+        view.assertLoadRequested("a reconnect means reload");
+        view.loadSnapshot(network(12));
+
+        assertEquals(Map.of(id(1), metrics(1, 5)), view.copy().metrics(), "a taken snapshot replaces the metrics");
     }
 
     static void holdsBatchesArrivingDuringLoad(ViewStarter starter) {
