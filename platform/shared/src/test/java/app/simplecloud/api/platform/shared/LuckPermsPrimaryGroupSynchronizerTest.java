@@ -1,6 +1,8 @@
 package app.simplecloud.api.platform.shared;
 
 import app.simplecloud.api.CloudApi;
+import app.simplecloud.api.platform.shared.luckperms.LuckPermsPrimaryGroupSynchronizer;
+import app.simplecloud.api.platform.shared.player.OnlinePlayers;
 import app.simplecloud.api.player.CloudPlayer;
 import app.simplecloud.api.player.PlayerApi;
 import net.luckperms.api.LuckPerms;
@@ -19,7 +21,7 @@ import java.util.UUID;
 import java.util.concurrent.CompletableFuture;
 import java.util.function.Consumer;
 
-import static app.simplecloud.api.platform.shared.LuckPermsPrimaryGroupSynchronizer.PRIMARY_GROUP_PROPERTY;
+import static app.simplecloud.api.platform.shared.luckperms.LuckPermsPrimaryGroupSynchronizer.PRIMARY_GROUP_PROPERTY;
 import static org.junit.jupiter.api.Assertions.assertEquals;
 import static org.junit.jupiter.api.Assertions.assertSame;
 import static org.mockito.ArgumentMatchers.*;

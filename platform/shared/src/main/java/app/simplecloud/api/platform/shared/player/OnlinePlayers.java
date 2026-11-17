@@ -1,4 +1,4 @@
-package app.simplecloud.api.platform.shared;
+package app.simplecloud.api.platform.shared.player;
 
 import java.util.UUID;
 

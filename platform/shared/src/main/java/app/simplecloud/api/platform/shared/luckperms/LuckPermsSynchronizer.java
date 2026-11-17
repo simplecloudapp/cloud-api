@@ -1,4 +1,4 @@
-package app.simplecloud.api.platform.shared;
+package app.simplecloud.api.platform.shared.luckperms;
 
 import java.util.UUID;
 

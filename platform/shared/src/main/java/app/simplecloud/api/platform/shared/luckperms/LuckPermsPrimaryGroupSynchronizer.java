@@ -1,6 +1,8 @@
-package app.simplecloud.api.platform.shared;
+package app.simplecloud.api.platform.shared.luckperms;
 
 import app.simplecloud.api.CloudApi;
+import app.simplecloud.api.platform.shared.FailureLog;
+import app.simplecloud.api.platform.shared.player.OnlinePlayers;
 import app.simplecloud.api.player.CloudPlayer;
 import net.luckperms.api.LuckPerms;
 import net.luckperms.api.event.EventSubscription;

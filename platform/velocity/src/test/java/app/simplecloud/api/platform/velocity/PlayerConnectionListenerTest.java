@@ -4,7 +4,7 @@ import app.simplecloud.api.internal.integration.player.LoginResult;
 import app.simplecloud.api.internal.integration.player.PlayerLogin;
 import app.simplecloud.api.internal.integration.player.PlayerSessionReporter;
 import app.simplecloud.api.internal.integration.presence.ProxyPresenceTracker;
-import app.simplecloud.api.platform.shared.LuckPermsSynchronizer;
+import app.simplecloud.api.platform.shared.luckperms.LuckPermsSynchronizer;
 import app.simplecloud.api.platform.shared.PlayerSynchronizer;
 import app.simplecloud.api.player.PlayerClientSettings;
 import com.velocitypowered.api.event.Continuation;
