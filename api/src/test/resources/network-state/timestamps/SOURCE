@@ -1,0 +1,3 @@
+Copied from the controller, branch feat/network-state-sync, at commit 09e85901d912e4cb6951c28a7c4495cbae9e93d5.
+The files are internal/web/testdata/network-state/timestamps, written by TestNetworkStateFixtures;
+they last changed in commit bbe7745e3fe73ae46cdaba587dac9eb93c3f973f. blueprints.json is left out: the copy does not answer blueprint lists.
