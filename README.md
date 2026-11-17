@@ -36,15 +36,10 @@ The official SDK for the SimpleCloud controller. Manage groups, servers, persist
 
 ## Server Installation
 
-- Put the Spigot, Paper, BungeeCord, and Velocity JAR in the server's `plugins` directory. The Paper JAR also runs on Folia.
+- Put the Spigot, Paper, BungeeCord, and Velocity JAR in the server's `plugins` directory.
 - Put the Fabric/Quilt or NeoForge JAR in the server's `mods` directory.
 - The shared Fabric/Quilt build requires Fabric API.
 - Fabric, Quilt, and NeoForge support is server-side only, targets Minecraft 26.2 to 26.3, and does not require clients to install the mod.
-- On Minestom, add `app.simplecloud.api:minestom` as a dependency and call `SimpleCloudMinestom.init()` after `MinecraftServer.init()`.
-
-### GraalVM Native Image
-
-The `api` and `minestom` artifacts ship their reachability metadata, so `native-image` picks it up without extra configuration.
 
 ## Usage
 
