@@ -1,7 +1,5 @@
 package app.simplecloud.api.internal.networkstate.read;
 
-import app.simplecloud.api.internal.networkstate.ItemId;
-import app.simplecloud.api.internal.networkstate.ItemKind;
 import app.simplecloud.api.internal.networkstate.NetworkCopy;
 import app.simplecloud.api.web.models.ModelsListServersResponse;
 import build.buf.gen.simplecloud.controller.v2.StatePersistentServer;
@@ -138,11 +136,8 @@ public final class CopyServerList {
                     ControllerJson.texts(json, "tags"));
         }
 
-        static ItemId idOf(StateServer server) {
-            if (server.hasServerGroupId()) {
-                return new ItemId(ItemKind.SERVER_GROUP, server.getServerGroupId());
-            }
-            return new ItemId(ItemKind.PERSISTENT_SERVER, server.getPersistentServerId());
+        static ByteString idOf(StateServer server) {
+            return server.hasServerGroupId() ? server.getServerGroupId() : server.getPersistentServerId();
         }
     }
 
@@ -223,7 +218,7 @@ public final class CopyServerList {
         }
 
         List<StateServer> select(NetworkCopy copy) {
-            Map<ItemId, Parent> parents = new HashMap<>();
+            Map<ByteString, Parent> parents = new HashMap<>();
             List<StateServer> matching = new ArrayList<>();
             for (StateServer server : copy.servers().values()) {
                 if (matches(server, parents, copy)) {
@@ -237,7 +232,7 @@ public final class CopyServerList {
         /**
          * @param parents the parents read so far, so that each group or persistent server is parsed once
          */
-        private boolean matches(StateServer server, Map<ItemId, Parent> parents, NetworkCopy copy) {
+        private boolean matches(StateServer server, Map<ByteString, Parent> parents, NetworkCopy copy) {
             if (!matchesRow(server)) {
                 return false;
             }
