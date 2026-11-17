@@ -3,14 +3,15 @@ package app.simplecloud.api.internal;
 import app.simplecloud.api.CloudApi;
 import app.simplecloud.api.CloudApiOptions;
 import app.simplecloud.api.internal.nats.NatsFailoverConnectionManager;
-import app.simplecloud.api.internal.nats.PlatformNatsConnection;
 import app.simplecloud.api.web.ApiClient;
 import com.sun.net.httpserver.HttpServer;
 import io.nats.client.Connection;
 import io.nats.client.Dispatcher;
 import io.nats.client.MessageHandler;
 import io.nats.client.Nats;
+import io.nats.client.Subscription;
 import okhttp3.ConnectionPool;
+import okhttp3.OkHttpClient;
 import org.junit.jupiter.api.AfterEach;
 import org.junit.jupiter.api.BeforeEach;
 import org.junit.jupiter.api.Test;
@@ -20,23 +21,18 @@ import java.net.InetSocketAddress;
 import java.nio.charset.StandardCharsets;
 import java.time.Duration;
 import java.util.List;
-import java.util.Set;
 import java.util.concurrent.ArrayBlockingQueue;
 import java.util.concurrent.BlockingQueue;
 import java.util.concurrent.CopyOnWriteArrayList;
 import java.util.concurrent.ExecutorService;
 import java.util.concurrent.TimeUnit;
+import java.util.concurrent.atomic.AtomicInteger;
 import java.util.function.UnaryOperator;
-import java.util.logging.Handler;
-import java.util.logging.Level;
-import java.util.logging.LogRecord;
-import java.util.logging.Logger;
-import java.util.stream.Collectors;
 
-import static org.junit.jupiter.api.Assertions.assertDoesNotThrow;
 import static org.junit.jupiter.api.Assertions.assertEquals;
 import static org.junit.jupiter.api.Assertions.assertFalse;
 import static org.junit.jupiter.api.Assertions.assertNotEquals;
+import static org.junit.jupiter.api.Assertions.assertNotSame;
 import static org.junit.jupiter.api.Assertions.assertNull;
 import static org.junit.jupiter.api.Assertions.assertSame;
 import static org.junit.jupiter.api.Assertions.assertThrows;
@@ -45,9 +41,12 @@ import static org.junit.jupiter.api.Assumptions.assumeTrue;
 
 class SharedCloudApiResourcesTest {
 
-    private static final String NATS_MONITOR_THREAD = "simplecloud-nats-failover-monitor";
-    private static final String SUBJECT = "network-1.shared-test";
+    private static final String SUBJECT = "shared-test";
 
+    private static final AtomicInteger TEST_NETWORKS = new AtomicInteger();
+
+    // Each test gets its own network, so an instance a failed test leaves open shares nothing with the next test.
+    private final String networkId = "network-" + TEST_NETWORKS.incrementAndGet();
     private final List<String> requestComponents = new CopyOnWriteArrayList<>();
     private HttpServer controller;
 
@@ -72,35 +71,78 @@ class SharedCloudApiResourcesTest {
     }
 
     @Test
-    void natsViewRejectsDirectSubscriptions() {
-        try (CloudApiImpl api = (CloudApiImpl) CloudApi.create(options(UnaryOperator.identity()))) {
-            Connection connection = api.getNatsConnection();
+    void instancesWithEqualNatsSettingsShareOneConnectionAndOthersGetTheirOwn() throws Exception {
+        CloudApiOptions sharedOptions = options(UnaryOperator.identity());
+        CloudApiOptions otherDelayOptions = options(builder -> builder.natsFailoverReconnectAfter(Duration.ofSeconds(31)));
 
-            assertThrows(UnsupportedOperationException.class, () -> connection.subscribe("network-1.direct"));
+        try (CloudApiImpl first = (CloudApiImpl) CloudApi.create(sharedOptions);
+             CloudApiImpl second = (CloudApiImpl) CloudApi.create(sharedOptions);
+             CloudApiImpl otherSettings = (CloudApiImpl) CloudApi.create(otherDelayOptions)) {
+            assertSame(natsConnectionManager(first), natsConnectionManager(second));
+            assertNotSame(natsConnectionManager(first), natsConnectionManager(otherSettings));
         }
     }
 
     @Test
-    void closedInstanceRejectsCallsOnItsNatsConnection() {
+    void theSharedNatsConnectionStaysOpenUntilTheLastInstanceCloses() throws Exception {
+        CloudApiOptions sharedOptions = options(UnaryOperator.identity());
+        CloudApiImpl platformPlugin = (CloudApiImpl) CloudApi.create(sharedOptions);
+        CloudApiImpl otherPlugin = (CloudApiImpl) CloudApi.create(sharedOptions);
+        NatsFailoverConnectionManager sharedManager = natsConnectionManager(platformPlugin);
+
+        platformPlugin.close();
+        CloudApiImpl reenabledPlatformPlugin = (CloudApiImpl) CloudApi.create(sharedOptions);
+        assertSame(sharedManager, natsConnectionManager(reenabledPlatformPlugin));
+        assertFalse(isShutDown(sharedManager));
+
+        otherPlugin.close();
+        assertFalse(isShutDown(sharedManager));
+        reenabledPlatformPlugin.close();
+        assertTrue(isShutDown(sharedManager));
+        try (CloudApiImpl afterRestart = (CloudApiImpl) CloudApi.create(sharedOptions)) {
+            assertNotSame(sharedManager, natsConnectionManager(afterRestart));
+        }
+    }
+
+    @Test
+    void closingAnInstanceClosesOnlyItsOwnEventDispatchers() throws Exception {
+        CloudApiOptions sharedOptions = options(UnaryOperator.identity());
+
+        try (CloudApiImpl remaining = (CloudApiImpl) CloudApi.create(sharedOptions)) {
+            NatsFailoverConnectionManager sharedManager = natsConnectionManager(remaining);
+            int remainingDispatchers = dispatcherCount(sharedManager);
+            CloudApiImpl closing = (CloudApiImpl) CloudApi.create(sharedOptions);
+            assertTrue(dispatcherCount(sharedManager) > remainingDispatchers);
+
+            closing.close();
+
+            assertEquals(remainingDispatchers, dispatcherCount(sharedManager));
+        }
+    }
+
+    @Test
+    void closedInstanceReportsItsNatsConnectionClosedAndRejectsPublishes() {
         CloudApiImpl closed = (CloudApiImpl) CloudApi.create(options(UnaryOperator.identity()));
         Connection connection = closed.getNatsConnection();
+
         closed.close();
 
         byte[] payload = new byte[0];
-        assertThrows(IllegalStateException.class, () -> connection.publish("network-1.closed", payload));
+        assertEquals(Connection.Status.CLOSED, connection.getStatus());
+        assertThrows(IllegalStateException.class, () -> connection.publish("closed-test", payload));
     }
 
     @Test
     void closingOneInstanceLeavesTheSharedHttpClientWorkingForTheOther() throws Exception {
         CloudApi closing = CloudApi.create(options(builder -> builder.component("closing-plugin")));
         try (CloudApi remaining = CloudApi.create(options(builder -> builder.component("remaining-plugin")))) {
-            ConnectionPool closingPool = apiClient(closing).getHttpClient().connectionPool();
-            ConnectionPool remainingPool = apiClient(remaining).getHttpClient().connectionPool();
+            ConnectionPool closingPool = httpClient(closing).connectionPool();
+            ConnectionPool remainingPool = httpClient(remaining).connectionPool();
             assertSame(closingPool, remainingPool);
 
             closing.close();
 
-            ExecutorService remainingDispatcher = apiClient(remaining).getHttpClient().dispatcher().executorService();
+            ExecutorService remainingDispatcher = httpClient(remaining).dispatcher().executorService();
             assertFalse(remainingDispatcher.isShutdown());
             assertEquals(0, remaining.player().getOnlinePlayerCount().join());
         }
@@ -108,66 +150,42 @@ class SharedCloudApiResourcesTest {
     }
 
     @Test
-    void failedConstructionLeavesNoNatsConnectionAndNoRegisteredConnection() throws Exception {
-        Set<Thread> monitorThreadsBefore = natsMonitorThreads();
-        CloudApiOptions failingOptions = options(builder -> builder.cache(null));
+    void theLastCloseShutsDownTheSharedHttpClient() throws Exception {
+        CloudApi first = CloudApi.create(options(UnaryOperator.identity()));
+        CloudApi last = CloudApi.create(options(UnaryOperator.identity()));
+        ExecutorService sharedDispatcher = httpClient(first).dispatcher().executorService();
 
-        assertThrows(NullPointerException.class, () -> CloudApiImpl.createNatsConnectionOwner(failingOptions));
+        first.close();
+        assertFalse(sharedDispatcher.isShutdown());
 
-        PlatformNatsConnection.Settings settings = PlatformNatsConnection.Settings.of(failingOptions);
-        assertTrue(PlatformNatsConnection.find(settings).isEmpty());
-        awaitNoNewNatsMonitorThread(monitorThreadsBefore);
+        last.close();
+        assertTrue(sharedDispatcher.isShutdown());
     }
 
     @Test
-    void secondOwnerNeitherReplacesNorUnregistersTheFirst() {
-        CloudApiOptions firstOptions = options(UnaryOperator.identity());
-        CloudApiOptions secondOptions = options(builder -> builder.natsFailoverReconnectAfter(Duration.ofSeconds(31)));
-        PlatformNatsConnection.Settings firstSettings = PlatformNatsConnection.Settings.of(firstOptions);
-        PlatformNatsConnection.Settings secondSettings = PlatformNatsConnection.Settings.of(secondOptions);
+    void failedConstructionClosesItsHandlesOnTheSharedConnections() throws Exception {
+        CloudApiImpl open = (CloudApiImpl) CloudApi.create(options(UnaryOperator.identity()));
+        NatsFailoverConnectionManager natsManager = natsConnectionManager(open);
+        ExecutorService httpDispatcher = httpClient(open).dispatcher().executorService();
+        CloudApiOptions failingOptions = options(builder -> builder.cache(null));
 
-        try (CloudApiImpl first = CloudApiImpl.createNatsConnectionOwner(firstOptions)) {
-            CloudApiImpl second = CloudApiImpl.createNatsConnectionOwner(secondOptions);
-            assertTrue(PlatformNatsConnection.find(secondSettings).isEmpty());
+        assertThrows(NullPointerException.class, () -> CloudApi.create(failingOptions));
+        open.close();
 
-            second.close();
-
-            assertTrue(PlatformNatsConnection.find(firstSettings).isPresent());
+        assertTrue(httpDispatcher.isShutdown());
+        try (CloudApiImpl next = (CloudApiImpl) CloudApi.create(options(UnaryOperator.identity()))) {
+            assertNotSame(natsManager, natsConnectionManager(next));
         }
-        assertTrue(PlatformNatsConnection.find(firstSettings).isEmpty());
     }
 
     // Run the tests below against an isolated broker with NATS_TEST_URL=nats://127.0.0.1:4222.
     @Test
-    void ownerSharesItsConnectionOnlyWithInstancesOfEqualSettings() throws Exception {
-        String url = natsTestUrl();
-        CloudApiOptions ownerOptions = options(builder -> builder.natsUrl(url));
-        CloudApiOptions otherDelayOptions = options(builder -> builder.natsUrl(url)
-                .natsFailoverReconnectAfter(Duration.ofSeconds(31)));
-
-        try (CloudApiImpl owner = CloudApiImpl.createNatsConnectionOwner(ownerOptions);
-             CloudApiImpl sameSettings = (CloudApiImpl) CloudApi.create(ownerOptions);
-             CloudApiImpl otherSettings = (CloudApiImpl) CloudApi.create(otherDelayOptions)) {
-            int ownerClientId = awaitClientId(owner);
-
-            assertEquals(ownerClientId, awaitClientId(sameSettings));
-            assertNotEquals(ownerClientId, awaitClientId(otherSettings));
-        }
-    }
-
-    @Test
-    void instancesWithoutOwnerOpenAndCloseTheirOwnConnections() throws Exception {
+    void instancesWithEqualNatsSettingsUseOneBrokerConnection() throws Exception {
         CloudApiOptions brokerOptions = options(builder -> builder.natsUrl(natsTestUrl()));
 
-        try (CloudApiImpl remaining = (CloudApiImpl) CloudApi.create(brokerOptions)) {
-            CloudApiImpl closing = (CloudApiImpl) CloudApi.create(brokerOptions);
-            assertNotEquals(awaitClientId(remaining), awaitClientId(closing));
-            Connection closingConnection = ownNatsConnection(closing);
-
-            closing.close();
-
-            assertEquals(Connection.Status.CLOSED, closingConnection.getStatus());
-            assertEquals(Connection.Status.CONNECTED, ownNatsConnection(remaining).getStatus());
+        try (CloudApiImpl first = (CloudApiImpl) CloudApi.create(brokerOptions);
+             CloudApiImpl second = (CloudApiImpl) CloudApi.create(brokerOptions)) {
+            assertEquals(awaitClientId(first), awaitClientId(second));
         }
     }
 
@@ -175,105 +193,45 @@ class SharedCloudApiResourcesTest {
     void closingAnInstanceStopsOnlyItsOwnSubscriptions() throws Exception {
         String url = natsTestUrl();
         CloudApiOptions brokerOptions = options(builder -> builder.natsUrl(url));
-        BlockingQueue<String> ownerMessages = new ArrayBlockingQueue<>(10);
+        BlockingQueue<String> remainingMessages = new ArrayBlockingQueue<>(10);
         BlockingQueue<String> closingMessages = new ArrayBlockingQueue<>(10);
 
         try (Connection publisher = Nats.connect(url);
-             CloudApiImpl owner = CloudApiImpl.createNatsConnectionOwner(brokerOptions)) {
+             CloudApiImpl remaining = (CloudApiImpl) CloudApi.create(brokerOptions)) {
             CloudApiImpl closing = (CloudApiImpl) CloudApi.create(brokerOptions);
-            awaitClientId(owner);
-            subscribe(owner.getNatsConnection(), ownerMessages);
-            subscribe(closing.getNatsConnection(), closingMessages);
-            owner.getNatsConnection().flush(Duration.ofSeconds(5));
+            awaitClientId(remaining);
+            subscribeThroughDispatcher(remaining.getNatsConnection(), remainingMessages);
+            subscribeThroughDispatcher(closing.getNatsConnection(), closingMessages);
+            Subscription closingDirectSubscription = closing.getNatsConnection().subscribe(SUBJECT);
+            remaining.getNatsConnection().flush(Duration.ofSeconds(5));
 
             closing.close();
             publish(publisher, "after-close");
 
-            assertEquals("after-close", ownerMessages.poll(5, TimeUnit.SECONDS));
-            owner.getNatsConnection().flush(Duration.ofSeconds(5));
+            assertEquals("after-close", remainingMessages.poll(5, TimeUnit.SECONDS));
+            remaining.getNatsConnection().flush(Duration.ofSeconds(5));
             assertNull(closingMessages.poll(500, TimeUnit.MILLISECONDS));
-            assertEquals(Connection.Status.CONNECTED, ownNatsConnection(owner).getStatus());
+            assertFalse(closingDirectSubscription.isActive());
+            assertEquals(Connection.Status.CONNECTED, remaining.getNatsConnection().getStatus());
         }
     }
 
     @Test
-    void drainingAViewLeavesTheSharedConnectionOpen() throws Exception {
+    void theLastCloseClosesTheBrokerConnection() throws Exception {
         CloudApiOptions brokerOptions = options(builder -> builder.natsUrl(natsTestUrl()));
+        CloudApiImpl first = (CloudApiImpl) CloudApi.create(brokerOptions);
+        CloudApiImpl last = (CloudApiImpl) CloudApi.create(brokerOptions);
+        awaitClientId(first);
+        Connection sharedConnection = natsConnectionManager(first).getConnection();
 
-        try (CloudApiImpl owner = CloudApiImpl.createNatsConnectionOwner(brokerOptions);
-             CloudApiImpl draining = (CloudApiImpl) CloudApi.create(brokerOptions)) {
-            awaitClientId(owner);
-            Connection drainingView = draining.getNatsConnection();
+        first.close();
+        assertEquals(Connection.Status.CONNECTED, sharedConnection.getStatus());
 
-            drainingView.drain(Duration.ofSeconds(1)).get(5, TimeUnit.SECONDS);
-
-            byte[] payload = new byte[0];
-            assertThrows(IllegalStateException.class, () -> drainingView.publish(SUBJECT, payload));
-            assertEquals(Connection.Status.CONNECTED, owner.getNatsConnection().getStatus());
-        }
+        last.close();
+        assertEquals(Connection.Status.CLOSED, sharedConnection.getStatus());
     }
 
-    @Test
-    void closingAViewLeavesTheSharedConnectionOpen() throws Exception {
-        CloudApiOptions brokerOptions = options(builder -> builder.natsUrl(natsTestUrl()));
-
-        try (CloudApiImpl owner = CloudApiImpl.createNatsConnectionOwner(brokerOptions);
-             CloudApiImpl closing = (CloudApiImpl) CloudApi.create(brokerOptions)) {
-            awaitClientId(owner);
-            Connection closingView = closing.getNatsConnection();
-
-            closingView.close();
-
-            byte[] payload = new byte[0];
-            assertThrows(IllegalStateException.class, () -> closingView.publish(SUBJECT, payload));
-            assertEquals(Connection.Status.CONNECTED, owner.getNatsConnection().getStatus());
-        }
-    }
-
-    @Test
-    void closingTheOwnerFirstLeavesLaterClosesQuiet() throws Exception {
-        CloudApiOptions brokerOptions = options(builder -> builder.natsUrl(natsTestUrl()));
-        PlatformNatsConnection.Settings settings = PlatformNatsConnection.Settings.of(brokerOptions);
-        List<String> logsAboveFine = new CopyOnWriteArrayList<>();
-        Handler logCollector = new Handler() {
-            @Override
-            public void publish(LogRecord record) {
-                if (record.getLevel().intValue() > Level.FINE.intValue()) {
-                    logsAboveFine.add(record.getLevel() + " " + record.getMessage());
-                }
-            }
-
-            @Override
-            public void flush() {
-            }
-
-            @Override
-            public void close() {
-            }
-        };
-        Logger apiLogger = Logger.getLogger("app.simplecloud.api");
-
-        try (CloudApiImpl owner = CloudApiImpl.createNatsConnectionOwner(brokerOptions);
-             CloudApiImpl closedLast = (CloudApiImpl) CloudApi.create(brokerOptions)) {
-            awaitClientId(owner);
-            subscribe(closedLast.getNatsConnection(), new ArrayBlockingQueue<>(10));
-            Connection sharedConnection = ownNatsConnection(owner);
-
-            owner.close();
-
-            assertEquals(Connection.Status.CLOSED, sharedConnection.getStatus());
-            assertTrue(PlatformNatsConnection.find(settings).isEmpty());
-            apiLogger.addHandler(logCollector);
-            try {
-                assertDoesNotThrow(closedLast::close);
-            } finally {
-                apiLogger.removeHandler(logCollector);
-            }
-        }
-        assertEquals(List.of(), logsAboveFine);
-    }
-
-    private static void subscribe(Connection connection, BlockingQueue<String> received) {
+    private static void subscribeThroughDispatcher(Connection connection, BlockingQueue<String> received) {
         MessageHandler handler = message -> received.add(new String(message.getData(), StandardCharsets.UTF_8));
         Dispatcher dispatcher = connection.createDispatcher(handler);
         dispatcher.subscribe(SUBJECT);
@@ -299,46 +257,39 @@ class SharedCloudApiResourcesTest {
         return connection.getServerInfo().getClientId();
     }
 
-    private static Set<Thread> natsMonitorThreads() {
-        return Thread.getAllStackTraces().keySet().stream()
-                .filter(thread -> thread.getName().equals(NATS_MONITOR_THREAD))
-                .collect(Collectors.toSet());
-    }
-
-    private static void awaitNoNewNatsMonitorThread(Set<Thread> threadsBefore) throws InterruptedException {
-        long deadline = System.nanoTime() + Duration.ofSeconds(5).toNanos();
-        Set<Thread> newThreads = newNatsMonitorThreads(threadsBefore);
-        while (!newThreads.isEmpty() && System.nanoTime() < deadline) {
-            Thread.sleep(10);
-            newThreads = newNatsMonitorThreads(threadsBefore);
-        }
-        assertEquals(Set.of(), newThreads);
-    }
-
-    private static Set<Thread> newNatsMonitorThreads(Set<Thread> threadsBefore) {
-        Set<Thread> threads = natsMonitorThreads();
-        threads.removeAll(threadsBefore);
-        return threads;
-    }
-
-    private static Connection ownNatsConnection(CloudApiImpl api) throws ReflectiveOperationException {
-        Field field = CloudApiImpl.class.getDeclaredField("ownNatsConnectionManager");
+    private static NatsFailoverConnectionManager natsConnectionManager(CloudApiImpl api) throws ReflectiveOperationException {
+        Field field = CloudApiImpl.class.getDeclaredField("natsConnectionManagerHandle");
         field.setAccessible(true);
-        NatsFailoverConnectionManager connectionManager = (NatsFailoverConnectionManager) field.get(api);
-        return connectionManager.getConnection();
+        SharedResources.Handle<?> handle = (SharedResources.Handle<?>) field.get(api);
+        return (NatsFailoverConnectionManager) handle.resource();
     }
 
-    private static ApiClient apiClient(CloudApi api) throws ReflectiveOperationException {
+    private static boolean isShutDown(NatsFailoverConnectionManager manager) throws ReflectiveOperationException {
+        Field field = NatsFailoverConnectionManager.class.getDeclaredField("monitorExecutor");
+        field.setAccessible(true);
+        ExecutorService monitorExecutor = (ExecutorService) field.get(manager);
+        return monitorExecutor.isShutdown();
+    }
+
+    private static int dispatcherCount(NatsFailoverConnectionManager manager) throws ReflectiveOperationException {
+        Field field = NatsFailoverConnectionManager.class.getDeclaredField("dispatchers");
+        field.setAccessible(true);
+        List<?> dispatchers = (List<?>) field.get(manager);
+        return dispatchers.size();
+    }
+
+    private static OkHttpClient httpClient(CloudApi api) throws ReflectiveOperationException {
         Field field = CloudApiImpl.class.getDeclaredField("apiClient");
         field.setAccessible(true);
-        return (ApiClient) field.get(api);
+        ApiClient apiClient = (ApiClient) field.get(api);
+        return apiClient.getHttpClient();
     }
 
     private CloudApiOptions options(UnaryOperator<CloudApiOptions.Builder> customizer) {
         CloudApiOptions.Builder builder = CloudApiOptions.builder()
                 .natsUrl("nats://127.0.0.1:1")
                 .controllerUrl("http://127.0.0.1:" + controller.getAddress().getPort())
-                .networkId("network-1")
+                .networkId(networkId)
                 .networkSecret("secret");
         return customizer.apply(builder).build();
     }

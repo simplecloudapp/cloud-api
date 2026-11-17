@@ -11,9 +11,7 @@ import app.simplecloud.api.internal.cache.NoOpQueryCache;
 import app.simplecloud.api.internal.cache.QueryCacheImpl;
 import app.simplecloud.api.internal.event.EventApiImpl;
 import app.simplecloud.api.internal.group.GroupApiImpl;
-import app.simplecloud.api.internal.nats.InstanceNatsView;
 import app.simplecloud.api.internal.nats.NatsFailoverConnectionManager;
-import app.simplecloud.api.internal.nats.PlatformNatsConnection;
 import app.simplecloud.api.internal.persistentserver.PersistentServerApiImpl;
 import app.simplecloud.api.internal.server.ServerApiImpl;
 import app.simplecloud.api.internal.player.PlayerApiImpl;
@@ -23,9 +21,9 @@ import app.simplecloud.api.persistentserver.PersistentServerApi;
 import app.simplecloud.api.player.PlayerApi;
 import app.simplecloud.api.server.ServerApi;
 import io.nats.client.Connection;
+import okhttp3.OkHttpClient;
 
 import java.time.Duration;
-import java.util.Optional;
 import java.util.concurrent.Executor;
 import java.util.concurrent.ExecutorService;
 import java.util.concurrent.Executors;
@@ -39,11 +37,20 @@ public class CloudApiImpl implements CloudApi {
     private static final Logger LOGGER = Logger.getLogger(CloudApiImpl.class.getName());
     private static final Duration EXECUTOR_SHUTDOWN_TIMEOUT = Duration.ofSeconds(1);
 
+    // Static, so every CloudApi instance in this class loader with equal settings uses the same connection.
+    private static final SharedResources<NatsConnectionSettings, NatsFailoverConnectionManager> NATS_CONNECTION_MANAGERS =
+            new SharedResources<>(NatsFailoverConnectionManager::shutdown);
+    // Pooled connections go to the controller, so instances of one controller share a pool; each ApiClient
+    // sets its own headers and timeouts on top of it.
+    private static final SharedResources<String, OkHttpClient> HTTP_CLIENTS_BY_CONTROLLER_URL =
+            new SharedResources<>(CloudApiImpl::shutdownHttpClient);
+
     private final CloudApiOptions options;
+    private final SharedResources.Handle<OkHttpClient> httpClientHandle;
     private final ApiClient apiClient;
 
-    private final NatsFailoverConnectionManager ownNatsConnectionManager;
-    private final InstanceNatsView instanceNatsView;
+    private final SharedResources.Handle<NatsFailoverConnectionManager> natsConnectionManagerHandle;
+    private final InstanceNatsConnection natsConnection;
     private final QueryCache queryCache;
     private final CacheEventListener cacheEventListener;
     private final ServerApi serverApi;
@@ -57,20 +64,19 @@ public class CloudApiImpl implements CloudApi {
     public CloudApiImpl(CloudApiOptions options) {
         this.options = options;
 
-        NatsFailoverConnectionManager ownNatsConnectionManager = null;
-        InstanceNatsView instanceNatsView = null;
+        // Closed again if a later step fails, or a shared resource would stay open after its last user closed.
+        SharedResources.Handle<NatsFailoverConnectionManager> natsConnectionManagerHandle = null;
+        SharedResources.Handle<OkHttpClient> httpClientHandle = null;
+        InstanceNatsConnection natsConnection = null;
         QueryCache queryCache = null;
         try {
-            PlatformNatsConnection.Settings natsSettings = PlatformNatsConnection.Settings.of(options);
-            Optional<NatsFailoverConnectionManager> platformNatsConnectionManager = PlatformNatsConnection.find(natsSettings);
-            if (platformNatsConnectionManager.isEmpty()) {
-                ownNatsConnectionManager = natsSettings.openConnectionManager();
-            }
-            NatsFailoverConnectionManager natsConnectionManager = platformNatsConnectionManager.orElse(ownNatsConnectionManager);
-            instanceNatsView = new InstanceNatsView(natsConnectionManager.getConnection());
-            this.ownNatsConnectionManager = ownNatsConnectionManager;
-            this.instanceNatsView = instanceNatsView;
-            Connection natsClient = instanceNatsView.view();
+            NatsConnectionSettings natsSettings = NatsConnectionSettings.of(options);
+            natsConnectionManagerHandle = NATS_CONNECTION_MANAGERS.acquire(natsSettings, natsSettings::openConnectionManager);
+            this.natsConnectionManagerHandle = natsConnectionManagerHandle;
+            httpClientHandle = HTTP_CLIENTS_BY_CONTROLLER_URL.acquire(options.getControllerUrl(), CloudApiImpl::newHttpClient);
+            this.httpClientHandle = httpClientHandle;
+            natsConnection = new InstanceNatsConnection(natsConnectionManagerHandle.resource().getConnection());
+            this.natsConnection = natsConnection;
 
             // Initialize cache
             CacheConfig cacheConfig = options.getCacheConfig();
@@ -82,9 +88,9 @@ public class CloudApiImpl implements CloudApi {
             this.queryCache = queryCache;
 
             // Initialize APIs with cache
-            this.apiClient = ApiClients.create(options);
-            this.playerApi = new PlayerApiImpl(options, natsClient, apiClient, executor);
-            this.eventApi = new EventApiImpl(natsClient, options.getNetworkId(), playerApi);
+            this.apiClient = ApiClients.create(options, httpClientHandle.resource());
+            this.playerApi = new PlayerApiImpl(options, natsConnection.asConnection(), apiClient, executor);
+            this.eventApi = new EventApiImpl(natsConnection.asConnection(), options.getNetworkId(), playerApi);
             this.serverApi = new ServerApiImpl(options, queryCache, apiClient, executor);
             this.groupApi = new GroupApiImpl(options, queryCache, apiClient, executor);
             this.persistentServerApi = new PersistentServerApiImpl(options, queryCache, apiClient, executor);
@@ -97,33 +103,13 @@ public class CloudApiImpl implements CloudApi {
                 this.cacheEventListener = null;
             }
         } catch (RuntimeException | Error e) {
-            if (instanceNatsView != null) {
-                instanceNatsView.close();
-            }
-            if (ownNatsConnectionManager != null) {
-                ownNatsConnectionManager.shutdown();
-            }
+            closeConnections(natsConnection, natsConnectionManagerHandle, httpClientHandle);
             if (queryCache instanceof QueryCacheImpl queryCacheImpl) {
                 queryCacheImpl.shutdown();
             }
             executor.shutdown();
             throw e;
         }
-    }
-
-    /**
-     * Creates the platform plugin's instance. Instances created afterwards in this class loader with
-     * the same NATS settings use its NATS connection instead of opening their own, and closing this instance
-     * closes that connection for all of them. If another connection is registered already, this
-     * instance is created like any other.
-     */
-    public static CloudApiImpl createNatsConnectionOwner(CloudApiOptions options) {
-        CloudApiImpl cloudApi = new CloudApiImpl(options);
-        if (cloudApi.ownNatsConnectionManager != null) {
-            PlatformNatsConnection.Settings natsSettings = PlatformNatsConnection.Settings.of(options);
-            PlatformNatsConnection.register(natsSettings, cloudApi.ownNatsConnectionManager);
-        }
-        return cloudApi;
     }
 
     @Override
@@ -152,15 +138,14 @@ public class CloudApiImpl implements CloudApi {
     }
 
     /**
-     * Returns this instance's view of the NATS connection, which may be shared with other instances.
-     * Callers subscribe through a dispatcher from {@code createDispatcher}; {@code subscribe} on the
-     * view throws.
+     * Returns this instance's NATS connection, on top of a connection it may share with other instances.
+     * Closing or draining it closes only the dispatchers and subscriptions this instance created.
      * This is for internal use by integration modules.
      *
-     * @return this instance's view of the NATS connection
+     * @return this instance's NATS connection
      */
     public Connection getNatsConnection() {
-        return instanceNatsView.view();
+        return natsConnection.asConnection();
     }
 
     public Executor getExecutor() {
@@ -179,8 +164,8 @@ public class CloudApiImpl implements CloudApi {
 
     /**
      * Blocks for up to about two seconds more than the NATS close itself: up to one second for running tasks,
-     * then up to one second to send the NATS messages already queued. An instance that uses the platform
-     * plugin's NATS connection leaves it open, so it waits only for the running tasks.
+     * then up to one second to send the NATS messages already queued. The shared NATS connection closes only
+     * when this is the last open instance that uses it; otherwise close waits only for the running tasks.
      */
     @Override
     public void close() {
@@ -203,7 +188,7 @@ public class CloudApiImpl implements CloudApi {
             }
         }
         // Player session reports publish on NATS from this executor,
-        // so they get a short time to finish before the NATS view closes.
+        // so they get a short time to finish before this instance's NATS connection closes.
         executor.shutdown();
         try {
             if (!executor.awaitTermination(EXECUTOR_SHUTDOWN_TIMEOUT.toMillis(), TimeUnit.MILLISECONDS)) {
@@ -213,16 +198,64 @@ public class CloudApiImpl implements CloudApi {
         } catch (InterruptedException e) {
             Thread.currentThread().interrupt();
         }
-        instanceNatsView.close();
-        if (ownNatsConnectionManager != null) {
-            // Unregistered first, so instances created from now on open their own connection instead of this closing one.
-            PlatformNatsConnection.unregister(ownNatsConnectionManager);
+        closeConnections(natsConnection, natsConnectionManagerHandle, httpClientHandle);
+    }
+
+    /**
+     * Closes this instance's NATS connection and its handles on the shared connections. Takes nulls,
+     * for a constructor that failed before it had them all.
+     */
+    private static void closeConnections(
+            InstanceNatsConnection natsConnection,
+            SharedResources.Handle<NatsFailoverConnectionManager> natsConnectionManagerHandle,
+            SharedResources.Handle<OkHttpClient> httpClientHandle
+    ) {
+        if (natsConnection != null) {
+            natsConnection.close();
+        }
+        if (natsConnectionManagerHandle != null) {
             try {
-                ownNatsConnectionManager.shutdown();
+                natsConnectionManagerHandle.close();
             } catch (RuntimeException e) {
                 LOGGER.log(Level.WARNING, "Failed to shutdown NATS connection", e);
             }
         }
+        if (httpClientHandle != null) {
+            httpClientHandle.close();
+        }
     }
 
+    private static OkHttpClient newHttpClient() {
+        // Built by the generated ApiClient, so it has the progress interceptor the generated code adds.
+        return new ApiClient().getHttpClient();
+    }
+
+    /**
+     * Stops the threads that run asynchronous calls of {@code httpClient} and closes its idle connections.
+     */
+    private static void shutdownHttpClient(OkHttpClient httpClient) {
+        httpClient.dispatcher().executorService().shutdown();
+        httpClient.connectionPool().evictAll();
+    }
+
+    private record NatsConnectionSettings(
+            String natsUrl,
+            String networkId,
+            String networkSecret,
+            Duration failoverReconnectAfter
+    ) {
+
+        static NatsConnectionSettings of(CloudApiOptions options) {
+            return new NatsConnectionSettings(
+                    options.getNatsUrl(),
+                    options.getNetworkId(),
+                    options.getNetworkSecret(),
+                    options.getNatsFailoverReconnectAfter()
+            );
+        }
+
+        NatsFailoverConnectionManager openConnectionManager() {
+            return new NatsFailoverConnectionManager(natsUrl, networkId, networkSecret, failoverReconnectAfter);
+        }
+    }
 }

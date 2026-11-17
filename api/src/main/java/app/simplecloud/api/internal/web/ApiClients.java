@@ -16,21 +16,28 @@ import java.time.Duration;
  */
 public final class ApiClients {
 
-    // Never shut down, because every CloudApi instance in this class loader sends its requests through it.
-    private static final OkHttpClient HTTP_CLIENT = new ApiClient().getHttpClient();
-
     private ApiClients() {
     }
 
     /**
      * Creates an isolated client. Generated API no-arg constructors use a global
      * default client, so configuring that client would change headers and timeouts
-     * for other CloudApi instances in the same class loader. The client derives its own
-     * {@link OkHttpClient} for its timeouts, which keeps the connection pool and dispatcher
-     * that all clients share.
+     * for other CloudApi instances in the same class loader.
      */
     public static ApiClient create(CloudApiOptions options) {
-        ApiClient client = new ResponseValidatingApiClient(HTTP_CLIENT);
+        return configure(new ResponseValidatingApiClient(), options);
+    }
+
+    /**
+     * Creates a client with its own credential, headers and timeouts that sends its requests through the
+     * connection pool and dispatcher of {@code httpClient}. For its timeouts it derives its own
+     * {@link OkHttpClient}, which keeps that pool and dispatcher.
+     */
+    public static ApiClient create(CloudApiOptions options, OkHttpClient httpClient) {
+        return configure(new ResponseValidatingApiClient(httpClient), options);
+    }
+
+    private static ApiClient configure(ApiClient client, CloudApiOptions options) {
         applyTimeouts(client, options);
         ApiKeyAuth credential = (ApiKeyAuth) client.getAuthentication("NetworkCredential");
         credential.setApiKey(options.getNetworkSecret());
@@ -71,6 +78,9 @@ public final class ApiClients {
     }
 
     static final class ResponseValidatingApiClient extends ApiClient {
+
+        ResponseValidatingApiClient() {
+        }
 
         ResponseValidatingApiClient(OkHttpClient httpClient) {
             super(httpClient);
