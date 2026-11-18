@@ -12,8 +12,6 @@ import app.simplecloud.api.internal.cache.QueryCacheImpl;
 import app.simplecloud.api.internal.event.EventApiImpl;
 import app.simplecloud.api.internal.group.GroupApiImpl;
 import app.simplecloud.api.internal.networkstate.AnsweringCopy;
-import app.simplecloud.api.internal.networkstate.NetworkViewShell;
-import app.simplecloud.api.internal.networkstate.StateRevisionInterceptor;
 import app.simplecloud.api.internal.persistentserver.PersistentServerApiImpl;
 import app.simplecloud.api.internal.server.ServerApiImpl;
 import app.simplecloud.api.internal.player.PlayerApiImpl;
@@ -23,7 +21,6 @@ import app.simplecloud.api.persistentserver.PersistentServerApi;
 import app.simplecloud.api.player.PlayerApi;
 import app.simplecloud.api.server.ServerApi;
 import io.nats.client.Connection;
-import okhttp3.OkHttpClient;
 
 import java.time.Duration;
 import java.util.concurrent.Executor;
@@ -73,16 +70,9 @@ public class CloudApiImpl implements CloudApi {
             }
             this.queryCache = queryCache;
 
-            AnsweringCopy answeringCopy = AnsweringCopy.NONE;
-            OkHttpClient httpClient = runtime.httpClient();
-            NetworkViewShell networkViewShell = runtime.networkViewShell();
-            if (networkViewShell != null) {
-                answeringCopy = networkViewShell;
-                httpClient = StateRevisionInterceptor.addTo(httpClient, networkViewShell);
-            }
-
             // Initialize APIs with cache
-            this.apiClient = ApiClients.create(options, httpClient);
+            this.apiClient = ApiClients.create(options, runtime.httpClient());
+            AnsweringCopy answeringCopy = runtime.answeringCopy();
             this.playerApi = new PlayerApiImpl(options, natsConnection.asConnection(), apiClient, executor);
             this.eventApi = new EventApiImpl(natsConnection.asConnection(), options.getNetworkId(), playerApi);
             this.serverApi = new ServerApiImpl(options, queryCache, apiClient, executor, answeringCopy);
