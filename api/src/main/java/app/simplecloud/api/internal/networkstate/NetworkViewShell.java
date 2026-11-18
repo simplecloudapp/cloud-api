@@ -24,8 +24,8 @@ import java.util.logging.Logger;
 
 /**
  * Runs one network's {@link NetworkView} in this process, and makes none of its decisions. Each input steps
- * the view on the thread it arrives on, under one lock, and the shell then carries out the effects the view
- * returns. The inputs are the messages on {@code <network>.state.v1.batch} and
+ * the view on the thread it arrives on, under one lock, except the answers to snapshot loads, which step it
+ * on the shell's timer thread. The shell then carries out the effects the view returns. The inputs are the messages on {@code <network>.state.v1.batch} and
  * {@code <network>.state.v1.pulse}, the connection's state, the answers to snapshot loads, this process's
  * writes and a time tick.
  *

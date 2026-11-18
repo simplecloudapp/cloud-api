@@ -56,7 +56,14 @@ final class SharedNetworkView {
                 startView,
                 MonotonicClock.SYSTEM
         );
-        natsConnectionManager.addSubscriptionListener(shell);
+        try {
+            natsConnectionManager.addSubscriptionListener(shell);
+        } catch (RuntimeException | Error e) {
+            // The listener may be in the list already: the first call to it can throw.
+            natsConnectionManager.removeSubscriptionListener(shell);
+            shell.close();
+            throw e;
+        }
         return new SharedNetworkView(shell, natsConnectionManagerHandle, httpClientHandle);
     }
 
