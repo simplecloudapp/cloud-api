@@ -4,7 +4,9 @@ import app.simplecloud.api.CloudApiException;
 import app.simplecloud.api.CloudApiOptions;
 import app.simplecloud.api.cache.QueryCache;
 import app.simplecloud.api.cache.QueryKey;
-import app.simplecloud.api.internal.networkstate.CopyReads;
+import app.simplecloud.api.internal.networkstate.CopyFirstList;
+import app.simplecloud.api.internal.networkstate.CopyForReads;
+import app.simplecloud.api.internal.networkstate.read.CopyServerList;
 import app.simplecloud.api.internal.networkstate.read.ServerListParameters;
 import app.simplecloud.api.internal.web.ApiClients;
 import app.simplecloud.api.internal.web.ApiErrors;
@@ -32,6 +34,7 @@ import java.util.*;
 import java.util.concurrent.CompletableFuture;
 import java.util.concurrent.Executor;
 import java.util.concurrent.ForkJoinPool;
+import java.util.function.Supplier;
 import java.util.logging.Logger;
 
 public class ServerApiImpl implements ServerApi {
@@ -43,10 +46,7 @@ public class ServerApiImpl implements ServerApi {
     private final ServersApi serversApi;
     private final QueryCache cache;
     private final Executor executor;
-    /**
-     * Asked before the query cache, which may hold an older answer than the copy.
-     */
-    private final CopyReads copyReads;
+    private final CopyFirstList<ServerListParameters, ModelsListServersResponse> serverList;
 
     public ServerApiImpl(CloudApiOptions options, QueryCache cache) {
         this(options, cache, ApiClients.create(options));
@@ -57,21 +57,22 @@ public class ServerApiImpl implements ServerApi {
     }
 
     public ServerApiImpl(CloudApiOptions options, QueryCache cache, ApiClient httpClient, Executor executor) {
-        this(options, cache, httpClient, executor, CopyReads.NONE);
+        this(options, cache, httpClient, executor, CopyForReads.NO_VIEW);
     }
 
     public ServerApiImpl(CloudApiOptions options, QueryCache cache, ApiClient httpClient, Executor executor,
-            CopyReads copyReads) {
-        this(options, cache, createServersApi(options, httpClient), executor, copyReads);
+            CopyForReads copyForReads) {
+        this(options, cache, createServersApi(options, httpClient), executor, copyForReads);
     }
 
     private ServerApiImpl(CloudApiOptions options, QueryCache cache, ServersApi serversApi, Executor executor,
-                          CopyReads copyReads) {
+                          CopyForReads copyForReads) {
         this.options = options;
         this.cache = cache;
         this.serversApi = serversApi;
         this.executor = executor;
-        this.copyReads = copyReads;
+        CopyServerList copyServerList = new CopyServerList(options.getNetworkId());
+        this.serverList = new CopyFirstList<>(copyServerList, copyForReads, this::executeQuery, executor);
     }
 
     @Override
@@ -87,27 +88,19 @@ public class ServerApiImpl implements ServerApi {
             return CompletableFuture.completedFuture(Optional.empty());
         }
         ServerListParameters parameters = listParameters(null, id);
-        return copyReads.listServers(parameters, copied -> findServerByIdInCopyOrController(copied, parameters, id));
-    }
-
-    private CompletableFuture<Optional<Server>> findServerByIdInCopyOrController(
-            Optional<ModelsListServersResponse> copied,
-            ServerListParameters parameters,
-            String id
-    ) {
-        if (copied.isPresent()) {
-            Server server = serverWithId(copied.get(), id);
-            return CompletableFuture.completedFuture(Optional.ofNullable(server));
-        }
         QueryKey key = QueryKey.of("server", id);
-
-        return cache.fetchWithTransientMissRecovery(
-                key,
-                () -> fetchServerByIdFromController(parameters, id),
-                Objects::isNull,
-                TRANSIENT_MISS_RETRY_DELAY,
-                TRANSIENT_MISS_MAX_RETRIES
-        ).thenApply(Optional::ofNullable);
+        CompletableFuture<Server> server = serverList.read(
+                parameters,
+                response -> serverWithId(response, id),
+                fromController -> cache.fetchWithTransientMissRecovery(
+                        key,
+                        fromController,
+                        Objects::isNull,
+                        TRANSIENT_MISS_RETRY_DELAY,
+                        TRANSIENT_MISS_MAX_RETRIES
+                )
+        );
+        return server.thenApply(Optional::ofNullable);
     }
 
     @Override
@@ -123,29 +116,19 @@ public class ServerApiImpl implements ServerApi {
                 .filterByServerGroupName(groupName)
                 .filterByNumericalId(numericalId);
         ServerListParameters parameters = listParameters(query, null);
-        return copyReads.listServers(parameters,
-                copied -> findServerByNumericalIdInCopyOrController(copied, query, groupName, numericalId));
-    }
-
-    private CompletableFuture<Optional<Server>> findServerByNumericalIdInCopyOrController(
-            Optional<ModelsListServersResponse> copied,
-            ServerQuery query,
-            String groupName,
-            int numericalId
-    ) {
-        if (copied.isPresent()) {
-            Server server = serverWithNumericalId(serversOf(copied.get()), numericalId);
-            return CompletableFuture.completedFuture(Optional.ofNullable(server));
-        }
         QueryKey key = QueryKey.of("server", "numerical", groupName, numericalId);
-
-        return cache.fetchWithTransientMissRecovery(
-                key,
-                () -> fetchServerByNumericalIdFromController(query, numericalId),
-                Objects::isNull,
-                TRANSIENT_MISS_RETRY_DELAY,
-                TRANSIENT_MISS_MAX_RETRIES
-        ).thenApply(Optional::ofNullable);
+        CompletableFuture<Server> server = serverList.read(
+                parameters,
+                response -> serverWithNumericalId(response, numericalId),
+                fromController -> cache.fetchWithTransientMissRecovery(
+                        key,
+                        fromController,
+                        Objects::isNull,
+                        TRANSIENT_MISS_RETRY_DELAY,
+                        TRANSIENT_MISS_MAX_RETRIES
+                )
+        );
+        return server.thenApply(Optional::ofNullable);
     }
 
     @Override
@@ -153,28 +136,24 @@ public class ServerApiImpl implements ServerApi {
         ServerQuery query = ServerQuery.create()
                 .filterByServerGroupName(groupName);
         ServerListParameters parameters = listParameters(query, null);
-        return copyReads.listServers(parameters,
-                copied -> getServersByGroupFromCopyOrController(copied, query, groupName));
-    }
-
-    private CompletableFuture<List<Server>> getServersByGroupFromCopyOrController(
-            Optional<ModelsListServersResponse> copied,
-            ServerQuery query,
-            String groupName
-    ) {
-        if (copied.isPresent()) {
-            return CompletableFuture.completedFuture(serversOf(copied.get()));
-        }
         QueryKey key = QueryKey.of("servers", "group", groupName);
-
-        return cache.fetch(key, () -> fetchServersFromController(query));
+        return serverList.read(
+                parameters,
+                ServerApiImpl::serversOf,
+                fromController -> cache.fetch(key, fromController)
+        );
     }
 
     @Override
     public CompletableFuture<List<Server>> getAllServers(@Nullable ServerQuery query) {
         QueryKey key = buildQueryKey(query);
+        ServerListParameters parameters = listParameters(query, null);
 
-        CompletableFuture<List<Server>> future = fetchAllServers(query, key);
+        CompletableFuture<List<Server>> future = serverList.read(
+                parameters,
+                ServerApiImpl::serversOf,
+                fromController -> fetchAllServersThroughCache(query, key, fromController)
+        );
 
         return future.thenApply(servers -> {
                     if (debugEmptyServerResultsEnabled() && servers.isEmpty()) {
@@ -184,56 +163,21 @@ public class ServerApiImpl implements ServerApi {
                 });
     }
 
-    private CompletableFuture<List<Server>> fetchAllServers(@Nullable ServerQuery query, QueryKey key) {
-        ServerListParameters parameters = listParameters(query, null);
-        return copyReads.listServers(parameters, copied -> fetchAllServersFromCopyOrController(copied, query, key));
-    }
-
-    private CompletableFuture<List<Server>> fetchAllServersFromCopyOrController(
-            Optional<ModelsListServersResponse> copied,
+    private CompletableFuture<List<Server>> fetchAllServersThroughCache(
             @Nullable ServerQuery query,
-            QueryKey key
+            QueryKey key,
+            Supplier<CompletableFuture<List<Server>>> fromController
     ) {
-        if (copied.isPresent()) {
-            return CompletableFuture.completedFuture(serversOf(copied.get()));
-        }
         if (isExactServerLookup(query)) {
             return cache.fetchWithTransientMissRecovery(
                     key,
-                    () -> fetchServersFromController(query),
+                    fromController,
                     List::isEmpty,
                     TRANSIENT_MISS_RETRY_DELAY,
                     TRANSIENT_MISS_MAX_RETRIES
             );
         }
-        return cache.fetch(key, () -> fetchServersFromController(query));
-    }
-
-    private CompletableFuture<List<Server>> fetchServersFromController(@Nullable ServerQuery query) {
-        return CompletableFuture.supplyAsync(() -> {
-            try {
-                ModelsListServersResponse serversResponse = executeQuery(listParameters(query, null));
-                return serversOf(serversResponse);
-            } catch (ApiException e) {
-                throw ApiErrors.from(e);
-            }
-        }, executor);
-    }
-
-    private CompletableFuture<Server> fetchServerByIdFromController(ServerListParameters parameters, String id) {
-        return CompletableFuture.supplyAsync(() -> {
-            try {
-                ModelsListServersResponse response = executeQuery(parameters);
-                return serverWithId(response, id);
-            } catch (ApiException e) {
-                throw ApiErrors.from(e);
-            }
-        }, executor);
-    }
-
-    private CompletableFuture<Server> fetchServerByNumericalIdFromController(ServerQuery query, int numericalId) {
-        return fetchServersFromController(query)
-                .thenApply(servers -> serverWithNumericalId(servers, numericalId));
+        return cache.fetch(key, fromController);
     }
 
     private static List<Server> serversOf(ModelsListServersResponse response) {
@@ -258,7 +202,8 @@ public class ServerApiImpl implements ServerApi {
                 .orElse(null);
     }
 
-    private static @Nullable Server serverWithNumericalId(List<Server> servers, int numericalId) {
+    private static @Nullable Server serverWithNumericalId(ModelsListServersResponse response, int numericalId) {
+        List<Server> servers = serversOf(response);
         return servers.stream()
                 .filter(server -> server.getNumericalId() == numericalId)
                 .findFirst()

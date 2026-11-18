@@ -51,7 +51,7 @@ class ListCasesTest {
     List<DynamicTest> copyListsAnswerAsTheController() throws IOException {
         JsonObject world = readWorld();
         NetworkCopy copy = copyOf(world);
-        ByteString networkId = id(world.get("network_id").getAsString());
+        CopyServerList serverList = new CopyServerList(world.get("network_id").getAsString());
         Map<String, String> keysById = keysById(world);
 
         List<DynamicTest> tests = new ArrayList<>();
@@ -62,7 +62,7 @@ class ListCasesTest {
             JsonObject query = listCase.getAsJsonObject("parameters");
             Optional<List<String>> expected = expectedKeys(listCase.get("expected"));
             tests.add(DynamicTest.dynamicTest(name, () -> {
-                Optional<List<String>> listed = listedKeys(route, query, copy, networkId, keysById);
+                Optional<List<String>> listed = listedKeys(route, query, copy, serverList, keysById);
                 assertEquals(expected, listed);
             }));
         }
@@ -84,15 +84,16 @@ class ListCasesTest {
             String route,
             JsonObject query,
             NetworkCopy copy,
-            ByteString networkId,
+            CopyServerList serverList,
             Map<String, String> keysById
     ) {
         return switch (route) {
-            case "servers" -> CopyServerList.answer(copy, networkId, ListParameters.servers(query))
+            case "servers" -> serverList.answer(copy, ListParameters.servers(query))
                     .map(response -> serverKeys(response, keysById));
-            case "server-groups" -> CopyServerGroupList.answer(copy, ListParameters.serverGroups(query))
+            case "server-groups" -> new CopyServerGroupList().answer(copy, ListParameters.serverGroups(query))
                     .map(response -> serverGroupKeys(response, keysById));
-            case "persistent-servers" -> CopyPersistentServerList.answer(copy, ListParameters.persistentServers(query))
+            case "persistent-servers" -> new CopyPersistentServerList()
+                    .answer(copy, ListParameters.persistentServers(query))
                     .map(response -> persistentServerKeys(response, keysById));
             default -> throw new IllegalArgumentException("Unknown route " + route);
         };

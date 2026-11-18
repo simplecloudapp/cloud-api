@@ -1,6 +1,7 @@
 package app.simplecloud.api.internal.networkstate.read;
 
 import app.simplecloud.api.internal.networkstate.NetworkCopy;
+import app.simplecloud.api.internal.networkstate.ReadKind;
 import app.simplecloud.api.web.models.ModelsListPersistentServersResponse;
 import build.buf.gen.simplecloud.controller.v2.StatePersistentServer;
 import com.google.gson.JsonArray;
@@ -21,7 +22,8 @@ import java.util.Optional;
  * {@code ListPersistentServersWithFilters} in {@code db/queries/persistent_servers.sql}, for a caller that
  * may read every persistent server.
  */
-public final class CopyPersistentServerList {
+public final class CopyPersistentServerList
+        implements CopyList<PersistentServerListParameters, ModelsListPersistentServersResponse> {
 
     /**
      * {@code ORDER BY created_at DESC, id}.
@@ -30,7 +32,9 @@ public final class CopyPersistentServerList {
             .comparing(ListedPersistentServer::createdAt, Comparator.reverseOrder())
             .thenComparing(ListedPersistentServer::id, ByteOrder.ID);
 
-    private CopyPersistentServerList() {
+    @Override
+    public ReadKind kind() {
+        return ReadKind.PERSISTENT_SERVER;
     }
 
     /**
@@ -39,7 +43,8 @@ public final class CopyPersistentServerList {
      * and the copy has none of them, since such a persistent server may be newer than the copy. A body the
      * HTTP client cannot read throws as it does over HTTP.
      */
-    public static Optional<ModelsListPersistentServersResponse> answer(
+    @Override
+    public Optional<ModelsListPersistentServersResponse> answer(
             NetworkCopy copy,
             PersistentServerListParameters parameters
     ) {
@@ -47,10 +52,8 @@ public final class CopyPersistentServerList {
         return body.map(json -> ControllerJson.toModel(json, ModelsListPersistentServersResponse.class));
     }
 
-    /**
-     * Returns whether the controller refuses these parameters with an error, so that no copy answers them.
-     */
-    public static boolean refusesParameters(PersistentServerListParameters parameters) {
+    @Override
+    public boolean refusesParameters(PersistentServerListParameters parameters) {
         return Query.parse(parameters).isEmpty();
     }
 

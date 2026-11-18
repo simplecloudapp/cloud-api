@@ -42,7 +42,7 @@ import java.util.logging.Logger;
  * on, so every read goes over HTTP, also a waiting one. A view that missed an input could otherwise answer
  * before an own write.
  */
-public final class NetworkViewShell implements NatsFailoverConnectionManager.SubscriptionListener {
+public final class NetworkViewShell implements NatsFailoverConnectionManager.SubscriptionListener, CopyForReads {
 
     private static final Logger LOGGER = Logger.getLogger(NetworkViewShell.class.getName());
 
@@ -142,6 +142,7 @@ public final class NetworkViewShell implements NatsFailoverConnectionManager.Sub
      * own, not under the shell's lock or on a thread that feeds the view, so the caller's continuation may
      * block. Only when that thread cannot start does the read complete on the thread that settles it.
      */
+    @Override
     public CompletableFuture<Optional<NetworkCopy>> copyToAnswer(ReadKind kind) {
         NetworkView current = view;
         // Read after the view, so the time is at or after the time of the step that made it.

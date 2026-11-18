@@ -7,7 +7,9 @@ import app.simplecloud.api.blueprint.CreateBlueprintRequest;
 import app.simplecloud.api.group.*;
 import app.simplecloud.api.internal.blueprint.InlineBlueprintSupport;
 import app.simplecloud.api.internal.create.CreateRequestDefaults;
-import app.simplecloud.api.internal.networkstate.CopyReads;
+import app.simplecloud.api.internal.networkstate.CopyFirstList;
+import app.simplecloud.api.internal.networkstate.CopyForReads;
+import app.simplecloud.api.internal.networkstate.read.CopyServerGroupList;
 import app.simplecloud.api.internal.networkstate.read.ServerGroupListParameters;
 import app.simplecloud.api.internal.web.ApiClients;
 import app.simplecloud.api.internal.web.ApiErrors;
@@ -39,32 +41,29 @@ public class GroupApiImpl implements GroupApi {
     private final CreateRequestDefaults createRequestDefaults;
     private final QueryCache cache;
     private final Executor executor;
-    /**
-     * Asked before the query cache, which may hold an older answer than the copy.
-     */
-    private final CopyReads copyReads;
+    private final CopyFirstList<ServerGroupListParameters, ModelsListServerGroupsResponse> groupList;
 
     public GroupApiImpl(CloudApiOptions options, QueryCache cache) {
         this(options, cache, ApiClients.create(options));
     }
 
     public GroupApiImpl(CloudApiOptions options, QueryCache cache, ApiClient httpClient) {
-        this(options, cache, httpClient, ForkJoinPool.commonPool(), CopyReads.NONE);
+        this(options, cache, httpClient, ForkJoinPool.commonPool(), CopyForReads.NO_VIEW);
     }
 
     public GroupApiImpl(CloudApiOptions options, QueryCache cache, ApiClient httpClient, Executor executor) {
-        this(options, cache, httpClient, executor, CopyReads.NONE);
+        this(options, cache, httpClient, executor, CopyForReads.NO_VIEW);
     }
 
     public GroupApiImpl(CloudApiOptions options, QueryCache cache, ApiClient httpClient, Executor executor,
-            CopyReads copyReads) {
+            CopyForReads copyForReads) {
         this(
                 options,
                 cache,
                 createServerGroupsApi(options, httpClient),
                 new InlineBlueprintSupport(options, createBlueprintsApi(options, httpClient)),
                 executor,
-                copyReads
+                copyForReads
         );
     }
 
@@ -72,7 +71,7 @@ public class GroupApiImpl implements GroupApi {
                  QueryCache cache,
                  ServerGroupsApi serverGroupsApi,
                  BlueprintsApi blueprintsApi) {
-        this(options, cache, serverGroupsApi, new InlineBlueprintSupport(options, blueprintsApi), ForkJoinPool.commonPool(), CopyReads.NONE);
+        this(options, cache, serverGroupsApi, new InlineBlueprintSupport(options, blueprintsApi), ForkJoinPool.commonPool(), CopyForReads.NO_VIEW);
     }
 
     GroupApiImpl(CloudApiOptions options,
@@ -86,7 +85,7 @@ public class GroupApiImpl implements GroupApi {
                 serverGroupsApi,
                 new InlineBlueprintSupport(options, blueprintsApi, serverUrlResolver),
                 ForkJoinPool.commonPool(),
-                CopyReads.NONE
+                CopyForReads.NO_VIEW
         );
     }
 
@@ -95,14 +94,15 @@ public class GroupApiImpl implements GroupApi {
                          ServerGroupsApi serverGroupsApi,
                          InlineBlueprintSupport inlineBlueprintSupport,
                          Executor executor,
-                         CopyReads copyReads) {
+                         CopyForReads copyForReads) {
         this.options = options;
         this.cache = cache;
         this.serverGroupsApi = serverGroupsApi;
         this.inlineBlueprintSupport = inlineBlueprintSupport;
         this.createRequestDefaults = new CreateRequestDefaults();
         this.executor = executor;
-        this.copyReads = copyReads;
+        CopyServerGroupList copyServerGroupList = new CopyServerGroupList();
+        this.groupList = new CopyFirstList<>(copyServerGroupList, copyForReads, this::executeQuery, executor);
     }
 
     @Override
@@ -183,26 +183,19 @@ public class GroupApiImpl implements GroupApi {
     @Override
     public CompletableFuture<Optional<Group>> findGroupByName(String name) {
         ServerGroupListParameters parameters = listParameters(null, null, name);
-        return copyReads.listServerGroups(parameters, copied -> findGroupByNameInCopyOrController(copied, name));
-    }
-
-    private CompletableFuture<Optional<Group>> findGroupByNameInCopyOrController(
-            Optional<ModelsListServerGroupsResponse> copied,
-            String name
-    ) {
-        if (copied.isPresent()) {
-            Group group = groupWithName(copied.get(), name);
-            return CompletableFuture.completedFuture(Optional.ofNullable(group));
-        }
         QueryKey key = QueryKey.of("group", "name", name);
-
-        return cache.fetchWithTransientMissRecovery(
-                key,
-                () -> fetchGroupByNameFromController(name),
-                Objects::isNull,
-                TRANSIENT_MISS_RETRY_DELAY,
-                TRANSIENT_MISS_MAX_RETRIES
-        ).thenApply(Optional::ofNullable);
+        CompletableFuture<Group> group = groupList.read(
+                parameters,
+                response -> groupWithName(response, name),
+                fromController -> cache.fetchWithTransientMissRecovery(
+                        key,
+                        fromController,
+                        Objects::isNull,
+                        TRANSIENT_MISS_RETRY_DELAY,
+                        TRANSIENT_MISS_MAX_RETRIES
+                )
+        );
+        return group.thenApply(Optional::ofNullable);
     }
 
     @Override
@@ -218,53 +211,30 @@ public class GroupApiImpl implements GroupApi {
             return CompletableFuture.completedFuture(Optional.empty());
         }
         ServerGroupListParameters parameters = listParameters(null, id, null);
-        return copyReads.listServerGroups(parameters, copied -> findGroupByIdInCopyOrController(copied, id));
-    }
-
-    private CompletableFuture<Optional<Group>> findGroupByIdInCopyOrController(
-            Optional<ModelsListServerGroupsResponse> copied,
-            String id
-    ) {
-        if (copied.isPresent()) {
-            Group group = groupWithId(copied.get(), id);
-            return CompletableFuture.completedFuture(Optional.ofNullable(group));
-        }
         QueryKey key = QueryKey.of("group", id);
-
-        return cache.fetchWithTransientMissRecovery(
-                key,
-                () -> fetchGroupByIdFromController(id),
-                Objects::isNull,
-                TRANSIENT_MISS_RETRY_DELAY,
-                TRANSIENT_MISS_MAX_RETRIES
-        ).thenApply(Optional::ofNullable);
+        CompletableFuture<Group> group = groupList.read(
+                parameters,
+                response -> groupWithId(response, id),
+                fromController -> cache.fetchWithTransientMissRecovery(
+                        key,
+                        fromController,
+                        Objects::isNull,
+                        TRANSIENT_MISS_RETRY_DELAY,
+                        TRANSIENT_MISS_MAX_RETRIES
+                )
+        );
+        return group.thenApply(Optional::ofNullable);
     }
 
     @Override
     public CompletableFuture<List<Group>> getAllGroups(@org.jetbrains.annotations.Nullable GroupQuery query) {
         ServerGroupListParameters parameters = listParameters(query, null, null);
-        return copyReads.listServerGroups(parameters,
-                copied -> getAllGroupsFromCopyOrController(copied, query, parameters));
-    }
-
-    private CompletableFuture<List<Group>> getAllGroupsFromCopyOrController(
-            Optional<ModelsListServerGroupsResponse> copied,
-            @org.jetbrains.annotations.Nullable GroupQuery query,
-            ServerGroupListParameters parameters
-    ) {
-        if (copied.isPresent()) {
-            return CompletableFuture.completedFuture(groupsOf(copied.get()));
-        }
         QueryKey key = buildQueryKey(query);
-
-        return cache.fetch(key, () -> CompletableFuture.supplyAsync(() -> {
-            try {
-                ModelsListServerGroupsResponse response = executeQuery(parameters);
-                return groupsOf(response);
-            } catch (ApiException e) {
-                throw ApiErrors.from(e);
-            }
-        }, executor));
+        return groupList.read(
+                parameters,
+                GroupApiImpl::groupsOf,
+                fromController -> cache.fetch(key, fromController)
+        );
     }
 
     private static List<Group> groupsOf(ModelsListServerGroupsResponse response) {
@@ -360,28 +330,6 @@ public class GroupApiImpl implements GroupApi {
         } catch (ApiException e) {
             throw ApiErrors.from(e);
         }
-    }
-
-    private CompletableFuture<Group> fetchGroupByNameFromController(String name) {
-        return CompletableFuture.supplyAsync(() -> {
-            try {
-                ModelsListServerGroupsResponse response = executeQuery(listParameters(null, null, name));
-                return groupWithName(response, name);
-            } catch (ApiException e) {
-                throw ApiErrors.from(e);
-            }
-        }, executor);
-    }
-
-    private CompletableFuture<Group> fetchGroupByIdFromController(String id) {
-        return CompletableFuture.supplyAsync(() -> {
-            try {
-                ModelsListServerGroupsResponse response = executeQuery(listParameters(null, id, null));
-                return groupWithId(response, id);
-            } catch (ApiException e) {
-                throw ApiErrors.from(e);
-            }
-        }, executor);
     }
 
     @Override

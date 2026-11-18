@@ -14,7 +14,7 @@ import static org.junit.jupiter.api.Assertions.assertTrue;
 
 class CopyServerListTest {
 
-    private static final ByteString NETWORK_ID = ByteString.fromHex("0d000000000040008000000000000001");
+    private static final CopyServerList SERVER_LIST = new CopyServerList("0d000000-0000-4000-8000-000000000001");
     private static final ByteString GROUP_ID = ByteString.fromHex("0d000000000040008000000000000301");
     private static final ByteString SERVER_ID = ByteString.fromHex("0d000000000040008000000000000201");
 
@@ -41,7 +41,7 @@ class CopyServerListTest {
         NetworkCopy copy = new NetworkCopy(1, 1, Map.of(SERVER_ID, SERVER), Map.of(GROUP_ID, GROUP), Map.of(),
                 Map.of(), Map.of(SERVER_ID, notANumber));
 
-        assertTrue(CopyServerList.answer(copy, NETWORK_ID, ListParameters.servers()).isEmpty());
+        assertTrue(SERVER_LIST.answer(copy, ListParameters.servers()).isEmpty());
     }
 
     @Test
@@ -49,6 +49,6 @@ class CopyServerListTest {
         NetworkCopy copy = new NetworkCopy(1, 1, Map.of(SERVER_ID, SERVER), Map.of(), Map.of(), Map.of(), Map.of());
 
         assertThrows(IllegalStateException.class,
-                () -> CopyServerList.answer(copy, NETWORK_ID, ListParameters.servers()));
+                () -> SERVER_LIST.answer(copy, ListParameters.servers()));
     }
 }

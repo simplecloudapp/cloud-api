@@ -9,7 +9,6 @@ import app.simplecloud.api.internal.cache.NoOpQueryCache;
 import app.simplecloud.api.internal.cache.QueryCacheImpl;
 import app.simplecloud.api.internal.group.GroupApiImpl;
 import app.simplecloud.api.internal.nats.FakeNatsConnection;
-import app.simplecloud.api.internal.networkstate.CopyReads;
 import app.simplecloud.api.internal.networkstate.NetworkCopy;
 import app.simplecloud.api.internal.networkstate.NetworkViewShell;
 import app.simplecloud.api.internal.networkstate.RecordingView;
@@ -77,7 +76,6 @@ class ReadRoutingTest {
     private final AtomicInteger requests = new AtomicInteger();
     private RecordingView view;
     private NetworkViewShell shell;
-    private CopyReads copyReads;
     private CloudApiOptions options;
     private ApiClient apiClient;
 
@@ -104,7 +102,6 @@ class ReadRoutingTest {
         SnapshotLoader unusedSnapshots = new SnapshotLoader(apiClient, controllerUrl, NETWORK_ID);
         FakeNatsConnection nats = FakeNatsConnection.withoutRequests();
         shell = NetworkViewShell.start(NETWORK_ID, nats.connection(), unusedSnapshots, view, () -> 0);
-        copyReads = CopyReads.of(shell, NETWORK_ID);
     }
 
     @AfterEach
@@ -116,9 +113,9 @@ class ReadRoutingTest {
     @Test
     void listsFromTheCopyEqualTheListsOverHttp() {
         ServerApiImpl servers = serverApi(new NoOpQueryCache());
-        GroupApiImpl groups = new GroupApiImpl(options, new NoOpQueryCache(), apiClient, CALLER_THREAD, copyReads);
+        GroupApiImpl groups = new GroupApiImpl(options, new NoOpQueryCache(), apiClient, CALLER_THREAD, shell);
         PersistentServerApiImpl persistentServers = new PersistentServerApiImpl(options, new NoOpQueryCache(),
-                apiClient, CALLER_THREAD, copyReads);
+                apiClient, CALLER_THREAD, shell);
 
         view.answer(false);
         List<Server> serversOverHttp = servers.getAllServers(null).join();
@@ -140,9 +137,9 @@ class ReadRoutingTest {
     @Test
     void lookupsFromTheCopyFindWhatTheHttpListHolds() {
         ServerApiImpl servers = serverApi(new NoOpQueryCache());
-        GroupApiImpl groups = new GroupApiImpl(options, new NoOpQueryCache(), apiClient, CALLER_THREAD, copyReads);
+        GroupApiImpl groups = new GroupApiImpl(options, new NoOpQueryCache(), apiClient, CALLER_THREAD, shell);
         PersistentServerApiImpl persistentServers = new PersistentServerApiImpl(options, new NoOpQueryCache(),
-                apiClient, CALLER_THREAD, copyReads);
+                apiClient, CALLER_THREAD, shell);
         view.answer(false);
         List<Server> serversOverHttp = servers.getAllServers(null).join();
         Server server = firstGroupServer(serversOverHttp);
@@ -175,10 +172,10 @@ class ReadRoutingTest {
 
     @Test
     void aReadTheCopyAnswersIsCompleteWhenTheCallReturns() {
-        ServerApiImpl servers = new ServerApiImpl(options, new NoOpQueryCache(), apiClient, NEVER_RUNS, copyReads);
-        GroupApiImpl groups = new GroupApiImpl(options, new NoOpQueryCache(), apiClient, NEVER_RUNS, copyReads);
+        ServerApiImpl servers = new ServerApiImpl(options, new NoOpQueryCache(), apiClient, NEVER_RUNS, shell);
+        GroupApiImpl groups = new GroupApiImpl(options, new NoOpQueryCache(), apiClient, NEVER_RUNS, shell);
         PersistentServerApiImpl persistentServers = new PersistentServerApiImpl(options, new NoOpQueryCache(),
-                apiClient, NEVER_RUNS, copyReads);
+                apiClient, NEVER_RUNS, shell);
         view.answer(true);
 
         CompletableFuture<List<Server>> serverList = servers.getAllServers(null);
@@ -193,7 +190,7 @@ class ReadRoutingTest {
     @Test
     void aCacheTimeoutReachesTheCallerUnwrappedWhenTheCopyDoesNotAnswer() throws Exception {
         QueryCacheImpl timingOutCache = new QueryCacheImpl(CacheConfig.DEFAULT, CACHE_TIMEOUT);
-        GroupApiImpl groups = new GroupApiImpl(options, timingOutCache, apiClient, NEVER_RUNS, copyReads);
+        GroupApiImpl groups = new GroupApiImpl(options, timingOutCache, apiClient, NEVER_RUNS, shell);
         view.answer(false);
 
         CompletableFuture<Throwable> failure = groups.getAllGroups(null).handle((listed, error) -> error);
@@ -206,7 +203,7 @@ class ReadRoutingTest {
     @Test
     void aCacheTimeoutReachesTheCallerUnwrappedAfterTheReadWaited() throws Exception {
         QueryCacheImpl timingOutCache = new QueryCacheImpl(CacheConfig.DEFAULT, CACHE_TIMEOUT);
-        GroupApiImpl groups = new GroupApiImpl(options, timingOutCache, apiClient, NEVER_RUNS, copyReads);
+        GroupApiImpl groups = new GroupApiImpl(options, timingOutCache, apiClient, NEVER_RUNS, shell);
         view.awaitOwnWrite(true);
 
         CompletableFuture<Throwable> failure = groups.getAllGroups(null).handle((listed, error) -> error);
@@ -262,7 +259,7 @@ class ReadRoutingTest {
     }
 
     private ServerApiImpl serverApi(QueryCache cache) {
-        return new ServerApiImpl(options, cache, apiClient, CALLER_THREAD, copyReads);
+        return new ServerApiImpl(options, cache, apiClient, CALLER_THREAD, shell);
     }
 
     private static Server firstGroupServer(List<Server> servers) {

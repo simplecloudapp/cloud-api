@@ -1,6 +1,7 @@
 package app.simplecloud.api.internal.networkstate.read;
 
 import app.simplecloud.api.internal.networkstate.NetworkCopy;
+import app.simplecloud.api.internal.networkstate.ReadKind;
 import app.simplecloud.api.web.models.ModelsListServersResponse;
 import build.buf.gen.simplecloud.controller.v2.StatePersistentServer;
 import build.buf.gen.simplecloud.controller.v2.StateServer;
@@ -12,6 +13,7 @@ import com.google.gson.JsonObject;
 import com.google.protobuf.ByteString;
 import org.jetbrains.annotations.Nullable;
 
+import java.nio.ByteBuffer;
 import java.util.ArrayList;
 import java.util.Collections;
 import java.util.Comparator;
@@ -21,13 +23,14 @@ import java.util.Map;
 import java.util.Objects;
 import java.util.Optional;
 import java.util.Set;
+import java.util.UUID;
 
 /**
  * Answers {@code GET /v0/servers} from a copy as the controller would at the copy's revision:
  * {@code handleListServers} in {@code internal/web/server_handlers.go} and {@code ListServersWithFilters} in
  * {@code db/queries/servers.sql}, for a caller that may read every server.
  */
-public final class CopyServerList {
+public final class CopyServerList implements CopyList<ServerListParameters, ModelsListServersResponse> {
 
     private static final Set<String> STATES = Set.of(
             "QUEUED", "PREPARING", "STARTING", "AVAILABLE", "INGAME", "STOPPING", "CLEANUP", "STOPPED");
@@ -47,7 +50,19 @@ public final class CopyServerList {
             .thenComparingInt(StateServer::getNumericalId)
             .thenComparing(StateServer::getId, ByteOrder.ID);
 
-    private CopyServerList() {
+    private final String networkId;
+
+    /**
+     * @param networkId the copy's network, a UUID, which the rows do not carry. It is parsed only when
+     *                  answering: an instance whose network id is no UUID has no view, so it never answers.
+     */
+    public CopyServerList(String networkId) {
+        this.networkId = networkId;
+    }
+
+    @Override
+    public ReadKind kind() {
+        return ReadKind.SERVER;
     }
 
     /**
@@ -61,29 +76,22 @@ public final class CopyServerList {
      * </ul>
      * A body the HTTP client cannot read throws as it does over HTTP. Every reference in the copy must
      * resolve, as it does in a view's copy.
-     *
-     * @param networkId the copy's network, as its 16 bytes
      */
-    public static Optional<ModelsListServersResponse> answer(
-            NetworkCopy copy,
-            ByteString networkId,
-            ServerListParameters parameters
-    ) {
-        Optional<JsonObject> body = responseBody(copy, networkId, parameters);
+    @Override
+    public Optional<ModelsListServersResponse> answer(NetworkCopy copy, ServerListParameters parameters) {
+        Optional<JsonObject> body = responseBody(copy, parameters);
         return body.map(json -> ControllerJson.toModel(json, ModelsListServersResponse.class));
     }
 
-    /**
-     * Returns whether the controller refuses these parameters with an error, so that no copy answers them.
-     */
-    public static boolean refusesParameters(ServerListParameters parameters) {
+    @Override
+    public boolean refusesParameters(ServerListParameters parameters) {
         return Query.parse(parameters).isEmpty();
     }
 
     /**
      * Returns the body the controller would send, under the conditions of {@link #answer}.
      */
-    static Optional<JsonObject> responseBody(NetworkCopy copy, ByteString networkId, ServerListParameters parameters) {
+    Optional<JsonObject> responseBody(NetworkCopy copy, ServerListParameters parameters) {
         Optional<Query> parsed = Query.parse(parameters);
         if (parsed.isEmpty()) {
             return Optional.empty();
@@ -94,15 +102,24 @@ public final class CopyServerList {
         if (pickedServersMissing || hasUnencodableMetrics(listed, copy)) {
             return Optional.empty();
         }
+        ByteString networkIdBytes = uuidBytes(networkId);
         JsonArray servers = new JsonArray();
         for (StateServer server : listed) {
-            servers.add(ServerJson.render(server, copy, networkId));
+            servers.add(ServerJson.render(server, copy, networkIdBytes));
         }
         JsonObject body = new JsonObject();
         // The handler collects the servers into a nil slice, which Go encodes as null when nothing matched.
         body.add("servers", servers.isEmpty() ? JsonNull.INSTANCE : servers);
         body.addProperty("count", servers.size());
         return Optional.of(body);
+    }
+
+    private static ByteString uuidBytes(String uuid) {
+        UUID parsed = UUID.fromString(uuid);
+        ByteBuffer bytes = ByteBuffer.allocate(16);
+        bytes.putLong(parsed.getMostSignificantBits());
+        bytes.putLong(parsed.getLeastSignificantBits());
+        return ByteString.copyFrom(bytes.array());
     }
 
     private static boolean hasUnencodableMetrics(List<StateServer> servers, NetworkCopy copy) {

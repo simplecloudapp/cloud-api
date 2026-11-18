@@ -15,7 +15,6 @@ import build.buf.gen.simplecloud.controller.v2.NetworkState;
 import com.google.gson.JsonElement;
 import com.google.gson.JsonObject;
 import com.google.gson.JsonParser;
-import com.google.protobuf.ByteString;
 import org.junit.jupiter.api.DynamicContainer;
 import org.junit.jupiter.api.DynamicTest;
 import org.junit.jupiter.api.TestFactory;
@@ -47,7 +46,8 @@ class CopyFixturesTest {
     /**
      * {@code fixtureNetworkID} of the controller's fixture test.
      */
-    private static final ByteString FIXTURE_NETWORK_ID = ByteString.fromHex("0d000000000040008000000000000001");
+    private static final String FIXTURE_NETWORK_ID = "0d000000-0000-4000-8000-000000000001";
+    private static final CopyServerList SERVER_LIST = new CopyServerList(FIXTURE_NETWORK_ID);
 
     @TestFactory
     List<DynamicContainer> copyAnswersEqualTheControllersAnswers() throws IOException, URISyntaxException {
@@ -67,13 +67,12 @@ class CopyFixturesTest {
         NetworkCopy copy = copyOf(directory);
         ServerListParameters noFilter = ListParameters.servers();
 
-        Optional<JsonObject> bodyFromCopy = CopyServerList.responseBody(copy, FIXTURE_NETWORK_ID, noFilter);
+        Optional<JsonObject> bodyFromCopy = SERVER_LIST.responseBody(copy, noFilter);
 
         assertEquals(Optional.of(readBody(directory, "servers.json")), bodyFromCopy);
         Callable<ModelsListServersResponse> overHttp = () -> readHttpAnswer(directory, "servers.json",
                 ModelsListServersResponse.class);
-        Callable<ModelsListServersResponse> fromCopy = () -> CopyServerList.answer(copy, FIXTURE_NETWORK_ID, noFilter)
-                .orElseThrow();
+        Callable<ModelsListServersResponse> fromCopy = () -> SERVER_LIST.answer(copy, noFilter).orElseThrow();
         assertEquals(Outcome.of(overHttp), Outcome.of(fromCopy));
         assertEquals(Outcome.of(() -> PublicGetters.read(servers(overHttp.call()))),
                 Outcome.of(() -> PublicGetters.read(servers(fromCopy.call()))));
@@ -90,7 +89,7 @@ class CopyFixturesTest {
         assertEquals(stateOrders(bodyOverHttp), stateOrders(bodyFromCopy.orElseThrow()));
         Callable<ModelsListServerGroupsResponse> overHttp = () -> readHttpAnswer(directory, "server-groups.json",
                 ModelsListServerGroupsResponse.class);
-        Callable<ModelsListServerGroupsResponse> fromCopy = () -> CopyServerGroupList.answer(copy, noFilter)
+        Callable<ModelsListServerGroupsResponse> fromCopy = () -> new CopyServerGroupList().answer(copy, noFilter)
                 .orElseThrow();
         assertEquals(Outcome.of(overHttp), Outcome.of(fromCopy));
         assertEquals(Outcome.of(() -> PublicGetters.read(groups(overHttp.call()))),
@@ -106,7 +105,8 @@ class CopyFixturesTest {
         assertEquals(Optional.of(readBody(directory, "persistent-servers.json")), bodyFromCopy);
         Callable<ModelsListPersistentServersResponse> overHttp = () -> readHttpAnswer(directory,
                 "persistent-servers.json", ModelsListPersistentServersResponse.class);
-        Callable<ModelsListPersistentServersResponse> fromCopy = () -> CopyPersistentServerList.answer(copy, noFilter)
+        Callable<ModelsListPersistentServersResponse> fromCopy = () -> new CopyPersistentServerList()
+                .answer(copy, noFilter)
                 .orElseThrow();
         assertEquals(Outcome.of(overHttp), Outcome.of(fromCopy));
         assertEquals(Outcome.of(() -> PublicGetters.read(persistentServers(overHttp.call()))),

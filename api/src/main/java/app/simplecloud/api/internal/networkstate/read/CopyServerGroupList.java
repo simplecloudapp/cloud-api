@@ -1,6 +1,7 @@
 package app.simplecloud.api.internal.networkstate.read;
 
 import app.simplecloud.api.internal.networkstate.NetworkCopy;
+import app.simplecloud.api.internal.networkstate.ReadKind;
 import app.simplecloud.api.web.models.ModelsListServerGroupsResponse;
 import build.buf.gen.simplecloud.controller.v2.StateServerGroup;
 import com.google.gson.JsonArray;
@@ -23,7 +24,7 @@ import java.util.Set;
  * {@code ListServerGroupsWithFilters} in {@code db/queries/server_groups.sql}, for a caller that may read
  * every group.
  */
-public final class CopyServerGroupList {
+public final class CopyServerGroupList implements CopyList<ServerGroupListParameters, ModelsListServerGroupsResponse> {
 
     private static final Set<String> TYPES = Set.of("SERVER", "PROXY");
 
@@ -34,7 +35,9 @@ public final class CopyServerGroupList {
             .comparing(ListedGroup::createdAt, Comparator.reverseOrder())
             .thenComparing(ListedGroup::id, ByteOrder.ID);
 
-    private CopyServerGroupList() {
+    @Override
+    public ReadKind kind() {
+        return ReadKind.SERVER_GROUP;
     }
 
     /**
@@ -43,15 +46,14 @@ public final class CopyServerGroupList {
      * has none of them, since such a group may be newer than the copy. A body the HTTP client cannot read
      * throws as it does over HTTP.
      */
-    public static Optional<ModelsListServerGroupsResponse> answer(NetworkCopy copy, ServerGroupListParameters parameters) {
+    @Override
+    public Optional<ModelsListServerGroupsResponse> answer(NetworkCopy copy, ServerGroupListParameters parameters) {
         Optional<JsonObject> body = responseBody(copy, parameters);
         return body.map(json -> ControllerJson.toModel(json, ModelsListServerGroupsResponse.class));
     }
 
-    /**
-     * Returns whether the controller refuses these parameters with an error, so that no copy answers them.
-     */
-    public static boolean refusesParameters(ServerGroupListParameters parameters) {
+    @Override
+    public boolean refusesParameters(ServerGroupListParameters parameters) {
         return Query.parse(parameters).isEmpty();
     }
 
