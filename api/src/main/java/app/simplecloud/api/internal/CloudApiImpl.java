@@ -12,6 +12,9 @@ import app.simplecloud.api.internal.cache.QueryCacheImpl;
 import app.simplecloud.api.internal.event.EventApiImpl;
 import app.simplecloud.api.internal.group.GroupApiImpl;
 import app.simplecloud.api.internal.nats.NatsFailoverConnectionManager;
+import app.simplecloud.api.internal.networkstate.CopyReads;
+import app.simplecloud.api.internal.networkstate.NetworkViewShell;
+import app.simplecloud.api.internal.networkstate.StateRevisionInterceptor;
 import app.simplecloud.api.internal.persistentserver.PersistentServerApiImpl;
 import app.simplecloud.api.internal.server.ServerApiImpl;
 import app.simplecloud.api.internal.player.PlayerApiImpl;
@@ -24,6 +27,7 @@ import io.nats.client.Connection;
 import okhttp3.OkHttpClient;
 
 import java.time.Duration;
+import java.util.Optional;
 import java.util.concurrent.Executor;
 import java.util.concurrent.ExecutorService;
 import java.util.concurrent.Executors;
@@ -44,12 +48,18 @@ public class CloudApiImpl implements CloudApi {
     // sets its own headers and timeouts on top of it.
     private static final SharedResources<String, OkHttpClient> HTTP_CLIENTS_BY_CONTROLLER_URL =
             new SharedResources<>(CloudApiImpl::shutdownHttpClient);
+    private static final SharedResources<NetworkViewKey, SharedNetworkView> NETWORK_VIEWS =
+            new SharedResources<>(SharedNetworkView::close);
 
     private final CloudApiOptions options;
     private final SharedResources.Handle<OkHttpClient> httpClientHandle;
     private final ApiClient apiClient;
 
     private final SharedResources.Handle<NatsFailoverConnectionManager> natsConnectionManagerHandle;
+    /**
+     * Null when the instance's credential may not use a view.
+     */
+    private final SharedResources.Handle<SharedNetworkView> networkViewHandle;
     private final InstanceNatsConnection natsConnection;
     private final QueryCache queryCache;
     private final CacheEventListener cacheEventListener;
@@ -67,6 +77,7 @@ public class CloudApiImpl implements CloudApi {
         // Closed again if a later step fails, or a shared resource would stay open after its last user closed.
         SharedResources.Handle<NatsFailoverConnectionManager> natsConnectionManagerHandle = null;
         SharedResources.Handle<OkHttpClient> httpClientHandle = null;
+        SharedResources.Handle<SharedNetworkView> networkViewHandle = null;
         InstanceNatsConnection natsConnection = null;
         QueryCache queryCache = null;
         try {
@@ -75,6 +86,8 @@ public class CloudApiImpl implements CloudApi {
             this.natsConnectionManagerHandle = natsConnectionManagerHandle;
             httpClientHandle = HTTP_CLIENTS_BY_CONTROLLER_URL.acquire(options.getControllerUrl(), CloudApiImpl::newHttpClient);
             this.httpClientHandle = httpClientHandle;
+            networkViewHandle = acquireNetworkView(options);
+            this.networkViewHandle = networkViewHandle;
             natsConnection = new InstanceNatsConnection(natsConnectionManagerHandle.resource().getConnection());
             this.natsConnection = natsConnection;
 
@@ -87,13 +100,21 @@ public class CloudApiImpl implements CloudApi {
             }
             this.queryCache = queryCache;
 
+            CopyReads copyReads = CopyReads.NONE;
+            OkHttpClient httpClient = httpClientHandle.resource();
+            if (networkViewHandle != null) {
+                NetworkViewShell networkViewShell = networkViewHandle.resource().shell();
+                copyReads = CopyReads.of(networkViewShell, options.getNetworkId());
+                httpClient = StateRevisionInterceptor.addTo(httpClient, networkViewShell);
+            }
+
             // Initialize APIs with cache
-            this.apiClient = ApiClients.create(options, httpClientHandle.resource());
+            this.apiClient = ApiClients.create(options, httpClient);
             this.playerApi = new PlayerApiImpl(options, natsConnection.asConnection(), apiClient, executor);
             this.eventApi = new EventApiImpl(natsConnection.asConnection(), options.getNetworkId(), playerApi);
-            this.serverApi = new ServerApiImpl(options, queryCache, apiClient, executor);
-            this.groupApi = new GroupApiImpl(options, queryCache, apiClient, executor);
-            this.persistentServerApi = new PersistentServerApiImpl(options, queryCache, apiClient, executor);
+            this.serverApi = new ServerApiImpl(options, queryCache, apiClient, executor, copyReads);
+            this.groupApi = new GroupApiImpl(options, queryCache, apiClient, executor, copyReads);
+            this.persistentServerApi = new PersistentServerApiImpl(options, queryCache, apiClient, executor, copyReads);
 
             // Setup event-based cache invalidation with debouncing
             if (cacheConfig.isEnabled() && cacheConfig.isAutoInvalidateOnEvents()) {
@@ -103,7 +124,7 @@ public class CloudApiImpl implements CloudApi {
                 this.cacheEventListener = null;
             }
         } catch (RuntimeException | Error e) {
-            closeConnections(natsConnection, natsConnectionManagerHandle, httpClientHandle);
+            closeConnections(natsConnection, networkViewHandle, natsConnectionManagerHandle, httpClientHandle);
             if (queryCache instanceof QueryCacheImpl queryCacheImpl) {
                 queryCacheImpl.shutdown();
             }
@@ -198,20 +219,24 @@ public class CloudApiImpl implements CloudApi {
         } catch (InterruptedException e) {
             Thread.currentThread().interrupt();
         }
-        closeConnections(natsConnection, natsConnectionManagerHandle, httpClientHandle);
+        closeConnections(natsConnection, networkViewHandle, natsConnectionManagerHandle, httpClientHandle);
     }
 
     /**
-     * Closes this instance's NATS connection and its handles on the shared connections. Takes nulls,
-     * for a constructor that failed before it had them all.
+     * Closes this instance's NATS connection and its handles on the shared view and connections. Takes nulls,
+     * for a constructor that failed before it had them all, and for an instance without a view.
      */
     private static void closeConnections(
             InstanceNatsConnection natsConnection,
+            SharedResources.Handle<SharedNetworkView> networkViewHandle,
             SharedResources.Handle<NatsFailoverConnectionManager> natsConnectionManagerHandle,
             SharedResources.Handle<OkHttpClient> httpClientHandle
     ) {
         if (natsConnection != null) {
             natsConnection.close();
+        }
+        if (networkViewHandle != null) {
+            networkViewHandle.close();
         }
         if (natsConnectionManagerHandle != null) {
             try {
@@ -222,6 +247,39 @@ public class CloudApiImpl implements CloudApi {
         }
         if (httpClientHandle != null) {
             httpClientHandle.close();
+        }
+    }
+
+    /**
+     * Returns a handle on the view for the instance's network and credential, or null when the credential
+     * may not use one.
+     */
+    private static SharedResources.Handle<SharedNetworkView> acquireNetworkView(CloudApiOptions options) {
+        Optional<NetworkViewKey> key = NetworkViewKey.of(options);
+        if (key.isEmpty()) {
+            return null;
+        }
+        return NETWORK_VIEWS.acquire(key.get(), () -> openNetworkView(options));
+    }
+
+    /**
+     * Runs under the view registry's lock. It takes the view's own handles on the shared connections, which
+     * the view closes when it closes.
+     */
+    private static SharedNetworkView openNetworkView(CloudApiOptions options) {
+        NatsConnectionSettings natsSettings = NatsConnectionSettings.of(options);
+        SharedResources.Handle<NatsFailoverConnectionManager> natsConnectionManagerHandle =
+                NATS_CONNECTION_MANAGERS.acquire(natsSettings, natsSettings::openConnectionManager);
+        SharedResources.Handle<OkHttpClient> httpClientHandle = null;
+        try {
+            httpClientHandle = HTTP_CLIENTS_BY_CONTROLLER_URL.acquire(options.getControllerUrl(), CloudApiImpl::newHttpClient);
+            return SharedNetworkView.open(options, natsConnectionManagerHandle, httpClientHandle);
+        } catch (RuntimeException | Error e) {
+            natsConnectionManagerHandle.close();
+            if (httpClientHandle != null) {
+                httpClientHandle.close();
+            }
+            throw e;
         }
     }
 
