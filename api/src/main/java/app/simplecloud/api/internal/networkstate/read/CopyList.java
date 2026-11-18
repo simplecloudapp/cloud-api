@@ -6,7 +6,8 @@ import java.util.Optional;
 
 /**
  * One controller list route as a copy answers it, with the response the HTTP client reads for the same
- * parameters.
+ * parameters. The blueprint list is not among them: {@code GET /v0/blueprints} has another shape than the
+ * blueprint inside a group, so a copy keeps blueprints only to build groups and servers.
  *
  * @param <P> the route's parameters
  * @param <R> the generated response model
