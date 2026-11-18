@@ -10,7 +10,7 @@ import app.simplecloud.api.group.WorkflowsConfig;
 import app.simplecloud.api.internal.blueprint.InlineBlueprintSupport;
 import app.simplecloud.api.internal.create.CreateRequestDefaults;
 import app.simplecloud.api.internal.networkstate.CopyFirstList;
-import app.simplecloud.api.internal.networkstate.CopyForReads;
+import app.simplecloud.api.internal.networkstate.AnsweringCopy;
 import app.simplecloud.api.internal.networkstate.read.CopyPersistentServerList;
 import app.simplecloud.api.internal.networkstate.read.PersistentServerListParameters;
 import app.simplecloud.api.internal.web.ApiClients;
@@ -52,22 +52,22 @@ public class PersistentServerApiImpl implements PersistentServerApi {
     }
 
     public PersistentServerApiImpl(CloudApiOptions options, QueryCache cache, ApiClient httpClient) {
-        this(options, cache, httpClient, ForkJoinPool.commonPool(), CopyForReads.NO_VIEW);
+        this(options, cache, httpClient, ForkJoinPool.commonPool(), AnsweringCopy.NONE);
     }
 
     public PersistentServerApiImpl(CloudApiOptions options, QueryCache cache, ApiClient httpClient, Executor executor) {
-        this(options, cache, httpClient, executor, CopyForReads.NO_VIEW);
+        this(options, cache, httpClient, executor, AnsweringCopy.NONE);
     }
 
     public PersistentServerApiImpl(CloudApiOptions options, QueryCache cache, ApiClient httpClient, Executor executor,
-            CopyForReads copyForReads) {
+            AnsweringCopy answeringCopy) {
         this(
                 options,
                 cache,
                 createPersistentServersApi(options, httpClient),
                 new InlineBlueprintSupport(options, createBlueprintsApi(options, httpClient)),
                 executor,
-                copyForReads
+                answeringCopy
         );
     }
 
@@ -75,7 +75,7 @@ public class PersistentServerApiImpl implements PersistentServerApi {
                             QueryCache cache,
                             PersistentServersApi persistentServersApi,
                             BlueprintsApi blueprintsApi) {
-        this(options, cache, persistentServersApi, new InlineBlueprintSupport(options, blueprintsApi), ForkJoinPool.commonPool(), CopyForReads.NO_VIEW);
+        this(options, cache, persistentServersApi, new InlineBlueprintSupport(options, blueprintsApi), ForkJoinPool.commonPool(), AnsweringCopy.NONE);
     }
 
     PersistentServerApiImpl(CloudApiOptions options,
@@ -89,7 +89,7 @@ public class PersistentServerApiImpl implements PersistentServerApi {
                 persistentServersApi,
                 new InlineBlueprintSupport(options, blueprintsApi, serverUrlResolver),
                 ForkJoinPool.commonPool(),
-                CopyForReads.NO_VIEW
+                AnsweringCopy.NONE
         );
     }
 
@@ -98,7 +98,7 @@ public class PersistentServerApiImpl implements PersistentServerApi {
                                     PersistentServersApi persistentServersApi,
                                     InlineBlueprintSupport inlineBlueprintSupport,
                                     Executor executor,
-                                    CopyForReads copyForReads) {
+                                    AnsweringCopy answeringCopy) {
         this.options = options;
         this.cache = cache;
         this.persistentServersApi = persistentServersApi;
@@ -106,7 +106,7 @@ public class PersistentServerApiImpl implements PersistentServerApi {
         this.createRequestDefaults = new CreateRequestDefaults();
         this.executor = executor;
         CopyPersistentServerList copyPersistentServerList = new CopyPersistentServerList();
-        this.persistentServerList = new CopyFirstList<>(copyPersistentServerList, copyForReads, this::executeQuery,
+        this.persistentServerList = new CopyFirstList<>(copyPersistentServerList, answeringCopy, this::executeQuery,
                 executor);
     }
 

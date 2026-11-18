@@ -11,7 +11,7 @@ import app.simplecloud.api.internal.cache.NoOpQueryCache;
 import app.simplecloud.api.internal.cache.QueryCacheImpl;
 import app.simplecloud.api.internal.event.EventApiImpl;
 import app.simplecloud.api.internal.group.GroupApiImpl;
-import app.simplecloud.api.internal.networkstate.CopyForReads;
+import app.simplecloud.api.internal.networkstate.AnsweringCopy;
 import app.simplecloud.api.internal.networkstate.NetworkViewShell;
 import app.simplecloud.api.internal.networkstate.StateRevisionInterceptor;
 import app.simplecloud.api.internal.persistentserver.PersistentServerApiImpl;
@@ -73,11 +73,11 @@ public class CloudApiImpl implements CloudApi {
             }
             this.queryCache = queryCache;
 
-            CopyForReads copyForReads = CopyForReads.NO_VIEW;
+            AnsweringCopy answeringCopy = AnsweringCopy.NONE;
             OkHttpClient httpClient = runtime.httpClient();
             NetworkViewShell networkViewShell = runtime.networkViewShell();
             if (networkViewShell != null) {
-                copyForReads = networkViewShell;
+                answeringCopy = networkViewShell;
                 httpClient = StateRevisionInterceptor.addTo(httpClient, networkViewShell);
             }
 
@@ -85,10 +85,10 @@ public class CloudApiImpl implements CloudApi {
             this.apiClient = ApiClients.create(options, httpClient);
             this.playerApi = new PlayerApiImpl(options, natsConnection.asConnection(), apiClient, executor);
             this.eventApi = new EventApiImpl(natsConnection.asConnection(), options.getNetworkId(), playerApi);
-            this.serverApi = new ServerApiImpl(options, queryCache, apiClient, executor, copyForReads);
-            this.groupApi = new GroupApiImpl(options, queryCache, apiClient, executor, copyForReads);
+            this.serverApi = new ServerApiImpl(options, queryCache, apiClient, executor, answeringCopy);
+            this.groupApi = new GroupApiImpl(options, queryCache, apiClient, executor, answeringCopy);
             this.persistentServerApi = new PersistentServerApiImpl(options, queryCache, apiClient, executor,
-                    copyForReads);
+                    answeringCopy);
 
             // Setup event-based cache invalidation with debouncing
             if (cacheConfig.isEnabled() && cacheConfig.isAutoInvalidateOnEvents()) {

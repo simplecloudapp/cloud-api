@@ -135,7 +135,7 @@ class ReadRoutingTest {
     }
 
     @Test
-    void lookupsFromTheCopyFindWhatTheHttpListHolds() {
+    void lookupsFromTheCopyFindWhatTheControllerListHolds() {
         ServerApiImpl servers = serverApi(new NoOpQueryCache());
         GroupApiImpl groups = new GroupApiImpl(options, new NoOpQueryCache(), apiClient, CALLER_THREAD, shell);
         PersistentServerApiImpl persistentServers = new PersistentServerApiImpl(options, new NoOpQueryCache(),
@@ -179,11 +179,11 @@ class ReadRoutingTest {
         view.answer(true);
 
         CompletableFuture<List<Server>> serverList = servers.getAllServers(null);
-        CompletableFuture<List<Group>> groupList = groups.getAllGroups(null);
+        CompletableFuture<List<Group>> serverGroupList = groups.getAllGroups(null);
         CompletableFuture<List<PersistentServer>> persistentServerList = persistentServers.getAllPersistentServers(null);
 
         assertTrue(serverList.isDone(), "a read over HTTP would wait for an executor that never runs");
-        assertTrue(groupList.isDone());
+        assertTrue(serverGroupList.isDone());
         assertTrue(persistentServerList.isDone());
     }
 

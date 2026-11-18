@@ -53,7 +53,7 @@ public final class CopyPersistentServerList
     }
 
     @Override
-    public boolean refusesParameters(PersistentServerListParameters parameters) {
+    public boolean refuses(PersistentServerListParameters parameters) {
         return Query.parse(parameters).isEmpty();
     }
 

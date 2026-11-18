@@ -53,7 +53,7 @@ public final class CopyServerGroupList implements CopyList<ServerGroupListParame
     }
 
     @Override
-    public boolean refusesParameters(ServerGroupListParameters parameters) {
+    public boolean refuses(ServerGroupListParameters parameters) {
         return Query.parse(parameters).isEmpty();
     }
 

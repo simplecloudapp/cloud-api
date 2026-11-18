@@ -22,7 +22,7 @@ public interface CopyList<P, R> {
     /**
      * Returns whether the controller refuses these parameters with an error, so that no copy answers them.
      */
-    boolean refusesParameters(P parameters);
+    boolean refuses(P parameters);
 
     /**
      * Returns the controller's answer, read as the HTTP client reads it, or empty when only the controller can

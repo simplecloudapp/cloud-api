@@ -84,7 +84,7 @@ public final class CopyServerList implements CopyList<ServerListParameters, Mode
     }
 
     @Override
-    public boolean refusesParameters(ServerListParameters parameters) {
+    public boolean refuses(ServerListParameters parameters) {
         return Query.parse(parameters).isEmpty();
     }
 

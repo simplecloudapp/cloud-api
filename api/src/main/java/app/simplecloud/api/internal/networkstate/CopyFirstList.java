@@ -33,7 +33,7 @@ public final class CopyFirstList<P, R> {
      * Calls the list route over HTTP with the generated client.
      */
     @FunctionalInterface
-    public interface HttpList<P, R> {
+    public interface ControllerList<P, R> {
 
         R list(P parameters) throws ApiException;
     }
@@ -51,19 +51,23 @@ public final class CopyFirstList<P, R> {
     private static final Logger LOGGER = Logger.getLogger(CopyFirstList.class.getName());
 
     private final CopyList<P, R> copyList;
-    private final CopyForReads copyForReads;
-    private final HttpList<P, R> httpList;
+    private final AnsweringCopy answeringCopy;
+    private final ControllerList<P, R> controllerList;
     private final Executor executor;
     private final AtomicBoolean failureReported = new AtomicBoolean();
 
     /**
      * @param executor runs the HTTP calls
      */
-    public CopyFirstList(CopyList<P, R> copyList, CopyForReads copyForReads, HttpList<P, R> httpList,
-            Executor executor) {
+    public CopyFirstList(
+            CopyList<P, R> copyList,
+            AnsweringCopy answeringCopy,
+            ControllerList<P, R> controllerList,
+            Executor executor
+    ) {
         this.copyList = copyList;
-        this.copyForReads = copyForReads;
-        this.httpList = httpList;
+        this.answeringCopy = answeringCopy;
+        this.controllerList = controllerList;
         this.executor = executor;
     }
 
@@ -87,11 +91,11 @@ public final class CopyFirstList<P, R> {
      * an own write would only delay it.
      */
     private CompletableFuture<Optional<R>> answerFromCopy(P parameters) {
-        if (copyList.refusesParameters(parameters)) {
+        if (copyList.refuses(parameters)) {
             return CompletableFuture.completedFuture(Optional.empty());
         }
-        CompletableFuture<Optional<NetworkCopy>> answeringCopy = copyForReads.copyToAnswer(copyList.kind());
-        return answeringCopy.thenApply(copy -> answerOf(copy, parameters));
+        CompletableFuture<Optional<NetworkCopy>> copyToAnswer = answeringCopy.copyToAnswer(copyList.kind());
+        return copyToAnswer.thenApply(copy -> answerOf(copy, parameters));
     }
 
     private Optional<R> answerOf(Optional<NetworkCopy> copy, P parameters) {
@@ -122,7 +126,7 @@ public final class CopyFirstList<P, R> {
     private <T> CompletableFuture<T> fetchFromController(P parameters, Function<R, T> resultOf) {
         return CompletableFuture.supplyAsync(() -> {
             try {
-                R response = httpList.list(parameters);
+                R response = controllerList.list(parameters);
                 return resultOf.apply(response);
             } catch (ApiException e) {
                 throw ApiErrors.from(e);

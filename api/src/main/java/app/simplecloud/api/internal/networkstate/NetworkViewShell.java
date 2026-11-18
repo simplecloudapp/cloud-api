@@ -42,7 +42,7 @@ import java.util.logging.Logger;
  * on, so every read goes over HTTP, also a waiting one. A view that missed an input could otherwise answer
  * before an own write.
  */
-public final class NetworkViewShell implements NatsFailoverConnectionManager.SubscriptionListener, CopyForReads {
+public final class NetworkViewShell implements NatsFailoverConnectionManager.SubscriptionListener, AnsweringCopy {
 
     private static final Logger LOGGER = Logger.getLogger(NetworkViewShell.class.getName());
 

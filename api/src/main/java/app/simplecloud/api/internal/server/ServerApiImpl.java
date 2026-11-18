@@ -5,7 +5,7 @@ import app.simplecloud.api.CloudApiOptions;
 import app.simplecloud.api.cache.QueryCache;
 import app.simplecloud.api.cache.QueryKey;
 import app.simplecloud.api.internal.networkstate.CopyFirstList;
-import app.simplecloud.api.internal.networkstate.CopyForReads;
+import app.simplecloud.api.internal.networkstate.AnsweringCopy;
 import app.simplecloud.api.internal.networkstate.read.CopyServerList;
 import app.simplecloud.api.internal.networkstate.read.ServerListParameters;
 import app.simplecloud.api.internal.web.ApiClients;
@@ -57,22 +57,22 @@ public class ServerApiImpl implements ServerApi {
     }
 
     public ServerApiImpl(CloudApiOptions options, QueryCache cache, ApiClient httpClient, Executor executor) {
-        this(options, cache, httpClient, executor, CopyForReads.NO_VIEW);
+        this(options, cache, httpClient, executor, AnsweringCopy.NONE);
     }
 
     public ServerApiImpl(CloudApiOptions options, QueryCache cache, ApiClient httpClient, Executor executor,
-            CopyForReads copyForReads) {
-        this(options, cache, createServersApi(options, httpClient), executor, copyForReads);
+            AnsweringCopy answeringCopy) {
+        this(options, cache, createServersApi(options, httpClient), executor, answeringCopy);
     }
 
     private ServerApiImpl(CloudApiOptions options, QueryCache cache, ServersApi serversApi, Executor executor,
-                          CopyForReads copyForReads) {
+                          AnsweringCopy answeringCopy) {
         this.options = options;
         this.cache = cache;
         this.serversApi = serversApi;
         this.executor = executor;
         CopyServerList copyServerList = new CopyServerList(options.getNetworkId());
-        this.serverList = new CopyFirstList<>(copyServerList, copyForReads, this::executeQuery, executor);
+        this.serverList = new CopyFirstList<>(copyServerList, answeringCopy, this::executeQuery, executor);
     }
 
     @Override
