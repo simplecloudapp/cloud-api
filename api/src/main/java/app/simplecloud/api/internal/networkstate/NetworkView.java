@@ -115,8 +115,18 @@ import java.util.Optional;
  * So a read that the copy may answer is answered from it, also exactly 3 s after it started. A read waits
  * instead of going over HTTP because the controller's list cache can answer it from before the write for up to
  * 2 s, while the copy gets the write with its batch.
- * <p>A {@link ViewInput.WriteReturned} at epoch E and revision R is reached when the copy's epoch is above E,
- * or equal to E with local at or above R. A write of a kind can change these reads:
+ * <p>A {@link ViewInput.WriteReturned} at epoch E and revision R is reached while the copy's epoch is above E,
+ * or equal to E with local at or above R. It is also reached for good once the view takes a snapshot whose
+ * load started in the step that handed over the write or in a later step. That is a reload's snapshot (rule
+ * 6), or an audit's snapshot that the view takes because it differed or was not reached (rule 7); for the
+ * audit, its own load counts. The controller reads that snapshot after the write's request arrived, so it
+ * holds the write whatever its epoch, also when a restore made the epoch lower (rule 2). In a step, the input
+ * acts before a load starts, so a load that starts in the step that hands over the write counts as after it.
+ * A load that already runs when the write is handed over does not reach it, also when it started at the same
+ * millisecond in an earlier step. A snapshot that is not taken reaches nothing: one in which a reference does
+ * not resolve, the answer of an abandoned load, and an audit snapshot that matched or that the copy went past.
+ * Each write is reached on its own, so a write after the snapshot makes reads wait again until it is reached.
+ * A write of a kind can change these reads:
  * <ul>
  *   <li>a server: servers, server groups (their stats) and persistent servers (their player count);</li>
  *   <li>a server group: server groups and servers (a server contains its group);</li>

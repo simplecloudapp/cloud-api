@@ -125,14 +125,16 @@ public final class NetworkViewMachine implements NetworkView {
     private PulseAhead pulseAhead;
     private long nextAuditAt;
     private PendingAudit pendingAudit;
-    private final Map<ReadKind, Position> highestOwnWriteByRead;
+    private final Map<ReadKind, Position> highestOwnWriteBeforeLoadStartByRead;
+    private final Map<ReadKind, Position> highestOwnWriteSinceLoadStartByRead;
 
     private NetworkViewMachine(RandomSequence random) {
         this.random = random;
         runningLoad = RunningLoad.NONE;
         nextLoadAllowedAt = Long.MIN_VALUE;
         heldBatches = new ArrayList<>();
-        highestOwnWriteByRead = new EnumMap<>(ReadKind.class);
+        highestOwnWriteBeforeLoadStartByRead = new EnumMap<>(ReadKind.class);
+        highestOwnWriteSinceLoadStartByRead = new EnumMap<>(ReadKind.class);
     }
 
     private NetworkViewMachine(NetworkViewMachine previous) {
@@ -152,7 +154,8 @@ public final class NetworkViewMachine implements NetworkView {
         pulseAhead = previous.pulseAhead;
         nextAuditAt = previous.nextAuditAt;
         pendingAudit = previous.pendingAudit;
-        highestOwnWriteByRead = new EnumMap<>(previous.highestOwnWriteByRead);
+        highestOwnWriteBeforeLoadStartByRead = new EnumMap<>(previous.highestOwnWriteBeforeLoadStartByRead);
+        highestOwnWriteSinceLoadStartByRead = new EnumMap<>(previous.highestOwnWriteSinceLoadStartByRead);
     }
 
     /**
@@ -167,7 +170,7 @@ public final class NetworkViewMachine implements NetworkView {
         NetworkViewMachine next = new NetworkViewMachine(this);
         List<ViewEffect> effects = new ArrayList<>();
         // The input goes first, so one that arrives exactly at a deadline is on time. Loads start last, because
-        // the input and the deadlines can each make one due.
+        // the input and the deadlines can each make one due, and so that a load holds this step's own write.
         next.handle(input, nowMillis, effects);
         next.actOnDeadlines(nowMillis, effects);
         next.startDueLoad(nowMillis, effects);
@@ -202,8 +205,13 @@ public final class NetworkViewMachine implements NetworkView {
      * Call only while the view holds a copy.
      */
     private boolean copyLacksOwnWrite(ReadKind kind) {
-        Position highestOwnWrite = highestOwnWriteByRead.get(kind);
-        return highestOwnWrite != null && !highestOwnWrite.isReachedBy(copy);
+        boolean lacksWriteBeforeLoadStart = copyLacks(highestOwnWriteBeforeLoadStartByRead.get(kind));
+        boolean lacksWriteSinceLoadStart = copyLacks(highestOwnWriteSinceLoadStartByRead.get(kind));
+        return lacksWriteBeforeLoadStart || lacksWriteSinceLoadStart;
+    }
+
+    private boolean copyLacks(Position ownWrite) {
+        return ownWrite != null && !ownWrite.isReachedBy(copy);
     }
 
     private boolean isSynced() {
@@ -282,6 +290,7 @@ public final class NetworkViewMachine implements NetworkView {
     private void startLoad(RunningLoad load, long now, List<ViewEffect> effects) {
         runningLoad = load;
         nextLoadAllowedAt = now + LOAD_SPACING_MILLIS;
+        moveOwnWritesBeforeLoadStart();
         effects.add(new ViewEffect.LoadSnapshot());
     }
 
@@ -385,6 +394,10 @@ public final class NetworkViewMachine implements NetworkView {
             return;
         }
         copy = snapshot;
+        // The controller read this snapshot after its load started, so it holds every own write handed over
+        // before that start, in any epoch. That load is the last one that started: no load starts while an audit
+        // waits to compare.
+        highestOwnWriteBeforeLoadStartByRead.clear();
         failedLoadsInRow = 0;
         snapshotTakenAt = now;
         lastGoodPulseAt = null;
@@ -556,8 +569,15 @@ public final class NetworkViewMachine implements NetworkView {
     private void recordOwnWrite(ViewInput.WriteReturned write) {
         Position written = new Position(write.epoch(), write.revision());
         for (ReadKind read : readsChangedBy(write.written())) {
-            highestOwnWriteByRead.merge(read, written, Position::later);
+            highestOwnWriteSinceLoadStartByRead.merge(read, written, Position::later);
         }
+    }
+
+    private void moveOwnWritesBeforeLoadStart() {
+        for (Map.Entry<ReadKind, Position> ownWrite : highestOwnWriteSinceLoadStartByRead.entrySet()) {
+            highestOwnWriteBeforeLoadStartByRead.merge(ownWrite.getKey(), ownWrite.getValue(), Position::later);
+        }
+        highestOwnWriteSinceLoadStartByRead.clear();
     }
 
     private void reloadIfCopyMayLackWrite(long now) {

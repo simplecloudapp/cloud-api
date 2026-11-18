@@ -176,6 +176,24 @@ final class WrongMachines {
                 new WrongMachine("keeps only the last own write",
                         random -> new KeepsLastOwnWrite().start(random),
                         List.of("own write: the highest write holds, also when responses come out of order")),
+                new WrongMachine("never counts a taken snapshot as reaching an own write",
+                        random -> new SnapshotReachesNoOwnWrite().start(random),
+                        List.of("own write: a snapshot in a lower epoch reaches a write handed over before its load",
+                                "own write: a load that starts in the write's step reaches it",
+                                "own write: a differing audit reaches a write handed over before its load",
+                                "own write: an audit not reached in 3 s reaches a write handed over before its load",
+                                "own write: a write after the snapshot makes reads wait again")),
+                new WrongMachine("counts a taken snapshot as reaching the own writes handed over while its load ran",
+                        random -> new SnapshotReachesWritesDuringLoad().start(random),
+                        List.of("own write: a snapshot misses a write handed over after its load started, "
+                                        + "also in the same millisecond",
+                                "own write: an audit misses a write handed over after its load started")),
+                new WrongMachine("counts an audit snapshot that is not taken as reaching own writes",
+                        random -> new UntakenAuditReachesOwnWrites().start(random),
+                        List.of("own write: an audit that takes no snapshot reaches no write")),
+                new WrongMachine("starts a load before it handles the own write of the same step",
+                        random -> new LoadStartsBeforeOwnWriteOfStep().start(random),
+                        List.of("own write: a load that starts in the write's step reaches it")),
                 new WrongMachine("answers before the copy has the own write",
                         random -> new AnswersBeforeOwnWrite().start(random),
                         List.of("own write: a server write holds server, group and persistent server reads",
@@ -629,6 +647,39 @@ final class WrongMachines {
             Position written = new Position(write.epoch(), write.revision());
             for (ReadKind read : readsChangedBy(write.written())) {
                 m.ownWritesByRead.put(read, written);
+            }
+        }
+    }
+
+    static final class SnapshotReachesNoOwnWrite extends ReferenceMachine {
+        @Override
+        void reachOwnWritesBeforeLoad(Memory m) {
+        }
+    }
+
+    static final class SnapshotReachesWritesDuringLoad extends ReferenceMachine {
+        @Override
+        void reachOwnWritesBeforeLoad(Memory m) {
+            m.ownWritesByRead.clear();
+        }
+    }
+
+    static final class UntakenAuditReachesOwnWrites extends ReferenceMachine {
+        @Override
+        void onAuditSnapshot(Memory m, NetworkState snapshot, long now, List<ViewEffect> effects) {
+            reachOwnWritesBeforeLoad(m);
+            super.onAuditSnapshot(m, snapshot, now, effects);
+        }
+    }
+
+    static final class LoadStartsBeforeOwnWriteOfStep extends ReferenceMachine {
+        @Override
+        void runStep(Memory m, ViewInput input, long now, List<ViewEffect> effects) {
+            if (input instanceof ViewInput.WriteReturned) {
+                actOnDeadlines(m, now, effects);
+                handle(m, input, now, effects);
+            } else {
+                super.runStep(m, input, now, effects);
             }
         }
     }

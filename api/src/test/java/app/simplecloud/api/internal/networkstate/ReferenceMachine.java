@@ -128,7 +128,11 @@ class ReferenceMachine {
         long auditDueAt;
         NetworkState auditSnapshot;
         long auditComparingSince;
+        /**
+         * Only the own writes that no taken snapshot holds, so only the copy's epoch and revision can reach them.
+         */
         Map<ReadKind, Position> ownWritesByRead = new EnumMap<>(ReadKind.class);
+        Map<ReadKind, Position> ownWritesSinceLoadStartedByRead = new EnumMap<>(ReadKind.class);
 
         Memory(RandomSequence random) {
             this.random = random;
@@ -155,6 +159,7 @@ class ReferenceMachine {
             auditSnapshot = source.auditSnapshot;
             auditComparingSince = source.auditComparingSince;
             ownWritesByRead = new EnumMap<>(source.ownWritesByRead);
+            ownWritesSinceLoadStartedByRead = new EnumMap<>(source.ownWritesSinceLoadStartedByRead);
         }
 
     }
@@ -323,6 +328,7 @@ class ReferenceMachine {
             return;
         }
         m.copy = taken;
+        reachOwnWritesBeforeLoad(m);
         m.mode = Mode.SYNCED;
         m.snapshotTakenAt = now;
         m.goodPulseAt = null;
@@ -485,7 +491,17 @@ class ReferenceMachine {
         Position written = new Position(write.epoch(), write.revision());
         for (ReadKind read : readsChangedBy(write.written())) {
             m.ownWritesByRead.merge(read, written, this::later);
+            m.ownWritesSinceLoadStartedByRead.merge(read, written, this::later);
         }
+    }
+
+    /**
+     * The snapshot comes from the last load that started, also an audit's, since no load starts while an audit
+     * compares. The controller read it after that start, so it holds every own write handed over before, and
+     * only those handed over since are left to reach.
+     */
+    void reachOwnWritesBeforeLoad(Memory m) {
+        m.ownWritesByRead = new EnumMap<>(m.ownWritesSinceLoadStartedByRead);
     }
 
     /**
@@ -580,6 +596,7 @@ class ReferenceMachine {
         m.loadRunning = true;
         m.loadAnswerIgnored = false;
         m.lastLoadStartedAt = now;
+        m.ownWritesSinceLoadStartedByRead.clear();
     }
 
     void onAuditSnapshot(Memory m, NetworkState snapshot, long now, List<ViewEffect> effects) {
