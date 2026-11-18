@@ -14,6 +14,12 @@ import app.simplecloud.api.server.ServerApi;
  * <p>This interface provides access to manage server groups, individual servers,
  * and subscribe to system events. Use the static factory methods to create an instance.
  *
+ * <p>Instances whose API classes come from one class loader, and that have the same NATS URL, network,
+ * secret, failover reconnect delay and controller URL, share one NATS connection and one HTTP connection
+ * pool. So plugins that load the API from the SimpleCloud platform plugin share them, and a plugin that
+ * bundles its own copy of the API does not. The shared connections stay open until the last instance
+ * that uses them is closed.
+ *
  * <p>Example usage:
  * <pre>{@code
  * CloudApi api = CloudApi.create(CloudApiOptions.builder()

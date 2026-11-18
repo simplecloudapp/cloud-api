@@ -93,23 +93,23 @@ class ComponentHeaderIsolationTest {
     }
 
     @Test
-    void createSharesOneHttpClientAcrossAllApisButNotBetweenInstances() throws Exception {
+    void createSharesOneApiClientAcrossAllApisAndOneConnectionPoolBetweenInstances() throws Exception {
         try (CloudApi first = CloudApi.create(options("proxy-essentials"));
              CloudApi second = CloudApi.create(options("another-plugin"))) {
-            ApiClient firstClient = httpClient(first.player(), "playersApi");
-            ApiClient secondClient = httpClient(second.player(), "playersApi");
+            ApiClient firstClient = apiClient(first.player(), "playersApi");
+            ApiClient secondClient = apiClient(second.player(), "playersApi");
             assertNotSame(firstClient, secondClient);
-            assertNotSame(firstClient.getHttpClient(), secondClient.getHttpClient());
+            assertSame(firstClient.getHttpClient().connectionPool(), secondClient.getHttpClient().connectionPool());
             assertNotSame(Configuration.getDefaultApiClient(), firstClient);
             assertNotSame(Configuration.getDefaultApiClient(), secondClient);
 
             for (CloudApi api : List.of(first, second)) {
-                ApiClient client = httpClient(api.player(), "playersApi");
-                assertSame(client, httpClient(api.server(), "serversApi"));
-                assertSame(client, httpClient(api.group(), "serverGroupsApi"));
-                assertSame(client, httpClient(api.persistentServer(), "persistentServersApi"));
-                assertSame(client, httpClient(api.group(), "inlineBlueprintSupport", "blueprintsApi"));
-                assertSame(client, httpClient(api.persistentServer(), "inlineBlueprintSupport", "blueprintsApi"));
+                ApiClient client = apiClient(api.player(), "playersApi");
+                assertSame(client, apiClient(api.server(), "serversApi"));
+                assertSame(client, apiClient(api.group(), "serverGroupsApi"));
+                assertSame(client, apiClient(api.persistentServer(), "persistentServersApi"));
+                assertSame(client, apiClient(api.group(), "inlineBlueprintSupport", "blueprintsApi"));
+                assertSame(client, apiClient(api.persistentServer(), "inlineBlueprintSupport", "blueprintsApi"));
             }
         }
     }
@@ -150,7 +150,7 @@ class ComponentHeaderIsolationTest {
                 .build();
     }
 
-    private static ApiClient httpClient(Object owner, String... fieldPath) throws Exception {
+    private static ApiClient apiClient(Object owner, String... fieldPath) throws Exception {
         Object value = owner;
         for (String fieldName : fieldPath) {
             var field = value.getClass().getDeclaredField(fieldName);
