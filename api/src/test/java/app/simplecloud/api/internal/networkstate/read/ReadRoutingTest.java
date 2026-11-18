@@ -41,6 +41,7 @@ import java.util.List;
 import java.util.Map;
 import java.util.Objects;
 import java.util.Optional;
+import java.util.concurrent.CompletableFuture;
 import java.util.concurrent.ConcurrentHashMap;
 import java.util.concurrent.Executor;
 import java.util.concurrent.atomic.AtomicInteger;
@@ -63,6 +64,8 @@ class ReadRoutingTest {
     private static final String UNKNOWN_ID = "0d000000-0000-4000-8000-0000000000ff";
     private static final String EMPTY_SERVER_LIST = "{\"servers\":[],\"total\":0}";
     private static final Executor CALLER_THREAD = Runnable::run;
+    private static final Executor NEVER_RUNS = command -> {
+    };
 
     private final MockWebServer controller = new MockWebServer();
     private final Map<String, String> bodiesByPath = new ConcurrentHashMap<>();
@@ -163,6 +166,23 @@ class ReadRoutingTest {
         assertEquals(PublicGetters.read(group), PublicGetters.read(groupByName.orElseThrow()));
         assertEquals(PublicGetters.read(persistentServer), PublicGetters.read(persistentServerById.orElseThrow()));
         assertEquals(PublicGetters.read(persistentServer), PublicGetters.read(persistentServerByName.orElseThrow()));
+    }
+
+    @Test
+    void aReadTheCopyAnswersIsCompleteWhenTheCallReturns() {
+        ServerApiImpl servers = new ServerApiImpl(options, new NoOpQueryCache(), apiClient, NEVER_RUNS, copyReads);
+        GroupApiImpl groups = new GroupApiImpl(options, new NoOpQueryCache(), apiClient, NEVER_RUNS, copyReads);
+        PersistentServerApiImpl persistentServers = new PersistentServerApiImpl(options, new NoOpQueryCache(),
+                apiClient, NEVER_RUNS, copyReads);
+        view.answer(true);
+
+        CompletableFuture<List<Server>> serverList = servers.getAllServers(null);
+        CompletableFuture<List<Group>> groupList = groups.getAllGroups(null);
+        CompletableFuture<List<PersistentServer>> persistentServerList = persistentServers.getAllPersistentServers(null);
+
+        assertTrue(serverList.isDone(), "a read over HTTP would wait for an executor that never runs");
+        assertTrue(groupList.isDone());
+        assertTrue(persistentServerList.isDone());
     }
 
     @Test

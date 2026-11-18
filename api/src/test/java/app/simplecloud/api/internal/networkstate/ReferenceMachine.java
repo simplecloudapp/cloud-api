@@ -186,6 +186,11 @@ class ReferenceMachine {
         }
 
         @Override
+        public boolean awaitsOwnWrite(ReadKind kind, long nowMillis) {
+            return machine.awaitsOwnWrite(memory, kind, nowMillis);
+        }
+
+        @Override
         public Optional<NetworkCopy> copy() {
             return Optional.ofNullable(memory.copy);
         }
@@ -641,6 +646,11 @@ class ReferenceMachine {
 
     boolean mayAnswer(Memory m, ReadKind kind, long now) {
         return isLive(m, now) && m.viewsMayAnswer && reachedOwnWrites(m, kind);
+    }
+
+    boolean awaitsOwnWrite(Memory m, ReadKind kind, long now) {
+        boolean answersAllowed = isLive(m, now) && m.viewsMayAnswer;
+        return answersAllowed && !reachedOwnWrites(m, kind);
     }
 
     boolean reachedOwnWrites(Memory m, ReadKind read) {

@@ -6,7 +6,8 @@ import java.util.concurrent.CopyOnWriteArrayList;
 
 /**
  * A view for tests of the shell and of the reads it answers: it records every input, asks for nothing, and
- * answers reads from a fixed copy while {@link #answer} allows it. It stays the same object across steps,
+ * answers reads from a fixed copy while {@link #answer} allows it, and lets them wait for an own write while
+ * {@link #awaitOwnWrite} says so. It stays the same object across steps,
  * so a test can change it while a shell runs it.
  */
 public final class RecordingView implements NetworkView {
@@ -14,6 +15,7 @@ public final class RecordingView implements NetworkView {
     private final List<ViewInput> received = new CopyOnWriteArrayList<>();
     private final NetworkCopy copy;
     private volatile boolean mayAnswer;
+    private volatile boolean awaitsOwnWrite;
     private volatile Class<? extends ViewInput> failingInput;
 
     public RecordingView(NetworkCopy copy) {
@@ -26,6 +28,10 @@ public final class RecordingView implements NetworkView {
 
     public void answer(boolean mayAnswer) {
         this.mayAnswer = mayAnswer;
+    }
+
+    void awaitOwnWrite(boolean awaitsOwnWrite) {
+        this.awaitsOwnWrite = awaitsOwnWrite;
     }
 
     /**
@@ -65,6 +71,11 @@ public final class RecordingView implements NetworkView {
     @Override
     public boolean mayAnswer(ReadKind kind, long nowMillis) {
         return mayAnswer;
+    }
+
+    @Override
+    public boolean awaitsOwnWrite(ReadKind kind, long nowMillis) {
+        return awaitsOwnWrite;
     }
 
     @Override

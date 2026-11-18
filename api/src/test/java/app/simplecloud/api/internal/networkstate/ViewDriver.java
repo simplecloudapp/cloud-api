@@ -220,6 +220,18 @@ final class ViewDriver {
         return view.mayAnswer(kind, now);
     }
 
+    boolean awaitsOwnWrite(ReadKind kind) {
+        return view.awaitsOwnWrite(kind, now);
+    }
+
+    /**
+     * Asks whether a read of the current view waits for an own write at a later time, without a step in
+     * between.
+     */
+    boolean awaitsOwnWriteAt(ReadKind kind, long time) {
+        return view.awaitsOwnWrite(kind, time);
+    }
+
     NetworkCopy copy() {
         return view.copy().orElseThrow(() -> new AssertionError("the view holds no copy"));
     }

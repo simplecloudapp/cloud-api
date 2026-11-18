@@ -183,6 +183,25 @@ final class WrongMachines {
                                 "own write: a persistent server write holds persistent server and server reads",
                                 "own write: a blueprint write holds group and server reads",
                                 ViewSimulation.SHORT_RUNS_CHECK)),
+                new WrongMachine("never lets a read wait for an own write",
+                        random -> new NeverWaitsForOwnWrite().start(random),
+                        List.of("own write wait: the reads a write changes wait until the copy reaches it")),
+                new WrongMachine("lets a read wait for an own write while the view is not live",
+                        random -> new WaitsWhileNotLive().start(random),
+                        List.of("own write wait: no read waits while a batch is held",
+                                "own write wait: no read waits while the copy is behind a pulse",
+                                "own write wait: no read waits once the last good pulse is 15 s old",
+                                "own write wait: no read waits after the connection is lost",
+                                "own write wait: no read waits while a reload is wanted or runs",
+                                ViewSimulation.SHORT_RUNS_CHECK)),
+                new WrongMachine("lets a read wait for an own write while views_may_answer is false",
+                        random -> new WaitsWhileAnswersSwitchedOff().start(random),
+                        List.of("own write wait: no read waits while views_may_answer is false")),
+                new WrongMachine("lets every read wait while answers are allowed",
+                        random -> new WaitsWhileAnswersAllowed().start(random),
+                        List.of("own write wait: the reads a write changes wait until the copy reaches it",
+                                "own write wait: a read never both waits and may be answered",
+                                ViewSimulation.SHORT_RUNS_CHECK)),
                 new WrongMachine("ignores an own write of unknown revision",
                         random -> new IgnoresWriteOfUnknownRevision().start(random),
                         List.of("own write of unknown revision: a synced view answers nothing until it reloaded",
@@ -604,6 +623,34 @@ final class WrongMachines {
     static final class AnswersBeforeOwnWrite extends ReferenceMachine {
         @Override
         void onWriteReturned(Memory m, ViewInput.WriteReturned write) {
+        }
+    }
+
+    static final class NeverWaitsForOwnWrite extends ReferenceMachine {
+        @Override
+        boolean awaitsOwnWrite(Memory m, ReadKind kind, long now) {
+            return false;
+        }
+    }
+
+    static final class WaitsWhileNotLive extends ReferenceMachine {
+        @Override
+        boolean awaitsOwnWrite(Memory m, ReadKind kind, long now) {
+            return m.copy != null && m.viewsMayAnswer && !reachedOwnWrites(m, kind);
+        }
+    }
+
+    static final class WaitsWhileAnswersSwitchedOff extends ReferenceMachine {
+        @Override
+        boolean awaitsOwnWrite(Memory m, ReadKind kind, long now) {
+            return isLive(m, now) && !reachedOwnWrites(m, kind);
+        }
+    }
+
+    static final class WaitsWhileAnswersAllowed extends ReferenceMachine {
+        @Override
+        boolean awaitsOwnWrite(Memory m, ReadKind kind, long now) {
+            return isLive(m, now) && m.viewsMayAnswer;
         }
     }
 

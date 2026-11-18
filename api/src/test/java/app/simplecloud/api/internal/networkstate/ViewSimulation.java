@@ -45,6 +45,7 @@ import static org.junit.jupiter.api.Assertions.fail;
  *   <li>a live view lacks no batch of its epoch published 30 s before, and is in the database's epoch from
  *   30 s after a failover;</li>
  *   <li>a read the view may answer sees every own write that can change it;</li>
+ *   <li>a read waits for an own write only while the view is live, and never while it may be answered;</li>
  *   <li>the view never runs two loads at once, or starts them less than 2 s apart.</li>
  * </ul>
  * Liveness: from 50 s after the faults stop, the view is live and has every batch published 1 s before,
@@ -686,6 +687,7 @@ final class ViewSimulation {
             checkLiveCopyIsRecent();
         }
         checkOwnWritesAreSeen();
+        checkReadsWaitOnlyWhileLive();
     }
 
     private void checkLiveCopyIsRecent() {
@@ -726,6 +728,21 @@ final class ViewSimulation {
             if (!copyPosition.isAtOrAfter(ownWrite.getValue())) {
                 failRun("the view may answer " + read + " reads at " + copyPosition + " before its own write at "
                         + ownWrite.getValue());
+            }
+        }
+    }
+
+    private void checkReadsWaitOnlyWhileLive() {
+        boolean live = view.isLive(now);
+        for (ReadKind read : ReadKind.values()) {
+            if (!view.awaitsOwnWrite(read, now)) {
+                continue;
+            }
+            if (!live) {
+                failRun("a " + read + " read waits for an own write while the view is not live");
+            }
+            if (view.mayAnswer(read, now)) {
+                failRun("a " + read + " read waits for an own write while the view may answer it");
             }
         }
     }

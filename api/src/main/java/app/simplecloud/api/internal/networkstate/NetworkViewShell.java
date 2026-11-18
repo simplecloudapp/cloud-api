@@ -10,7 +10,10 @@ import io.nats.client.Dispatcher;
 import io.nats.client.Message;
 
 import java.time.Duration;
+import java.util.ArrayList;
 import java.util.EnumMap;
+import java.util.Iterator;
+import java.util.List;
 import java.util.Map;
 import java.util.Optional;
 import java.util.concurrent.CompletableFuture;
@@ -29,9 +32,14 @@ import java.util.logging.Logger;
  * {@code <network>.state.v1.pulse}, the connection's state, the answers to snapshot loads, this process's
  * writes and a time tick.
  *
+ * <p>A read that the view says awaits an own write waits for the copy. After every step the shell answers each
+ * waiting read from the copy, or sends it over HTTP, once the view says so. The one limit the shell sets itself
+ * is that a read waits at most 3 s.
+ *
  * <p>A step that throws is a bug in the view, or a class loader that is going away. The shell logs it and
  * stops, as if closed but with its subscriptions left open: it takes no input and answers no read from then
- * on, so every read goes over HTTP. A view that missed an input could otherwise answer before an own write.
+ * on, so every read goes over HTTP, also a waiting one. A view that missed an input could otherwise answer
+ * before an own write.
  */
 public final class NetworkViewShell implements NatsFailoverConnectionManager.SubscriptionListener {
 
@@ -45,6 +53,14 @@ public final class NetworkViewShell implements NatsFailoverConnectionManager.Sub
     private static final long TIME_PASSED_INTERVAL_MILLIS = 100;
     private static final Duration FLUSH_TIMEOUT = Duration.ofSeconds(5);
     private static final Duration FLUSH_RETRY_DELAY = Duration.ofSeconds(1);
+    /**
+     * Bounds the wait while nothing arrives. A copy that missed the write's batch ends the wait sooner: the next
+     * batch is held or the next pulse is ahead, and the view stops being live.
+     */
+    private static final long OWN_WRITE_WAIT_MILLIS = 3_000;
+
+    private record WaitingRead(ReadKind kind, long waitEndsAt, CompletableFuture<Optional<NetworkCopy>> answer) {
+    }
 
     private final String batchSubject;
     private final String pulseSubject;
@@ -63,7 +79,12 @@ public final class NetworkViewShell implements NatsFailoverConnectionManager.Sub
     private final AtomicLong subscriptionChanges = new AtomicLong();
     private final Map<AuditOutcome, Long> auditCounts = new EnumMap<>(AuditOutcome.class);
     /**
-     * Set under {@link #stepLock}, by {@link #close} or by a step that threw, so no step starts after it.
+     * Guarded by {@link #stepLock}. Every step settles them before it releases the lock.
+     */
+    private final List<WaitingRead> waitingReads = new ArrayList<>();
+    /**
+     * Set under {@link #stepLock}, by {@link #close} or by a step that threw, so no step starts and no read
+     * waits after it.
      */
     private volatile boolean stopped;
     private volatile NetworkView view;
@@ -121,17 +142,22 @@ public final class NetworkViewShell implements NatsFailoverConnectionManager.Sub
     }
 
     /**
-     * Returns the copy if the view says reads of {@code kind} may be answered from it now, or empty, so the
-     * read goes over HTTP.
+     * Returns the copy to answer a read of {@code kind} from, or empty, so the read goes over HTTP. The future
+     * is complete on return unless the read waits for an own write. A waiting read completes on a thread of its
+     * own, never under the shell's lock or on a thread that feeds the view, so the caller's continuation may
+     * block.
      */
-    public Optional<NetworkCopy> copyToAnswer(ReadKind kind) {
+    public CompletableFuture<Optional<NetworkCopy>> copyToAnswer(ReadKind kind) {
         NetworkView current = view;
         // Read after the view, so the time is at or after the time of the step that made it.
         long now = clock.nowMillis();
-        if (stopped || !current.mayAnswer(kind, now)) {
-            return Optional.empty();
-        }
-        return current.copy();
+        long waitEndsAt = now + OWN_WRITE_WAIT_MILLIS;
+        ReadRoute route = routeOf(current, kind, now, waitEndsAt);
+        return switch (route) {
+            case FROM_COPY -> CompletableFuture.completedFuture(current.copy());
+            case OVER_HTTP -> CompletableFuture.completedFuture(Optional.empty());
+            case WAIT -> waitForOwnWrite(kind, waitEndsAt);
+        };
     }
 
     /**
@@ -175,6 +201,7 @@ public final class NetworkViewShell implements NatsFailoverConnectionManager.Sub
             if (runningLoad != null) {
                 runningLoad.cancel(false);
             }
+            settleWaitingReads();
         }
         timer.shutdownNow();
         // Outside the lock, which the dispatcher's thread takes for every message.
@@ -275,12 +302,66 @@ public final class NetworkViewShell implements NatsFailoverConnectionManager.Sub
             for (ViewEffect effect : step.effects()) {
                 carryOut(effect);
             }
+            settleWaitingReads();
         } catch (Throwable failure) {
             // Also an Error: the threads that feed include the NATS dispatcher's and the writers'.
             stopped = true;
             LOGGER.log(Level.SEVERE, "The network view failed to take " + input
                     + "; it answers no more reads, and they go over HTTP", failure);
+            settleWaitingReads();
         }
+    }
+
+    private ReadRoute routeOf(NetworkView current, ReadKind kind, long now, long waitEndsAt) {
+        if (stopped) {
+            return ReadRoute.OVER_HTTP;
+        }
+        return ReadRoute.of(current, kind, now, waitEndsAt);
+    }
+
+    private CompletableFuture<Optional<NetworkCopy>> waitForOwnWrite(ReadKind kind, long waitEndsAt) {
+        WaitingRead read = new WaitingRead(kind, waitEndsAt, new CompletableFuture<>());
+        synchronized (stepLock) {
+            waitingReads.add(read);
+            // A step between this read's look at the view and the lock settled without it, and may have ended
+            // its wait.
+            settleWaitingReads();
+        }
+        return read.answer();
+    }
+
+    /**
+     * Call under {@link #stepLock}.
+     */
+    private void settleWaitingReads() {
+        long now = clock.nowMillis();
+        Iterator<WaitingRead> waiting = waitingReads.iterator();
+        while (waiting.hasNext()) {
+            WaitingRead read = waiting.next();
+            ReadRoute route = routeOf(view, read.kind(), now, read.waitEndsAt());
+            switch (route) {
+                case FROM_COPY -> {
+                    waiting.remove();
+                    answerOnOwnThread(read, view.copy());
+                }
+                case OVER_HTTP -> {
+                    waiting.remove();
+                    answerOnOwnThread(read, Optional.empty());
+                }
+                case WAIT -> {
+                }
+            }
+        }
+    }
+
+    /**
+     * The caller's continuation may block or start HTTP calls, so it must neither hold the lock nor stall the
+     * thread that delivers batches or ticks.
+     */
+    private static void answerOnOwnThread(WaitingRead read, Optional<NetworkCopy> copy) {
+        Thread.ofVirtual()
+                .name("simplecloud-network-view-read")
+                .start(() -> read.answer().complete(copy));
     }
 
     private void carryOut(ViewEffect effect) {

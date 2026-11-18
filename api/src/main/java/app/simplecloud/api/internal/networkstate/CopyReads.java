@@ -15,6 +15,7 @@ import org.jetbrains.annotations.Nullable;
 import java.nio.ByteBuffer;
 import java.util.Optional;
 import java.util.UUID;
+import java.util.concurrent.CompletableFuture;
 import java.util.concurrent.atomic.AtomicBoolean;
 import java.util.logging.Level;
 import java.util.logging.Logger;
@@ -23,6 +24,9 @@ import java.util.logging.Logger;
  * Answers the list routes from a view's copy, where the view says the copy may answer, as the controller
  * would answer them over HTTP. Empty means the caller asks the controller. {@link #NONE} answers nothing, for
  * an instance whose credential may not use a view.
+ *
+ * <p>Each future is complete on return, unless the read waits for the copy to reach an own write. A waiting
+ * read completes on a thread of its own.
  */
 public final class CopyReads {
 
@@ -46,8 +50,36 @@ public final class CopyReads {
         return new CopyReads(shell, uuidBytes(networkId));
     }
 
-    public Optional<ModelsListServersResponse> listServers(ServerListParameters parameters) {
-        Optional<NetworkCopy> copy = copyToAnswer(ReadKind.SERVER);
+    public CompletableFuture<Optional<ModelsListServersResponse>> listServers(ServerListParameters parameters) {
+        CompletableFuture<Optional<NetworkCopy>> answeringCopy = copyToAnswer(ReadKind.SERVER);
+        return answeringCopy.thenApply(copy -> serversFrom(copy, parameters));
+    }
+
+    public CompletableFuture<Optional<ModelsListServerGroupsResponse>> listServerGroups(
+            ServerGroupListParameters parameters
+    ) {
+        CompletableFuture<Optional<NetworkCopy>> answeringCopy = copyToAnswer(ReadKind.SERVER_GROUP);
+        return answeringCopy.thenApply(copy -> serverGroupsFrom(copy, parameters));
+    }
+
+    public CompletableFuture<Optional<ModelsListPersistentServersResponse>> listPersistentServers(
+            PersistentServerListParameters parameters
+    ) {
+        CompletableFuture<Optional<NetworkCopy>> answeringCopy = copyToAnswer(ReadKind.PERSISTENT_SERVER);
+        return answeringCopy.thenApply(copy -> persistentServersFrom(copy, parameters));
+    }
+
+    private CompletableFuture<Optional<NetworkCopy>> copyToAnswer(ReadKind kind) {
+        if (shell == null) {
+            return CompletableFuture.completedFuture(Optional.empty());
+        }
+        return shell.copyToAnswer(kind);
+    }
+
+    private Optional<ModelsListServersResponse> serversFrom(
+            Optional<NetworkCopy> copy,
+            ServerListParameters parameters
+    ) {
         if (copy.isEmpty()) {
             return Optional.empty();
         }
@@ -59,8 +91,10 @@ public final class CopyReads {
         }
     }
 
-    public Optional<ModelsListServerGroupsResponse> listServerGroups(ServerGroupListParameters parameters) {
-        Optional<NetworkCopy> copy = copyToAnswer(ReadKind.SERVER_GROUP);
+    private Optional<ModelsListServerGroupsResponse> serverGroupsFrom(
+            Optional<NetworkCopy> copy,
+            ServerGroupListParameters parameters
+    ) {
         if (copy.isEmpty()) {
             return Optional.empty();
         }
@@ -72,10 +106,10 @@ public final class CopyReads {
         }
     }
 
-    public Optional<ModelsListPersistentServersResponse> listPersistentServers(
+    private Optional<ModelsListPersistentServersResponse> persistentServersFrom(
+            Optional<NetworkCopy> copy,
             PersistentServerListParameters parameters
     ) {
-        Optional<NetworkCopy> copy = copyToAnswer(ReadKind.PERSISTENT_SERVER);
         if (copy.isEmpty()) {
             return Optional.empty();
         }
@@ -85,13 +119,6 @@ public final class CopyReads {
             reportFailedAnswer(e);
             return Optional.empty();
         }
-    }
-
-    private Optional<NetworkCopy> copyToAnswer(ReadKind kind) {
-        if (shell == null) {
-            return Optional.empty();
-        }
-        return shell.copyToAnswer(kind);
     }
 
     /**

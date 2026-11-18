@@ -16,10 +16,15 @@ import org.junit.jupiter.api.AfterEach;
 import org.junit.jupiter.api.Test;
 
 import java.io.IOException;
+import java.lang.reflect.Field;
 import java.time.Duration;
 import java.util.List;
 import java.util.Map;
+import java.util.Optional;
+import java.util.concurrent.CompletableFuture;
+import java.util.concurrent.ExecutionException;
 import java.util.concurrent.TimeUnit;
+import java.util.concurrent.TimeoutException;
 import java.util.concurrent.atomic.AtomicLong;
 import java.util.function.BooleanSupplier;
 
@@ -28,6 +33,7 @@ import static app.simplecloud.api.internal.networkstate.StateItems.network;
 import static app.simplecloud.api.internal.networkstate.StateItems.pulse;
 import static org.junit.jupiter.api.Assertions.assertEquals;
 import static org.junit.jupiter.api.Assertions.assertFalse;
+import static org.junit.jupiter.api.Assertions.assertNotEquals;
 import static org.junit.jupiter.api.Assertions.assertNotNull;
 import static org.junit.jupiter.api.Assertions.assertTrue;
 
@@ -47,13 +53,15 @@ class NetworkViewShellTest {
 
     private final FakeNatsConnection nats = FakeNatsConnection.withoutRequests();
     private final AtomicLong clockMillis = new AtomicLong();
+    private final MockWebServer snapshotServer = new MockWebServer();
     private NetworkViewShell shell;
 
     @AfterEach
-    void closeShell() {
+    void closeShell() throws IOException {
         if (shell != null) {
             shell.close();
         }
+        snapshotServer.close();
     }
 
     @Test
@@ -122,7 +130,7 @@ class NetworkViewShellTest {
             awaitLiveAt(10);
             clockMillis.set(5_000);
             shell.connectionLost();
-            boolean answersAfterLoss = shell.copyToAnswer(ReadKind.SERVER).isPresent();
+            boolean answersAfterLoss = shell.copyToAnswer(ReadKind.SERVER).join().isPresent();
             shell.subscriptionsSent();
             RecordedRequest reload = controller.takeRequest(WAIT_LIMIT.toMillis(), TimeUnit.MILLISECONDS);
 
@@ -165,7 +173,7 @@ class NetworkViewShellTest {
         assertEquals(inputsAtClose, view.received().size(), "a closed shell steps the view no more");
         assertFalse(nats.hasSubscription(BATCH_SUBJECT));
         assertFalse(nats.hasSubscription(PULSE_SUBJECT));
-        assertTrue(shell.copyToAnswer(ReadKind.SERVER).isEmpty(), "a closed shell answers nothing");
+        assertTrue(shell.copyToAnswer(ReadKind.SERVER).join().isEmpty(), "a closed shell answers nothing");
     }
 
     @Test
@@ -174,23 +182,134 @@ class NetworkViewShellTest {
         view.answer(true);
         view.failOn(ViewInput.TimePassed.class);
         shell = startShell(view, unusedSnapshots());
-        boolean answeredBeforeTheTick = shell.copyToAnswer(ReadKind.SERVER).isPresent();
+        boolean answeredBeforeTheTick = shell.copyToAnswer(ReadKind.SERVER).join().isPresent();
 
-        awaitTrue(() -> shell.copyToAnswer(ReadKind.SERVER).isEmpty(), "the failed tick ends the answers");
+        awaitTrue(() -> shell.copyToAnswer(ReadKind.SERVER).join().isEmpty(), "the failed tick ends the answers");
         shell.writeReturned(WriteKind.SERVER, 3, 7);
 
         assertTrue(answeredBeforeTheTick);
         assertTrue(view.received().isEmpty(), "a stopped shell steps the view no more");
     }
 
+    @Test
+    void aReadAfterAnOwnWriteWaitsUntilTheCopyHasTheWrite() throws Exception {
+        startLiveShellAtRevision10();
+        shell.writeReturned(WriteKind.PERSISTENT_SERVER, StateItems.EPOCH, 11);
+        CompletableFuture<Optional<NetworkCopy>> unchangedRead = shell.copyToAnswer(ReadKind.SERVER_GROUP);
+        CompletableFuture<Optional<NetworkCopy>> changedRead = shell.copyToAnswer(ReadKind.PERSISTENT_SERVER);
+        sleepQuietly();
+        boolean waitedForTheBatch = !changedRead.isDone();
+        deliver(BATCH_SUBJECT, batch(10, 11).build());
+        Optional<NetworkCopy> answer = answerOf(changedRead);
+
+        assertTrue(unchangedRead.isDone(), "a read the write does not change is answered at once");
+        assertEquals(10, unchangedRead.join().orElseThrow().revision());
+        assertTrue(waitedForTheBatch, "a read the write changes waits for the copy");
+        assertEquals(11, answer.orElseThrow().revision(), "the copy that has the write answers it");
+    }
+
+    @Test
+    void aReadThatWaitsForAnOwnWriteGoesOverHttpAfterThreeSeconds() throws Exception {
+        startLiveShellAtRevision10();
+        shell.writeReturned(WriteKind.SERVER, StateItems.EPOCH, 11);
+        CompletableFuture<Optional<NetworkCopy>> read = shell.copyToAnswer(ReadKind.SERVER);
+        clockMillis.set(2_999);
+        sleepQuietly();
+        boolean waitingJustBefore = !read.isDone();
+        clockMillis.set(3_000);
+        Optional<NetworkCopy> answer = answerOf(read);
+
+        assertTrue(waitingJustBefore, "the read waits for up to 3 s");
+        assertTrue(answer.isEmpty(), "after 3 s the read goes over HTTP");
+    }
+
+    @Test
+    void aReadThatWaitsForAnOwnWriteGoesOverHttpOnceTheViewIsNotLive() throws Exception {
+        startLiveShellAtRevision10();
+        shell.writeReturned(WriteKind.SERVER, StateItems.EPOCH, 11);
+        CompletableFuture<Optional<NetworkCopy>> read = shell.copyToAnswer(ReadKind.SERVER);
+        shell.connectionLost();
+        Optional<NetworkCopy> answer = answerOf(read);
+
+        assertTrue(answer.isEmpty(), "a view that is not live sends the read over HTTP, before its 3 s end");
+    }
+
+    @Test
+    void closeSendsAWaitingReadOverHttp() throws Exception {
+        startLiveShellAtRevision10();
+        shell.writeReturned(WriteKind.SERVER, StateItems.EPOCH, 11);
+        CompletableFuture<Optional<NetworkCopy>> read = shell.copyToAnswer(ReadKind.SERVER);
+        shell.close();
+        Optional<NetworkCopy> answer = answerOf(read);
+
+        assertTrue(answer.isEmpty());
+    }
+
+    @Test
+    void aStepThatThrowsSendsAWaitingReadOverHttp() throws Exception {
+        RecordingView view = new RecordingView(EMPTY_COPY);
+        view.awaitOwnWrite(true);
+        shell = startShell(view, unusedSnapshots());
+        CompletableFuture<Optional<NetworkCopy>> read = shell.copyToAnswer(ReadKind.SERVER);
+        view.failOn(ViewInput.TimePassed.class);
+        Optional<NetworkCopy> answer = answerOf(read);
+
+        assertTrue(answer.isEmpty(), "a shell that stopped answers no read from the copy");
+    }
+
+    @Test
+    void aWaitingReadIsAnsweredNeitherUnderTheLockNorOnTheThreadThatFedTheView() throws Exception {
+        startLiveShellAtRevision10();
+        Object stepLock = stepLockOf(shell);
+        shell.writeReturned(WriteKind.SERVER, StateItems.EPOCH, 11);
+        CompletableFuture<Optional<NetworkCopy>> read = shell.copyToAnswer(ReadKind.SERVER);
+        CompletableFuture<Continuation> continuation = read.thenApply(answer -> Continuation.runningNow(stepLock));
+        deliver(BATCH_SUBJECT, batch(10, 11).build());
+        Continuation ran = answerOf(continuation);
+
+        assertNotEquals(Thread.currentThread(), ran.thread(),
+                "the caller's continuation must not run on the thread that delivers batches");
+        assertFalse(ran.holdsStepLock(), "the caller's continuation must not run under the shell's lock");
+    }
+
+    private record Continuation(Thread thread, boolean holdsStepLock) {
+
+        static Continuation runningNow(Object stepLock) {
+            return new Continuation(Thread.currentThread(), Thread.holdsLock(stepLock));
+        }
+    }
+
     private NetworkViewShell startShell(NetworkView view, SnapshotLoader snapshots) {
         return NetworkViewShell.start(NETWORK_ID, nats.connection(), snapshots, view, clockMillis::get);
+    }
+
+    /**
+     * Starts the shell on the production machine, which loads {@link StateItems#network} at revision 10 and goes
+     * live on a pulse at 0 ms.
+     */
+    private void startLiveShellAtRevision10() throws IOException {
+        snapshotServer.enqueue(snapshotResponse(network(10)));
+        snapshotServer.start();
+        shell = startShell(NetworkViewMachine.start(index -> 0.0), snapshotsFrom(snapshotServer));
+        shell.subscriptionsSent();
+        awaitLiveAt(10);
+    }
+
+    private static <T> T answerOf(CompletableFuture<T> read)
+            throws InterruptedException, ExecutionException, TimeoutException {
+        return read.get(WAIT_LIMIT.toMillis(), TimeUnit.MILLISECONDS);
+    }
+
+    private static Object stepLockOf(NetworkViewShell shell) throws ReflectiveOperationException {
+        Field stepLock = NetworkViewShell.class.getDeclaredField("stepLock");
+        stepLock.setAccessible(true);
+        return stepLock.get(shell);
     }
 
     private void awaitLiveAt(long revision) {
         long deadline = System.nanoTime() + WAIT_LIMIT.toNanos();
         // A pulse before the snapshot is taken is no good pulse, so the pulse repeats until one is.
-        while (shell.copyToAnswer(ReadKind.SERVER).isEmpty()) {
+        while (shell.copyToAnswer(ReadKind.SERVER).join().isEmpty()) {
             assertTrue(System.nanoTime() < deadline, "the view went live on its snapshot");
             deliverQuietly(PULSE_SUBJECT, pulse(revision));
             sleepMillis(20);

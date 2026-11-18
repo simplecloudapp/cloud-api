@@ -178,16 +178,29 @@ public final class NetworkViewMachine implements NetworkView {
 
     @Override
     public boolean mayAnswer(ReadKind kind, long nowMillis) {
-        if (!isLive(nowMillis) || !viewsMayAnswer) {
-            return false;
-        }
-        Position highestOwnWrite = highestOwnWriteByRead.get(kind);
-        return highestOwnWrite == null || highestOwnWrite.isReachedBy(copy);
+        return answersAllowed(nowMillis) && !copyLacksOwnWrite(kind);
+    }
+
+    @Override
+    public boolean awaitsOwnWrite(ReadKind kind, long nowMillis) {
+        return answersAllowed(nowMillis) && copyLacksOwnWrite(kind);
     }
 
     @Override
     public Optional<NetworkCopy> copy() {
         return Optional.ofNullable(copy);
+    }
+
+    private boolean answersAllowed(long now) {
+        return isLive(now) && viewsMayAnswer;
+    }
+
+    /**
+     * Call only while the view holds a copy.
+     */
+    private boolean copyLacksOwnWrite(ReadKind kind) {
+        Position highestOwnWrite = highestOwnWriteByRead.get(kind);
+        return highestOwnWrite != null && !highestOwnWrite.isReachedBy(copy);
     }
 
     private boolean isSynced() {

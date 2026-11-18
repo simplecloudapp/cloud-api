@@ -114,7 +114,13 @@ import java.util.Optional;
  *   <li>a persistent server: persistent servers and servers;</li>
  *   <li>a blueprint: server groups and servers (a group contains its blueprint).</li>
  * </ul>
- * A {@link ViewInput.WriteRevisionUnknown} means reload in a synced view, and in a view whose
+ * <p>{@link #awaitsOwnWrite} is true only while the view is live, the last pulse allowed answers, and the copy has
+ * not reached an own write that can change reads of that kind. So it and {@link #mayAnswer} are never both
+ * true. A read of that kind then waits for the copy instead of going over HTTP: the controller's list cache can
+ * answer it from before the write for up to 2 s, while the copy gets the write with its batch. The shell answers
+ * the read from the copy once {@link #mayAnswer} is true, and sends it over HTTP once this turns false or after
+ * 3 s.
+ * <p>A {@link ViewInput.WriteRevisionUnknown} means reload in a synced view, and in a view whose
  * reload's load runs, because that copy or that load may be from before the write. The controller reads a
  * snapshot after the request arrived, so a load that starts after a successful response holds the write, and
  * the view answers nothing until it is live again (rule 5). After a 5xx or a call that threw, the controller
@@ -140,6 +146,12 @@ public interface NetworkView {
      * of over HTTP.
      */
     boolean mayAnswer(ReadKind kind, long nowMillis);
+
+    /**
+     * Returns whether a read of {@code kind} at {@code nowMillis} should wait for the copy to reach an own
+     * write, instead of going over HTTP (Answers).
+     */
+    boolean awaitsOwnWrite(ReadKind kind, long nowMillis);
 
     /**
      * Returns the copy, or empty before the first snapshot is taken. A view keeps its copy while it is not

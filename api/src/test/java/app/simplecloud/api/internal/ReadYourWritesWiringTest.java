@@ -7,7 +7,9 @@ import app.simplecloud.api.internal.networkstate.NetworkView;
 import app.simplecloud.api.internal.networkstate.NetworkViewMachine;
 import app.simplecloud.api.internal.networkstate.NetworkViewShell;
 import app.simplecloud.api.internal.networkstate.ViewInput;
+import app.simplecloud.api.server.Server;
 import build.buf.gen.simplecloud.controller.v2.NetworkState;
+import build.buf.gen.simplecloud.controller.v2.StateBatch;
 import build.buf.gen.simplecloud.controller.v2.StatePulse;
 import okhttp3.mockwebserver.Dispatcher;
 import okhttp3.mockwebserver.MockResponse;
@@ -20,11 +22,15 @@ import org.junit.jupiter.api.Test;
 
 import java.io.IOException;
 import java.lang.reflect.Field;
+import java.lang.reflect.Method;
 import java.net.URISyntaxException;
 import java.net.URL;
 import java.nio.file.Files;
 import java.nio.file.Path;
+import java.util.List;
 import java.util.Objects;
+import java.util.concurrent.CompletableFuture;
+import java.util.concurrent.TimeUnit;
 import java.util.concurrent.atomic.AtomicInteger;
 
 import static org.junit.jupiter.api.Assertions.assertEquals;
@@ -32,7 +38,7 @@ import static org.junit.jupiter.api.Assertions.assertTrue;
 
 /**
  * A write through a {@link CloudApiImpl} reaches the view it shares, so that the next read of what the write
- * changed goes to the controller until the copy holds the write.
+ * changed waits for the copy to hold the write, and goes to the controller if it does not within 3 s.
  */
 class ReadYourWritesWiringTest {
 
@@ -64,7 +70,26 @@ class ReadYourWritesWiringTest {
     }
 
     @Test
-    void aServerReadAfterAServerWriteGoesToTheController() throws ReflectiveOperationException {
+    void aServerReadAfterAServerWriteWaitsForTheCopyToHaveTheWrite() throws Exception {
+        try (CloudApiImpl api = (CloudApiImpl) CloudApi.create(options())) {
+            NetworkViewShell shell = shellOf(api);
+            makeViewLive(shell);
+
+            api.server().stopServer(STOPPED_SERVER_ID).join();
+            CompletableFuture<List<Server>> read = api.server().getAllServers();
+            boolean waitedForTheCopy = !read.isDone();
+            receiveBatchWithTheWrite(shell);
+            List<Server> servers = read.get(5, TimeUnit.SECONDS);
+
+            assertTrue(waitedForTheCopy, "the copy lacks the write, so the read waits for it");
+            assertEquals(snapshot.getServersCount(), servers.size(), "the copy answers once it has the write");
+            assertEquals(0, serverListRequests.get(), "no read went to the controller");
+        }
+    }
+
+    @Test
+    void aServerReadGoesToTheControllerWhenTheCopyLacksTheServerWriteForThreeSeconds()
+            throws ReflectiveOperationException {
         try (CloudApiImpl api = (CloudApiImpl) CloudApi.create(options())) {
             makeViewLive(shellOf(api));
 
@@ -113,6 +138,20 @@ class ReadYourWritesWiringTest {
         synchronized (stepLock) {
             viewField.set(shell, view);
         }
+    }
+
+    /**
+     * Steps the shell's view as a batch from NATS would, since no NATS server delivers one.
+     */
+    private void receiveBatchWithTheWrite(NetworkViewShell shell) throws ReflectiveOperationException {
+        StateBatch batch = StateBatch.newBuilder()
+                .setEpoch(snapshot.getEpoch())
+                .setBaseRevision(snapshot.getRevision())
+                .setRevision(snapshot.getRevision() + 1)
+                .build();
+        Method feed = NetworkViewShell.class.getDeclaredMethod("feed", ViewInput.class);
+        feed.setAccessible(true);
+        feed.invoke(shell, new ViewInput.BatchReceived(batch));
     }
 
     private static NetworkViewShell shellOf(CloudApiImpl api) throws ReflectiveOperationException {

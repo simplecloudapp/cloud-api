@@ -182,7 +182,15 @@ public class GroupApiImpl implements GroupApi {
 
     @Override
     public CompletableFuture<Optional<Group>> findGroupByName(String name) {
-        Optional<ModelsListServerGroupsResponse> copied = copyReads.listServerGroups(listParameters(null, null, name));
+        CompletableFuture<Optional<ModelsListServerGroupsResponse>> fromCopy =
+                copyReads.listServerGroups(listParameters(null, null, name));
+        return fromCopy.thenCompose(copied -> findGroupByNameInCopyOrController(copied, name));
+    }
+
+    private CompletableFuture<Optional<Group>> findGroupByNameInCopyOrController(
+            Optional<ModelsListServerGroupsResponse> copied,
+            String name
+    ) {
         if (copied.isPresent()) {
             Group group = groupWithName(copied.get(), name);
             return CompletableFuture.completedFuture(Optional.ofNullable(group));
@@ -210,7 +218,15 @@ public class GroupApiImpl implements GroupApi {
         if (!Identifiers.isUuid(id)) {
             return CompletableFuture.completedFuture(Optional.empty());
         }
-        Optional<ModelsListServerGroupsResponse> copied = copyReads.listServerGroups(listParameters(null, id, null));
+        CompletableFuture<Optional<ModelsListServerGroupsResponse>> fromCopy =
+                copyReads.listServerGroups(listParameters(null, id, null));
+        return fromCopy.thenCompose(copied -> findGroupByIdInCopyOrController(copied, id));
+    }
+
+    private CompletableFuture<Optional<Group>> findGroupByIdInCopyOrController(
+            Optional<ModelsListServerGroupsResponse> copied,
+            String id
+    ) {
         if (copied.isPresent()) {
             Group group = groupWithId(copied.get(), id);
             return CompletableFuture.completedFuture(Optional.ofNullable(group));
@@ -229,7 +245,15 @@ public class GroupApiImpl implements GroupApi {
     @Override
     public CompletableFuture<List<Group>> getAllGroups(@org.jetbrains.annotations.Nullable GroupQuery query) {
         ServerGroupListParameters parameters = listParameters(query, null, null);
-        Optional<ModelsListServerGroupsResponse> copied = copyReads.listServerGroups(parameters);
+        CompletableFuture<Optional<ModelsListServerGroupsResponse>> fromCopy = copyReads.listServerGroups(parameters);
+        return fromCopy.thenCompose(copied -> getAllGroupsFromCopyOrController(copied, query, parameters));
+    }
+
+    private CompletableFuture<List<Group>> getAllGroupsFromCopyOrController(
+            Optional<ModelsListServerGroupsResponse> copied,
+            @org.jetbrains.annotations.Nullable GroupQuery query,
+            ServerGroupListParameters parameters
+    ) {
         if (copied.isPresent()) {
             return CompletableFuture.completedFuture(groupsOf(copied.get()));
         }

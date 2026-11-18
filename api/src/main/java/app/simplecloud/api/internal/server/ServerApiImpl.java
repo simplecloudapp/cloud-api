@@ -87,7 +87,15 @@ public class ServerApiImpl implements ServerApi {
             return CompletableFuture.completedFuture(Optional.empty());
         }
         ServerListParameters parameters = listParameters(null, id);
-        Optional<ModelsListServersResponse> copied = copyReads.listServers(parameters);
+        CompletableFuture<Optional<ModelsListServersResponse>> fromCopy = copyReads.listServers(parameters);
+        return fromCopy.thenCompose(copied -> findServerByIdInCopyOrController(copied, parameters, id));
+    }
+
+    private CompletableFuture<Optional<Server>> findServerByIdInCopyOrController(
+            Optional<ModelsListServersResponse> copied,
+            ServerListParameters parameters,
+            String id
+    ) {
         if (copied.isPresent()) {
             Server server = serverWithId(copied.get(), id);
             return CompletableFuture.completedFuture(Optional.ofNullable(server));
@@ -115,7 +123,18 @@ public class ServerApiImpl implements ServerApi {
         ServerQuery query = ServerQuery.create()
                 .filterByServerGroupName(groupName)
                 .filterByNumericalId(numericalId);
-        Optional<ModelsListServersResponse> copied = copyReads.listServers(listParameters(query, null));
+        CompletableFuture<Optional<ModelsListServersResponse>> fromCopy =
+                copyReads.listServers(listParameters(query, null));
+        return fromCopy.thenCompose(copied ->
+                findServerByNumericalIdInCopyOrController(copied, query, groupName, numericalId));
+    }
+
+    private CompletableFuture<Optional<Server>> findServerByNumericalIdInCopyOrController(
+            Optional<ModelsListServersResponse> copied,
+            ServerQuery query,
+            String groupName,
+            int numericalId
+    ) {
         if (copied.isPresent()) {
             Server server = serverWithNumericalId(serversOf(copied.get()), numericalId);
             return CompletableFuture.completedFuture(Optional.ofNullable(server));
@@ -135,7 +154,16 @@ public class ServerApiImpl implements ServerApi {
     public CompletableFuture<List<Server>> getServersByGroup(String groupName) {
         ServerQuery query = ServerQuery.create()
                 .filterByServerGroupName(groupName);
-        Optional<ModelsListServersResponse> copied = copyReads.listServers(listParameters(query, null));
+        CompletableFuture<Optional<ModelsListServersResponse>> fromCopy =
+                copyReads.listServers(listParameters(query, null));
+        return fromCopy.thenCompose(copied -> getServersByGroupFromCopyOrController(copied, query, groupName));
+    }
+
+    private CompletableFuture<List<Server>> getServersByGroupFromCopyOrController(
+            Optional<ModelsListServersResponse> copied,
+            ServerQuery query,
+            String groupName
+    ) {
         if (copied.isPresent()) {
             return CompletableFuture.completedFuture(serversOf(copied.get()));
         }
@@ -159,7 +187,16 @@ public class ServerApiImpl implements ServerApi {
     }
 
     private CompletableFuture<List<Server>> fetchAllServers(@Nullable ServerQuery query, QueryKey key) {
-        Optional<ModelsListServersResponse> copied = copyReads.listServers(listParameters(query, null));
+        CompletableFuture<Optional<ModelsListServersResponse>> fromCopy =
+                copyReads.listServers(listParameters(query, null));
+        return fromCopy.thenCompose(copied -> fetchAllServersFromCopyOrController(copied, query, key));
+    }
+
+    private CompletableFuture<List<Server>> fetchAllServersFromCopyOrController(
+            Optional<ModelsListServersResponse> copied,
+            @Nullable ServerQuery query,
+            QueryKey key
+    ) {
         if (copied.isPresent()) {
             return CompletableFuture.completedFuture(serversOf(copied.get()));
         }
