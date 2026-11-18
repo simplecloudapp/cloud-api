@@ -216,8 +216,7 @@ public final class NetworkViewMachine implements NetworkView {
             case ViewInput.BatchReceived received -> receiveBatch(received.batch(), now, effects);
             case ViewInput.PulseReceived received -> receivePulse(received.pulse(), now);
             case ViewInput.WriteReturned returned -> recordOwnWrite(returned);
-            case ViewInput.WriteReturnedWithoutRevision returned -> {
-            }
+            case ViewInput.WriteReturnedWithoutRevision returned -> reloadIfCopyMayLackWrite(now);
             case ViewInput.TimePassed passed -> {
             }
         }
@@ -542,6 +541,15 @@ public final class NetworkViewMachine implements NetworkView {
         Position written = new Position(write.epoch(), write.revision());
         for (ReadKind read : readsChangedBy(write.written())) {
             highestOwnWriteByRead.merge(read, written, Position::later);
+        }
+    }
+
+    private void reloadIfCopyMayLackWrite(long now) {
+        switch (phase()) {
+            case SYNCED, RELOADING -> wantReload(now);
+            // Both load after the write: a wanted reload, and the reload after the next SubscriptionsActive.
+            case RELOAD_WANTED, DISCONNECTED -> {
+            }
         }
     }
 

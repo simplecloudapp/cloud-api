@@ -114,6 +114,11 @@ import java.util.Optional;
  *   <li>a persistent server: persistent servers and servers;</li>
  *   <li>a blueprint: server groups and servers (a group contains its blueprint).</li>
  * </ul>
+ * A {@link ViewInput.WriteReturnedWithoutRevision} means reload in a synced view, and in a view whose
+ * reload's load runs, because that copy or that load may be from before the write. The controller reads a
+ * snapshot after the request arrived, so a load that starts after the write's response holds the write, and
+ * the view answers nothing until it is live again (rule 5). In a view that wants a reload or is
+ * disconnected, the input does nothing: its next load starts after the write anyway.
  */
 public interface NetworkView {
 
