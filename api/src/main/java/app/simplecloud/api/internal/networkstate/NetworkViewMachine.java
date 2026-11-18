@@ -41,6 +41,11 @@ public final class NetworkViewMachine implements NetworkView {
     private static final long RANDOM_AUDIT_DELAY_BOUND_MILLIS = 10 * 60_000;
     private static final long SHORTEST_AUDIT_RETRY_MILLIS = 2_000;
     private static final long RANDOM_AUDIT_RETRY_DELAY_BOUND_MILLIS = 8_000;
+    /**
+     * Bounds the wait while nothing arrives. A copy that missed the write's batch ends the wait sooner: the next
+     * batch is held or the next pulse is ahead, and the view stops being live.
+     */
+    private static final long OWN_WRITE_WAIT_MILLIS = 3_000;
 
     private enum RunningLoad {
         NONE,
@@ -170,20 +175,16 @@ public final class NetworkViewMachine implements NetworkView {
     }
 
     @Override
-    public boolean isLive(long nowMillis) {
-        boolean goodPulseIsRecent = lastGoodPulseAt != null
-                && nowMillis - lastGoodPulseAt < GOOD_PULSE_LIFETIME_MILLIS;
-        return isSynced() && heldBatches.isEmpty() && pulseAhead == null && goodPulseIsRecent;
-    }
-
-    @Override
-    public boolean mayAnswer(ReadKind kind, long nowMillis) {
-        return answersAllowed(nowMillis) && !copyLacksOwnWrite(kind);
-    }
-
-    @Override
-    public boolean awaitsOwnWrite(ReadKind kind, long nowMillis) {
-        return answersAllowed(nowMillis) && copyLacksOwnWrite(kind);
+    public ReadRoute routeRead(ReadKind kind, long readStartedAtMillis, long nowMillis) {
+        boolean answersAllowed = isLive(nowMillis) && viewsMayAnswer;
+        if (!answersAllowed) {
+            return ReadRoute.OVER_HTTP;
+        }
+        if (!copyLacksOwnWrite(kind)) {
+            return ReadRoute.FROM_COPY;
+        }
+        boolean waitEnded = nowMillis - readStartedAtMillis >= OWN_WRITE_WAIT_MILLIS;
+        return waitEnded ? ReadRoute.OVER_HTTP : ReadRoute.WAIT;
     }
 
     @Override
@@ -191,8 +192,10 @@ public final class NetworkViewMachine implements NetworkView {
         return Optional.ofNullable(copy);
     }
 
-    private boolean answersAllowed(long now) {
-        return isLive(now) && viewsMayAnswer;
+    private boolean isLive(long nowMillis) {
+        boolean goodPulseIsRecent = lastGoodPulseAt != null
+                && nowMillis - lastGoodPulseAt < GOOD_PULSE_LIFETIME_MILLIS;
+        return isSynced() && heldBatches.isEmpty() && pulseAhead == null && goodPulseIsRecent;
     }
 
     /**

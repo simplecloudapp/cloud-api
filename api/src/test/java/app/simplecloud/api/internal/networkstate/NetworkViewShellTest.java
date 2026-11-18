@@ -23,6 +23,7 @@ import java.util.Map;
 import java.util.Optional;
 import java.util.concurrent.CompletableFuture;
 import java.util.concurrent.ExecutionException;
+import java.util.concurrent.ScheduledExecutorService;
 import java.util.concurrent.TimeUnit;
 import java.util.concurrent.TimeoutException;
 import java.util.concurrent.atomic.AtomicLong;
@@ -258,9 +259,10 @@ class NetworkViewShellTest {
     }
 
     @Test
-    void aWaitingReadIsAnsweredNeitherUnderTheLockNorOnTheThreadThatFedTheView() throws Exception {
+    void aReadThatABatchAnswersContinuesOnNeitherTheFeedingThreadNorTheTimerNorUnderTheLock() throws Exception {
         startLiveShellAtRevision10();
         Object stepLock = stepLockOf(shell);
+        Thread timerThread = timerThreadOf(shell);
         shell.writeReturned(WriteKind.SERVER, StateItems.EPOCH, 11);
         CompletableFuture<Optional<NetworkCopy>> read = shell.copyToAnswer(ReadKind.SERVER);
         CompletableFuture<Continuation> continuation = read.thenApply(answer -> Continuation.runningNow(stepLock));
@@ -269,13 +271,70 @@ class NetworkViewShellTest {
 
         assertNotEquals(Thread.currentThread(), ran.thread(),
                 "the caller's continuation must not run on the thread that delivers batches");
+        assertNotEquals(timerThread, ran.thread(), "the caller's continuation must not stall the ticks");
         assertFalse(ran.holdsStepLock(), "the caller's continuation must not run under the shell's lock");
+    }
+
+    @Test
+    void aReadThatATickSendsOverHttpContinuesOnNeitherTheTimerNorUnderTheLock() throws Exception {
+        startLiveShellAtRevision10();
+        Object stepLock = stepLockOf(shell);
+        Thread timerThread = timerThreadOf(shell);
+        shell.writeReturned(WriteKind.SERVER, StateItems.EPOCH, 11);
+        CompletableFuture<Optional<NetworkCopy>> read = shell.copyToAnswer(ReadKind.SERVER);
+        CompletableFuture<Continuation> continuation = read.thenApply(answer -> Continuation.runningNow(stepLock));
+        clockMillis.set(3_000);
+        Continuation ran = answerOf(continuation);
+
+        assertNotEquals(timerThread, ran.thread(), "the caller's continuation must not stall the ticks");
+        assertFalse(ran.holdsStepLock(), "the caller's continuation must not run under the shell's lock");
+    }
+
+    @Test
+    void aReadThatWaitsWhileTheShellClosesGoesOverHttp() throws Exception {
+        ClosesShellOnFirstLook view = new ClosesShellOnFirstLook();
+        shell = startShell(view, unusedSnapshots());
+        view.shell = shell;
+
+        CompletableFuture<Optional<NetworkCopy>> read = shell.copyToAnswer(ReadKind.SERVER);
+        Optional<NetworkCopy> answer = answerOf(read);
+
+        assertTrue(answer.isEmpty(), "a read that registers after the close has settled the others is not lost");
     }
 
     private record Continuation(Thread thread, boolean holdsStepLock) {
 
         static Continuation runningNow(Object stepLock) {
             return new Continuation(Thread.currentThread(), Thread.holdsLock(stepLock));
+        }
+    }
+
+    /**
+     * Lets every read wait, and closes the shell during a read's first look at it, as a close on another thread
+     * between that look and the read's registration would.
+     */
+    private static final class ClosesShellOnFirstLook implements NetworkView {
+
+        private volatile NetworkViewShell shell;
+        private boolean looked;
+
+        @Override
+        public ViewStep step(ViewInput input, long nowMillis) {
+            return new ViewStep(this, List.of());
+        }
+
+        @Override
+        public ReadRoute routeRead(ReadKind kind, long readStartedAtMillis, long nowMillis) {
+            if (!looked) {
+                looked = true;
+                shell.close();
+            }
+            return ReadRoute.WAIT;
+        }
+
+        @Override
+        public Optional<NetworkCopy> copy() {
+            return Optional.empty();
         }
     }
 
@@ -304,6 +363,13 @@ class NetworkViewShellTest {
         Field stepLock = NetworkViewShell.class.getDeclaredField("stepLock");
         stepLock.setAccessible(true);
         return stepLock.get(shell);
+    }
+
+    private static Thread timerThreadOf(NetworkViewShell shell) throws Exception {
+        Field timer = NetworkViewShell.class.getDeclaredField("timer");
+        timer.setAccessible(true);
+        ScheduledExecutorService executor = (ScheduledExecutorService) timer.get(shell);
+        return executor.submit(Thread::currentThread).get(WAIT_LIMIT.toMillis(), TimeUnit.MILLISECONDS);
     }
 
     private void awaitLiveAt(long revision) {

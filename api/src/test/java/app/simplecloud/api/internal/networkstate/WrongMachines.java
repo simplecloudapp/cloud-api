@@ -185,7 +185,14 @@ final class WrongMachines {
                                 ViewSimulation.SHORT_RUNS_CHECK)),
                 new WrongMachine("never lets a read wait for an own write",
                         random -> new NeverWaitsForOwnWrite().start(random),
-                        List.of("own write wait: the reads a write changes wait until the copy reaches it")),
+                        List.of("own write wait: a server write makes server, group and persistent server reads wait",
+                                "own write wait: a group write makes group and server reads wait",
+                                "own write wait: a persistent server write makes persistent server and server reads wait",
+                                "own write wait: a blueprint write makes group and server reads wait")),
+                new WrongMachine("never lets a persistent server read wait for an own write",
+                        random -> new NeverWaitsForPersistentServerWrite().start(random),
+                        List.of("own write wait: a server write makes server, group and persistent server reads wait",
+                                "own write wait: a persistent server write makes persistent server and server reads wait")),
                 new WrongMachine("lets a read wait for an own write while the view is not live",
                         random -> new WaitsWhileNotLive().start(random),
                         List.of("own write wait: no read waits while a batch is held",
@@ -197,11 +204,17 @@ final class WrongMachines {
                 new WrongMachine("lets a read wait for an own write while views_may_answer is false",
                         random -> new WaitsWhileAnswersSwitchedOff().start(random),
                         List.of("own write wait: no read waits while views_may_answer is false")),
-                new WrongMachine("lets every read wait while answers are allowed",
-                        random -> new WaitsWhileAnswersAllowed().start(random),
-                        List.of("own write wait: the reads a write changes wait until the copy reaches it",
-                                "own write wait: a read never both waits and may be answered",
+                new WrongMachine("lets a read wait that the copy may answer",
+                        random -> new WaitsWhenCopyMayAnswer().start(random),
+                        List.of("own write wait: a group write makes group and server reads wait",
+                                "own write: a server write holds server, group and persistent server reads")),
+                new WrongMachine("lets a read wait for an own write for ever",
+                        random -> new IgnoresWaitDeadline().start(random),
+                        List.of("own write wait: a read waits until just before 3 s, then goes over HTTP",
                                 ViewSimulation.SHORT_RUNS_CHECK)),
+                new WrongMachine("sends a read over HTTP at its deadline that the copy may answer",
+                        random -> new DeadlineBeatsAnswer().start(random),
+                        List.of("own write wait: at exactly 3 s, a copy that has the write answers the read")),
                 new WrongMachine("ignores an own write of unknown revision",
                         random -> new IgnoresWriteOfUnknownRevision().start(random),
                         List.of("own write of unknown revision: a synced view answers nothing until it reloaded",
@@ -647,10 +660,38 @@ final class WrongMachines {
         }
     }
 
-    static final class WaitsWhileAnswersAllowed extends ReferenceMachine {
+    static final class NeverWaitsForPersistentServerWrite extends ReferenceMachine {
         @Override
         boolean awaitsOwnWrite(Memory m, ReadKind kind, long now) {
-            return isLive(m, now) && m.viewsMayAnswer;
+            return kind != ReadKind.PERSISTENT_SERVER && super.awaitsOwnWrite(m, kind, now);
+        }
+    }
+
+    static final class WaitsWhenCopyMayAnswer extends ReferenceMachine {
+        @Override
+        ReadRoute routeRead(Memory m, ReadKind kind, long startedAt, long now) {
+            boolean answersAllowed = isLive(m, now) && m.viewsMayAnswer;
+            if (answersAllowed && !waitedTooLong(startedAt, now)) {
+                return ReadRoute.WAIT;
+            }
+            return super.routeRead(m, kind, startedAt, now);
+        }
+    }
+
+    static final class IgnoresWaitDeadline extends ReferenceMachine {
+        @Override
+        boolean waitedTooLong(long startedAt, long now) {
+            return false;
+        }
+    }
+
+    static final class DeadlineBeatsAnswer extends ReferenceMachine {
+        @Override
+        ReadRoute routeRead(Memory m, ReadKind kind, long startedAt, long now) {
+            if (waitedTooLong(startedAt, now)) {
+                return ReadRoute.OVER_HTTP;
+            }
+            return super.routeRead(m, kind, startedAt, now);
         }
     }
 

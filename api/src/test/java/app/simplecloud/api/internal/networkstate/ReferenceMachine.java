@@ -38,6 +38,7 @@ class ReferenceMachine {
     static final long AUDIT_RETRY_MIN_MILLIS = 2_000;
     static final long AUDIT_RETRY_SPREAD_MILLIS = 8_000;
     static final long AUDIT_REACH_WAIT_MILLIS = 3_000;
+    static final long OWN_WRITE_WAIT_MILLIS = 3_000;
 
     NetworkView start(RandomSequence random) {
         return new View(this, new Memory(random));
@@ -176,18 +177,8 @@ class ReferenceMachine {
         }
 
         @Override
-        public boolean isLive(long nowMillis) {
-            return machine.isLive(memory, nowMillis);
-        }
-
-        @Override
-        public boolean mayAnswer(ReadKind kind, long nowMillis) {
-            return machine.mayAnswer(memory, kind, nowMillis);
-        }
-
-        @Override
-        public boolean awaitsOwnWrite(ReadKind kind, long nowMillis) {
-            return machine.awaitsOwnWrite(memory, kind, nowMillis);
+        public ReadRoute routeRead(ReadKind kind, long readStartedAtMillis, long nowMillis) {
+            return machine.routeRead(memory, kind, readStartedAtMillis, nowMillis);
         }
 
         @Override
@@ -646,6 +637,20 @@ class ReferenceMachine {
 
     boolean mayAnswer(Memory m, ReadKind kind, long now) {
         return isLive(m, now) && m.viewsMayAnswer && reachedOwnWrites(m, kind);
+    }
+
+    ReadRoute routeRead(Memory m, ReadKind kind, long startedAt, long now) {
+        if (mayAnswer(m, kind, now)) {
+            return ReadRoute.FROM_COPY;
+        }
+        if (awaitsOwnWrite(m, kind, now) && !waitedTooLong(startedAt, now)) {
+            return ReadRoute.WAIT;
+        }
+        return ReadRoute.OVER_HTTP;
+    }
+
+    boolean waitedTooLong(long startedAt, long now) {
+        return now - startedAt >= OWN_WRITE_WAIT_MILLIS;
     }
 
     boolean awaitsOwnWrite(Memory m, ReadKind kind, long now) {

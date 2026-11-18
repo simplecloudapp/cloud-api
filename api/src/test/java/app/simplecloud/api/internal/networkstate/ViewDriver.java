@@ -205,31 +205,47 @@ final class ViewDriver {
         return Optional.empty();
     }
 
+    /**
+     * Returns whether the view is live (rule 5), as a read that starts now shows it: it is answered or waits
+     * exactly while the view is live and the last pulse allowed answers. Every check's pulses allow answers
+     * unless the check says otherwise; before the first pulse no read is answered, so a check that looks at
+     * live there sends a pulse first.
+     */
     boolean isLive() {
-        return view.isLive(now);
+        return isLiveAt(now);
     }
 
     /**
      * Asks whether the current view is live at a later time, without a step in between.
      */
     boolean isLiveAt(long time) {
-        return view.isLive(time);
+        return view.routeRead(ReadKind.SERVER, time, time) != ReadRoute.OVER_HTTP;
     }
 
     boolean mayAnswer(ReadKind kind) {
-        return view.mayAnswer(kind, now);
+        return view.routeRead(kind, now, now) == ReadRoute.FROM_COPY;
     }
 
     boolean awaitsOwnWrite(ReadKind kind) {
-        return view.awaitsOwnWrite(kind, now);
+        return awaitsOwnWriteAt(kind, now);
     }
 
     /**
-     * Asks whether a read of the current view waits for an own write at a later time, without a step in
-     * between.
+     * Asks whether a read that starts at a later time waits for an own write, without a step in between.
      */
     boolean awaitsOwnWriteAt(ReadKind kind, long time) {
-        return view.awaitsOwnWrite(kind, time);
+        return view.routeRead(kind, time, time) == ReadRoute.WAIT;
+    }
+
+    ReadRoute routeOfReadStartedAt(ReadKind kind, long startedAt) {
+        return view.routeRead(kind, startedAt, now);
+    }
+
+    /**
+     * Asks where a read that started at {@code startedAt} goes at a later time, without a step in between.
+     */
+    ReadRoute routeOfReadStartedAt(ReadKind kind, long startedAt, long time) {
+        return view.routeRead(kind, startedAt, time);
     }
 
     NetworkCopy copy() {

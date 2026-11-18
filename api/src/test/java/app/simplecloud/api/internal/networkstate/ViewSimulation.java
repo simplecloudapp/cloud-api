@@ -45,7 +45,9 @@ import static org.junit.jupiter.api.Assertions.fail;
  *   <li>a live view lacks no batch of its epoch published 30 s before, and is in the database's epoch from
  *   30 s after a failover;</li>
  *   <li>a read the view may answer sees every own write that can change it;</li>
- *   <li>a read waits for an own write only while the view is live, and never while it may be answered;</li>
+ *   <li>whether a read that starts now goes over HTTP does not depend on its kind, since only live and the
+ *   flag decide it;</li>
+ *   <li>a read waits for 3 s at most, and its start time changes nothing else about where it goes;</li>
  *   <li>the view never runs two loads at once, or starts them less than 2 s apart.</li>
  * </ul>
  * Liveness: from 50 s after the faults stop, the view is live and has every batch published 1 s before,
@@ -72,6 +74,7 @@ final class ViewSimulation {
     private static final long QUIET_END_MILLIS = 90_000;
     private static final long WRITES_STOP_BEFORE_END_MILLIS = 15_000;
     private static final long INTEREST_SPREAD_MILLIS = 100;
+    private static final long OWN_WRITE_WAIT_MILLIS = 3_000;
 
     private static final int SHORT_RUNS = 400;
     private static final int LONG_RUNS = 8;
@@ -680,14 +683,23 @@ final class ViewSimulation {
     // The promise.
 
     private void checkSafety() {
-        boolean live = view.isLive(now);
+        boolean live = isLive();
         if (live) {
             liveSteps++;
             checkCopyIsRealState();
             checkLiveCopyIsRecent();
         }
         checkOwnWritesAreSeen();
-        checkReadsWaitOnlyWhileLive();
+        checkRouteIsTheSameForEveryKind();
+        checkWaitEndsAfterThreeSeconds();
+    }
+
+    /**
+     * A read that starts now goes over HTTP exactly while the view is not live or the flag is false, and every
+     * pulse here allows answers.
+     */
+    private boolean isLive() {
+        return view.routeRead(ReadKind.SERVER, now, now) != ReadRoute.OVER_HTTP;
     }
 
     private void checkLiveCopyIsRecent() {
@@ -720,7 +732,7 @@ final class ViewSimulation {
     private void checkOwnWritesAreSeen() {
         for (Map.Entry<ReadKind, Position> ownWrite : ownWritesByRead.entrySet()) {
             ReadKind read = ownWrite.getKey();
-            if (!view.mayAnswer(read, now)) {
+            if (view.routeRead(read, now, now) != ReadRoute.FROM_COPY) {
                 continue;
             }
             NetworkCopy copy = copyOrFail("a view that may answer holds no copy");
@@ -732,24 +744,37 @@ final class ViewSimulation {
         }
     }
 
-    private void checkReadsWaitOnlyWhileLive() {
-        boolean live = view.isLive(now);
+    private void checkRouteIsTheSameForEveryKind() {
+        boolean overHttp = !isLive();
         for (ReadKind read : ReadKind.values()) {
-            if (!view.awaitsOwnWrite(read, now)) {
-                continue;
+            boolean readOverHttp = view.routeRead(read, now, now) == ReadRoute.OVER_HTTP;
+            if (readOverHttp != overHttp) {
+                failRun("a " + read + " read that starts now goes over HTTP: " + readOverHttp
+                        + ", a SERVER read: " + overHttp);
             }
-            if (!live) {
-                failRun("a " + read + " read waits for an own write while the view is not live");
+        }
+    }
+
+    private void checkWaitEndsAfterThreeSeconds() {
+        for (ReadKind read : ReadKind.values()) {
+            ReadRoute startingNow = view.routeRead(read, now, now);
+            ReadRoute startedJustUnderThreeSecondsAgo = view.routeRead(read, now - OWN_WRITE_WAIT_MILLIS + 1, now);
+            ReadRoute startedThreeSecondsAgo = view.routeRead(read, now - OWN_WRITE_WAIT_MILLIS, now);
+            ReadRoute afterTheWait = startingNow == ReadRoute.WAIT ? ReadRoute.OVER_HTTP : startingNow;
+            if (startedJustUnderThreeSecondsAgo != startingNow) {
+                failRun("a " + read + " read started under 3 s ago goes " + startedJustUnderThreeSecondsAgo
+                        + ", one that starts now " + startingNow);
             }
-            if (view.mayAnswer(read, now)) {
-                failRun("a " + read + " read waits for an own write while the view may answer it");
+            if (startedThreeSecondsAgo != afterTheWait) {
+                failRun("a " + read + " read started 3 s ago goes " + startedThreeSecondsAgo
+                        + ", one that starts now " + startingNow);
             }
         }
     }
 
     private void checkLiveAndCurrent() {
         long sinceFaultsEnded = now - plan.faultsEndAt();
-        if (!view.isLive(now)) {
+        if (!isLive()) {
             failRun("the view is not live " + sinceFaultsEnded + " ms after the faults stopped");
         }
         NetworkCopy copy = copyOrFail("a live view holds no copy");

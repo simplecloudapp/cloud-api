@@ -6,7 +6,7 @@ import java.util.concurrent.CopyOnWriteArrayList;
 
 /**
  * A view for tests of the shell and of the reads it answers: it records every input, asks for nothing, and
- * answers reads from a fixed copy while {@link #answer} allows it, and lets them wait for an own write while
+ * answers reads from a fixed copy while {@link #answer} allows it, and otherwise lets them wait, for as long as
  * {@link #awaitOwnWrite} says so. It stays the same object across steps,
  * so a test can change it while a shell runs it.
  */
@@ -30,7 +30,7 @@ public final class RecordingView implements NetworkView {
         this.mayAnswer = mayAnswer;
     }
 
-    void awaitOwnWrite(boolean awaitsOwnWrite) {
+    public void awaitOwnWrite(boolean awaitsOwnWrite) {
         this.awaitsOwnWrite = awaitsOwnWrite;
     }
 
@@ -64,18 +64,11 @@ public final class RecordingView implements NetworkView {
     }
 
     @Override
-    public boolean isLive(long nowMillis) {
-        return mayAnswer;
-    }
-
-    @Override
-    public boolean mayAnswer(ReadKind kind, long nowMillis) {
-        return mayAnswer;
-    }
-
-    @Override
-    public boolean awaitsOwnWrite(ReadKind kind, long nowMillis) {
-        return awaitsOwnWrite;
+    public ReadRoute routeRead(ReadKind kind, long readStartedAtMillis, long nowMillis) {
+        if (mayAnswer) {
+            return ReadRoute.FROM_COPY;
+        }
+        return awaitsOwnWrite ? ReadRoute.WAIT : ReadRoute.OVER_HTTP;
     }
 
     @Override

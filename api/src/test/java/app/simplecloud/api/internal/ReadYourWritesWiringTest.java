@@ -6,6 +6,8 @@ import app.simplecloud.api.internal.networkstate.MonotonicClock;
 import app.simplecloud.api.internal.networkstate.NetworkView;
 import app.simplecloud.api.internal.networkstate.NetworkViewMachine;
 import app.simplecloud.api.internal.networkstate.NetworkViewShell;
+import app.simplecloud.api.internal.networkstate.ReadKind;
+import app.simplecloud.api.internal.networkstate.ReadRoute;
 import app.simplecloud.api.internal.networkstate.ViewInput;
 import app.simplecloud.api.server.Server;
 import build.buf.gen.simplecloud.controller.v2.NetworkState;
@@ -30,7 +32,9 @@ import java.nio.file.Path;
 import java.util.List;
 import java.util.Objects;
 import java.util.concurrent.CompletableFuture;
+import java.util.concurrent.ExecutionException;
 import java.util.concurrent.TimeUnit;
+import java.util.concurrent.TimeoutException;
 import java.util.concurrent.atomic.AtomicInteger;
 
 import static org.junit.jupiter.api.Assertions.assertEquals;
@@ -75,11 +79,11 @@ class ReadYourWritesWiringTest {
             NetworkViewShell shell = shellOf(api);
             makeViewLive(shell);
 
-            api.server().stopServer(STOPPED_SERVER_ID).join();
+            resultOf(api.server().stopServer(STOPPED_SERVER_ID));
             CompletableFuture<List<Server>> read = api.server().getAllServers();
             boolean waitedForTheCopy = !read.isDone();
             receiveBatchWithTheWrite(shell);
-            List<Server> servers = read.get(5, TimeUnit.SECONDS);
+            List<Server> servers = resultOf(read);
 
             assertTrue(waitedForTheCopy, "the copy lacks the write, so the read waits for it");
             assertEquals(snapshot.getServersCount(), servers.size(), "the copy answers once it has the write");
@@ -88,15 +92,14 @@ class ReadYourWritesWiringTest {
     }
 
     @Test
-    void aServerReadGoesToTheControllerWhenTheCopyLacksTheServerWriteForThreeSeconds()
-            throws ReflectiveOperationException {
+    void aServerReadGoesToTheControllerWhenTheCopyLacksTheServerWriteForThreeSeconds() throws Exception {
         try (CloudApiImpl api = (CloudApiImpl) CloudApi.create(options())) {
             makeViewLive(shellOf(api));
 
-            api.server().getAllServers().join();
+            resultOf(api.server().getAllServers());
             int requestsBeforeTheWrite = serverListRequests.get();
-            api.server().stopServer(STOPPED_SERVER_ID).join();
-            api.server().getAllServers().join();
+            resultOf(api.server().stopServer(STOPPED_SERVER_ID));
+            resultOf(api.server().getAllServers());
             int requestsAfterTheWrite = serverListRequests.get();
 
             assertEquals(0, requestsBeforeTheWrite, "a live view answers the read before the write");
@@ -130,7 +133,7 @@ class ReadYourWritesWiringTest {
         view = view.step(new ViewInput.SubscriptionsActive(), now).view();
         view = view.step(new ViewInput.SnapshotLoaded(snapshot), now).view();
         view = view.step(new ViewInput.PulseReceived(pulse), now).view();
-        assertTrue(view.isLive(now));
+        assertEquals(ReadRoute.FROM_COPY, view.routeRead(ReadKind.SERVER, now, now));
 
         Object stepLock = readField(shell, "stepLock");
         Field viewField = NetworkViewShell.class.getDeclaredField("view");
@@ -138,6 +141,14 @@ class ReadYourWritesWiringTest {
         synchronized (stepLock) {
             viewField.set(shell, view);
         }
+    }
+
+    /**
+     * Waits long enough for a read that waits its full 3 s, and fails instead of hanging the build.
+     */
+    private static <T> T resultOf(CompletableFuture<T> call)
+            throws InterruptedException, ExecutionException, TimeoutException {
+        return call.get(5, TimeUnit.SECONDS);
     }
 
     /**

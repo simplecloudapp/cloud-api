@@ -213,8 +213,18 @@ final class ViewRuleChecks {
                         ViewRuleChecks::ownWriteEpochsUnsigned),
                 new ViewCheck("own write: the highest write holds, also when responses come out of order",
                         ViewRuleChecks::highestOwnWriteHolds),
-                new ViewCheck("own write wait: the reads a write changes wait until the copy reaches it",
-                        ViewRuleChecks::readsWaitUntilCopyReachesOwnWrite),
+                new ViewCheck("own write wait: a server write makes server, group and persistent server reads wait",
+                        ViewRuleChecks::serverWriteMakesItsReadsWait),
+                new ViewCheck("own write wait: a group write makes group and server reads wait",
+                        ViewRuleChecks::groupWriteMakesItsReadsWait),
+                new ViewCheck("own write wait: a persistent server write makes persistent server and server reads wait",
+                        ViewRuleChecks::persistentServerWriteMakesItsReadsWait),
+                new ViewCheck("own write wait: a blueprint write makes group and server reads wait",
+                        ViewRuleChecks::blueprintWriteMakesItsReadsWait),
+                new ViewCheck("own write wait: a read waits until just before 3 s, then goes over HTTP",
+                        ViewRuleChecks::readGoesOverHttpAfterThreeSeconds),
+                new ViewCheck("own write wait: at exactly 3 s, a copy that has the write answers the read",
+                        ViewRuleChecks::copyAnswersAtExactlyThreeSeconds),
                 new ViewCheck("own write wait: no read waits while a batch is held",
                         ViewRuleChecks::noWaitWhileBatchHeld),
                 new ViewCheck("own write wait: no read waits while the copy is behind a pulse",
@@ -227,8 +237,6 @@ final class ViewRuleChecks {
                         ViewRuleChecks::noWaitWhileReloading),
                 new ViewCheck("own write wait: no read waits while views_may_answer is false",
                         ViewRuleChecks::noWaitWhileAnswersSwitchedOff),
-                new ViewCheck("own write wait: a read never both waits and may be answered",
-                        ViewRuleChecks::neverWaitsAndAnswers),
                 new ViewCheck("own write of unknown revision: a synced view answers nothing until it reloaded",
                         ViewRuleChecks::writeOfUnknownRevisionReloadsSyncedView),
                 new ViewCheck("own write of unknown revision: abandons the running reload's load",
@@ -268,7 +276,10 @@ final class ViewRuleChecks {
     static void liveOnlyAfterFirstGoodPulse(ViewStarter starter) {
         ViewDriver view = ViewDriver.start(starter);
         view.subscribe();
-        view.advance(100);
+        view.advance(50);
+        // Allows answers, so that live shows in the reads.
+        view.pulse(pulse(9));
+        view.advance(50);
         view.loadSnapshot(network(10));
 
         assertFalse(view.isLive(), "a snapshot does not count as a pulse");
@@ -282,7 +293,10 @@ final class ViewRuleChecks {
     static void snapshotAloneNeverMakesLive(ViewStarter starter) {
         ViewDriver view = ViewDriver.start(starter);
         view.subscribe();
-        view.advance(100);
+        view.advance(50);
+        // Allows answers, so that live shows in the reads.
+        view.pulse(pulse(9));
+        view.advance(50);
         view.loadSnapshot(network(10));
         view.advance(10_000);
         boolean liveWithoutPulse = view.isLive();
@@ -602,17 +616,17 @@ final class ViewRuleChecks {
     static void flagFalseStopsAnswers(ViewStarter starter) {
         ViewDriver view = ViewDriver.liveAt(starter, network(10));
         boolean answeredAfterTrue = view.mayAnswer(ReadKind.SERVER);
-        view.advance(100);
+        view.advance(10_000);
         view.pulse(pulse(10).toBuilder().setViewsMayAnswer(false).build());
-        boolean liveAfterFalse = view.isLive();
         Set<ReadKind> answeredAfterFalse = answeredKinds(view);
-        view.advance(100);
-        view.pulse(pulse(10));
+        view.advance(6_000);
+        view.pulse(pulse(9));
 
         assertTrue(answeredAfterTrue);
-        assertTrue(liveAfterFalse, "the flag stops answers, not live");
         assertEquals(Set.of(), answeredAfterFalse, "views_may_answer false stops every answer");
-        assertEquals(EnumSet.allOf(ReadKind.class), answeredKinds(view), "the next true pulse allows answers again");
+        assertEquals(EnumSet.allOf(ReadKind.class), answeredKinds(view),
+                "the next true pulse allows answers again, and the false one was a good pulse: the flag stops"
+                        + " answers, not live");
     }
 
     // Connection (rule 4).
@@ -1010,9 +1024,34 @@ final class ViewRuleChecks {
 
     // Waiting for own writes (Answers).
 
-    static void readsWaitUntilCopyReachesOwnWrite(ViewStarter starter) {
+    static void serverWriteMakesItsReadsWait(ViewStarter starter) {
+        assertOwnWriteMakesReadsWait(starter, WriteKind.SERVER,
+                EnumSet.of(ReadKind.SERVER, ReadKind.SERVER_GROUP, ReadKind.PERSISTENT_SERVER));
+    }
+
+    static void groupWriteMakesItsReadsWait(ViewStarter starter) {
+        assertOwnWriteMakesReadsWait(starter, WriteKind.SERVER_GROUP,
+                EnumSet.of(ReadKind.SERVER_GROUP, ReadKind.SERVER));
+    }
+
+    static void persistentServerWriteMakesItsReadsWait(ViewStarter starter) {
+        assertOwnWriteMakesReadsWait(starter, WriteKind.PERSISTENT_SERVER,
+                EnumSet.of(ReadKind.PERSISTENT_SERVER, ReadKind.SERVER));
+    }
+
+    static void blueprintWriteMakesItsReadsWait(ViewStarter starter) {
+        assertOwnWriteMakesReadsWait(starter, WriteKind.BLUEPRINT,
+                EnumSet.of(ReadKind.SERVER_GROUP, ReadKind.SERVER));
+    }
+
+    private static void assertOwnWriteMakesReadsWait(
+            ViewStarter starter,
+            WriteKind written,
+            Set<ReadKind> waitingReads
+    ) {
+        Set<ReadKind> otherReads = EnumSet.complementOf(EnumSet.copyOf(waitingReads));
         ViewDriver view = ViewDriver.liveAt(starter, network(10));
-        view.wrote(WriteKind.SERVER_GROUP, EPOCH, 12);
+        view.wrote(written, EPOCH, 12);
         Set<ReadKind> waitingAfterWrite = waitingKinds(view);
         Set<ReadKind> answeredAfterWrite = answeredKinds(view);
         view.advance(100);
@@ -1021,13 +1060,32 @@ final class ViewRuleChecks {
         view.advance(100);
         view.batch(serverStateBatch(11, 12, "STOPPING"));
 
-        assertEquals(EnumSet.of(ReadKind.SERVER_GROUP, ReadKind.SERVER), waitingAfterWrite,
-                "the reads a group write changes wait for the copy");
-        assertEquals(EnumSet.of(ReadKind.PERSISTENT_SERVER), answeredAfterWrite,
-                "a read the write does not change is answered");
-        assertEquals(waitingAfterWrite, waitingBelowWrite, "a copy below the write's revision keeps them waiting");
+        assertEquals(waitingReads, waitingAfterWrite, "the reads a " + written + " write changes wait for the copy");
+        assertEquals(otherReads, answeredAfterWrite, "a read the write does not change is answered");
+        assertEquals(waitingReads, waitingBelowWrite, "a copy below the write's revision keeps them waiting");
         assertEquals(Set.of(), waitingKinds(view), "a copy at the write's revision ends the wait");
         assertEquals(EnumSet.allOf(ReadKind.class), answeredKinds(view), "and answers them");
+    }
+
+    static void readGoesOverHttpAfterThreeSeconds(ViewStarter starter) {
+        ViewDriver view = waitingForServerWrite(starter);
+        long startedAt = view.now();
+
+        ReadRoute justBefore = view.routeOfReadStartedAt(ReadKind.SERVER, startedAt, startedAt + 2_999);
+        ReadRoute atThreeSeconds = view.routeOfReadStartedAt(ReadKind.SERVER, startedAt, startedAt + 3_000);
+
+        assertEquals(ReadRoute.WAIT, justBefore, "a read waits for the copy for 3 s");
+        assertEquals(ReadRoute.OVER_HTTP, atThreeSeconds, "after 3 s the read goes over HTTP");
+    }
+
+    static void copyAnswersAtExactlyThreeSeconds(ViewStarter starter) {
+        ViewDriver view = waitingForServerWrite(starter);
+        long startedAt = view.now();
+        view.jumpTo(startedAt + 3_000);
+        view.batch(serverStateBatch(10, 12, "STOPPING"));
+
+        assertEquals(ReadRoute.FROM_COPY, view.routeOfReadStartedAt(ReadKind.SERVER, startedAt),
+                "a copy that has the write answers, also at the read's deadline");
     }
 
     static void noWaitWhileBatchHeld(ViewStarter starter) {
@@ -1086,24 +1144,6 @@ final class ViewRuleChecks {
         assertTrue(view.awaitsOwnWrite(ReadKind.SERVER), "the next true pulse lets the read wait again");
     }
 
-    static void neverWaitsAndAnswers(ViewStarter starter) {
-        ViewDriver view = ViewDriver.start(starter);
-        view.wrote(WriteKind.SERVER, EPOCH, 12);
-        assertNeverWaitsAndAnswers(view, "before the first snapshot");
-        view.subscribe();
-        view.advance(100);
-        view.loadSnapshot(network(10));
-        view.advance(100);
-        view.pulse(pulse(10));
-        assertNeverWaitsAndAnswers(view, "live below the write");
-        view.advance(100);
-        view.batch(serverStateBatch(10, 12, "STOPPING"));
-        assertNeverWaitsAndAnswers(view, "live at the write");
-        view.advance(100);
-        view.pulse(pulse(12).toBuilder().setViewsMayAnswer(false).build());
-        assertNeverWaitsAndAnswers(view, "with answers switched off");
-    }
-
     /**
      * Returns a view live at revision 10 in which a server read waits for an own write at revision 12.
      */
@@ -1112,13 +1152,6 @@ final class ViewRuleChecks {
         view.wrote(WriteKind.SERVER, EPOCH, 12);
         assertTrue(view.awaitsOwnWrite(ReadKind.SERVER), "a server read in a live view waits for a server write");
         return view;
-    }
-
-    private static void assertNeverWaitsAndAnswers(ViewDriver view, String moment) {
-        for (ReadKind kind : ReadKind.values()) {
-            boolean waitsAndAnswers = view.awaitsOwnWrite(kind) && view.mayAnswer(kind);
-            assertFalse(waitsAndAnswers, "a " + kind + " read both waits and may be answered " + moment);
-        }
     }
 
     static void writeOfUnknownRevisionReloadsSyncedView(ViewStarter starter) {

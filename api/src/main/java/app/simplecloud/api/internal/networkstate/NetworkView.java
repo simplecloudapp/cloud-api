@@ -103,23 +103,26 @@ import java.util.Optional;
  *
  * <h2>Answers</h2>
  *
- * {@link #mayAnswer} is true only while the view is live, the last pulse allowed answers
- * ({@code views_may_answer}; false before the first pulse), and the copy has reached every own write that
- * can change reads of that kind. A {@link ViewInput.WriteReturned} at epoch E and revision R is reached when
- * the copy's epoch is above E, or equal to E with local at or above R. A write of a kind can change these
- * reads:
+ * {@link #routeRead} says where a read of a kind goes: it is answered from the copy, it waits for the copy,
+ * or it goes over HTTP. At time T, for a read that started at S, the first of these that holds decides:
+ * <ul>
+ *   <li>the view is not live (rule 5; time alone ends it, when the last good pulse turns 15 s old), or the
+ *   last pulse did not allow answers ({@code views_may_answer}; false before the first pulse): over HTTP;</li>
+ *   <li>the copy has reached every own write that can change reads of that kind: from the copy;</li>
+ *   <li>T is under 3 s after S: wait;</li>
+ *   <li>otherwise: over HTTP.</li>
+ * </ul>
+ * So a read that the copy may answer is answered from it, also exactly 3 s after it started. A read waits
+ * instead of going over HTTP because the controller's list cache can answer it from before the write for up to
+ * 2 s, while the copy gets the write with its batch.
+ * <p>A {@link ViewInput.WriteReturned} at epoch E and revision R is reached when the copy's epoch is above E,
+ * or equal to E with local at or above R. A write of a kind can change these reads:
  * <ul>
  *   <li>a server: servers, server groups (their stats) and persistent servers (their player count);</li>
  *   <li>a server group: server groups and servers (a server contains its group);</li>
  *   <li>a persistent server: persistent servers and servers;</li>
  *   <li>a blueprint: server groups and servers (a group contains its blueprint).</li>
  * </ul>
- * <p>{@link #awaitsOwnWrite} is true only while the view is live, the last pulse allowed answers, and the copy has
- * not reached an own write that can change reads of that kind. So it and {@link #mayAnswer} are never both
- * true. A read of that kind then waits for the copy instead of going over HTTP: the controller's list cache can
- * answer it from before the write for up to 2 s, while the copy gets the write with its batch. The shell answers
- * the read from the copy once {@link #mayAnswer} is true, and sends it over HTTP once this turns false or after
- * 3 s.
  * <p>A {@link ViewInput.WriteRevisionUnknown} means reload in a synced view, and in a view whose
  * reload's load runs, because that copy or that load may be from before the write. The controller reads a
  * snapshot after the request arrived, so a load that starts after a successful response holds the write, and
@@ -136,22 +139,10 @@ public interface NetworkView {
     ViewStep step(ViewInput input, long nowMillis);
 
     /**
-     * Returns whether the view is live at {@code nowMillis} (rule 5). Time alone can end it: a view whose last
-     * good pulse turns 15 s old stops being live without a step.
+     * Returns where a read of {@code kind} that started at {@code readStartedAtMillis} goes at
+     * {@code nowMillis} (Answers). The start is at or before {@code nowMillis}.
      */
-    boolean isLive(long nowMillis);
-
-    /**
-     * Returns whether reads of {@code kind} may be answered from {@link #copy()} at {@code nowMillis}, instead
-     * of over HTTP.
-     */
-    boolean mayAnswer(ReadKind kind, long nowMillis);
-
-    /**
-     * Returns whether a read of {@code kind} at {@code nowMillis} should wait for the copy to reach an own
-     * write, instead of going over HTTP (Answers).
-     */
-    boolean awaitsOwnWrite(ReadKind kind, long nowMillis);
+    ReadRoute routeRead(ReadKind kind, long readStartedAtMillis, long nowMillis);
 
     /**
      * Returns the copy, or empty before the first snapshot is taken. A view keeps its copy while it is not
