@@ -143,7 +143,8 @@ public final class NetworkViewShell implements NatsFailoverConnectionManager.Sub
     }
 
     /**
-     * Hands the view a write of this process that returned without its state revision, before this returns.
+     * Hands the view a write of this process that may have committed but whose state revision is unknown,
+     * before this returns.
      */
     public void writeReturnedWithoutRevision() {
         feed(new ViewInput.WriteReturnedWithoutRevision());

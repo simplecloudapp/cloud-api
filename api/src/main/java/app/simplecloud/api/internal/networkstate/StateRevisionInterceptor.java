@@ -13,10 +13,13 @@ import java.util.logging.Level;
 import java.util.logging.Logger;
 
 /**
- * Hands a view the state revision of each successful write that a client sends, so that the reads the write
- * can change go over HTTP until the view's copy has reached the write. The controller puts the revision on
- * every successful response to a write of a network-scoped route. A write that fails or times out hands over
- * nothing: its caller gets an error, and the view promises nothing about it.
+ * Hands a view the state revision of each write that a client sends, so that the reads the write can change
+ * go over HTTP until the view's copy has reached the write. The controller puts the revision on every
+ * successful response to a write of a network-scoped route. A write that may have committed but whose
+ * revision is unknown goes to the view as {@link ViewInput.WriteReturnedWithoutRevision}, so a live view
+ * reloads: a 2xx without the revision, a 5xx (from the controller or a proxy in front of it), and a call that
+ * threw, such as a read timeout or a dropped connection. A 4xx hands over nothing, because the controller
+ * committed nothing.
  */
 public final class StateRevisionInterceptor implements Interceptor {
 
@@ -24,6 +27,7 @@ public final class StateRevisionInterceptor implements Interceptor {
     private static final String EPOCH_HEADER = "X-SC-State-Epoch";
     private static final String REVISION_HEADER = "X-SC-State-Revision";
     private static final String API_VERSION_SEGMENT = "v0";
+    private static final int FIRST_SERVER_ERROR = 500;
     private static final List<String> WRITE_METHODS = List.of("POST", "PUT", "PATCH", "DELETE");
 
     private final NetworkViewShell shell;
@@ -45,12 +49,30 @@ public final class StateRevisionInterceptor implements Interceptor {
     @Override
     public @NotNull Response intercept(@NotNull Chain chain) throws IOException {
         Request request = chain.request();
-        Response response = chain.proceed(request);
         Optional<WriteKind> written = writtenKind(request);
-        if (written.isPresent() && response.isSuccessful()) {
-            handOver(written.get(), response);
+        if (written.isEmpty()) {
+            return chain.proceed(request);
         }
+        WriteKind kind = written.get();
+        Response response = proceedReportingThrowToView(chain, kind);
+        if (response.isSuccessful()) {
+            handOverRevision(kind, response);
+        } else if (response.code() >= FIRST_SERVER_ERROR) {
+            LOGGER.fine("A " + kind + " write returned " + response.code());
+            shell.writeReturnedWithoutRevision();
+        }
+        // Any other status, above all a 4xx, means the controller committed nothing.
         return response;
+    }
+
+    private Response proceedReportingThrowToView(Chain chain, WriteKind written) throws IOException {
+        try {
+            return chain.proceed(chain.request());
+        } catch (IOException e) {
+            LOGGER.fine("A " + written + " write threw before its response arrived: " + e);
+            shell.writeReturnedWithoutRevision();
+            throw e;
+        }
     }
 
     /**
@@ -77,7 +99,7 @@ public final class StateRevisionInterceptor implements Interceptor {
         };
     }
 
-    private void handOver(WriteKind written, Response response) {
+    private void handOverRevision(WriteKind written, Response response) {
         String epoch = response.header(EPOCH_HEADER);
         String revision = response.header(REVISION_HEADER);
         if (epoch == null || revision == null) {

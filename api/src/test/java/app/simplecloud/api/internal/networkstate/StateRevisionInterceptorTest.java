@@ -9,6 +9,7 @@ import okhttp3.RequestBody;
 import okhttp3.Response;
 import okhttp3.mockwebserver.MockResponse;
 import okhttp3.mockwebserver.MockWebServer;
+import okhttp3.mockwebserver.SocketPolicy;
 import org.junit.jupiter.api.AfterEach;
 import org.junit.jupiter.api.BeforeEach;
 import org.junit.jupiter.api.Test;
@@ -18,6 +19,7 @@ import java.util.List;
 import java.util.Optional;
 
 import static org.junit.jupiter.api.Assertions.assertEquals;
+import static org.junit.jupiter.api.Assertions.assertThrows;
 
 class StateRevisionInterceptorTest {
 
@@ -80,8 +82,25 @@ class StateRevisionInterceptorTest {
     }
 
     @Test
-    void aFailedWriteAReadAndAPlayerWriteHandTheViewNothing() throws IOException {
-        controller.enqueue(withRevisionHeaders(new MockResponse().setResponseCode(500)));
+    void aWriteThatThrowsHandsTheViewAWriteWithoutRevisionAndTheCallerTheException() {
+        controller.enqueue(new MockResponse().setSocketPolicy(SocketPolicy.DISCONNECT_AFTER_REQUEST));
+
+        assertThrows(IOException.class, () -> send("PATCH", "/v0/server-groups/lobby"));
+        assertEquals(List.of(new ViewInput.WriteReturnedWithoutRevision()), writesTheViewTook());
+    }
+
+    @Test
+    void aWriteWithAServerErrorHandsTheViewAWriteWithoutRevision() throws IOException {
+        controller.enqueue(withRevisionHeaders(new MockResponse().setResponseCode(502)));
+
+        send("PUT", "/v0/blueprints/abc");
+
+        assertEquals(List.of(new ViewInput.WriteReturnedWithoutRevision()), writesTheViewTook());
+    }
+
+    @Test
+    void aWriteWithAClientErrorAReadAndAPlayerWriteHandTheViewNothing() throws IOException {
+        controller.enqueue(withRevisionHeaders(new MockResponse().setResponseCode(409)));
         controller.enqueue(withRevisionHeaders(new MockResponse()));
         controller.enqueue(withRevisionHeaders(new MockResponse()));
 
