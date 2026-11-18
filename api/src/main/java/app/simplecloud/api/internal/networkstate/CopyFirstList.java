@@ -54,6 +54,7 @@ public final class CopyFirstList<P, R> {
     private final AnsweringCopy answeringCopy;
     private final ControllerList<P, R> controllerList;
     private final Executor executor;
+    private final AnswersOfOneCopy<P, R> copyAnswers;
     private final AtomicBoolean failureReported = new AtomicBoolean();
 
     /**
@@ -69,6 +70,7 @@ public final class CopyFirstList<P, R> {
         this.answeringCopy = answeringCopy;
         this.controllerList = controllerList;
         this.executor = executor;
+        this.copyAnswers = new AnswersOfOneCopy<>(copyList);
     }
 
     /**
@@ -103,7 +105,7 @@ public final class CopyFirstList<P, R> {
             return Optional.empty();
         }
         try {
-            return copyList.answer(copy.get(), parameters);
+            return copyAnswers.answer(copy.get(), parameters);
         } catch (RuntimeException e) {
             reportFailedAnswer(e);
             return Optional.empty();
