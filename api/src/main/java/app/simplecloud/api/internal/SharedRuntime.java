@@ -12,8 +12,9 @@ import java.util.Map;
 
 /**
  * What the {@code CloudApi} instances of one class loader with equal settings share: one NATS connection,
- * one HTTP client and, when their credential may use one, one view of the network. No instance owns it. The first instance opens it, and the last one to release it closes
- * it, so the order in which plugins stop does not matter. An instance created after that opens a new one.
+ * one HTTP client and, when their network and credential allow one, one view of the network. No instance owns
+ * it. The first instance opens it, and the last one to release it closes it, so the order in which plugins stop
+ * does not matter. An instance created after that opens a new one.
  */
 final class SharedRuntime {
 
@@ -27,6 +28,8 @@ final class SharedRuntime {
 
     private SharedRuntime(Settings settings, CloudApiOptions options) {
         this.settings = settings;
+        // Built by the generated ApiClient, so it has the progress interceptor the generated code adds.
+        this.httpClient = new ApiClient().getHttpClient();
         // Connects in the background, so opening under the lock does not block other instances.
         this.natsConnectionManager = new NatsFailoverConnectionManager(
                 settings.natsUrl(),
@@ -34,14 +37,17 @@ final class SharedRuntime {
                 settings.networkSecret(),
                 settings.natsFailoverReconnectAfter()
         );
-        // Built by the generated ApiClient, so it has the progress interceptor the generated code adds.
-        this.httpClient = new ApiClient().getHttpClient();
         try {
-            this.networkView = NetworkViewCredential.mayUseView(options)
+            this.networkView = NetworkViewEligibility.allows(options)
                     ? SharedNetworkView.open(options, natsConnectionManager, httpClient)
                     : null;
         } catch (RuntimeException | Error e) {
-            closeConnections();
+            // Under the lock, so other instances wait for this NATS close; it runs only when the view failed to open.
+            try {
+                closeConnections();
+            } catch (RuntimeException closeFailure) {
+                e.addSuppressed(closeFailure);
+            }
             throw e;
         }
     }
@@ -63,7 +69,7 @@ final class SharedRuntime {
     }
 
     /**
-     * Returns null when the credential of the instances may not use a view.
+     * Returns null when the network and credential of the instances allow no view.
      */
     NetworkViewShell networkViewShell() {
         return networkView == null ? null : networkView.shell();

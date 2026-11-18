@@ -23,7 +23,7 @@ class NetworkViewSharingTest {
     private final String networkId = UUID.randomUUID().toString();
 
     @Test
-    void instancesWithOneNetworkControllerAndCredentialShareOneView() throws ReflectiveOperationException {
+    void instancesWithEqualSettingsShareOneViewAndOthersGetTheirOwn() throws ReflectiveOperationException {
         CloudApiOptions sharedOptions = options(UnaryOperator.identity());
         CloudApiOptions otherCredential = options(builder -> builder.networkSecret("otherPassword"));
         CloudApiOptions otherController = options(builder -> builder.controllerUrl("http://127.0.0.2:1"));

@@ -57,10 +57,13 @@ public class CloudApiImpl implements CloudApi {
         this.options = options;
 
         this.runtime = SharedRuntime.acquire(options);
-        this.natsConnection = new InstanceNatsConnection(runtime.natsConnectionManager().getConnection());
-        QueryCache queryCache = null;
         // Released again if a later step fails, or the shared runtime would stay open after its last user closed.
+        InstanceNatsConnection natsConnection = null;
+        QueryCache queryCache = null;
         try {
+            natsConnection = new InstanceNatsConnection(runtime.natsConnectionManager().getConnection());
+            this.natsConnection = natsConnection;
+
             // Initialize cache
             CacheConfig cacheConfig = options.getCacheConfig();
             if (cacheConfig.isEnabled()) {
@@ -94,7 +97,10 @@ public class CloudApiImpl implements CloudApi {
                 this.cacheEventListener = null;
             }
         } catch (RuntimeException | Error e) {
-            closeConnections();
+            if (natsConnection != null) {
+                natsConnection.close();
+            }
+            releaseRuntime();
             if (queryCache instanceof QueryCacheImpl queryCacheImpl) {
                 queryCacheImpl.shutdown();
             }
@@ -189,15 +195,15 @@ public class CloudApiImpl implements CloudApi {
         } catch (InterruptedException e) {
             Thread.currentThread().interrupt();
         }
-        closeConnections();
+        natsConnection.close();
+        releaseRuntime();
     }
 
-    private void closeConnections() {
-        natsConnection.close();
+    private void releaseRuntime() {
         try {
             runtime.release();
         } catch (RuntimeException e) {
-            LOGGER.log(Level.WARNING, "Failed to shutdown NATS connection", e);
+            LOGGER.log(Level.WARNING, "Failed to close the connections this instance shared", e);
         }
     }
 }

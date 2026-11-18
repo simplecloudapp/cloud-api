@@ -9,16 +9,16 @@ import app.simplecloud.api.internal.web.Identifiers;
  * for the network's password. Instances share a view only when they share a {@link SharedRuntime}, whose
  * settings hold the credential, so a view is never shared between credentials.
  */
-final class NetworkViewCredential {
+final class NetworkViewEligibility {
 
-    private NetworkViewCredential() {
+    private NetworkViewEligibility() {
     }
 
     /**
      * Returns false when the instance reads over HTTP only: its network is not a UUID, which the controller
      * requires, or its credential may be a JWT.
      */
-    static boolean mayUseView(CloudApiOptions options) {
+    static boolean allows(CloudApiOptions options) {
         return Identifiers.isUuid(options.getNetworkId()) && mayBeNetworkPassword(options.getNetworkSecret());
     }
 
