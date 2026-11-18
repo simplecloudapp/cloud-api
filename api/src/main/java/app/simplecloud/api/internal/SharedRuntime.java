@@ -25,6 +25,8 @@ final class SharedRuntime {
 
     private SharedRuntime(Settings settings) {
         this.settings = settings;
+        // Built by the generated ApiClient, so it has the progress interceptor the generated code adds.
+        this.httpClient = new ApiClient().getHttpClient();
         // Connects in the background, so opening under the lock does not block other instances.
         this.natsConnectionManager = new NatsFailoverConnectionManager(
                 settings.natsUrl(),
@@ -32,8 +34,6 @@ final class SharedRuntime {
                 settings.networkSecret(),
                 settings.natsFailoverReconnectAfter()
         );
-        // Built by the generated ApiClient, so it has the progress interceptor the generated code adds.
-        this.httpClient = new ApiClient().getHttpClient();
     }
 
     static SharedRuntime acquire(CloudApiOptions options) {
