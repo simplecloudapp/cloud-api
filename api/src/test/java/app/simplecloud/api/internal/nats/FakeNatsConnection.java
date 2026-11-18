@@ -12,9 +12,13 @@ import java.util.List;
 import java.util.Map;
 import java.util.concurrent.ConcurrentHashMap;
 import java.util.concurrent.CopyOnWriteArrayList;
+import java.util.concurrent.CountDownLatch;
+import java.util.concurrent.atomic.AtomicInteger;
 
 /**
  * A NATS connection for tests. Requests are answered by a handler, subscriptions and publishes are recorded.
+ * Flushes return at once, or once {@link #releaseFlushes} is called after {@link #holdFlushes}. Closing a
+ * dispatcher ends every subscription, as the tests use one dispatcher.
  */
 public final class FakeNatsConnection {
 
@@ -26,6 +30,9 @@ public final class FakeNatsConnection {
     private final RequestHandler requestHandler;
     private final Map<String, MessageHandler> subscriptions = new ConcurrentHashMap<>();
     private final List<Message> published = new CopyOnWriteArrayList<>();
+    private final AtomicInteger startedFlushes = new AtomicInteger();
+    private final AtomicInteger returnedFlushes = new AtomicInteger();
+    private volatile CountDownLatch flushGate = new CountDownLatch(0);
     private final Connection connection;
 
     private FakeNatsConnection(RequestHandler requestHandler) {
@@ -70,6 +77,26 @@ public final class FakeNatsConnection {
         return published;
     }
 
+    public boolean hasSubscription(String subject) {
+        return subscriptions.containsKey(subject);
+    }
+
+    public void holdFlushes() {
+        flushGate = new CountDownLatch(1);
+    }
+
+    public void releaseFlushes() {
+        flushGate.countDown();
+    }
+
+    public int startedFlushes() {
+        return startedFlushes.get();
+    }
+
+    public int returnedFlushes() {
+        return returnedFlushes.get();
+    }
+
     private Object handleConnectionCall(String methodName, Object[] args) throws Exception {
         if (methodName.equals("request") && args.length == 3 && args[2] instanceof Duration timeout) {
             return requestHandler.request((String) args[0], (byte[]) args[1], timeout);
@@ -81,6 +108,16 @@ public final class FakeNatsConnection {
         }
         if (methodName.equals("createDispatcher")) {
             return createDispatcher();
+        }
+        if (methodName.equals("closeDispatcher")) {
+            subscriptions.clear();
+            return null;
+        }
+        if (methodName.equals("flush")) {
+            startedFlushes.incrementAndGet();
+            flushGate.await();
+            returnedFlushes.incrementAndGet();
+            return null;
         }
         throw new AssertionError("Unexpected connection call: " + methodName);
     }

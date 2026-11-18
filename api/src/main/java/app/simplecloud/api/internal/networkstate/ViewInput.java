@@ -5,9 +5,9 @@ import build.buf.gen.simplecloud.controller.v2.StateBatch;
 import build.buf.gen.simplecloud.controller.v2.StatePulse;
 
 /**
- * Something the shell tells a view. The shell hands inputs to the view one at a time, from one dispatcher,
- * in the order they happened. Batches and pulses keep the order in which they arrived, so a pulse is never
- * handed over before a batch that arrived ahead of it.
+ * Something the shell tells a view. The shell hands inputs to the view one at a time. Batches and pulses
+ * keep the order in which they arrived, so a pulse is never handed over before a batch that arrived ahead
+ * of it.
  */
 public sealed interface ViewInput {
 
