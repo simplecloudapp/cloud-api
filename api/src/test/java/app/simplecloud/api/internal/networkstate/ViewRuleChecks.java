@@ -212,7 +212,15 @@ final class ViewRuleChecks {
                 new ViewCheck("own write: compares epochs past 2^63 unsigned",
                         ViewRuleChecks::ownWriteEpochsUnsigned),
                 new ViewCheck("own write: the highest write holds, also when responses come out of order",
-                        ViewRuleChecks::highestOwnWriteHolds)
+                        ViewRuleChecks::highestOwnWriteHolds),
+                new ViewCheck("own write without revision: a synced view answers nothing until it reloaded",
+                        ViewRuleChecks::writeWithoutRevisionReloadsSyncedView),
+                new ViewCheck("own write without revision: abandons the running reload's load",
+                        ViewRuleChecks::writeWithoutRevisionAbandonsRunningReload),
+                new ViewCheck("own write without revision: a wanted reload keeps its start",
+                        ViewRuleChecks::writeWithoutRevisionKeepsWantedReload),
+                new ViewCheck("own write without revision: starts no load while disconnected",
+                        ViewRuleChecks::writeWithoutRevisionWhileDisconnectedStartsNoLoad)
         );
     }
 
@@ -982,6 +990,59 @@ final class ViewRuleChecks {
 
         assertFalse(answeredAtLowerWrite, "a later response with a lower revision does not lower the bar");
         assertTrue(view.mayAnswer(ReadKind.SERVER));
+    }
+
+    static void writeWithoutRevisionReloadsSyncedView(ViewStarter starter) {
+        ViewDriver view = ViewDriver.liveAt(starter, network(10));
+        view.wroteWithoutRevision();
+        Set<ReadKind> answeredAfterWrite = answeredKinds(view);
+        long loadAt = view.waitForLoad(3_000);
+        view.advance(100);
+        view.loadSnapshot(network(12));
+        view.advance(100);
+        view.pulse(pulse(12));
+
+        assertEquals(Set.of(), answeredAfterWrite, "the copy may lack a write whose revision is unknown");
+        assertEquals(2_000, loadAt, "the write means reload, 2 s after the previous load");
+        assertEquals(EnumSet.allOf(ReadKind.class), answeredKinds(view),
+                "a snapshot loaded after the write and a good pulse answer again");
+    }
+
+    static void writeWithoutRevisionAbandonsRunningReload(ViewStarter starter) {
+        ViewDriver view = ViewDriver.start(starter);
+        view.subscribe();
+        view.advance(50);
+        view.wroteWithoutRevision();
+        view.advance(50);
+        view.loadSnapshot(network(10));
+        Optional<NetworkCopy> copyAfterAnswer = view.copyIfAny();
+        long loadAt = view.waitForLoad(3_000);
+
+        assertTrue(copyAfterAnswer.isEmpty(), "a load that started before the write may lack it");
+        assertEquals(2_000, loadAt, "the write means reload, 2 s after the abandoned load");
+    }
+
+    static void writeWithoutRevisionKeepsWantedReload(ViewStarter starter) {
+        ViewDriver view = ViewDriver.start(starter, 0.5);
+        view.subscribe();
+        view.advance(500);
+        view.wroteWithoutRevision();
+
+        long loadAt = view.waitForLoad(3_000);
+
+        assertEquals(1_000, loadAt, "a wanted reload loads after the write anyway, so the write does not move it");
+    }
+
+    static void writeWithoutRevisionWhileDisconnectedStartsNoLoad(ViewStarter starter) {
+        ViewDriver view = ViewDriver.liveAt(starter, network(10));
+        view.advance(3_000);
+        view.loseConnection();
+        view.wroteWithoutRevision();
+
+        view.advanceWithoutLoadTo(10_000, "the load after the reconnect comes after the write");
+        view.subscribe();
+
+        view.assertLoadRequested("a reconnect means reload");
     }
 
     static void deletesItemsAndIgnoresUnknownIds(ViewStarter starter) {

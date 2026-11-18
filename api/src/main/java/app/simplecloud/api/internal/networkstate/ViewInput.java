@@ -62,6 +62,15 @@ public sealed interface ViewInput {
     }
 
     /**
+     * A write of this process returned successfully, and its response lacked {@code X-SC-State-Epoch} or
+     * {@code X-SC-State-Revision}: the controller failed to read the revision after the commit, or it is
+     * older than the headers. So the view cannot tell which revision holds the write. A write that failed or
+     * timed out is no input; its caller got an error.
+     */
+    record WriteReturnedWithoutRevision() implements ViewInput {
+    }
+
+    /**
      * Only time passed. A view acts on a deadline only during a step, so the shell sends this regularly:
      * every 100 ms keeps each deadline within 100 ms.
      */

@@ -182,6 +182,11 @@ final class WrongMachines {
                                 "own write: a group write holds group and server reads",
                                 "own write: a persistent server write holds persistent server and server reads",
                                 "own write: a blueprint write holds group and server reads",
+                                ViewSimulation.SHORT_RUNS_CHECK)),
+                new WrongMachine("ignores a write that returned without revision headers",
+                        random -> new IgnoresWriteWithoutRevision().start(random),
+                        List.of("own write without revision: a synced view answers nothing until it reloaded",
+                                "own write without revision: abandons the running reload's load",
                                 ViewSimulation.SHORT_RUNS_CHECK))
         );
     }
@@ -599,6 +604,12 @@ final class WrongMachines {
     static final class AnswersBeforeOwnWrite extends ReferenceMachine {
         @Override
         void onWriteReturned(Memory m, ViewInput.WriteReturned write) {
+        }
+    }
+
+    static final class IgnoresWriteWithoutRevision extends ReferenceMachine {
+        @Override
+        void onWriteReturnedWithoutRevision(Memory m, long now) {
         }
     }
 }

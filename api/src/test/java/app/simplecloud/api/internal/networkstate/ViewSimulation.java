@@ -90,8 +90,8 @@ final class ViewSimulation {
 
     /**
      * One seeded run. Dense faults test the rules under stress. Sparse faults come about every 20 min, and
-     * the wire then loses, repeats and delays nothing, because every reload moves the next audit 20 to 30 min
-     * away.
+     * the wire then loses, repeats and delays nothing, and every revision read after a write succeeds, because
+     * every reload moves the next audit 20 to 30 min away.
      */
     record RunPlan(long seed, long faultsEndAt, boolean sparseFaults) {
     }
@@ -221,6 +221,7 @@ final class ViewSimulation {
     private final double lossChance;
     private final double repeatChance;
     private final double delayChance;
+    private final double revisionReadFailureChance;
     private final double loadFailureChance;
 
     private NetworkView view;
@@ -253,6 +254,7 @@ final class ViewSimulation {
         lossChance = random.nextDouble() * 0.1 * faultScale;
         repeatChance = random.nextDouble() * 0.05 * faultScale;
         delayChance = random.nextDouble() * 0.05 * faultScale;
+        revisionReadFailureChance = 0.1 * faultScale;
         loadFailureChance = random.nextDouble() * 0.4;
     }
 
@@ -391,16 +393,19 @@ final class ViewSimulation {
 
     /**
      * The controller reads the headers after the commit; the response then takes its own time, so the
-     * responses of two writes can arrive in the other order.
+     * responses of two writes can arrive in the other order. In dense faults, one read in ten fails, and
+     * the response comes without the headers.
      */
     private void readRevisionHeaders(ModelDatabase.Commit commit) {
         ModelDatabase.State afterCommit = database.current();
-        ViewInput.WriteReturned response = new ViewInput.WriteReturned(commit.route(), afterCommit.epoch(),
-                afterCommit.counter());
+        boolean readFailed = faultsAllowed() && random.nextDouble() < revisionReadFailureChance;
+        ViewInput response = readFailed
+                ? new ViewInput.WriteReturnedWithoutRevision()
+                : new ViewInput.WriteReturned(commit.route(), afterCommit.epoch(), afterCommit.counter());
         schedule(5 + random.nextInt(300), () -> returnOwnWrite(commit, response));
     }
 
-    private void returnOwnWrite(ModelDatabase.Commit commit, ViewInput.WriteReturned response) {
+    private void returnOwnWrite(ModelDatabase.Commit commit, ViewInput response) {
         Position committed = new Position(commit.epoch(), commit.revision());
         for (ReadKind read : readsChangedBy(commit.route())) {
             ownWritesByRead.merge(read, committed, Position::later);
