@@ -49,6 +49,13 @@ public final class CopyServerGroupList {
     }
 
     /**
+     * Returns whether the controller refuses these parameters with an error, so that no copy answers them.
+     */
+    public static boolean refusesParameters(ServerGroupListParameters parameters) {
+        return Query.parse(parameters).isEmpty();
+    }
+
+    /**
      * Returns the body the controller would send, under the conditions of {@link #answer}.
      */
     static Optional<JsonObject> responseBody(NetworkCopy copy, ServerGroupListParameters parameters) {

@@ -86,7 +86,13 @@ public final class CopyReads {
         return readWhenCopyAnswered(fromCopy, read);
     }
 
+    // A read with parameters the controller refuses asks it at once: the copy never answers it, so waiting for
+    // an own write would only delay it.
+
     private CompletableFuture<Optional<ModelsListServersResponse>> serversFromCopy(ServerListParameters parameters) {
+        if (CopyServerList.refusesParameters(parameters)) {
+            return CompletableFuture.completedFuture(Optional.empty());
+        }
         CompletableFuture<Optional<NetworkCopy>> answeringCopy = copyToAnswer(ReadKind.SERVER);
         return answeringCopy.thenApply(copy -> serversFrom(copy, parameters));
     }
@@ -94,6 +100,9 @@ public final class CopyReads {
     private CompletableFuture<Optional<ModelsListServerGroupsResponse>> serverGroupsFromCopy(
             ServerGroupListParameters parameters
     ) {
+        if (CopyServerGroupList.refusesParameters(parameters)) {
+            return CompletableFuture.completedFuture(Optional.empty());
+        }
         CompletableFuture<Optional<NetworkCopy>> answeringCopy = copyToAnswer(ReadKind.SERVER_GROUP);
         return answeringCopy.thenApply(copy -> serverGroupsFrom(copy, parameters));
     }
@@ -101,6 +110,9 @@ public final class CopyReads {
     private CompletableFuture<Optional<ModelsListPersistentServersResponse>> persistentServersFromCopy(
             PersistentServerListParameters parameters
     ) {
+        if (CopyPersistentServerList.refusesParameters(parameters)) {
+            return CompletableFuture.completedFuture(Optional.empty());
+        }
         CompletableFuture<Optional<NetworkCopy>> answeringCopy = copyToAnswer(ReadKind.PERSISTENT_SERVER);
         return answeringCopy.thenApply(copy -> persistentServersFrom(copy, parameters));
     }

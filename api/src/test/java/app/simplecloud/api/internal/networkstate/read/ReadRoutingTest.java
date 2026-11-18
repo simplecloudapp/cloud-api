@@ -19,6 +19,7 @@ import app.simplecloud.api.internal.server.ServerApiImpl;
 import app.simplecloud.api.internal.web.ApiClients;
 import app.simplecloud.api.persistentserver.PersistentServer;
 import app.simplecloud.api.server.Server;
+import app.simplecloud.api.server.ServerQuery;
 import app.simplecloud.api.web.ApiClient;
 import build.buf.gen.simplecloud.controller.v2.NetworkState;
 import build.buf.gen.simplecloud.controller.v2.StateServerGroup;
@@ -216,6 +217,18 @@ class ReadRoutingTest {
 
         assertTrue(waited, "the read waits for the copy");
         assertInstanceOf(CloudApiException.class, seen, "the cache's own exception, relayed as it is");
+    }
+
+    @Test
+    void aReadWithParametersTheControllerRefusesDoesNotWaitForTheCopy() {
+        ServerApiImpl servers = serverApi(new NoOpQueryCache());
+        ServerQuery refusedSorting = ServerQuery.create().sortBy("unknown_field");
+        view.awaitOwnWrite(true);
+
+        CompletableFuture<List<Server>> read = servers.getAllServers(refusedSorting);
+
+        assertTrue(read.isDone(), "the copy never answers it, so it goes over HTTP at once");
+        assertEquals(1, requests.get());
     }
 
     @Test
