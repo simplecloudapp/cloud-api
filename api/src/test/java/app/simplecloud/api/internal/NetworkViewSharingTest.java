@@ -47,9 +47,9 @@ class NetworkViewSharingTest {
         try (CloudApiImpl withJwt = (CloudApiImpl) CloudApi.create(jwt);
              CloudApiImpl withJsonCredential = (CloudApiImpl) CloudApi.create(jsonCredential);
              CloudApiImpl withNamedNetwork = (CloudApiImpl) CloudApi.create(namedNetwork)) {
-            assertNull(viewHandle(withJwt));
-            assertNull(viewHandle(withJsonCredential));
-            assertNull(viewHandle(withNamedNetwork));
+            assertNull(view(withJwt));
+            assertNull(view(withJsonCredential));
+            assertNull(view(withNamedNetwork));
         }
     }
 
@@ -58,18 +58,18 @@ class NetworkViewSharingTest {
         CloudApiOptions sharedOptions = options(UnaryOperator.identity());
         CloudApiImpl platformPlugin = (CloudApiImpl) CloudApi.create(sharedOptions);
         CloudApiImpl otherPlugin = (CloudApiImpl) CloudApi.create(sharedOptions);
-        SharedNetworkView sharedView = view(platformPlugin);
+        NetworkViewShell sharedView = view(platformPlugin);
 
         platformPlugin.close();
         CloudApiImpl reenabledPlatformPlugin = (CloudApiImpl) CloudApi.create(sharedOptions);
         boolean reenabledSharesTheView = sharedView == view(reenabledPlatformPlugin);
-        boolean stoppedWhileInUse = isStopped(sharedView.shell());
+        boolean stoppedWhileInUse = isStopped(sharedView);
         otherPlugin.close();
         reenabledPlatformPlugin.close();
 
         assertTrue(reenabledSharesTheView);
         assertFalse(stoppedWhileInUse);
-        assertTrue(isStopped(sharedView.shell()), "the last close closes the view");
+        assertTrue(isStopped(sharedView), "the last close closes the view");
         try (CloudApiImpl afterRestart = (CloudApiImpl) CloudApi.create(sharedOptions)) {
             assertNotSame(sharedView, view(afterRestart));
         }
@@ -84,17 +84,11 @@ class NetworkViewSharingTest {
         return customizer.apply(builder).build();
     }
 
-    private static SharedNetworkView view(CloudApiImpl api) throws ReflectiveOperationException {
-        return viewHandle(api).resource();
-    }
-
-    // The field is declared with this type; reading it by reflection drops the type argument.
-    @SuppressWarnings("unchecked")
-    private static SharedResources.Handle<SharedNetworkView> viewHandle(CloudApiImpl api)
-            throws ReflectiveOperationException {
-        Field field = CloudApiImpl.class.getDeclaredField("networkViewHandle");
+    private static NetworkViewShell view(CloudApiImpl api) throws ReflectiveOperationException {
+        Field field = CloudApiImpl.class.getDeclaredField("runtime");
         field.setAccessible(true);
-        return (SharedResources.Handle<SharedNetworkView>) field.get(api);
+        SharedRuntime runtime = (SharedRuntime) field.get(api);
+        return runtime.networkViewShell();
     }
 
     private static boolean isStopped(NetworkViewShell shell) throws ReflectiveOperationException {

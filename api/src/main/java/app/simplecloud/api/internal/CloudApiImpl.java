@@ -11,7 +11,6 @@ import app.simplecloud.api.internal.cache.NoOpQueryCache;
 import app.simplecloud.api.internal.cache.QueryCacheImpl;
 import app.simplecloud.api.internal.event.EventApiImpl;
 import app.simplecloud.api.internal.group.GroupApiImpl;
-import app.simplecloud.api.internal.nats.NatsFailoverConnectionManager;
 import app.simplecloud.api.internal.networkstate.CopyReads;
 import app.simplecloud.api.internal.networkstate.NetworkViewShell;
 import app.simplecloud.api.internal.networkstate.StateRevisionInterceptor;
@@ -27,7 +26,6 @@ import io.nats.client.Connection;
 import okhttp3.OkHttpClient;
 
 import java.time.Duration;
-import java.util.Optional;
 import java.util.concurrent.Executor;
 import java.util.concurrent.ExecutorService;
 import java.util.concurrent.Executors;
@@ -41,26 +39,10 @@ public class CloudApiImpl implements CloudApi {
     private static final Logger LOGGER = Logger.getLogger(CloudApiImpl.class.getName());
     private static final Duration EXECUTOR_SHUTDOWN_TIMEOUT = Duration.ofSeconds(1);
 
-    // Static, so every CloudApi instance in this class loader with equal settings uses the same connection.
-    private static final SharedResources<NatsConnectionSettings, NatsFailoverConnectionManager> NATS_CONNECTION_MANAGERS =
-            new SharedResources<>(NatsFailoverConnectionManager::shutdown);
-    // Pooled connections go to the controller, so instances of one controller share a pool; each ApiClient
-    // sets its own headers and timeouts on top of it.
-    private static final SharedResources<String, OkHttpClient> HTTP_CLIENTS_BY_CONTROLLER_URL =
-            new SharedResources<>(CloudApiImpl::shutdownHttpClient);
-    private static final SharedResources<NetworkViewKey, SharedNetworkView> NETWORK_VIEWS =
-            new SharedResources<>(SharedNetworkView::close);
-
     private final CloudApiOptions options;
-    private final SharedResources.Handle<OkHttpClient> httpClientHandle;
-    private final ApiClient apiClient;
-
-    private final SharedResources.Handle<NatsFailoverConnectionManager> natsConnectionManagerHandle;
-    /**
-     * Null when the instance's credential may not use a view.
-     */
-    private final SharedResources.Handle<SharedNetworkView> networkViewHandle;
+    private final SharedRuntime runtime;
     private final InstanceNatsConnection natsConnection;
+    private final ApiClient apiClient;
     private final QueryCache queryCache;
     private final CacheEventListener cacheEventListener;
     private final ServerApi serverApi;
@@ -74,23 +56,11 @@ public class CloudApiImpl implements CloudApi {
     public CloudApiImpl(CloudApiOptions options) {
         this.options = options;
 
-        // Closed again if a later step fails, or a shared resource would stay open after its last user closed.
-        SharedResources.Handle<NatsFailoverConnectionManager> natsConnectionManagerHandle = null;
-        SharedResources.Handle<OkHttpClient> httpClientHandle = null;
-        SharedResources.Handle<SharedNetworkView> networkViewHandle = null;
-        InstanceNatsConnection natsConnection = null;
+        this.runtime = SharedRuntime.acquire(options);
+        this.natsConnection = new InstanceNatsConnection(runtime.natsConnectionManager().getConnection());
         QueryCache queryCache = null;
+        // Released again if a later step fails, or the shared runtime would stay open after its last user closed.
         try {
-            NatsConnectionSettings natsSettings = NatsConnectionSettings.of(options);
-            natsConnectionManagerHandle = NATS_CONNECTION_MANAGERS.acquire(natsSettings, natsSettings::openConnectionManager);
-            this.natsConnectionManagerHandle = natsConnectionManagerHandle;
-            httpClientHandle = HTTP_CLIENTS_BY_CONTROLLER_URL.acquire(options.getControllerUrl(), CloudApiImpl::newHttpClient);
-            this.httpClientHandle = httpClientHandle;
-            networkViewHandle = acquireNetworkView(options);
-            this.networkViewHandle = networkViewHandle;
-            natsConnection = new InstanceNatsConnection(natsConnectionManagerHandle.resource().getConnection());
-            this.natsConnection = natsConnection;
-
             // Initialize cache
             CacheConfig cacheConfig = options.getCacheConfig();
             if (cacheConfig.isEnabled()) {
@@ -101,9 +71,9 @@ public class CloudApiImpl implements CloudApi {
             this.queryCache = queryCache;
 
             CopyReads copyReads = CopyReads.NONE;
-            OkHttpClient httpClient = httpClientHandle.resource();
-            if (networkViewHandle != null) {
-                NetworkViewShell networkViewShell = networkViewHandle.resource().shell();
+            OkHttpClient httpClient = runtime.httpClient();
+            NetworkViewShell networkViewShell = runtime.networkViewShell();
+            if (networkViewShell != null) {
                 copyReads = CopyReads.of(networkViewShell, options.getNetworkId());
                 httpClient = StateRevisionInterceptor.addTo(httpClient, networkViewShell);
             }
@@ -124,7 +94,7 @@ public class CloudApiImpl implements CloudApi {
                 this.cacheEventListener = null;
             }
         } catch (RuntimeException | Error e) {
-            closeConnections(natsConnection, networkViewHandle, natsConnectionManagerHandle, httpClientHandle);
+            closeConnections();
             if (queryCache instanceof QueryCacheImpl queryCacheImpl) {
                 queryCacheImpl.shutdown();
             }
@@ -219,101 +189,15 @@ public class CloudApiImpl implements CloudApi {
         } catch (InterruptedException e) {
             Thread.currentThread().interrupt();
         }
-        closeConnections(natsConnection, networkViewHandle, natsConnectionManagerHandle, httpClientHandle);
+        closeConnections();
     }
 
-    /**
-     * Closes this instance's NATS connection and its handles on the shared view and connections. Takes nulls,
-     * for a constructor that failed before it had them all, and for an instance without a view.
-     */
-    private static void closeConnections(
-            InstanceNatsConnection natsConnection,
-            SharedResources.Handle<SharedNetworkView> networkViewHandle,
-            SharedResources.Handle<NatsFailoverConnectionManager> natsConnectionManagerHandle,
-            SharedResources.Handle<OkHttpClient> httpClientHandle
-    ) {
-        if (natsConnection != null) {
-            natsConnection.close();
-        }
-        if (networkViewHandle != null) {
-            networkViewHandle.close();
-        }
-        if (natsConnectionManagerHandle != null) {
-            try {
-                natsConnectionManagerHandle.close();
-            } catch (RuntimeException e) {
-                LOGGER.log(Level.WARNING, "Failed to shutdown NATS connection", e);
-            }
-        }
-        if (httpClientHandle != null) {
-            httpClientHandle.close();
-        }
-    }
-
-    /**
-     * Returns a handle on the view for the instance's network and credential, or null when the credential
-     * may not use one.
-     */
-    private static SharedResources.Handle<SharedNetworkView> acquireNetworkView(CloudApiOptions options) {
-        Optional<NetworkViewKey> key = NetworkViewKey.of(options);
-        if (key.isEmpty()) {
-            return null;
-        }
-        return NETWORK_VIEWS.acquire(key.get(), () -> openNetworkView(options));
-    }
-
-    /**
-     * Runs under the view registry's lock. It takes the view's own handles on the shared connections, which
-     * the view closes when it closes.
-     */
-    private static SharedNetworkView openNetworkView(CloudApiOptions options) {
-        NatsConnectionSettings natsSettings = NatsConnectionSettings.of(options);
-        SharedResources.Handle<NatsFailoverConnectionManager> natsConnectionManagerHandle =
-                NATS_CONNECTION_MANAGERS.acquire(natsSettings, natsSettings::openConnectionManager);
-        SharedResources.Handle<OkHttpClient> httpClientHandle = null;
+    private void closeConnections() {
+        natsConnection.close();
         try {
-            httpClientHandle = HTTP_CLIENTS_BY_CONTROLLER_URL.acquire(options.getControllerUrl(), CloudApiImpl::newHttpClient);
-            return SharedNetworkView.open(options, natsConnectionManagerHandle, httpClientHandle);
-        } catch (RuntimeException | Error e) {
-            natsConnectionManagerHandle.close();
-            if (httpClientHandle != null) {
-                httpClientHandle.close();
-            }
-            throw e;
-        }
-    }
-
-    private static OkHttpClient newHttpClient() {
-        // Built by the generated ApiClient, so it has the progress interceptor the generated code adds.
-        return new ApiClient().getHttpClient();
-    }
-
-    /**
-     * Stops the threads that run asynchronous calls of {@code httpClient} and closes its idle connections.
-     */
-    private static void shutdownHttpClient(OkHttpClient httpClient) {
-        httpClient.dispatcher().executorService().shutdown();
-        httpClient.connectionPool().evictAll();
-    }
-
-    private record NatsConnectionSettings(
-            String natsUrl,
-            String networkId,
-            String networkSecret,
-            Duration failoverReconnectAfter
-    ) {
-
-        static NatsConnectionSettings of(CloudApiOptions options) {
-            return new NatsConnectionSettings(
-                    options.getNatsUrl(),
-                    options.getNetworkId(),
-                    options.getNetworkSecret(),
-                    options.getNatsFailoverReconnectAfter()
-            );
-        }
-
-        NatsFailoverConnectionManager openConnectionManager() {
-            return new NatsFailoverConnectionManager(natsUrl, networkId, networkSecret, failoverReconnectAfter);
+            runtime.release();
+        } catch (RuntimeException e) {
+            LOGGER.log(Level.WARNING, "Failed to shutdown NATS connection", e);
         }
     }
 }

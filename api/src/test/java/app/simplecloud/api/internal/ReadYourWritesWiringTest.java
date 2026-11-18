@@ -166,9 +166,8 @@ class ReadYourWritesWiringTest {
     }
 
     private static NetworkViewShell shellOf(CloudApiImpl api) throws ReflectiveOperationException {
-        SharedResources.Handle<?> viewHandle = (SharedResources.Handle<?>) readField(api, "networkViewHandle");
-        SharedNetworkView view = (SharedNetworkView) viewHandle.resource();
-        return view.shell();
+        SharedRuntime runtime = (SharedRuntime) readField(api, "runtime");
+        return runtime.networkViewShell();
     }
 
     private static Object readField(Object owner, String name) throws ReflectiveOperationException {

@@ -71,15 +71,19 @@ class SharedCloudApiResourcesTest {
     }
 
     @Test
-    void instancesWithEqualNatsSettingsShareOneConnectionAndOthersGetTheirOwn() throws Exception {
+    void instancesWithEqualSettingsShareOneConnectionAndOthersGetTheirOwn() throws Exception {
         CloudApiOptions sharedOptions = options(UnaryOperator.identity());
         CloudApiOptions otherDelayOptions = options(builder -> builder.natsFailoverReconnectAfter(Duration.ofSeconds(31)));
+        CloudApiOptions otherControllerOptions = options(builder -> builder.controllerUrl("http://127.0.0.1:1"));
 
         try (CloudApiImpl first = (CloudApiImpl) CloudApi.create(sharedOptions);
              CloudApiImpl second = (CloudApiImpl) CloudApi.create(sharedOptions);
-             CloudApiImpl otherSettings = (CloudApiImpl) CloudApi.create(otherDelayOptions)) {
+             CloudApiImpl otherDelay = (CloudApiImpl) CloudApi.create(otherDelayOptions);
+             CloudApiImpl otherController = (CloudApiImpl) CloudApi.create(otherControllerOptions)) {
             assertSame(natsConnectionManager(first), natsConnectionManager(second));
-            assertNotSame(natsConnectionManager(first), natsConnectionManager(otherSettings));
+            assertSame(httpClient(first).connectionPool(), httpClient(second).connectionPool());
+            assertNotSame(natsConnectionManager(first), natsConnectionManager(otherDelay));
+            assertNotSame(httpClient(first).connectionPool(), httpClient(otherController).connectionPool());
         }
     }
 
@@ -163,7 +167,7 @@ class SharedCloudApiResourcesTest {
     }
 
     @Test
-    void failedConstructionClosesItsHandlesOnTheSharedConnections() throws Exception {
+    void failedConstructionReleasesTheSharedConnections() throws Exception {
         CloudApiImpl open = (CloudApiImpl) CloudApi.create(options(UnaryOperator.identity()));
         NatsFailoverConnectionManager natsManager = natsConnectionManager(open);
         ExecutorService httpDispatcher = httpClient(open).dispatcher().executorService();
@@ -258,10 +262,10 @@ class SharedCloudApiResourcesTest {
     }
 
     private static NatsFailoverConnectionManager natsConnectionManager(CloudApiImpl api) throws ReflectiveOperationException {
-        Field field = CloudApiImpl.class.getDeclaredField("natsConnectionManagerHandle");
+        Field field = CloudApiImpl.class.getDeclaredField("runtime");
         field.setAccessible(true);
-        SharedResources.Handle<?> handle = (SharedResources.Handle<?>) field.get(api);
-        return (NatsFailoverConnectionManager) handle.resource();
+        SharedRuntime runtime = (SharedRuntime) field.get(api);
+        return runtime.natsConnectionManager();
     }
 
     private static boolean isShutDown(NatsFailoverConnectionManager manager) throws ReflectiveOperationException {
