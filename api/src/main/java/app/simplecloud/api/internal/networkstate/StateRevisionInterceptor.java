@@ -16,7 +16,7 @@ import java.util.logging.Logger;
  * Hands a view the state revision of each write that a client sends, so that the reads the write can change
  * go over HTTP until the view's copy has reached the write. The controller puts the revision on every
  * successful response to a write of a network-scoped route. A write that may have committed but whose
- * revision is unknown goes to the view as {@link ViewInput.WriteReturnedWithoutRevision}, so a live view
+ * revision is unknown goes to the view as {@link ViewInput.WriteRevisionUnknown}, so a live view
  * reloads: a 2xx without the revision, a 5xx (from the controller or a proxy in front of it), and a call that
  * threw, such as a read timeout or a dropped connection. A 4xx hands over nothing, because the controller
  * committed nothing.
@@ -59,7 +59,7 @@ public final class StateRevisionInterceptor implements Interceptor {
             handOverRevision(kind, response);
         } else if (response.code() >= FIRST_SERVER_ERROR) {
             LOGGER.fine("A " + kind + " write returned " + response.code());
-            shell.writeReturnedWithoutRevision();
+            shell.writeRevisionUnknown();
         }
         // Any other status, above all a 4xx, means the controller committed nothing.
         return response;
@@ -70,7 +70,7 @@ public final class StateRevisionInterceptor implements Interceptor {
             return chain.proceed(chain.request());
         } catch (IOException e) {
             LOGGER.fine("A " + written + " write threw before its response arrived: " + e);
-            shell.writeReturnedWithoutRevision();
+            shell.writeRevisionUnknown();
             throw e;
         }
     }
@@ -105,7 +105,7 @@ public final class StateRevisionInterceptor implements Interceptor {
         if (epoch == null || revision == null) {
             // An older controller, or one whose read of the revision failed after the write.
             LOGGER.fine("A " + written + " write returned without the state revision headers");
-            shell.writeReturnedWithoutRevision();
+            shell.writeRevisionUnknown();
             return;
         }
         long parsedEpoch;
@@ -116,7 +116,7 @@ public final class StateRevisionInterceptor implements Interceptor {
         } catch (NumberFormatException e) {
             LOGGER.log(Level.WARNING, "A " + written + " write returned state revision headers that are not"
                     + " unsigned numbers: " + EPOCH_HEADER + "=" + epoch + ", " + REVISION_HEADER + "=" + revision, e);
-            shell.writeReturnedWithoutRevision();
+            shell.writeRevisionUnknown();
             return;
         }
         shell.writeReturned(written, parsedEpoch, parsedRevision);

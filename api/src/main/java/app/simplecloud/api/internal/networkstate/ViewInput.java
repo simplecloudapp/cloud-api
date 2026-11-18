@@ -72,7 +72,7 @@ public sealed interface ViewInput {
      * </ul>
      * A write that returned a 4xx committed nothing and is no input.
      */
-    record WriteReturnedWithoutRevision() implements ViewInput {
+    record WriteRevisionUnknown() implements ViewInput {
     }
 
     /**

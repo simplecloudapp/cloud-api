@@ -216,7 +216,7 @@ public final class NetworkViewMachine implements NetworkView {
             case ViewInput.BatchReceived received -> receiveBatch(received.batch(), now, effects);
             case ViewInput.PulseReceived received -> receivePulse(received.pulse(), now);
             case ViewInput.WriteReturned returned -> recordOwnWrite(returned);
-            case ViewInput.WriteReturnedWithoutRevision returned -> reloadIfCopyMayLackWrite(now);
+            case ViewInput.WriteRevisionUnknown returned -> reloadIfCopyMayLackWrite(now);
             case ViewInput.TimePassed passed -> {
             }
         }

@@ -95,8 +95,8 @@ final class ViewDriver {
         send(new ViewInput.WriteReturned(written, epoch, revision));
     }
 
-    void wroteWithoutRevision() {
-        send(new ViewInput.WriteReturnedWithoutRevision());
+    void wroteRevisionUnknown() {
+        send(new ViewInput.WriteRevisionUnknown());
     }
 
     void advance(long millis) {

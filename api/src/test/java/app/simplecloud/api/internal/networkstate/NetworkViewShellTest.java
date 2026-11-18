@@ -139,15 +139,15 @@ class NetworkViewShellTest {
         RecordingView view = RecordingView.withoutCopy();
         shell = startShell(view, unusedSnapshots());
         ViewInput withRevision = new ViewInput.WriteReturned(WriteKind.SERVER_GROUP, 3, 7);
-        ViewInput withoutRevision = new ViewInput.WriteReturnedWithoutRevision();
+        ViewInput revisionUnknown = new ViewInput.WriteRevisionUnknown();
 
         shell.writeReturned(WriteKind.SERVER_GROUP, 3, 7);
         boolean revisionTaken = view.received().contains(withRevision);
-        shell.writeReturnedWithoutRevision();
-        boolean writeWithoutRevisionTaken = view.received().contains(withoutRevision);
+        shell.writeRevisionUnknown();
+        boolean writeRevisionUnknownTaken = view.received().contains(revisionUnknown);
 
         assertTrue(revisionTaken);
-        assertTrue(writeWithoutRevisionTaken);
+        assertTrue(writeRevisionUnknownTaken);
     }
 
     @Test

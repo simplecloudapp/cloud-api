@@ -400,7 +400,7 @@ final class ViewSimulation {
         ModelDatabase.State afterCommit = database.current();
         boolean readFailed = faultsAllowed() && random.nextDouble() < revisionReadFailureChance;
         ViewInput response = readFailed
-                ? new ViewInput.WriteReturnedWithoutRevision()
+                ? new ViewInput.WriteRevisionUnknown()
                 : new ViewInput.WriteReturned(commit.route(), afterCommit.epoch(), afterCommit.counter());
         schedule(5 + random.nextInt(300), () -> returnOwnWrite(commit, response));
     }

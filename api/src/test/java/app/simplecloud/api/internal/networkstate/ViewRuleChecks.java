@@ -213,14 +213,14 @@ final class ViewRuleChecks {
                         ViewRuleChecks::ownWriteEpochsUnsigned),
                 new ViewCheck("own write: the highest write holds, also when responses come out of order",
                         ViewRuleChecks::highestOwnWriteHolds),
-                new ViewCheck("own write without revision: a synced view answers nothing until it reloaded",
-                        ViewRuleChecks::writeWithoutRevisionReloadsSyncedView),
-                new ViewCheck("own write without revision: abandons the running reload's load",
-                        ViewRuleChecks::writeWithoutRevisionAbandonsRunningReload),
-                new ViewCheck("own write without revision: a wanted reload keeps its start",
-                        ViewRuleChecks::writeWithoutRevisionKeepsWantedReload),
-                new ViewCheck("own write without revision: starts no load while disconnected",
-                        ViewRuleChecks::writeWithoutRevisionWhileDisconnectedStartsNoLoad)
+                new ViewCheck("own write of unknown revision: a synced view answers nothing until it reloaded",
+                        ViewRuleChecks::writeOfUnknownRevisionReloadsSyncedView),
+                new ViewCheck("own write of unknown revision: abandons the running reload's load",
+                        ViewRuleChecks::writeOfUnknownRevisionAbandonsRunningReload),
+                new ViewCheck("own write of unknown revision: a wanted reload keeps its start",
+                        ViewRuleChecks::writeOfUnknownRevisionKeepsWantedReload),
+                new ViewCheck("own write of unknown revision: starts no load while disconnected",
+                        ViewRuleChecks::writeOfUnknownRevisionWhileDisconnectedStartsNoLoad)
         );
     }
 
@@ -992,9 +992,9 @@ final class ViewRuleChecks {
         assertTrue(view.mayAnswer(ReadKind.SERVER));
     }
 
-    static void writeWithoutRevisionReloadsSyncedView(ViewStarter starter) {
+    static void writeOfUnknownRevisionReloadsSyncedView(ViewStarter starter) {
         ViewDriver view = ViewDriver.liveAt(starter, network(10));
-        view.wroteWithoutRevision();
+        view.wroteRevisionUnknown();
         Set<ReadKind> answeredAfterWrite = answeredKinds(view);
         long loadAt = view.waitForLoad(3_000);
         view.advance(100);
@@ -1008,11 +1008,11 @@ final class ViewRuleChecks {
                 "a snapshot loaded after the write and a good pulse answer again");
     }
 
-    static void writeWithoutRevisionAbandonsRunningReload(ViewStarter starter) {
+    static void writeOfUnknownRevisionAbandonsRunningReload(ViewStarter starter) {
         ViewDriver view = ViewDriver.start(starter);
         view.subscribe();
         view.advance(50);
-        view.wroteWithoutRevision();
+        view.wroteRevisionUnknown();
         view.advance(50);
         view.loadSnapshot(network(10));
         Optional<NetworkCopy> copyAfterAnswer = view.copyIfAny();
@@ -1022,22 +1022,22 @@ final class ViewRuleChecks {
         assertEquals(2_000, loadAt, "the write means reload, 2 s after the abandoned load");
     }
 
-    static void writeWithoutRevisionKeepsWantedReload(ViewStarter starter) {
+    static void writeOfUnknownRevisionKeepsWantedReload(ViewStarter starter) {
         ViewDriver view = ViewDriver.start(starter, 0.5);
         view.subscribe();
         view.advance(500);
-        view.wroteWithoutRevision();
+        view.wroteRevisionUnknown();
 
         long loadAt = view.waitForLoad(3_000);
 
         assertEquals(1_000, loadAt, "a wanted reload loads after the write anyway, so the write does not move it");
     }
 
-    static void writeWithoutRevisionWhileDisconnectedStartsNoLoad(ViewStarter starter) {
+    static void writeOfUnknownRevisionWhileDisconnectedStartsNoLoad(ViewStarter starter) {
         ViewDriver view = ViewDriver.liveAt(starter, network(10));
         view.advance(3_000);
         view.loseConnection();
-        view.wroteWithoutRevision();
+        view.wroteRevisionUnknown();
 
         view.advanceWithoutLoadTo(10_000, "the load after the reconnect comes after the write");
         view.subscribe();

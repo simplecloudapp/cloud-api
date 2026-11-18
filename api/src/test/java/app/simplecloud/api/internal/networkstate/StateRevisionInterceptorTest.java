@@ -62,12 +62,12 @@ class StateRevisionInterceptorTest {
     }
 
     @Test
-    void aWriteWithoutRevisionHeadersHandsTheViewAWriteWithoutRevision() throws IOException {
+    void aWriteWithoutRevisionHeadersHandsTheViewAWriteOfUnknownRevision() throws IOException {
         controller.enqueue(new MockResponse().setHeader("X-SC-State-Epoch", EPOCH));
 
         send("POST", "/v0/servers/abc/stop");
 
-        assertEquals(List.of(new ViewInput.WriteReturnedWithoutRevision()), writesTheViewTook());
+        assertEquals(List.of(new ViewInput.WriteRevisionUnknown()), writesTheViewTook());
     }
 
     @Test
@@ -78,24 +78,24 @@ class StateRevisionInterceptorTest {
 
         send("DELETE", "/v0/persistent-servers/abc");
 
-        assertEquals(List.of(new ViewInput.WriteReturnedWithoutRevision()), writesTheViewTook());
+        assertEquals(List.of(new ViewInput.WriteRevisionUnknown()), writesTheViewTook());
     }
 
     @Test
-    void aWriteThatThrowsHandsTheViewAWriteWithoutRevisionAndTheCallerTheException() {
+    void aWriteThatThrowsHandsTheViewAWriteOfUnknownRevisionAndTheCallerTheException() {
         controller.enqueue(new MockResponse().setSocketPolicy(SocketPolicy.DISCONNECT_AFTER_REQUEST));
 
         assertThrows(IOException.class, () -> send("PATCH", "/v0/server-groups/lobby"));
-        assertEquals(List.of(new ViewInput.WriteReturnedWithoutRevision()), writesTheViewTook());
+        assertEquals(List.of(new ViewInput.WriteRevisionUnknown()), writesTheViewTook());
     }
 
     @Test
-    void aWriteWithAServerErrorHandsTheViewAWriteWithoutRevision() throws IOException {
+    void aWriteWithAServerErrorHandsTheViewAWriteOfUnknownRevision() throws IOException {
         controller.enqueue(withRevisionHeaders(new MockResponse().setResponseCode(502)));
 
         send("PUT", "/v0/blueprints/abc");
 
-        assertEquals(List.of(new ViewInput.WriteReturnedWithoutRevision()), writesTheViewTook());
+        assertEquals(List.of(new ViewInput.WriteRevisionUnknown()), writesTheViewTook());
     }
 
     @Test
@@ -138,7 +138,7 @@ class StateRevisionInterceptorTest {
     }
 
     private static boolean isWrite(ViewInput input) {
-        return input instanceof ViewInput.WriteReturned || input instanceof ViewInput.WriteReturnedWithoutRevision;
+        return input instanceof ViewInput.WriteReturned || input instanceof ViewInput.WriteRevisionUnknown;
     }
 
     private Optional<WriteKind> writtenKindOf(String path) {

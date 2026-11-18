@@ -114,7 +114,7 @@ import java.util.Optional;
  *   <li>a persistent server: persistent servers and servers;</li>
  *   <li>a blueprint: server groups and servers (a group contains its blueprint).</li>
  * </ul>
- * A {@link ViewInput.WriteReturnedWithoutRevision} means reload in a synced view, and in a view whose
+ * A {@link ViewInput.WriteRevisionUnknown} means reload in a synced view, and in a view whose
  * reload's load runs, because that copy or that load may be from before the write. The controller reads a
  * snapshot after the request arrived, so a load that starts after a successful response holds the write, and
  * the view answers nothing until it is live again (rule 5). After a 5xx or a call that threw, the controller

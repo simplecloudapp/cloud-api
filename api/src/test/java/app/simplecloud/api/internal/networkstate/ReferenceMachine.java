@@ -219,7 +219,7 @@ class ReferenceMachine {
             case ViewInput.BatchReceived received -> onBatch(m, received.batch(), now, effects);
             case ViewInput.PulseReceived received -> onPulse(m, received.pulse(), now);
             case ViewInput.WriteReturned write -> onWriteReturned(m, write);
-            case ViewInput.WriteReturnedWithoutRevision write -> onWriteReturnedWithoutRevision(m, now);
+            case ViewInput.WriteRevisionUnknown write -> onWriteRevisionUnknown(m, now);
             case ViewInput.TimePassed passed -> {
             }
         }
@@ -495,7 +495,7 @@ class ReferenceMachine {
     /**
      * A snapshot is read after the write's request arrived, so it holds the write.
      */
-    void onWriteReturnedWithoutRevision(Memory m, long now) {
+    void onWriteRevisionUnknown(Memory m, long now) {
         switch (m.mode) {
             case SYNCED, RELOADING -> wantReload(m, now);
             case RELOAD_WANTED, DISCONNECTED -> {
