@@ -1,5 +1,6 @@
 package app.simplecloud.api.internal.networkstate.read;
 
+import app.simplecloud.api.CloudApiException;
 import app.simplecloud.api.CloudApiOptions;
 import app.simplecloud.api.cache.CacheConfig;
 import app.simplecloud.api.cache.QueryCache;
@@ -44,9 +45,11 @@ import java.util.Optional;
 import java.util.concurrent.CompletableFuture;
 import java.util.concurrent.ConcurrentHashMap;
 import java.util.concurrent.Executor;
+import java.util.concurrent.TimeUnit;
 import java.util.concurrent.atomic.AtomicInteger;
 
 import static org.junit.jupiter.api.Assertions.assertEquals;
+import static org.junit.jupiter.api.Assertions.assertInstanceOf;
 import static org.junit.jupiter.api.Assertions.assertTrue;
 
 /**
@@ -66,6 +69,7 @@ class ReadRoutingTest {
     private static final Executor CALLER_THREAD = Runnable::run;
     private static final Executor NEVER_RUNS = command -> {
     };
+    private static final Duration CACHE_TIMEOUT = Duration.ofMillis(50);
 
     private final MockWebServer controller = new MockWebServer();
     private final Map<String, String> bodiesByPath = new ConcurrentHashMap<>();
@@ -183,6 +187,35 @@ class ReadRoutingTest {
         assertTrue(serverList.isDone(), "a read over HTTP would wait for an executor that never runs");
         assertTrue(groupList.isDone());
         assertTrue(persistentServerList.isDone());
+    }
+
+    @Test
+    void aCacheTimeoutReachesTheCallerUnwrappedWhenTheCopyDoesNotAnswer() throws Exception {
+        QueryCacheImpl timingOutCache = new QueryCacheImpl(CacheConfig.DEFAULT, CACHE_TIMEOUT);
+        GroupApiImpl groups = new GroupApiImpl(options, timingOutCache, apiClient, NEVER_RUNS, copyReads);
+        view.answer(false);
+
+        CompletableFuture<Throwable> failure = groups.getAllGroups(null).handle((listed, error) -> error);
+        Throwable seen = failure.get(5, TimeUnit.SECONDS);
+        timingOutCache.shutdown();
+
+        assertInstanceOf(CloudApiException.class, seen, "the cache's own exception, as without a view");
+    }
+
+    @Test
+    void aCacheTimeoutReachesTheCallerUnwrappedAfterTheReadWaited() throws Exception {
+        QueryCacheImpl timingOutCache = new QueryCacheImpl(CacheConfig.DEFAULT, CACHE_TIMEOUT);
+        GroupApiImpl groups = new GroupApiImpl(options, timingOutCache, apiClient, NEVER_RUNS, copyReads);
+        view.awaitOwnWrite(true);
+
+        CompletableFuture<Throwable> failure = groups.getAllGroups(null).handle((listed, error) -> error);
+        boolean waited = !failure.isDone();
+        view.awaitOwnWrite(false);
+        Throwable seen = failure.get(5, TimeUnit.SECONDS);
+        timingOutCache.shutdown();
+
+        assertTrue(waited, "the read waits for the copy");
+        assertInstanceOf(CloudApiException.class, seen, "the cache's own exception, relayed as it is");
     }
 
     @Test

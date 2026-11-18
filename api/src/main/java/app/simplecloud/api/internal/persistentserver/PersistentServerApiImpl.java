@@ -120,9 +120,9 @@ public class PersistentServerApiImpl implements PersistentServerApi {
         if (!Identifiers.isUuid(id)) {
             return CompletableFuture.completedFuture(Optional.empty());
         }
-        CompletableFuture<Optional<ModelsListPersistentServersResponse>> fromCopy =
-                copyReads.listPersistentServers(listParameters(null, id, null));
-        return fromCopy.thenCompose(copied -> findPersistentServerByIdInCopyOrController(copied, id));
+        PersistentServerListParameters parameters = listParameters(null, id, null);
+        return copyReads.listPersistentServers(parameters,
+                copied -> findPersistentServerByIdInCopyOrController(copied, id));
     }
 
     private CompletableFuture<Optional<PersistentServer>> findPersistentServerByIdInCopyOrController(
@@ -153,9 +153,9 @@ public class PersistentServerApiImpl implements PersistentServerApi {
 
     @Override
     public CompletableFuture<Optional<PersistentServer>> findPersistentServerByName(String name) {
-        CompletableFuture<Optional<ModelsListPersistentServersResponse>> fromCopy =
-                copyReads.listPersistentServers(listParameters(null, null, name));
-        return fromCopy.thenCompose(copied -> findPersistentServerByNameInCopyOrController(copied, name));
+        PersistentServerListParameters parameters = listParameters(null, null, name);
+        return copyReads.listPersistentServers(parameters,
+                copied -> findPersistentServerByNameInCopyOrController(copied, name));
     }
 
     private CompletableFuture<Optional<PersistentServer>> findPersistentServerByNameInCopyOrController(
@@ -180,9 +180,8 @@ public class PersistentServerApiImpl implements PersistentServerApi {
     @Override
     public CompletableFuture<List<PersistentServer>> getAllPersistentServers(@Nullable PersistentServerQuery query) {
         PersistentServerListParameters parameters = listParameters(query, null, null);
-        CompletableFuture<Optional<ModelsListPersistentServersResponse>> fromCopy =
-                copyReads.listPersistentServers(parameters);
-        return fromCopy.thenCompose(copied -> getAllPersistentServersFromCopyOrController(copied, query, parameters));
+        return copyReads.listPersistentServers(parameters,
+                copied -> getAllPersistentServersFromCopyOrController(copied, query, parameters));
     }
 
     private CompletableFuture<List<PersistentServer>> getAllPersistentServersFromCopyOrController(

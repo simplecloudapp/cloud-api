@@ -182,9 +182,8 @@ public class GroupApiImpl implements GroupApi {
 
     @Override
     public CompletableFuture<Optional<Group>> findGroupByName(String name) {
-        CompletableFuture<Optional<ModelsListServerGroupsResponse>> fromCopy =
-                copyReads.listServerGroups(listParameters(null, null, name));
-        return fromCopy.thenCompose(copied -> findGroupByNameInCopyOrController(copied, name));
+        ServerGroupListParameters parameters = listParameters(null, null, name);
+        return copyReads.listServerGroups(parameters, copied -> findGroupByNameInCopyOrController(copied, name));
     }
 
     private CompletableFuture<Optional<Group>> findGroupByNameInCopyOrController(
@@ -218,9 +217,8 @@ public class GroupApiImpl implements GroupApi {
         if (!Identifiers.isUuid(id)) {
             return CompletableFuture.completedFuture(Optional.empty());
         }
-        CompletableFuture<Optional<ModelsListServerGroupsResponse>> fromCopy =
-                copyReads.listServerGroups(listParameters(null, id, null));
-        return fromCopy.thenCompose(copied -> findGroupByIdInCopyOrController(copied, id));
+        ServerGroupListParameters parameters = listParameters(null, id, null);
+        return copyReads.listServerGroups(parameters, copied -> findGroupByIdInCopyOrController(copied, id));
     }
 
     private CompletableFuture<Optional<Group>> findGroupByIdInCopyOrController(
@@ -245,8 +243,8 @@ public class GroupApiImpl implements GroupApi {
     @Override
     public CompletableFuture<List<Group>> getAllGroups(@org.jetbrains.annotations.Nullable GroupQuery query) {
         ServerGroupListParameters parameters = listParameters(query, null, null);
-        CompletableFuture<Optional<ModelsListServerGroupsResponse>> fromCopy = copyReads.listServerGroups(parameters);
-        return fromCopy.thenCompose(copied -> getAllGroupsFromCopyOrController(copied, query, parameters));
+        return copyReads.listServerGroups(parameters,
+                copied -> getAllGroupsFromCopyOrController(copied, query, parameters));
     }
 
     private CompletableFuture<List<Group>> getAllGroupsFromCopyOrController(

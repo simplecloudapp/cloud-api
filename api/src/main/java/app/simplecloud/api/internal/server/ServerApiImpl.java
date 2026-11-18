@@ -87,8 +87,7 @@ public class ServerApiImpl implements ServerApi {
             return CompletableFuture.completedFuture(Optional.empty());
         }
         ServerListParameters parameters = listParameters(null, id);
-        CompletableFuture<Optional<ModelsListServersResponse>> fromCopy = copyReads.listServers(parameters);
-        return fromCopy.thenCompose(copied -> findServerByIdInCopyOrController(copied, parameters, id));
+        return copyReads.listServers(parameters, copied -> findServerByIdInCopyOrController(copied, parameters, id));
     }
 
     private CompletableFuture<Optional<Server>> findServerByIdInCopyOrController(
@@ -123,10 +122,9 @@ public class ServerApiImpl implements ServerApi {
         ServerQuery query = ServerQuery.create()
                 .filterByServerGroupName(groupName)
                 .filterByNumericalId(numericalId);
-        CompletableFuture<Optional<ModelsListServersResponse>> fromCopy =
-                copyReads.listServers(listParameters(query, null));
-        return fromCopy.thenCompose(copied ->
-                findServerByNumericalIdInCopyOrController(copied, query, groupName, numericalId));
+        ServerListParameters parameters = listParameters(query, null);
+        return copyReads.listServers(parameters,
+                copied -> findServerByNumericalIdInCopyOrController(copied, query, groupName, numericalId));
     }
 
     private CompletableFuture<Optional<Server>> findServerByNumericalIdInCopyOrController(
@@ -154,9 +152,9 @@ public class ServerApiImpl implements ServerApi {
     public CompletableFuture<List<Server>> getServersByGroup(String groupName) {
         ServerQuery query = ServerQuery.create()
                 .filterByServerGroupName(groupName);
-        CompletableFuture<Optional<ModelsListServersResponse>> fromCopy =
-                copyReads.listServers(listParameters(query, null));
-        return fromCopy.thenCompose(copied -> getServersByGroupFromCopyOrController(copied, query, groupName));
+        ServerListParameters parameters = listParameters(query, null);
+        return copyReads.listServers(parameters,
+                copied -> getServersByGroupFromCopyOrController(copied, query, groupName));
     }
 
     private CompletableFuture<List<Server>> getServersByGroupFromCopyOrController(
@@ -187,9 +185,8 @@ public class ServerApiImpl implements ServerApi {
     }
 
     private CompletableFuture<List<Server>> fetchAllServers(@Nullable ServerQuery query, QueryKey key) {
-        CompletableFuture<Optional<ModelsListServersResponse>> fromCopy =
-                copyReads.listServers(listParameters(query, null));
-        return fromCopy.thenCompose(copied -> fetchAllServersFromCopyOrController(copied, query, key));
+        ServerListParameters parameters = listParameters(query, null);
+        return copyReads.listServers(parameters, copied -> fetchAllServersFromCopyOrController(copied, query, key));
     }
 
     private CompletableFuture<List<Server>> fetchAllServersFromCopyOrController(
