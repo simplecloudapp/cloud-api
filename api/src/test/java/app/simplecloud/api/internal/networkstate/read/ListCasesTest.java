@@ -39,8 +39,8 @@ import static org.junit.jupiter.api.Assertions.assertEquals;
  * {@code "missed"} when it answers a lookup with nothing. The copy answers neither of the last two, so the
  * caller asks the controller.
  *
- * <p>The expectations were checked against the controller itself: a scratch integration test in a copy of
- * the controller seeded this world into Postgres 17 and sent every case through the real handlers.
+ * <p>The controller runs the same file against its real list routes on Postgres
+ * ({@code TestListRoutesAnswerTheSharedListCases}); {@code SOURCE} next to the file names the commit.
  */
 class ListCasesTest {
 

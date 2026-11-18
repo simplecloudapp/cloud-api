@@ -1,0 +1,3 @@
+list-cases.json is copied from the controller, branch feat/network-state-sync, at commit
+1f03629e1db9fd233dfe4495b3eed0d9f00eedb8, from internal/web/testdata/network-state/list-cases.json.
+The controller runs the same cases against its list routes in TestListRoutesAnswerTheSharedListCases.
