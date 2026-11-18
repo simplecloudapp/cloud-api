@@ -59,7 +59,7 @@ public final class CopyServerGroupList {
         Query query = parsed.get();
         List<ListedGroup> matching = new ArrayList<>();
         for (StateServerGroup group : copy.serverGroups().values()) {
-            ListedGroup listed = ListedGroup.of(group, copy);
+            ListedGroup listed = ListedGroup.of(group);
             if (query.matches(listed)) {
                 matching.add(listed);
             }
@@ -69,9 +69,10 @@ public final class CopyServerGroupList {
         if (query.picksGroups() && page.isEmpty()) {
             return Optional.empty();
         }
+        // Only the page: the stats of each group scan every server.
         JsonArray groups = new JsonArray();
         for (ListedGroup listed : page) {
-            groups.add(listed.json());
+            groups.add(ServerGroupJson.render(listed.group(), copy));
         }
         JsonObject body = new JsonObject();
         // The handler collects the groups into a nil slice, which Go encodes as null when nothing matched.
@@ -81,23 +82,27 @@ public final class CopyServerGroupList {
     }
 
     /**
-     * A group as the list renders it, with the members the filters and the order read. Only the listed groups
-     * are read into models, as over HTTP, so a group the client cannot read fails only a list that shows it.
+     * A group with the members the filters and the order read, from its summary, which the rendered group
+     * keeps as it is. Only the listed groups are read into models, as over HTTP, so a group the client cannot
+     * read fails only a list that shows it.
      */
     private record ListedGroup(
-            ByteString id,
-            JsonObject json,
+            StateServerGroup group,
             @Nullable String name,
             @Nullable String type,
             @Nullable List<String> tags,
             Instant createdAt
     ) {
 
-        static ListedGroup of(StateServerGroup group, NetworkCopy copy) {
-            JsonObject json = ServerGroupJson.render(group, copy);
-            Instant createdAt = Instant.parse(ControllerJson.text(json, "created_at"));
-            return new ListedGroup(group.getId(), json, ControllerJson.text(json, "name"),
-                    ControllerJson.text(json, "type"), ControllerJson.texts(json, "tags"), createdAt);
+        static ListedGroup of(StateServerGroup group) {
+            JsonObject summary = ControllerJson.parseObject(group.getSummaryJson());
+            Instant createdAt = Instant.parse(ControllerJson.text(summary, "created_at"));
+            return new ListedGroup(group, ControllerJson.text(summary, "name"),
+                    ControllerJson.text(summary, "type"), ControllerJson.texts(summary, "tags"), createdAt);
+        }
+
+        ByteString id() {
+            return group.getId();
         }
     }
 

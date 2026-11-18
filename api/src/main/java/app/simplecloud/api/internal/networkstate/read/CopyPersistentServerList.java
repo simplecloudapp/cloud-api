@@ -58,7 +58,7 @@ public final class CopyPersistentServerList {
         Query query = parsed.get();
         List<ListedPersistentServer> matching = new ArrayList<>();
         for (StatePersistentServer persistentServer : copy.persistentServers().values()) {
-            ListedPersistentServer listed = ListedPersistentServer.of(persistentServer, copy);
+            ListedPersistentServer listed = ListedPersistentServer.of(persistentServer);
             if (query.matches(listed)) {
                 matching.add(listed);
             }
@@ -70,8 +70,9 @@ public final class CopyPersistentServerList {
         }
         // Unlike the other two lists, the handler makes an empty slice here, which Go encodes as [].
         JsonArray persistentServers = new JsonArray();
+        // Only the page: the player count of each persistent server scans every server.
         for (ListedPersistentServer listed : page) {
-            persistentServers.add(listed.json());
+            persistentServers.add(PersistentServerJson.render(listed.persistentServer(), copy));
         }
         JsonObject body = new JsonObject();
         body.add("persistent_servers", persistentServers);
@@ -80,12 +81,11 @@ public final class CopyPersistentServerList {
     }
 
     /**
-     * A persistent server as the list renders it, with the members the filters and the order read. Only the
-     * listed ones are read into models, as over HTTP.
+     * A persistent server with the members the filters and the order read, from its summary, which the
+     * rendered persistent server keeps as it is. Only the listed ones are read into models, as over HTTP.
      */
     private record ListedPersistentServer(
-            ByteString id,
-            JsonObject json,
+            StatePersistentServer persistentServer,
             @Nullable String name,
             @Nullable List<String> tags,
             @Nullable Boolean active,
@@ -93,12 +93,16 @@ public final class CopyPersistentServerList {
             Instant createdAt
     ) {
 
-        static ListedPersistentServer of(StatePersistentServer persistentServer, NetworkCopy copy) {
-            JsonObject json = PersistentServerJson.render(persistentServer, copy);
-            Instant createdAt = Instant.parse(ControllerJson.text(json, "created_at"));
-            return new ListedPersistentServer(persistentServer.getId(), json, ControllerJson.text(json, "name"),
-                    ControllerJson.texts(json, "tags"), ControllerJson.bool(json, "active"),
-                    ControllerJson.text(json, "serverhost_id"), createdAt);
+        static ListedPersistentServer of(StatePersistentServer persistentServer) {
+            JsonObject summary = ControllerJson.parseObject(persistentServer.getSummaryJson());
+            Instant createdAt = Instant.parse(ControllerJson.text(summary, "created_at"));
+            return new ListedPersistentServer(persistentServer, ControllerJson.text(summary, "name"),
+                    ControllerJson.texts(summary, "tags"), ControllerJson.bool(summary, "active"),
+                    ControllerJson.text(summary, "serverhost_id"), createdAt);
+        }
+
+        ByteString id() {
+            return persistentServer.getId();
         }
     }
 
