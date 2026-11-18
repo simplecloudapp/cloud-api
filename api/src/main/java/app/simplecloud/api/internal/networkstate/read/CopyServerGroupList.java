@@ -1,7 +1,6 @@
 package app.simplecloud.api.internal.networkstate.read;
 
 import app.simplecloud.api.internal.networkstate.NetworkCopy;
-import app.simplecloud.api.internal.networkstate.ReadKind;
 import app.simplecloud.api.web.models.ModelsListServerGroupsResponse;
 import build.buf.gen.simplecloud.controller.v2.StateServerGroup;
 import com.google.gson.JsonArray;
@@ -34,11 +33,6 @@ public final class CopyServerGroupList implements CopyList<ServerGroupListParame
     private static final Comparator<ListedGroup> ORDER = Comparator
             .comparing(ListedGroup::createdAt, Comparator.reverseOrder())
             .thenComparing(ListedGroup::id, ByteOrder.ID);
-
-    @Override
-    public ReadKind kind() {
-        return ReadKind.SERVER_GROUP;
-    }
 
     /**
      * Returns the controller's answer, read as the HTTP client reads it, or empty when only the controller can

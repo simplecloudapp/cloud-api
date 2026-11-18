@@ -1,7 +1,6 @@
 package app.simplecloud.api.internal.networkstate.read;
 
 import app.simplecloud.api.internal.networkstate.NetworkCopy;
-import app.simplecloud.api.internal.networkstate.ReadKind;
 import app.simplecloud.api.web.models.ModelsListPersistentServersResponse;
 import build.buf.gen.simplecloud.controller.v2.StatePersistentServer;
 import com.google.gson.JsonArray;
@@ -31,11 +30,6 @@ public final class CopyPersistentServerList
     private static final Comparator<ListedPersistentServer> ORDER = Comparator
             .comparing(ListedPersistentServer::createdAt, Comparator.reverseOrder())
             .thenComparing(ListedPersistentServer::id, ByteOrder.ID);
-
-    @Override
-    public ReadKind kind() {
-        return ReadKind.PERSISTENT_SERVER;
-    }
 
     /**
      * Returns the controller's answer, read as the HTTP client reads it, or empty when only the controller can

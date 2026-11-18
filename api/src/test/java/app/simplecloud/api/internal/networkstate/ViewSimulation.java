@@ -10,7 +10,6 @@ import java.util.ArrayDeque;
 import java.util.ArrayList;
 import java.util.Comparator;
 import java.util.Deque;
-import java.util.EnumMap;
 import java.util.EnumSet;
 import java.util.HashMap;
 import java.util.List;
@@ -44,9 +43,7 @@ import static org.junit.jupiter.api.Assertions.fail;
  *   <li>a live view's copy equals the database at the copy's epoch and revision, a state that existed;</li>
  *   <li>a live view lacks no batch of its epoch published 30 s before, and is in the database's epoch from
  *   30 s after a failover;</li>
- *   <li>a read the view may answer sees every own write that can change it;</li>
- *   <li>whether a read that starts now goes over HTTP does not depend on its kind, since only live and the
- *   flag decide it;</li>
+ *   <li>a read the view may answer sees every own write;</li>
  *   <li>a read waits for 3 s at most, and its start time changes nothing else about where it goes;</li>
  *   <li>the view never runs two loads at once, or starts them less than 2 s apart.</li>
  * </ul>
@@ -196,6 +193,9 @@ final class ViewSimulation {
         }
     }
 
+    /**
+     * The simulator's own, not the reference machine's, so a bug there cannot hide here.
+     */
     private record Position(long epoch, long revision) {
 
         boolean isAtOrAfter(Position other) {
@@ -206,8 +206,14 @@ final class ViewSimulation {
             return Long.compareUnsigned(revision, other.revision) >= 0;
         }
 
-        static Position later(Position first, Position second) {
-            return first.isAtOrAfter(second) ? first : second;
+        /**
+         * {@code highest} may be null, for no write.
+         */
+        static Position later(Position highest, Position written) {
+            if (highest == null) {
+                return written;
+            }
+            return highest.isAtOrAfter(written) ? highest : written;
         }
     }
 
@@ -219,7 +225,7 @@ final class ViewSimulation {
     private final List<OwnerSlot> owners = new ArrayList<>();
     private final AgedRevisions batchesOlderThanLag = new AgedRevisions(LIVE_VIEW_LAGS_AT_MOST_MILLIS);
     private final AgedRevisions batchesOlderThanReach = new AgedRevisions(CHANGE_REACHES_VIEW_MILLIS);
-    private final Map<ReadKind, Position> ownWritesByRead = new EnumMap<>(ReadKind.class);
+    private Position highestOwnWrite;
     private final long endAt;
     private final long faultGapMillis;
     private final double lossChance;
@@ -405,29 +411,14 @@ final class ViewSimulation {
         boolean readFailed = faultsAllowed() && random.nextDouble() < revisionReadFailureChance;
         ViewInput response = readFailed
                 ? new ViewInput.WriteRevisionUnknown()
-                : new ViewInput.WriteReturned(commit.route(), afterCommit.epoch(), afterCommit.counter());
+                : new ViewInput.WriteReturned(afterCommit.epoch(), afterCommit.counter());
         schedule(5 + random.nextInt(300), () -> returnOwnWrite(commit, response));
     }
 
     private void returnOwnWrite(ModelDatabase.Commit commit, ViewInput response) {
         Position committed = new Position(commit.epoch(), commit.revision());
-        for (ReadKind read : readsChangedBy(commit.route())) {
-            ownWritesByRead.merge(read, committed, Position::later);
-        }
+        highestOwnWrite = Position.later(highestOwnWrite, committed);
         step(response);
-    }
-
-    /**
-     * The reads a write can change, as {@link NetworkView} states them. The simulator states this, and
-     * {@link Position}, itself instead of using the reference machine's, so a bug there cannot hide here.
-     */
-    private static Set<ReadKind> readsChangedBy(WriteKind route) {
-        return switch (route) {
-            case SERVER -> EnumSet.of(ReadKind.SERVER, ReadKind.SERVER_GROUP, ReadKind.PERSISTENT_SERVER);
-            case SERVER_GROUP -> EnumSet.of(ReadKind.SERVER_GROUP, ReadKind.SERVER);
-            case PERSISTENT_SERVER -> EnumSet.of(ReadKind.PERSISTENT_SERVER, ReadKind.SERVER);
-            case BLUEPRINT -> EnumSet.of(ReadKind.SERVER_GROUP, ReadKind.SERVER);
-        };
     }
 
     // The relay.
@@ -690,7 +681,6 @@ final class ViewSimulation {
             checkLiveCopyIsRecent();
         }
         checkOwnWritesAreSeen();
-        checkRouteIsTheSameForEveryKind();
         checkWaitEndsAfterThreeSeconds();
     }
 
@@ -699,7 +689,7 @@ final class ViewSimulation {
      * pulse here allows answers.
      */
     private boolean isLive() {
-        return view.routeRead(ReadKind.SERVER, now, now) != ReadRoute.OVER_HTTP;
+        return view.routeRead(now, now) != ReadRoute.OVER_HTTP;
     }
 
     private void checkLiveCopyIsRecent() {
@@ -730,45 +720,28 @@ final class ViewSimulation {
     }
 
     private void checkOwnWritesAreSeen() {
-        for (Map.Entry<ReadKind, Position> ownWrite : ownWritesByRead.entrySet()) {
-            ReadKind read = ownWrite.getKey();
-            if (view.routeRead(read, now, now) != ReadRoute.FROM_COPY) {
-                continue;
-            }
-            NetworkCopy copy = copyOrFail("a view that may answer holds no copy");
-            Position copyPosition = new Position(copy.epoch(), copy.revision());
-            if (!copyPosition.isAtOrAfter(ownWrite.getValue())) {
-                failRun("the view may answer " + read + " reads at " + copyPosition + " before its own write at "
-                        + ownWrite.getValue());
-            }
+        boolean answeredFromCopy = view.routeRead(now, now) == ReadRoute.FROM_COPY;
+        if (highestOwnWrite == null || !answeredFromCopy) {
+            return;
         }
-    }
-
-    private void checkRouteIsTheSameForEveryKind() {
-        boolean overHttp = !isLive();
-        for (ReadKind read : ReadKind.values()) {
-            boolean readOverHttp = view.routeRead(read, now, now) == ReadRoute.OVER_HTTP;
-            if (readOverHttp != overHttp) {
-                failRun("a " + read + " read that starts now goes over HTTP: " + readOverHttp
-                        + ", a SERVER read: " + overHttp);
-            }
+        NetworkCopy copy = copyOrFail("a view that may answer holds no copy");
+        Position copyPosition = new Position(copy.epoch(), copy.revision());
+        if (!copyPosition.isAtOrAfter(highestOwnWrite)) {
+            failRun("the view may answer reads at " + copyPosition + " before its own write at " + highestOwnWrite);
         }
     }
 
     private void checkWaitEndsAfterThreeSeconds() {
-        for (ReadKind read : ReadKind.values()) {
-            ReadRoute startingNow = view.routeRead(read, now, now);
-            ReadRoute startedJustUnderThreeSecondsAgo = view.routeRead(read, now - OWN_WRITE_WAIT_MILLIS + 1, now);
-            ReadRoute startedThreeSecondsAgo = view.routeRead(read, now - OWN_WRITE_WAIT_MILLIS, now);
-            ReadRoute afterTheWait = startingNow == ReadRoute.WAIT ? ReadRoute.OVER_HTTP : startingNow;
-            if (startedJustUnderThreeSecondsAgo != startingNow) {
-                failRun("a " + read + " read started under 3 s ago goes " + startedJustUnderThreeSecondsAgo
-                        + ", one that starts now " + startingNow);
-            }
-            if (startedThreeSecondsAgo != afterTheWait) {
-                failRun("a " + read + " read started 3 s ago goes " + startedThreeSecondsAgo
-                        + ", one that starts now " + startingNow);
-            }
+        ReadRoute startingNow = view.routeRead(now, now);
+        ReadRoute startedJustUnderThreeSecondsAgo = view.routeRead(now - OWN_WRITE_WAIT_MILLIS + 1, now);
+        ReadRoute startedThreeSecondsAgo = view.routeRead(now - OWN_WRITE_WAIT_MILLIS, now);
+        ReadRoute afterTheWait = startingNow == ReadRoute.WAIT ? ReadRoute.OVER_HTTP : startingNow;
+        if (startedJustUnderThreeSecondsAgo != startingNow) {
+            failRun("a read started under 3 s ago goes " + startedJustUnderThreeSecondsAgo
+                    + ", one that starts now " + startingNow);
+        }
+        if (startedThreeSecondsAgo != afterTheWait) {
+            failRun("a read started 3 s ago goes " + startedThreeSecondsAgo + ", one that starts now " + startingNow);
         }
     }
 

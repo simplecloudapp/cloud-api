@@ -15,11 +15,11 @@ public interface AnsweringCopy {
      * For an instance whose network or credential allows no view: no copy ever answers, so every read goes over
      * HTTP.
      */
-    AnsweringCopy NONE = kind -> CompletableFuture.completedFuture(Optional.empty());
+    AnsweringCopy NONE = () -> CompletableFuture.completedFuture(Optional.empty());
 
     /**
-     * Returns the copy to answer a read of {@code kind} from, or empty, so the read goes over HTTP. The future
-     * is complete on return unless the read waits for an own write.
+     * Returns the copy to answer a read from, or empty, so the read goes over HTTP. The future is complete on
+     * return unless the read waits for an own write.
      */
-    CompletableFuture<Optional<NetworkCopy>> copyToAnswer(ReadKind kind);
+    CompletableFuture<Optional<NetworkCopy>> copyToAnswer();
 }

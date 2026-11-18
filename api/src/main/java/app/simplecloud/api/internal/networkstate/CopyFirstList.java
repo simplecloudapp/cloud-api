@@ -96,7 +96,7 @@ public final class CopyFirstList<P, R> {
         if (copyList.refuses(parameters)) {
             return CompletableFuture.completedFuture(Optional.empty());
         }
-        CompletableFuture<Optional<NetworkCopy>> copyToAnswer = answeringCopy.copyToAnswer(copyList.kind());
+        CompletableFuture<Optional<NetworkCopy>> copyToAnswer = answeringCopy.copyToAnswer();
         return copyToAnswer.thenApply(copy -> answerOf(copy, parameters));
     }
 

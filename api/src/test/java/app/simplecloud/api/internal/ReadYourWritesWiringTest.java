@@ -6,7 +6,6 @@ import app.simplecloud.api.internal.networkstate.MonotonicClock;
 import app.simplecloud.api.internal.networkstate.NetworkView;
 import app.simplecloud.api.internal.networkstate.NetworkViewMachine;
 import app.simplecloud.api.internal.networkstate.NetworkViewShell;
-import app.simplecloud.api.internal.networkstate.ReadKind;
 import app.simplecloud.api.internal.networkstate.ReadRoute;
 import app.simplecloud.api.internal.networkstate.ViewInput;
 import app.simplecloud.api.server.Server;
@@ -133,7 +132,7 @@ class ReadYourWritesWiringTest {
         view = view.step(new ViewInput.SubscriptionsActive(), now).view();
         view = view.step(new ViewInput.SnapshotLoaded(snapshot), now).view();
         view = view.step(new ViewInput.PulseReceived(pulse), now).view();
-        assertEquals(ReadRoute.FROM_COPY, view.routeRead(ReadKind.SERVER, now, now));
+        assertEquals(ReadRoute.FROM_COPY, view.routeRead(now, now));
 
         Object stepLock = readField(shell, "stepLock");
         Field viewField = NetworkViewShell.class.getDeclaredField("view");

@@ -91,8 +91,8 @@ final class ViewDriver {
         send(new ViewInput.PulseReceived(pulse));
     }
 
-    void wrote(WriteKind written, long epoch, long revision) {
-        send(new ViewInput.WriteReturned(written, epoch, revision));
+    void wrote(long epoch, long revision) {
+        send(new ViewInput.WriteReturned(epoch, revision));
     }
 
     void wroteRevisionUnknown() {
@@ -219,33 +219,33 @@ final class ViewDriver {
      * Asks whether the current view is live at a later time, without a step in between.
      */
     boolean isLiveAt(long time) {
-        return view.routeRead(ReadKind.SERVER, time, time) != ReadRoute.OVER_HTTP;
+        return view.routeRead(time, time) != ReadRoute.OVER_HTTP;
     }
 
-    boolean mayAnswer(ReadKind kind) {
-        return view.routeRead(kind, now, now) == ReadRoute.FROM_COPY;
+    boolean mayAnswer() {
+        return view.routeRead(now, now) == ReadRoute.FROM_COPY;
     }
 
-    boolean awaitsOwnWrite(ReadKind kind) {
-        return awaitsOwnWriteAt(kind, now);
+    boolean awaitsOwnWrite() {
+        return awaitsOwnWriteAt(now);
     }
 
     /**
      * Asks whether a read that starts at a later time waits for an own write, without a step in between.
      */
-    boolean awaitsOwnWriteAt(ReadKind kind, long time) {
-        return view.routeRead(kind, time, time) == ReadRoute.WAIT;
+    boolean awaitsOwnWriteAt(long time) {
+        return view.routeRead(time, time) == ReadRoute.WAIT;
     }
 
-    ReadRoute routeOfReadStartedAt(ReadKind kind, long startedAt) {
-        return view.routeRead(kind, startedAt, now);
+    ReadRoute routeOfReadStartedAt(long startedAt) {
+        return view.routeRead(startedAt, now);
     }
 
     /**
      * Asks where a read that started at {@code startedAt} goes at a later time, without a step in between.
      */
-    ReadRoute routeOfReadStartedAt(ReadKind kind, long startedAt, long time) {
-        return view.routeRead(kind, startedAt, time);
+    ReadRoute routeOfReadStartedAt(long startedAt, long time) {
+        return view.routeRead(startedAt, time);
     }
 
     NetworkCopy copy() {

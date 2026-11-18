@@ -11,13 +11,10 @@ import build.buf.gen.simplecloud.controller.v2.StateServerMetrics;
 import com.google.protobuf.ByteString;
 
 import java.util.ArrayList;
-import java.util.EnumMap;
-import java.util.EnumSet;
 import java.util.HashMap;
 import java.util.List;
 import java.util.Map;
 import java.util.Optional;
-import java.util.Set;
 
 /**
  * The plainest machine that follows the rules of {@link NetworkView}, written to be obviously right, not
@@ -129,10 +126,10 @@ class ReferenceMachine {
         NetworkState auditSnapshot;
         long auditComparingSince;
         /**
-         * Only the own writes that no taken snapshot holds, so only the copy's epoch and revision can reach them.
+         * Only from own writes that no taken snapshot holds, so only the copy's epoch and revision can reach it.
          */
-        Map<ReadKind, Position> ownWritesByRead = new EnumMap<>(ReadKind.class);
-        Map<ReadKind, Position> ownWritesSinceLoadStartedByRead = new EnumMap<>(ReadKind.class);
+        Position highestOwnWrite;
+        Position highestOwnWriteSinceLoadStarted;
 
         Memory(RandomSequence random) {
             this.random = random;
@@ -158,8 +155,8 @@ class ReferenceMachine {
             auditDueAt = source.auditDueAt;
             auditSnapshot = source.auditSnapshot;
             auditComparingSince = source.auditComparingSince;
-            ownWritesByRead = new EnumMap<>(source.ownWritesByRead);
-            ownWritesSinceLoadStartedByRead = new EnumMap<>(source.ownWritesSinceLoadStartedByRead);
+            highestOwnWrite = source.highestOwnWrite;
+            highestOwnWriteSinceLoadStarted = source.highestOwnWriteSinceLoadStarted;
         }
 
     }
@@ -182,8 +179,8 @@ class ReferenceMachine {
         }
 
         @Override
-        public ReadRoute routeRead(ReadKind kind, long readStartedAtMillis, long nowMillis) {
-            return machine.routeRead(memory, kind, readStartedAtMillis, nowMillis);
+        public ReadRoute routeRead(long readStartedAtMillis, long nowMillis) {
+            return machine.routeRead(memory, readStartedAtMillis, nowMillis);
         }
 
         @Override
@@ -489,10 +486,8 @@ class ReferenceMachine {
 
     void onWriteReturned(Memory m, ViewInput.WriteReturned write) {
         Position written = new Position(write.epoch(), write.revision());
-        for (ReadKind read : readsChangedBy(write.written())) {
-            m.ownWritesByRead.merge(read, written, this::later);
-            m.ownWritesSinceLoadStartedByRead.merge(read, written, this::later);
-        }
+        m.highestOwnWrite = later(m.highestOwnWrite, written);
+        m.highestOwnWriteSinceLoadStarted = later(m.highestOwnWriteSinceLoadStarted, written);
     }
 
     /**
@@ -501,7 +496,7 @@ class ReferenceMachine {
      * only those handed over since are left to reach.
      */
     void reachOwnWritesBeforeLoad(Memory m) {
-        m.ownWritesByRead = new EnumMap<>(m.ownWritesSinceLoadStartedByRead);
+        m.highestOwnWrite = m.highestOwnWriteSinceLoadStarted;
     }
 
     /**
@@ -513,15 +508,6 @@ class ReferenceMachine {
             case RELOAD_WANTED, DISCONNECTED -> {
             }
         }
-    }
-
-    static Set<ReadKind> readsChangedBy(WriteKind written) {
-        return switch (written) {
-            case SERVER -> EnumSet.of(ReadKind.SERVER, ReadKind.SERVER_GROUP, ReadKind.PERSISTENT_SERVER);
-            case SERVER_GROUP -> EnumSet.of(ReadKind.SERVER_GROUP, ReadKind.SERVER);
-            case PERSISTENT_SERVER -> EnumSet.of(ReadKind.PERSISTENT_SERVER, ReadKind.SERVER);
-            case BLUEPRINT -> EnumSet.of(ReadKind.SERVER_GROUP, ReadKind.SERVER);
-        };
     }
 
     void actOnDeadlines(Memory m, long now, List<ViewEffect> effects) {
@@ -596,7 +582,7 @@ class ReferenceMachine {
         m.loadRunning = true;
         m.loadAnswerIgnored = false;
         m.lastLoadStartedAt = now;
-        m.ownWritesSinceLoadStartedByRead.clear();
+        m.highestOwnWriteSinceLoadStarted = null;
     }
 
     void onAuditSnapshot(Memory m, NetworkState snapshot, long now, List<ViewEffect> effects) {
@@ -652,15 +638,15 @@ class ReferenceMachine {
                 && now - m.goodPulseAt < GOOD_PULSE_MAX_AGE_MILLIS;
     }
 
-    boolean mayAnswer(Memory m, ReadKind kind, long now) {
-        return isLive(m, now) && m.viewsMayAnswer && reachedOwnWrites(m, kind);
+    boolean mayAnswer(Memory m, long now) {
+        return isLive(m, now) && m.viewsMayAnswer && reachedOwnWrites(m);
     }
 
-    ReadRoute routeRead(Memory m, ReadKind kind, long startedAt, long now) {
-        if (mayAnswer(m, kind, now)) {
+    ReadRoute routeRead(Memory m, long startedAt, long now) {
+        if (mayAnswer(m, now)) {
             return ReadRoute.FROM_COPY;
         }
-        if (awaitsOwnWrite(m, kind, now) && !waitedTooLong(startedAt, now)) {
+        if (awaitsOwnWrite(m, now) && !waitedTooLong(startedAt, now)) {
             return ReadRoute.WAIT;
         }
         return ReadRoute.OVER_HTTP;
@@ -670,14 +656,13 @@ class ReferenceMachine {
         return now - startedAt >= OWN_WRITE_WAIT_MILLIS;
     }
 
-    boolean awaitsOwnWrite(Memory m, ReadKind kind, long now) {
+    boolean awaitsOwnWrite(Memory m, long now) {
         boolean answersAllowed = isLive(m, now) && m.viewsMayAnswer;
-        return answersAllowed && !reachedOwnWrites(m, kind);
+        return answersAllowed && !reachedOwnWrites(m);
     }
 
-    boolean reachedOwnWrites(Memory m, ReadKind read) {
-        Position ownWrite = m.ownWritesByRead.get(read);
-        return ownWrite == null || isAtOrAfter(Position.of(m.copy), ownWrite);
+    boolean reachedOwnWrites(Memory m) {
+        return m.highestOwnWrite == null || isAtOrAfter(Position.of(m.copy), m.highestOwnWrite);
     }
 
     boolean isAtOrAfter(Position position, Position other) {
@@ -688,8 +673,14 @@ class ReferenceMachine {
         return compare(Comparison.OWN_WRITE_REVISION, position.revision(), other.revision()) >= 0;
     }
 
-    Position later(Position first, Position second) {
-        return isAtOrAfter(first, second) ? first : second;
+    /**
+     * {@code highest} may be null, for no write.
+     */
+    Position later(Position highest, Position written) {
+        if (highest == null) {
+            return written;
+        }
+        return isAtOrAfter(highest, written) ? highest : written;
     }
 
     static NetworkCopy copyOf(NetworkState snapshot) {

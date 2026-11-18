@@ -8,18 +8,17 @@ import org.jetbrains.annotations.NotNull;
 
 import java.io.IOException;
 import java.util.List;
-import java.util.Optional;
 import java.util.logging.Level;
 import java.util.logging.Logger;
 
 /**
- * Hands a view the state revision of each write that a client sends, so that the reads the write can change
- * go over HTTP until the view's copy has reached the write. The controller puts the revision on every
- * successful response to a write of a network-scoped route. A write that may have committed but whose
- * revision is unknown goes to the view as {@link ViewInput.WriteRevisionUnknown}, so a live view
- * reloads: a 2xx without the revision, a 5xx (from the controller or a proxy in front of it), and a call that
- * threw, such as a read timeout or a dropped connection. A 4xx hands over nothing, because the controller
- * committed nothing.
+ * Hands a view the state revision of each network state write that a client sends, so that while the view
+ * answers reads, a read waits up to 3 s for the copy to reach the write before it goes over HTTP. The
+ * controller puts the revision on every successful response to a write of a network-scoped route. A write
+ * that may have committed but whose revision is unknown goes to the view as
+ * {@link ViewInput.WriteRevisionUnknown}, so a live view reloads: a 2xx without the revision, a 5xx (from the
+ * controller or a proxy in front of it), and a call that threw, such as a read timeout or a dropped
+ * connection. A 4xx hands over nothing, because the controller committed nothing.
  */
 public final class StateRevisionInterceptor implements Interceptor {
 
@@ -29,6 +28,8 @@ public final class StateRevisionInterceptor implements Interceptor {
     private static final String API_VERSION_SEGMENT = "v0";
     private static final int FIRST_SERVER_ERROR = 500;
     private static final List<String> WRITE_METHODS = List.of("POST", "PUT", "PATCH", "DELETE");
+    private static final List<String> NETWORK_STATE_RESOURCES =
+            List.of("servers", "server-groups", "persistent-servers", "blueprints");
 
     private final NetworkViewShell shell;
 
@@ -49,62 +50,54 @@ public final class StateRevisionInterceptor implements Interceptor {
     @Override
     public @NotNull Response intercept(@NotNull Chain chain) throws IOException {
         Request request = chain.request();
-        Optional<WriteKind> written = writtenKind(request);
-        if (written.isEmpty()) {
+        if (!writesNetworkState(request)) {
             return chain.proceed(request);
         }
-        WriteKind kind = written.get();
-        Response response = proceedReportingThrowToView(chain, kind);
+        Response response = proceedReportingThrowToView(chain);
         if (response.isSuccessful()) {
-            handOverRevision(kind, response);
+            handOverRevision(response);
         } else if (response.code() >= FIRST_SERVER_ERROR) {
-            LOGGER.fine("A " + kind + " write returned " + response.code());
+            LOGGER.fine("A network state write returned " + response.code());
             shell.writeRevisionUnknown();
         }
         // Any other status, above all a 4xx, means the controller committed nothing.
         return response;
     }
 
-    private Response proceedReportingThrowToView(Chain chain, WriteKind written) throws IOException {
+    private Response proceedReportingThrowToView(Chain chain) throws IOException {
         try {
             return chain.proceed(chain.request());
         } catch (IOException e) {
-            LOGGER.fine("A " + written + " write threw before its response arrived: " + e);
+            LOGGER.fine("A network state write threw before its response arrived: " + e);
             shell.writeRevisionUnknown();
             throw e;
         }
     }
 
     /**
-     * Returns the kind of item the request's route writes, by the route's first path segment after the API
-     * version, or empty for a read and for a route that writes none of these items. The player routes write
-     * no server, group, persistent server or blueprint row.
+     * Returns whether the request writes a server, group, persistent server or blueprint row, by its method and
+     * its route's first path segment after the API version. The player routes write none of these rows, and
+     * leaving them out keeps a 5xx on them from reloading the view.
      */
-    static Optional<WriteKind> writtenKind(Request request) {
+    static boolean writesNetworkState(Request request) {
         if (!WRITE_METHODS.contains(request.method())) {
-            return Optional.empty();
+            return false;
         }
         List<String> segments = request.url().pathSegments();
         int versionIndex = segments.indexOf(API_VERSION_SEGMENT);
         if (versionIndex < 0 || versionIndex + 1 >= segments.size()) {
-            return Optional.empty();
+            return false;
         }
         String resource = segments.get(versionIndex + 1);
-        return switch (resource) {
-            case "servers" -> Optional.of(WriteKind.SERVER);
-            case "server-groups" -> Optional.of(WriteKind.SERVER_GROUP);
-            case "persistent-servers" -> Optional.of(WriteKind.PERSISTENT_SERVER);
-            case "blueprints" -> Optional.of(WriteKind.BLUEPRINT);
-            default -> Optional.empty();
-        };
+        return NETWORK_STATE_RESOURCES.contains(resource);
     }
 
-    private void handOverRevision(WriteKind written, Response response) {
+    private void handOverRevision(Response response) {
         String epoch = response.header(EPOCH_HEADER);
         String revision = response.header(REVISION_HEADER);
         if (epoch == null || revision == null) {
             // An older controller, or one whose read of the revision failed after the write.
-            LOGGER.fine("A " + written + " write returned without the state revision headers");
+            LOGGER.fine("A network state write returned without the state revision headers");
             shell.writeRevisionUnknown();
             return;
         }
@@ -114,11 +107,11 @@ public final class StateRevisionInterceptor implements Interceptor {
             parsedEpoch = Long.parseUnsignedLong(epoch);
             parsedRevision = Long.parseUnsignedLong(revision);
         } catch (NumberFormatException e) {
-            LOGGER.log(Level.WARNING, "A " + written + " write returned state revision headers that are not"
+            LOGGER.log(Level.WARNING, "A network state write returned state revision headers that are not"
                     + " unsigned numbers: " + EPOCH_HEADER + "=" + epoch + ", " + REVISION_HEADER + "=" + revision, e);
             shell.writeRevisionUnknown();
             return;
         }
-        shell.writeReturned(written, parsedEpoch, parsedRevision);
+        shell.writeReturned(parsedEpoch, parsedRevision);
     }
 }

@@ -63,7 +63,7 @@ class CopyFirstListTest {
         return result.join();
     }
 
-    private CompletableFuture<Optional<NetworkCopy>> currentCopyAnswers(ReadKind kind) {
+    private CompletableFuture<Optional<NetworkCopy>> currentCopyAnswers() {
         Optional<NetworkCopy> copy = Optional.of(currentCopy.get());
         return CompletableFuture.completedFuture(copy);
     }
@@ -76,11 +76,6 @@ class CopyFirstListTest {
 
         private int renders;
         private boolean throwOnNextRender;
-
-        @Override
-        public ReadKind kind() {
-            return ReadKind.SERVER;
-        }
 
         @Override
         public boolean refuses(String parameters) {

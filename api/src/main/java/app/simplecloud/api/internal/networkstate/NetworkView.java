@@ -103,18 +103,21 @@ import java.util.Optional;
  *
  * <h2>Answers</h2>
  *
- * {@link #routeRead} says where a read of a kind goes: it is answered from the copy, it waits for the copy,
- * or it goes over HTTP. At time T, for a read that started at S, the first of these that holds decides:
+ * {@link #routeRead} says where a read goes: it is answered from the copy, it waits for the copy, or it goes
+ * over HTTP. At time T, for a read that started at S, the first of these that holds decides:
  * <ul>
  *   <li>the view is not live (rule 5; time alone ends it, when the last good pulse turns 15 s old), or the
  *   last pulse did not allow answers ({@code views_may_answer}; false before the first pulse): over HTTP;</li>
- *   <li>the copy has reached every own write that can change reads of that kind: from the copy;</li>
+ *   <li>the copy has reached every own write: from the copy;</li>
  *   <li>T is under 3 s after S: wait;</li>
  *   <li>otherwise: over HTTP.</li>
  * </ul>
  * So a read that the copy may answer is answered from it, also exactly 3 s after it started. A read waits
  * instead of going over HTTP because the controller's list cache can answer it from before the write for up to
- * 2 s, while the copy gets the write with its batch.
+ * 2 s, while the copy gets the write with its batch. Every own write counts for every read: a server write, the
+ * common one, changes the server, group and persistent server lists anyway, and a bar per kind of write would
+ * spare only a few milliseconds of wait after the rare others, but miss a read whenever a route writes another
+ * kind than its path names, such as {@code /v0/server-groups/convert-to-persistent}.
  * <p>A {@link ViewInput.WriteReturned} at epoch E and revision R is reached while the copy's epoch is above E,
  * or equal to E with local at or above R. It is also reached for good once the view takes a snapshot whose
  * load started in the step that handed over the write or in a later step. That is a reload's snapshot (rule
@@ -126,13 +129,6 @@ import java.util.Optional;
  * millisecond in an earlier step. A snapshot that is not taken reaches nothing: one in which a reference does
  * not resolve, the answer of an abandoned load, and an audit snapshot that matched or that the copy went past.
  * Each write is reached on its own, so a write after the snapshot makes reads wait again until it is reached.
- * A write of a kind can change these reads:
- * <ul>
- *   <li>a server: servers, server groups (their stats) and persistent servers (their player count);</li>
- *   <li>a server group: server groups and servers (a server contains its group);</li>
- *   <li>a persistent server: persistent servers and servers;</li>
- *   <li>a blueprint: server groups and servers (a group contains its blueprint).</li>
- * </ul>
  * <p>A {@link ViewInput.WriteRevisionUnknown} means reload in a synced view, and in a view whose
  * reload's load runs, because that copy or that load may be from before the write. The controller reads a
  * snapshot after the request arrived, so a load that starts after a successful response holds the write, and
@@ -149,10 +145,10 @@ public interface NetworkView {
     ViewStep step(ViewInput input, long nowMillis);
 
     /**
-     * Returns where a read of {@code kind} that started at {@code readStartedAtMillis} goes at
-     * {@code nowMillis} (Answers). The start is at or before {@code nowMillis}.
+     * Returns where a read that started at {@code readStartedAtMillis} goes at {@code nowMillis} (Answers). The
+     * start is at or before {@code nowMillis}.
      */
-    ReadRoute routeRead(ReadKind kind, long readStartedAtMillis, long nowMillis);
+    ReadRoute routeRead(long readStartedAtMillis, long nowMillis);
 
     /**
      * Returns the copy, or empty before the first snapshot is taken. A view keeps its copy while it is not

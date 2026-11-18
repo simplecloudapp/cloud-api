@@ -11,13 +11,10 @@ import build.buf.gen.simplecloud.controller.v2.StateServerMetrics;
 import com.google.protobuf.ByteString;
 
 import java.util.ArrayList;
-import java.util.EnumMap;
-import java.util.EnumSet;
 import java.util.HashMap;
 import java.util.List;
 import java.util.Map;
 import java.util.Optional;
-import java.util.Set;
 import java.util.function.Function;
 
 /**
@@ -104,7 +101,16 @@ public final class NetworkViewMachine implements NetworkView {
             return !isAfter(copyPosition);
         }
 
+        /**
+         * Either may be null, for no write.
+         */
         static Position later(Position first, Position second) {
+            if (first == null) {
+                return second;
+            }
+            if (second == null) {
+                return first;
+            }
             return second.isAfter(first) ? second : first;
         }
     }
@@ -125,16 +131,14 @@ public final class NetworkViewMachine implements NetworkView {
     private PulseAhead pulseAhead;
     private long nextAuditAt;
     private PendingAudit pendingAudit;
-    private final Map<ReadKind, Position> highestOwnWriteBeforeLoadStartByRead;
-    private final Map<ReadKind, Position> highestOwnWriteSinceLoadStartByRead;
+    private Position highestOwnWriteBeforeLoadStart;
+    private Position highestOwnWriteSinceLoadStart;
 
     private NetworkViewMachine(RandomSequence random) {
         this.random = random;
         runningLoad = RunningLoad.NONE;
         nextLoadAllowedAt = Long.MIN_VALUE;
         heldBatches = new ArrayList<>();
-        highestOwnWriteBeforeLoadStartByRead = new EnumMap<>(ReadKind.class);
-        highestOwnWriteSinceLoadStartByRead = new EnumMap<>(ReadKind.class);
     }
 
     private NetworkViewMachine(NetworkViewMachine previous) {
@@ -154,8 +158,8 @@ public final class NetworkViewMachine implements NetworkView {
         pulseAhead = previous.pulseAhead;
         nextAuditAt = previous.nextAuditAt;
         pendingAudit = previous.pendingAudit;
-        highestOwnWriteBeforeLoadStartByRead = new EnumMap<>(previous.highestOwnWriteBeforeLoadStartByRead);
-        highestOwnWriteSinceLoadStartByRead = new EnumMap<>(previous.highestOwnWriteSinceLoadStartByRead);
+        highestOwnWriteBeforeLoadStart = previous.highestOwnWriteBeforeLoadStart;
+        highestOwnWriteSinceLoadStart = previous.highestOwnWriteSinceLoadStart;
     }
 
     /**
@@ -178,12 +182,12 @@ public final class NetworkViewMachine implements NetworkView {
     }
 
     @Override
-    public ReadRoute routeRead(ReadKind kind, long readStartedAtMillis, long nowMillis) {
+    public ReadRoute routeRead(long readStartedAtMillis, long nowMillis) {
         boolean answersAllowed = isLive(nowMillis) && viewsMayAnswer;
         if (!answersAllowed) {
             return ReadRoute.OVER_HTTP;
         }
-        if (!copyLacksOwnWrite(kind)) {
+        if (!copyLacksOwnWrite()) {
             return ReadRoute.FROM_COPY;
         }
         boolean waitEnded = nowMillis - readStartedAtMillis >= OWN_WRITE_WAIT_MILLIS;
@@ -204,9 +208,9 @@ public final class NetworkViewMachine implements NetworkView {
     /**
      * Call only while the view holds a copy.
      */
-    private boolean copyLacksOwnWrite(ReadKind kind) {
-        boolean lacksWriteBeforeLoadStart = copyLacks(highestOwnWriteBeforeLoadStartByRead.get(kind));
-        boolean lacksWriteSinceLoadStart = copyLacks(highestOwnWriteSinceLoadStartByRead.get(kind));
+    private boolean copyLacksOwnWrite() {
+        boolean lacksWriteBeforeLoadStart = copyLacks(highestOwnWriteBeforeLoadStart);
+        boolean lacksWriteSinceLoadStart = copyLacks(highestOwnWriteSinceLoadStart);
         return lacksWriteBeforeLoadStart || lacksWriteSinceLoadStart;
     }
 
@@ -397,7 +401,7 @@ public final class NetworkViewMachine implements NetworkView {
         // The controller read this snapshot after its load started, so it holds every own write handed over
         // before that start, in any epoch. That load is the last one that started: no load starts while an audit
         // waits to compare.
-        highestOwnWriteBeforeLoadStartByRead.clear();
+        highestOwnWriteBeforeLoadStart = null;
         failedLoadsInRow = 0;
         snapshotTakenAt = now;
         lastGoodPulseAt = null;
@@ -568,16 +572,12 @@ public final class NetworkViewMachine implements NetworkView {
 
     private void recordOwnWrite(ViewInput.WriteReturned write) {
         Position written = new Position(write.epoch(), write.revision());
-        for (ReadKind read : readsChangedBy(write.written())) {
-            highestOwnWriteSinceLoadStartByRead.merge(read, written, Position::later);
-        }
+        highestOwnWriteSinceLoadStart = Position.later(highestOwnWriteSinceLoadStart, written);
     }
 
     private void moveOwnWritesBeforeLoadStart() {
-        for (Map.Entry<ReadKind, Position> ownWrite : highestOwnWriteSinceLoadStartByRead.entrySet()) {
-            highestOwnWriteBeforeLoadStartByRead.merge(ownWrite.getKey(), ownWrite.getValue(), Position::later);
-        }
-        highestOwnWriteSinceLoadStartByRead.clear();
+        highestOwnWriteBeforeLoadStart = Position.later(highestOwnWriteBeforeLoadStart, highestOwnWriteSinceLoadStart);
+        highestOwnWriteSinceLoadStart = null;
     }
 
     private void reloadIfCopyMayLackWrite(long now) {
@@ -587,14 +587,6 @@ public final class NetworkViewMachine implements NetworkView {
             case RELOAD_WANTED, DISCONNECTED -> {
             }
         }
-    }
-
-    private static Set<ReadKind> readsChangedBy(WriteKind written) {
-        return switch (written) {
-            case SERVER -> EnumSet.of(ReadKind.SERVER, ReadKind.SERVER_GROUP, ReadKind.PERSISTENT_SERVER);
-            case SERVER_GROUP, BLUEPRINT -> EnumSet.of(ReadKind.SERVER_GROUP, ReadKind.SERVER);
-            case PERSISTENT_SERVER -> EnumSet.of(ReadKind.PERSISTENT_SERVER, ReadKind.SERVER);
-        };
     }
 
     // The copy's items.

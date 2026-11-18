@@ -28,9 +28,9 @@ import java.util.logging.Logger;
 /**
  * Runs one network's {@link NetworkView} in this process, and makes none of its decisions. Each input steps
  * the view on the thread it arrives on, under one lock, except the answers to snapshot loads, which step it
- * on the shell's timer thread. The shell then carries out the effects the view returns. The inputs are the messages on {@code <network>.state.v1.batch} and
- * {@code <network>.state.v1.pulse}, the connection's state, the answers to snapshot loads, this process's
- * writes and a time tick.
+ * on the shell's timer thread. The shell then carries out the effects the view returns. The inputs are the
+ * messages on {@code <network>.state.v1.batch} and {@code <network>.state.v1.pulse}, the connection's state,
+ * the answers to snapshot loads, this process's writes and a time tick.
  *
  * <p>A read that the view says waits for an own write waits for the copy. After every step, also each time
  * tick, the shell asks the view again for each waiting read, and answers it from the copy or sends it over
@@ -54,7 +54,8 @@ public final class NetworkViewShell implements NatsFailoverConnectionManager.Sub
     private static final long TIME_PASSED_INTERVAL_MILLIS = 100;
     private static final Duration FLUSH_TIMEOUT = Duration.ofSeconds(5);
     private static final Duration FLUSH_RETRY_DELAY = Duration.ofSeconds(1);
-    private record WaitingRead(ReadKind kind, long startedAt, CompletableFuture<Optional<NetworkCopy>> answer) {
+
+    private record WaitingRead(long startedAt, CompletableFuture<Optional<NetworkCopy>> answer) {
     }
 
     private final String batchSubject;
@@ -137,21 +138,21 @@ public final class NetworkViewShell implements NatsFailoverConnectionManager.Sub
     }
 
     /**
-     * Returns the copy to answer a read of {@code kind} from, or empty, so the read goes over HTTP. The future
-     * is complete on return unless the read waits for an own write. A waiting read completes on a thread of its
-     * own, not under the shell's lock or on a thread that feeds the view, so the caller's continuation may
-     * block. Only when that thread cannot start does the read complete on the thread that settles it.
+     * Returns the copy to answer a read from, or empty, so the read goes over HTTP. The future is complete on
+     * return unless the read waits for an own write. A waiting read completes on a thread of its own, not under
+     * the shell's lock or on a thread that feeds the view, so the caller's continuation may block. Only when
+     * that thread cannot start does the read complete on the thread that settles it.
      */
     @Override
-    public CompletableFuture<Optional<NetworkCopy>> copyToAnswer(ReadKind kind) {
+    public CompletableFuture<Optional<NetworkCopy>> copyToAnswer() {
         NetworkView current = view;
         // Read after the view, so the time is at or after the time of the step that made it.
         long now = clock.nowMillis();
-        ReadRoute route = routeOf(current, kind, now, now);
+        ReadRoute route = routeOf(current, now, now);
         return switch (route) {
             case FROM_COPY -> CompletableFuture.completedFuture(current.copy());
             case OVER_HTTP -> CompletableFuture.completedFuture(Optional.empty());
-            case WAIT -> waitForOwnWrite(kind, now);
+            case WAIT -> waitForOwnWrite(now);
         };
     }
 
@@ -159,8 +160,8 @@ public final class NetworkViewShell implements NatsFailoverConnectionManager.Sub
      * Hands the view a write of this process that returned with its state revision. The view takes it on
      * the caller's thread before this returns, so a read the writer starts next already waits for the write.
      */
-    public void writeReturned(WriteKind written, long epoch, long revision) {
-        feed(new ViewInput.WriteReturned(written, epoch, revision));
+    public void writeReturned(long epoch, long revision) {
+        feed(new ViewInput.WriteReturned(epoch, revision));
     }
 
     /**
@@ -307,15 +308,15 @@ public final class NetworkViewShell implements NatsFailoverConnectionManager.Sub
         }
     }
 
-    private ReadRoute routeOf(NetworkView current, ReadKind kind, long startedAt, long now) {
+    private ReadRoute routeOf(NetworkView current, long startedAt, long now) {
         if (stopped) {
             return ReadRoute.OVER_HTTP;
         }
-        return current.routeRead(kind, startedAt, now);
+        return current.routeRead(startedAt, now);
     }
 
-    private CompletableFuture<Optional<NetworkCopy>> waitForOwnWrite(ReadKind kind, long startedAt) {
-        WaitingRead read = new WaitingRead(kind, startedAt, new CompletableFuture<>());
+    private CompletableFuture<Optional<NetworkCopy>> waitForOwnWrite(long startedAt) {
+        WaitingRead read = new WaitingRead(startedAt, new CompletableFuture<>());
         synchronized (stepLock) {
             waitingReads.add(read);
             // A step between this read's look at the view and the lock settled without it, and may have ended
@@ -333,7 +334,7 @@ public final class NetworkViewShell implements NatsFailoverConnectionManager.Sub
         Iterator<WaitingRead> waiting = waitingReads.iterator();
         while (waiting.hasNext()) {
             WaitingRead read = waiting.next();
-            ReadRoute route = routeOf(view, read.kind(), read.startedAt(), now);
+            ReadRoute route = routeOf(view, read.startedAt(), now);
             switch (route) {
                 case FROM_COPY -> {
                     waiting.remove();

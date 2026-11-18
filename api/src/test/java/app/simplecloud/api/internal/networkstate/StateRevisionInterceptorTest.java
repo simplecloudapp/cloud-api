@@ -16,10 +16,11 @@ import org.junit.jupiter.api.Test;
 
 import java.io.IOException;
 import java.util.List;
-import java.util.Optional;
 
 import static org.junit.jupiter.api.Assertions.assertEquals;
+import static org.junit.jupiter.api.Assertions.assertFalse;
 import static org.junit.jupiter.api.Assertions.assertThrows;
+import static org.junit.jupiter.api.Assertions.assertTrue;
 
 class StateRevisionInterceptorTest {
 
@@ -57,7 +58,7 @@ class StateRevisionInterceptorTest {
 
         send("PATCH", "/v0/server-groups/lobby");
 
-        ViewInput expected = new ViewInput.WriteReturned(WriteKind.SERVER_GROUP, 1L << 32, -1L);
+        ViewInput expected = new ViewInput.WriteReturned(1L << 32, -1L);
         assertEquals(List.of(expected), writesTheViewTook());
     }
 
@@ -112,12 +113,20 @@ class StateRevisionInterceptorTest {
     }
 
     @Test
-    void theRouteNamesTheWrittenKind() {
-        assertEquals(Optional.of(WriteKind.SERVER), writtenKindOf("/v0/servers/abc/properties"));
-        assertEquals(Optional.of(WriteKind.SERVER_GROUP), writtenKindOf("/v0/server-groups"));
-        assertEquals(Optional.of(WriteKind.PERSISTENT_SERVER), writtenKindOf("/v0/persistent-servers/abc"));
-        assertEquals(Optional.of(WriteKind.BLUEPRINT), writtenKindOf("/v0/blueprints/abc"));
-        assertEquals(Optional.empty(), writtenKindOf("/v0/players/abc"));
+    void writesToServersGroupsPersistentServersAndBlueprintsAreNetworkStateWrites() {
+        assertTrue(writesNetworkState("POST", "/v0/servers/abc/properties"));
+        assertTrue(writesNetworkState("PATCH", "/v0/server-groups"));
+        assertTrue(writesNetworkState("POST", "/v0/server-groups/convert-to-persistent"));
+        assertTrue(writesNetworkState("DELETE", "/v0/persistent-servers/abc"));
+        assertTrue(writesNetworkState("PUT", "/v0/blueprints/abc"));
+    }
+
+    @Test
+    void readsAndWritesToOtherRoutesAreNoNetworkStateWrites() {
+        assertFalse(writesNetworkState("GET", "/v0/servers"));
+        assertFalse(writesNetworkState("POST", "/v0/players/abc"));
+        assertFalse(writesNetworkState("POST", "/v0"));
+        assertFalse(writesNetworkState("POST", "/servers/abc"));
     }
 
     private void send(String method, String path) throws IOException {
@@ -141,12 +150,13 @@ class StateRevisionInterceptorTest {
         return input instanceof ViewInput.WriteReturned || input instanceof ViewInput.WriteRevisionUnknown;
     }
 
-    private Optional<WriteKind> writtenKindOf(String path) {
+    private boolean writesNetworkState(String method, String path) {
+        RequestBody body = method.equals("GET") ? null : RequestBody.create("{}", JSON);
         Request request = new Request.Builder()
                 .url(controller.url(path))
-                .post(RequestBody.create("{}", JSON))
+                .method(method, body)
                 .build();
-        return StateRevisionInterceptor.writtenKind(request);
+        return StateRevisionInterceptor.writesNetworkState(request);
     }
 
     private static MockResponse withRevisionHeaders(MockResponse response) {

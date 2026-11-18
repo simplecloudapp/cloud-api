@@ -1,7 +1,6 @@
 package app.simplecloud.api.internal.networkstate.read;
 
 import app.simplecloud.api.internal.networkstate.NetworkCopy;
-import app.simplecloud.api.internal.networkstate.ReadKind;
 
 import java.util.Optional;
 
@@ -13,11 +12,6 @@ import java.util.Optional;
  * @param <R> the generated response model
  */
 public interface CopyList<P, R> {
-
-    /**
-     * Returns the kind of read the view routes for this list.
-     */
-    ReadKind kind();
 
     /**
      * Returns whether the controller refuses these parameters with an error, so that no copy answers them.

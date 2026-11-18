@@ -1,7 +1,6 @@
 package app.simplecloud.api.internal.networkstate.read;
 
 import app.simplecloud.api.internal.networkstate.NetworkCopy;
-import app.simplecloud.api.internal.networkstate.ReadKind;
 import app.simplecloud.api.web.models.ModelsListServersResponse;
 import build.buf.gen.simplecloud.controller.v2.StatePersistentServer;
 import build.buf.gen.simplecloud.controller.v2.StateServer;
@@ -58,11 +57,6 @@ public final class CopyServerList implements CopyList<ServerListParameters, Mode
      */
     public CopyServerList(String networkId) {
         this.networkId = networkId;
-    }
-
-    @Override
-    public ReadKind kind() {
-        return ReadKind.SERVER;
     }
 
     /**

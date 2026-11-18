@@ -77,10 +77,7 @@ final class ModelDatabase {
         }
     }
 
-    /**
-     * A committed write. {@code route} is the kind of item the HTTP route that made it writes.
-     */
-    record Commit(long epoch, long revision, WriteKind route) {
+    record Commit(long epoch, long revision) {
     }
 
     private final Random random;
@@ -115,14 +112,14 @@ final class ModelDatabase {
 
     Commit commitRandomWrite() {
         WriteBuilder write = new WriteBuilder(current.items());
-        WriteKind route = write.makeRandomChange();
+        write.makeRandomChange();
         long revision = current.counter() + 1;
         NavigableMap<Long, Set<EntityKey>> changeLog = new TreeMap<>(current.changeLog());
         changeLog.put(revision, Set.copyOf(write.changed));
         Items items = write.result();
         moveTo(new State(current.epoch(), revision, current.lastRelayed(), items, changeLog));
         itemsByEpoch.get(current.epoch()).put(revision, items);
-        return new Commit(current.epoch(), revision, route);
+        return new Commit(current.epoch(), revision);
     }
 
     /**
@@ -199,24 +196,24 @@ final class ModelDatabase {
             return new Items(servers, groups, persistentServers, blueprints);
         }
 
-        WriteKind makeRandomChange() {
+        void makeRandomChange() {
             int roll = random.nextInt(100);
             if (roll < 55) {
-                return changeServer();
+                changeServer();
+            } else if (roll < 75) {
+                changeGroup();
+            } else if (roll < 88) {
+                changePersistentServer();
+            } else {
+                changeBlueprint();
             }
-            if (roll < 75) {
-                return changeGroup();
-            }
-            if (roll < 88) {
-                return changePersistentServer();
-            }
-            return changeBlueprint();
         }
 
-        private WriteKind changeServer() {
+        private void changeServer() {
             boolean parentExists = !groups.isEmpty() || !persistentServers.isEmpty();
             if (!parentExists) {
-                return createGroupWithFirstServer();
+                createGroupWithFirstServer();
+                return;
             }
             int roll = random.nextInt(100);
             if (servers.isEmpty() || (roll < 25 && servers.size() < MAX_SERVERS)) {
@@ -227,13 +224,13 @@ final class ModelDatabase {
             } else {
                 deleteServer(pick(servers).getId());
             }
-            return WriteKind.SERVER;
         }
 
-        private WriteKind changeGroup() {
+        private void changeGroup() {
             int roll = random.nextInt(100);
             if (groups.isEmpty() || (roll < 30 && groups.size() < MAX_GROUPS)) {
-                return createGroupWithFirstServer();
+                createGroupWithFirstServer();
+                return;
             }
             StateServerGroup group = pick(groups);
             if (roll < 85) {
@@ -241,17 +238,15 @@ final class ModelDatabase {
             } else {
                 deleteGroupWithItsServers(group.getId());
             }
-            return WriteKind.SERVER_GROUP;
         }
 
-        private WriteKind createGroupWithFirstServer() {
+        private void createGroupWithFirstServer() {
             StateServerGroup group = newGroup(randomId());
             putGroup(group);
             putServer(newServer(group.getId()));
-            return WriteKind.SERVER_GROUP;
         }
 
-        private WriteKind changePersistentServer() {
+        private void changePersistentServer() {
             int roll = random.nextInt(100);
             if (persistentServers.isEmpty() || (roll < 30 && persistentServers.size() < MAX_PERSISTENT_SERVERS)) {
                 StatePersistentServer persistentServer = newPersistentServer(randomId());
@@ -262,14 +257,13 @@ final class ModelDatabase {
             } else {
                 deletePersistentServerWithItsServers(pick(persistentServers).getId());
             }
-            return WriteKind.PERSISTENT_SERVER;
         }
 
-        private WriteKind changeBlueprint() {
+        private void changeBlueprint() {
             int roll = random.nextInt(100);
             if (blueprints.isEmpty() || (roll < 35 && blueprints.size() < MAX_BLUEPRINTS)) {
                 putBlueprint(newBlueprint(randomId()));
-                return WriteKind.BLUEPRINT;
+                return;
             }
             StateBlueprint blueprint = pick(blueprints);
             if (roll < 85 || isUsed(blueprint.getId())) {
@@ -278,7 +272,6 @@ final class ModelDatabase {
                 blueprints.remove(blueprint.getId());
                 changed.add(new EntityKey(Table.BLUEPRINTS, blueprint.getId()));
             }
-            return WriteKind.BLUEPRINT;
         }
 
         private boolean isUsed(ByteString blueprintId) {
