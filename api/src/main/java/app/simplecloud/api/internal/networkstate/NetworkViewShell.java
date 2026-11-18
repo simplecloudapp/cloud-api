@@ -140,7 +140,7 @@ public final class NetworkViewShell implements NatsFailoverConnectionManager.Sub
      * Returns the copy to answer a read of {@code kind} from, or empty, so the read goes over HTTP. The future
      * is complete on return unless the read waits for an own write. A waiting read completes on a thread of its
      * own, not under the shell's lock or on a thread that feeds the view, so the caller's continuation may
-     * block.
+     * block. Only when that thread cannot start does the read complete on the thread that settles it.
      */
     public CompletableFuture<Optional<NetworkCopy>> copyToAnswer(ReadKind kind) {
         NetworkView current = view;
@@ -353,9 +353,15 @@ public final class NetworkViewShell implements NatsFailoverConnectionManager.Sub
      * thread that delivers batches or ticks.
      */
     private static void answerOnOwnThread(WaitingRead read, Optional<NetworkCopy> copy) {
-        Thread.ofVirtual()
-                .name("simplecloud-network-view-read")
-                .start(() -> read.answer().complete(copy));
+        try {
+            Thread.ofVirtual()
+                    .name("simplecloud-network-view-read")
+                    .start(() -> read.answer().complete(copy));
+        } catch (RuntimeException | Error startFailed) {
+            // The read is out of the list already, and a read never answered hangs its caller for good, while
+            // a continuation on this thread only delays the next step.
+            read.answer().complete(copy);
+        }
     }
 
     private void carryOut(ViewEffect effect) {
