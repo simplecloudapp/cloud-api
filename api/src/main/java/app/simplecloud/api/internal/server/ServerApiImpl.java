@@ -4,6 +4,9 @@ import app.simplecloud.api.CloudApiException;
 import app.simplecloud.api.CloudApiOptions;
 import app.simplecloud.api.cache.QueryCache;
 import app.simplecloud.api.cache.QueryKey;
+import app.simplecloud.api.internal.networkstate.read.ReadSources;
+import app.simplecloud.api.internal.networkstate.read.ReadableCopies;
+import app.simplecloud.api.internal.networkstate.read.ReadableCopy;
 import app.simplecloud.api.internal.web.ApiClients;
 import app.simplecloud.api.internal.web.ApiErrors;
 import app.simplecloud.api.internal.web.Identifiers;
@@ -30,6 +33,7 @@ import java.util.*;
 import java.util.concurrent.CompletableFuture;
 import java.util.concurrent.Executor;
 import java.util.concurrent.ForkJoinPool;
+import java.util.function.Supplier;
 import java.util.logging.Logger;
 
 public class ServerApiImpl implements ServerApi {
@@ -41,24 +45,38 @@ public class ServerApiImpl implements ServerApi {
     private final ServersApi serversApi;
     private final QueryCache cache;
     private final Executor executor;
+    private final ReadSources<ServerSource> sources;
 
     public ServerApiImpl(CloudApiOptions options, QueryCache cache) {
         this(options, cache, ApiClients.create(options));
     }
 
     public ServerApiImpl(CloudApiOptions options, QueryCache cache, ApiClient httpClient) {
-        this(options, cache, httpClient, ForkJoinPool.commonPool());
+        this(options, cache, httpClient, ForkJoinPool.commonPool(), ReadableCopies.none());
     }
 
+    /**
+     * Reads from the controller only, never from a copy.
+     *
+     * @deprecated kept because released versions have it; pass the runtime's {@link ReadableCopies}.
+     */
+    @Deprecated
     public ServerApiImpl(CloudApiOptions options, QueryCache cache, ApiClient httpClient, Executor executor) {
-        this(options, cache, createServersApi(options, httpClient), executor);
+        this(options, cache, httpClient, executor, ReadableCopies.none());
     }
 
-    private ServerApiImpl(CloudApiOptions options, QueryCache cache, ServersApi serversApi, Executor executor) {
+    public ServerApiImpl(CloudApiOptions options, QueryCache cache, ApiClient httpClient, Executor executor,
+                         ReadableCopies copies) {
+        this(options, cache, createServersApi(options, httpClient), executor, copies);
+    }
+
+    private ServerApiImpl(CloudApiOptions options, QueryCache cache, ServersApi serversApi, Executor executor,
+                          ReadableCopies copies) {
         this.options = options;
         this.cache = cache;
         this.serversApi = serversApi;
         this.executor = executor;
+        this.sources = new ReadSources<>(copies, ReadableCopy::servers, new ControllerServerSource());
     }
 
     @Override
@@ -73,15 +91,8 @@ public class ServerApiImpl implements ServerApi {
         if (!Identifiers.isUuid(id)) {
             return CompletableFuture.completedFuture(Optional.empty());
         }
-        QueryKey key = QueryKey.of("server", id);
-
-        return cache.fetchWithTransientMissRecovery(
-                key,
-                () -> fetchServerByIdFromController(id),
-                Objects::isNull,
-                TRANSIENT_MISS_RETRY_DELAY,
-                TRANSIENT_MISS_MAX_RETRIES
-        ).thenApply(Optional::ofNullable);
+        CompletableFuture<Server> server = sources.lookUp(source -> source.serverWithId(id));
+        return server.thenApply(Optional::ofNullable);
     }
 
     @Override
@@ -93,39 +104,14 @@ public class ServerApiImpl implements ServerApi {
 
     @Override
     public CompletableFuture<Optional<Server>> findServerByNumericalId(String groupName, int numericalId) {
-        QueryKey key = QueryKey.of("server", "numerical", groupName, numericalId);
-
-        return cache.fetchWithTransientMissRecovery(
-                key,
-                () -> fetchServerByNumericalIdFromController(groupName, numericalId),
-                Objects::isNull,
-                TRANSIENT_MISS_RETRY_DELAY,
-                TRANSIENT_MISS_MAX_RETRIES
-        ).thenApply(Optional::ofNullable);
+        CompletableFuture<Server> server = sources.lookUp(
+                source -> source.serverWithNumericalId(groupName, numericalId));
+        return server.thenApply(Optional::ofNullable);
     }
 
     @Override
     public CompletableFuture<List<Server>> getServersByGroup(String groupName) {
-        QueryKey key = QueryKey.of("servers", "group", groupName);
-
-        return cache.fetch(key, () -> CompletableFuture.supplyAsync(() -> {
-            try {
-                ServerQuery query = ServerQuery.create()
-                        .filterByServerGroupName(groupName);
-                ModelsListServersResponse serversResponse = executeQuery(query);
-
-                List<ModelsServerSummary> servers = serversResponse.getServers();
-                if (servers == null) {
-                    return List.of();
-                }
-
-                return servers.stream()
-                        .<Server>map(ServerImpl::new)
-                        .toList();
-            } catch (ApiException e) {
-                throw ApiErrors.from(e);
-            }
-        }, executor));
+        return sources.ask(source -> source.serversOfGroup(groupName));
     }
 
     @Override
@@ -133,16 +119,11 @@ public class ServerApiImpl implements ServerApi {
         QueryKey key = buildQueryKey(query);
 
         CompletableFuture<List<Server>> future;
-        if (isExactServerLookup(query)) {
-            future = cache.fetchWithTransientMissRecovery(
-                    key,
-                    () -> fetchServersFromController(query),
-                    List::isEmpty,
-                    TRANSIENT_MISS_RETRY_DELAY,
-                    TRANSIENT_MISS_MAX_RETRIES
-            );
+        boolean exactLookup = isExactServerLookup(query);
+        if (exactLookup) {
+            future = sources.lookUp(source -> source.servers(query));
         } else {
-            future = cache.fetch(key, () -> fetchServersFromController(query));
+            future = sources.ask(source -> source.servers(query));
         }
 
         return future.thenApply(servers -> {
@@ -151,6 +132,65 @@ public class ServerApiImpl implements ServerApi {
                     }
                     return servers;
                 });
+    }
+
+    /**
+     * Answers through the query cache, which has its own recovery for a lookup the controller misses.
+     */
+    private final class ControllerServerSource implements ServerSource {
+
+        @Override
+        public CompletableFuture<@Nullable Server> serverWithId(String id) {
+            QueryKey key = QueryKey.of("server", id);
+            Supplier<CompletableFuture<Server>> fetch = () -> fetchServerByIdFromController(id);
+            return cache.fetchWithTransientMissRecovery(
+                    key,
+                    fetch,
+                    Objects::isNull,
+                    TRANSIENT_MISS_RETRY_DELAY,
+                    TRANSIENT_MISS_MAX_RETRIES
+            );
+        }
+
+        @Override
+        public CompletableFuture<@Nullable Server> serverWithNumericalId(String groupName, int numericalId) {
+            QueryKey key = QueryKey.of("server", "numerical", groupName, numericalId);
+            Supplier<CompletableFuture<Server>> fetch =
+                    () -> fetchServerByNumericalIdFromController(groupName, numericalId);
+            return cache.fetchWithTransientMissRecovery(
+                    key,
+                    fetch,
+                    Objects::isNull,
+                    TRANSIENT_MISS_RETRY_DELAY,
+                    TRANSIENT_MISS_MAX_RETRIES
+            );
+        }
+
+        @Override
+        public CompletableFuture<List<Server>> serversOfGroup(String groupName) {
+            QueryKey key = QueryKey.of("servers", "group", groupName);
+            ServerQuery query = ServerQuery.create()
+                    .filterByServerGroupName(groupName);
+            Supplier<CompletableFuture<List<Server>>> fetch = () -> fetchServersFromController(query);
+            return cache.fetch(key, fetch);
+        }
+
+        @Override
+        public CompletableFuture<List<Server>> servers(@Nullable ServerQuery query) {
+            QueryKey key = buildQueryKey(query);
+            Supplier<CompletableFuture<List<Server>>> fetch = () -> fetchServersFromController(query);
+            boolean exactLookup = isExactServerLookup(query);
+            if (exactLookup) {
+                return cache.fetchWithTransientMissRecovery(
+                        key,
+                        fetch,
+                        List::isEmpty,
+                        TRANSIENT_MISS_RETRY_DELAY,
+                        TRANSIENT_MISS_MAX_RETRIES
+                );
+            }
+            return cache.fetch(key, fetch);
+        }
     }
 
     private CompletableFuture<List<Server>> fetchServersFromController(@Nullable ServerQuery query) {

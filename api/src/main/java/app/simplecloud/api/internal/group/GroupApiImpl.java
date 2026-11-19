@@ -7,6 +7,9 @@ import app.simplecloud.api.blueprint.CreateBlueprintRequest;
 import app.simplecloud.api.group.*;
 import app.simplecloud.api.internal.blueprint.InlineBlueprintSupport;
 import app.simplecloud.api.internal.create.CreateRequestDefaults;
+import app.simplecloud.api.internal.networkstate.read.ReadSources;
+import app.simplecloud.api.internal.networkstate.read.ReadableCopies;
+import app.simplecloud.api.internal.networkstate.read.ReadableCopy;
 import app.simplecloud.api.internal.web.ApiClients;
 import app.simplecloud.api.internal.web.ApiErrors;
 import app.simplecloud.api.internal.web.Identifiers;
@@ -26,6 +29,7 @@ import java.util.Optional;
 import java.util.concurrent.CompletableFuture;
 import java.util.concurrent.Executor;
 import java.util.concurrent.ForkJoinPool;
+import java.util.function.Supplier;
 
 public class GroupApiImpl implements GroupApi {
     private static final Duration TRANSIENT_MISS_RETRY_DELAY = Duration.ofMillis(200);
@@ -37,22 +41,35 @@ public class GroupApiImpl implements GroupApi {
     private final CreateRequestDefaults createRequestDefaults;
     private final QueryCache cache;
     private final Executor executor;
+    private final ReadSources<ServerGroupSource> sources;
 
     public GroupApiImpl(CloudApiOptions options, QueryCache cache) {
         this(options, cache, ApiClients.create(options));
     }
 
     public GroupApiImpl(CloudApiOptions options, QueryCache cache, ApiClient httpClient) {
-        this(options, cache, httpClient, ForkJoinPool.commonPool());
+        this(options, cache, httpClient, ForkJoinPool.commonPool(), ReadableCopies.none());
     }
 
+    /**
+     * Reads from the controller only, never from a copy.
+     *
+     * @deprecated kept because released versions have it; pass the runtime's {@link ReadableCopies}.
+     */
+    @Deprecated
     public GroupApiImpl(CloudApiOptions options, QueryCache cache, ApiClient httpClient, Executor executor) {
+        this(options, cache, httpClient, executor, ReadableCopies.none());
+    }
+
+    public GroupApiImpl(CloudApiOptions options, QueryCache cache, ApiClient httpClient, Executor executor,
+                        ReadableCopies copies) {
         this(
                 options,
                 cache,
                 createServerGroupsApi(options, httpClient),
                 new InlineBlueprintSupport(options, createBlueprintsApi(options, httpClient)),
-                executor
+                executor,
+                copies
         );
     }
 
@@ -60,7 +77,8 @@ public class GroupApiImpl implements GroupApi {
                  QueryCache cache,
                  ServerGroupsApi serverGroupsApi,
                  BlueprintsApi blueprintsApi) {
-        this(options, cache, serverGroupsApi, new InlineBlueprintSupport(options, blueprintsApi), ForkJoinPool.commonPool());
+        this(options, cache, serverGroupsApi, new InlineBlueprintSupport(options, blueprintsApi), ForkJoinPool.commonPool(),
+                ReadableCopies.none());
     }
 
     GroupApiImpl(CloudApiOptions options,
@@ -73,7 +91,8 @@ public class GroupApiImpl implements GroupApi {
                 cache,
                 serverGroupsApi,
                 new InlineBlueprintSupport(options, blueprintsApi, serverUrlResolver),
-                ForkJoinPool.commonPool()
+                ForkJoinPool.commonPool(),
+                ReadableCopies.none()
         );
     }
 
@@ -81,13 +100,15 @@ public class GroupApiImpl implements GroupApi {
                          QueryCache cache,
                          ServerGroupsApi serverGroupsApi,
                          InlineBlueprintSupport inlineBlueprintSupport,
-                         Executor executor) {
+                         Executor executor,
+                         ReadableCopies copies) {
         this.options = options;
         this.cache = cache;
         this.serverGroupsApi = serverGroupsApi;
         this.inlineBlueprintSupport = inlineBlueprintSupport;
         this.createRequestDefaults = new CreateRequestDefaults();
         this.executor = executor;
+        this.sources = new ReadSources<>(copies, ReadableCopy::serverGroups, new ControllerServerGroupSource());
     }
 
     @Override
@@ -167,15 +188,8 @@ public class GroupApiImpl implements GroupApi {
 
     @Override
     public CompletableFuture<Optional<Group>> findGroupByName(String name) {
-        QueryKey key = QueryKey.of("group", "name", name);
-
-        return cache.fetchWithTransientMissRecovery(
-                key,
-                () -> fetchGroupByNameFromController(name),
-                Objects::isNull,
-                TRANSIENT_MISS_RETRY_DELAY,
-                TRANSIENT_MISS_MAX_RETRIES
-        ).thenApply(Optional::ofNullable);
+        CompletableFuture<Group> group = sources.lookUp(source -> source.serverGroupWithName(name));
+        return group.thenApply(Optional::ofNullable);
     }
 
     @Override
@@ -190,22 +204,56 @@ public class GroupApiImpl implements GroupApi {
         if (!Identifiers.isUuid(id)) {
             return CompletableFuture.completedFuture(Optional.empty());
         }
-        QueryKey key = QueryKey.of("group", id);
-
-        return cache.fetchWithTransientMissRecovery(
-                key,
-                () -> fetchGroupByIdFromController(id),
-                Objects::isNull,
-                TRANSIENT_MISS_RETRY_DELAY,
-                TRANSIENT_MISS_MAX_RETRIES
-        ).thenApply(Optional::ofNullable);
+        CompletableFuture<Group> group = sources.lookUp(source -> source.serverGroupWithId(id));
+        return group.thenApply(Optional::ofNullable);
     }
 
     @Override
     public CompletableFuture<List<Group>> getAllGroups(@org.jetbrains.annotations.Nullable GroupQuery query) {
-        QueryKey key = buildQueryKey(query);
+        return sources.ask(source -> source.serverGroups(query));
+    }
 
-        return cache.fetch(key, () -> CompletableFuture.supplyAsync(() -> {
+    /**
+     * Answers through the query cache, which has its own recovery for a lookup the controller misses.
+     */
+    private final class ControllerServerGroupSource implements ServerGroupSource {
+
+        @Override
+        public CompletableFuture<@Nullable Group> serverGroupWithId(String id) {
+            QueryKey key = QueryKey.of("group", id);
+            Supplier<CompletableFuture<Group>> fetch = () -> fetchGroupByIdFromController(id);
+            return cache.fetchWithTransientMissRecovery(
+                    key,
+                    fetch,
+                    Objects::isNull,
+                    TRANSIENT_MISS_RETRY_DELAY,
+                    TRANSIENT_MISS_MAX_RETRIES
+            );
+        }
+
+        @Override
+        public CompletableFuture<@Nullable Group> serverGroupWithName(String name) {
+            QueryKey key = QueryKey.of("group", "name", name);
+            Supplier<CompletableFuture<Group>> fetch = () -> fetchGroupByNameFromController(name);
+            return cache.fetchWithTransientMissRecovery(
+                    key,
+                    fetch,
+                    Objects::isNull,
+                    TRANSIENT_MISS_RETRY_DELAY,
+                    TRANSIENT_MISS_MAX_RETRIES
+            );
+        }
+
+        @Override
+        public CompletableFuture<List<Group>> serverGroups(@Nullable GroupQuery query) {
+            QueryKey key = buildQueryKey(query);
+            Supplier<CompletableFuture<List<Group>>> fetch = () -> fetchGroupsFromController(query);
+            return cache.fetch(key, fetch);
+        }
+    }
+
+    private CompletableFuture<List<Group>> fetchGroupsFromController(@Nullable GroupQuery query) {
+        return CompletableFuture.supplyAsync(() -> {
             try {
                 ModelsListServerGroupsResponse response = executeQuery(query);
                 List<ModelsServerGroupSummary> groups = response.getServerGroups();
@@ -219,7 +267,7 @@ public class GroupApiImpl implements GroupApi {
             } catch (ApiException e) {
                 throw ApiErrors.from(e);
             }
-        }, executor));
+        }, executor);
     }
 
     private QueryKey buildQueryKey(@org.jetbrains.annotations.Nullable GroupQuery query) {

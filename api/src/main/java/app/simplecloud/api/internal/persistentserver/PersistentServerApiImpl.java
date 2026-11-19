@@ -9,6 +9,9 @@ import app.simplecloud.api.group.SourceConfig;
 import app.simplecloud.api.group.WorkflowsConfig;
 import app.simplecloud.api.internal.blueprint.InlineBlueprintSupport;
 import app.simplecloud.api.internal.create.CreateRequestDefaults;
+import app.simplecloud.api.internal.networkstate.read.ReadSources;
+import app.simplecloud.api.internal.networkstate.read.ReadableCopies;
+import app.simplecloud.api.internal.networkstate.read.ReadableCopy;
 import app.simplecloud.api.internal.web.ApiClients;
 import app.simplecloud.api.internal.web.ApiErrors;
 import app.simplecloud.api.internal.web.Identifiers;
@@ -29,6 +32,7 @@ import java.util.Optional;
 import java.util.concurrent.CompletableFuture;
 import java.util.concurrent.Executor;
 import java.util.concurrent.ForkJoinPool;
+import java.util.function.Supplier;
 
 public class PersistentServerApiImpl implements PersistentServerApi {
     private static final Duration TRANSIENT_MISS_RETRY_DELAY = Duration.ofMillis(200);
@@ -40,22 +44,35 @@ public class PersistentServerApiImpl implements PersistentServerApi {
     private final CreateRequestDefaults createRequestDefaults;
     private final QueryCache cache;
     private final Executor executor;
+    private final ReadSources<PersistentServerSource> sources;
 
     public PersistentServerApiImpl(CloudApiOptions options, QueryCache cache) {
         this(options, cache, ApiClients.create(options));
     }
 
     public PersistentServerApiImpl(CloudApiOptions options, QueryCache cache, ApiClient httpClient) {
-        this(options, cache, httpClient, ForkJoinPool.commonPool());
+        this(options, cache, httpClient, ForkJoinPool.commonPool(), ReadableCopies.none());
     }
 
+    /**
+     * Reads from the controller only, never from a copy.
+     *
+     * @deprecated kept because released versions have it; pass the runtime's {@link ReadableCopies}.
+     */
+    @Deprecated
     public PersistentServerApiImpl(CloudApiOptions options, QueryCache cache, ApiClient httpClient, Executor executor) {
+        this(options, cache, httpClient, executor, ReadableCopies.none());
+    }
+
+    public PersistentServerApiImpl(CloudApiOptions options, QueryCache cache, ApiClient httpClient, Executor executor,
+                                   ReadableCopies copies) {
         this(
                 options,
                 cache,
                 createPersistentServersApi(options, httpClient),
                 new InlineBlueprintSupport(options, createBlueprintsApi(options, httpClient)),
-                executor
+                executor,
+                copies
         );
     }
 
@@ -63,7 +80,8 @@ public class PersistentServerApiImpl implements PersistentServerApi {
                             QueryCache cache,
                             PersistentServersApi persistentServersApi,
                             BlueprintsApi blueprintsApi) {
-        this(options, cache, persistentServersApi, new InlineBlueprintSupport(options, blueprintsApi), ForkJoinPool.commonPool());
+        this(options, cache, persistentServersApi, new InlineBlueprintSupport(options, blueprintsApi), ForkJoinPool.commonPool(),
+                ReadableCopies.none());
     }
 
     PersistentServerApiImpl(CloudApiOptions options,
@@ -76,7 +94,8 @@ public class PersistentServerApiImpl implements PersistentServerApi {
                 cache,
                 persistentServersApi,
                 new InlineBlueprintSupport(options, blueprintsApi, serverUrlResolver),
-                ForkJoinPool.commonPool()
+                ForkJoinPool.commonPool(),
+                ReadableCopies.none()
         );
     }
 
@@ -84,13 +103,16 @@ public class PersistentServerApiImpl implements PersistentServerApi {
                                     QueryCache cache,
                                     PersistentServersApi persistentServersApi,
                                     InlineBlueprintSupport inlineBlueprintSupport,
-                                    Executor executor) {
+                                    Executor executor,
+                                    ReadableCopies copies) {
         this.options = options;
         this.cache = cache;
         this.persistentServersApi = persistentServersApi;
         this.inlineBlueprintSupport = inlineBlueprintSupport;
         this.createRequestDefaults = new CreateRequestDefaults();
         this.executor = executor;
+        this.sources = new ReadSources<>(copies, ReadableCopy::persistentServers,
+                new ControllerPersistentServerSource());
     }
 
     @Override
@@ -105,15 +127,9 @@ public class PersistentServerApiImpl implements PersistentServerApi {
         if (!Identifiers.isUuid(id)) {
             return CompletableFuture.completedFuture(Optional.empty());
         }
-        QueryKey key = QueryKey.of("persistentServer", id);
-
-        return cache.fetchWithTransientMissRecovery(
-                key,
-                () -> fetchPersistentServerByIdFromController(id),
-                Objects::isNull,
-                TRANSIENT_MISS_RETRY_DELAY,
-                TRANSIENT_MISS_MAX_RETRIES
-        ).thenApply(Optional::ofNullable);
+        CompletableFuture<PersistentServer> persistentServer = sources.lookUp(
+                source -> source.persistentServerWithId(id));
+        return persistentServer.thenApply(Optional::ofNullable);
     }
 
     @Override
@@ -125,22 +141,61 @@ public class PersistentServerApiImpl implements PersistentServerApi {
 
     @Override
     public CompletableFuture<Optional<PersistentServer>> findPersistentServerByName(String name) {
-        QueryKey key = QueryKey.of("persistentServer", "name", name);
-
-        return cache.fetchWithTransientMissRecovery(
-                key,
-                () -> fetchPersistentServerByNameFromController(name),
-                Objects::isNull,
-                TRANSIENT_MISS_RETRY_DELAY,
-                TRANSIENT_MISS_MAX_RETRIES
-        ).thenApply(Optional::ofNullable);
+        CompletableFuture<PersistentServer> persistentServer = sources.lookUp(
+                source -> source.persistentServerWithName(name));
+        return persistentServer.thenApply(Optional::ofNullable);
     }
 
     @Override
     public CompletableFuture<List<PersistentServer>> getAllPersistentServers(@Nullable PersistentServerQuery query) {
-        QueryKey key = buildQueryKey(query);
+        return sources.ask(source -> source.persistentServers(query));
+    }
 
-        return cache.fetch(key, () -> CompletableFuture.supplyAsync(() -> {
+    /**
+     * Answers through the query cache, which has its own recovery for a lookup the controller misses.
+     */
+    private final class ControllerPersistentServerSource implements PersistentServerSource {
+
+        @Override
+        public CompletableFuture<@Nullable PersistentServer> persistentServerWithId(String id) {
+            QueryKey key = QueryKey.of("persistentServer", id);
+            Supplier<CompletableFuture<PersistentServer>> fetch = () -> fetchPersistentServerByIdFromController(id);
+            return cache.fetchWithTransientMissRecovery(
+                    key,
+                    fetch,
+                    Objects::isNull,
+                    TRANSIENT_MISS_RETRY_DELAY,
+                    TRANSIENT_MISS_MAX_RETRIES
+            );
+        }
+
+        @Override
+        public CompletableFuture<@Nullable PersistentServer> persistentServerWithName(String name) {
+            QueryKey key = QueryKey.of("persistentServer", "name", name);
+            Supplier<CompletableFuture<PersistentServer>> fetch =
+                    () -> fetchPersistentServerByNameFromController(name);
+            return cache.fetchWithTransientMissRecovery(
+                    key,
+                    fetch,
+                    Objects::isNull,
+                    TRANSIENT_MISS_RETRY_DELAY,
+                    TRANSIENT_MISS_MAX_RETRIES
+            );
+        }
+
+        @Override
+        public CompletableFuture<List<PersistentServer>> persistentServers(@Nullable PersistentServerQuery query) {
+            QueryKey key = buildQueryKey(query);
+            Supplier<CompletableFuture<List<PersistentServer>>> fetch =
+                    () -> fetchPersistentServersFromController(query);
+            return cache.fetch(key, fetch);
+        }
+    }
+
+    private CompletableFuture<List<PersistentServer>> fetchPersistentServersFromController(
+            @Nullable PersistentServerQuery query
+    ) {
+        return CompletableFuture.supplyAsync(() -> {
             try {
                 ModelsListPersistentServersResponse response = executeQuery(query, null, null);
                 List<ModelsPersistentServerSummary> servers = response.getPersistentServers();
@@ -154,7 +209,7 @@ public class PersistentServerApiImpl implements PersistentServerApi {
             } catch (ApiException e) {
                 throw ApiErrors.from(e);
             }
-        }, executor));
+        }, executor);
     }
 
     private QueryKey buildQueryKey(@Nullable PersistentServerQuery query) {

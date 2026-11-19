@@ -1,0 +1,637 @@
+{
+  "network_id": "0d000000-0000-4000-8000-000000000001",
+  "serverhosts": [
+    {
+      "key": "h1",
+      "id": "0d000000-0000-4000-8000-000000000011"
+    },
+    {
+      "key": "h2",
+      "id": "0d000000-0000-4000-8000-000000000012"
+    }
+  ],
+  "server_groups": [
+    {
+      "key": "lobby",
+      "id": "f0000000-0000-4000-8000-000000000301",
+      "name": "lobby",
+      "type": "SERVER",
+      "tags": [
+        "main",
+        "hub"
+      ],
+      "created_at": "2026-11-17T09:00:00Z"
+    },
+    {
+      "key": "game",
+      "id": "0a000000-0000-4000-8000-000000000302",
+      "name": "game",
+      "type": "SERVER",
+      "tags": [
+        "minigame"
+      ],
+      "created_at": "2026-11-17T09:00:00Z"
+    },
+    {
+      "key": "proxy",
+      "id": "70000000-0000-4000-8000-000000000303",
+      "name": "Proxy",
+      "type": "PROXY",
+      "tags": [],
+      "created_at": "2026-11-17T09:05:00.123456Z"
+    },
+    {
+      "key": "empty",
+      "id": "05000000-0000-4000-8000-000000000304",
+      "name": "empty",
+      "type": "SERVER",
+      "tags": [
+        "hub"
+      ],
+      "created_at": "2026-11-17T08:00:00Z"
+    }
+  ],
+  "persistent_servers": [
+    {
+      "key": "survival",
+      "id": "e0000000-0000-4000-8000-000000000401",
+      "name": "survival",
+      "type": "SERVER",
+      "tags": [
+        "main"
+      ],
+      "active": true,
+      "serverhost": "h1",
+      "created_at": "2026-11-17T09:00:00Z"
+    },
+    {
+      "key": "archive",
+      "id": "10000000-0000-4000-8000-000000000402",
+      "name": "archive",
+      "type": "SERVER",
+      "tags": [],
+      "active": false,
+      "serverhost": null,
+      "created_at": "2026-11-17T09:10:00Z"
+    },
+    {
+      "key": "lobby-ps",
+      "id": "20000000-0000-4000-8000-000000000403",
+      "name": "lobby",
+      "type": "PROXY",
+      "tags": [
+        "hub"
+      ],
+      "active": true,
+      "serverhost": null,
+      "created_at": "2026-11-17T09:10:00Z"
+    }
+  ],
+  "servers": [
+    {
+      "key": "s1",
+      "id": "c0000000-0000-4000-8000-000000000201",
+      "group": "lobby",
+      "numerical_id": 2,
+      "state": "AVAILABLE",
+      "serverhost": "h1",
+      "created_at": "2026-11-17T10:00:00Z",
+      "updated_at": "2026-11-17T10:05:00Z"
+    },
+    {
+      "key": "s2",
+      "id": "d0000000-0000-4000-8000-000000000202",
+      "group": "lobby",
+      "numerical_id": 1,
+      "state": "INGAME",
+      "serverhost": "h1",
+      "created_at": "2026-11-17T10:00:01Z",
+      "updated_at": "2026-11-17T10:01:00Z"
+    },
+    {
+      "key": "s3",
+      "id": "30000000-0000-4000-8000-000000000203",
+      "group": "lobby",
+      "numerical_id": 3,
+      "state": "STARTING",
+      "serverhost": null,
+      "created_at": "2026-11-17T10:00:00Z",
+      "updated_at": "2026-11-17T10:02:00Z"
+    },
+    {
+      "key": "s4",
+      "id": "40000000-0000-4000-8000-000000000204",
+      "group": "game",
+      "numerical_id": 1,
+      "state": "AVAILABLE",
+      "serverhost": "h2",
+      "created_at": "2026-11-17T10:00:02Z",
+      "updated_at": "2026-11-17T10:00:02Z"
+    },
+    {
+      "key": "s5",
+      "id": "50000000-0000-4000-8000-000000000205",
+      "group": "game",
+      "numerical_id": 3,
+      "state": "STOPPING",
+      "serverhost": null,
+      "created_at": "2026-11-17T10:00:00.5Z",
+      "updated_at": "2026-11-17T10:03:00Z"
+    },
+    {
+      "key": "s6",
+      "id": "60000000-0000-4000-8000-000000000206",
+      "group": "proxy",
+      "numerical_id": 1,
+      "state": "AVAILABLE",
+      "serverhost": "h2",
+      "created_at": "2026-11-17T10:00:00Z",
+      "updated_at": "2026-11-17T10:04:00Z"
+    },
+    {
+      "key": "s7",
+      "id": "08000000-0000-4000-8000-000000000207",
+      "persistent_server": "survival",
+      "numerical_id": 1,
+      "state": "AVAILABLE",
+      "serverhost": "h1",
+      "created_at": "2026-11-17T10:00:03Z",
+      "updated_at": "2026-11-17T10:00:03Z"
+    },
+    {
+      "key": "s8",
+      "id": "09000000-0000-4000-8000-000000000208",
+      "persistent_server": "lobby-ps",
+      "numerical_id": 1,
+      "state": "INGAME",
+      "serverhost": null,
+      "created_at": "2026-11-17T09:59:00Z",
+      "updated_at": "2026-11-17T10:06:00Z"
+    },
+    {
+      "key": "s9",
+      "id": "f8000000-0000-4000-8000-000000000209",
+      "persistent_server": "archive",
+      "numerical_id": 1,
+      "state": "CLEANUP",
+      "serverhost": null,
+      "created_at": "2026-11-17T10:00:00Z",
+      "updated_at": "2026-11-17T10:00:00Z"
+    }
+  ],
+  "cases": [
+    {
+      "name": "default order: groups by id bytes, then numerical id, persistent servers last by id",
+      "route": "servers",
+      "parameters": {},
+      "expected": [
+        "s4",
+        "s5",
+        "s6",
+        "s2",
+        "s1",
+        "s3",
+        "s7",
+        "s8",
+        "s9"
+      ]
+    },
+    {
+      "name": "states",
+      "route": "servers",
+      "parameters": {
+        "state": "AVAILABLE,INGAME"
+      },
+      "expected": [
+        "s4",
+        "s6",
+        "s2",
+        "s1",
+        "s7",
+        "s8"
+      ]
+    },
+    {
+      "name": "a name matches a group or a persistent server",
+      "route": "servers",
+      "parameters": {
+        "name": "lobby"
+      },
+      "expected": [
+        "s2",
+        "s1",
+        "s3",
+        "s8"
+      ]
+    },
+    {
+      "name": "a name compares exactly, and a name alone picks no server",
+      "route": "servers",
+      "parameters": {
+        "name": "Lobby"
+      },
+      "expected": []
+    },
+    {
+      "name": "a name and a numerical id",
+      "route": "servers",
+      "parameters": {
+        "name": "lobby",
+        "numerical_id": "1"
+      },
+      "expected": [
+        "s2",
+        "s8"
+      ]
+    },
+    {
+      "name": "a numerical id nobody has is a missed lookup",
+      "route": "servers",
+      "parameters": {
+        "name": "lobby",
+        "numerical_id": "9"
+      },
+      "expected": "missed"
+    },
+    {
+      "name": "a server id",
+      "route": "servers",
+      "parameters": {
+        "server_id": "c0000000-0000-4000-8000-000000000201"
+      },
+      "expected": [
+        "s1"
+      ]
+    },
+    {
+      "name": "a server id in upper case",
+      "route": "servers",
+      "parameters": {
+        "server_id": "C0000000-0000-4000-8000-000000000201"
+      },
+      "expected": [
+        "s1"
+      ]
+    },
+    {
+      "name": "an unknown server id is a missed lookup",
+      "route": "servers",
+      "parameters": {
+        "server_id": "c0000000-0000-4000-8000-000000000299"
+      },
+      "expected": "missed"
+    },
+    {
+      "name": "several group ids",
+      "route": "servers",
+      "parameters": {
+        "server_group_id": "0a000000-0000-4000-8000-000000000302,70000000-0000-4000-8000-000000000303"
+      },
+      "expected": [
+        "s4",
+        "s5",
+        "s6"
+      ]
+    },
+    {
+      "name": "a persistent server id",
+      "route": "servers",
+      "parameters": {
+        "persistent_server_id": "e0000000-0000-4000-8000-000000000401"
+      },
+      "expected": [
+        "s7"
+      ]
+    },
+    {
+      "name": "a serverhost id",
+      "route": "servers",
+      "parameters": {
+        "serverhost_id": "0d000000-0000-4000-8000-000000000011"
+      },
+      "expected": [
+        "s2",
+        "s1",
+        "s7"
+      ]
+    },
+    {
+      "name": "a type matches a group or a persistent server",
+      "route": "servers",
+      "parameters": {
+        "type": "PROXY"
+      },
+      "expected": [
+        "s6",
+        "s8"
+      ]
+    },
+    {
+      "name": "a tag of a group or a persistent server",
+      "route": "servers",
+      "parameters": {
+        "tags": "hub"
+      },
+      "expected": [
+        "s2",
+        "s1",
+        "s3",
+        "s8"
+      ]
+    },
+    {
+      "name": "one tag in common is enough",
+      "route": "servers",
+      "parameters": {
+        "tags": "minigame,nothing"
+      },
+      "expected": [
+        "s4",
+        "s5"
+      ]
+    },
+    {
+      "name": "filters combine",
+      "route": "servers",
+      "parameters": {
+        "state": "AVAILABLE",
+        "type": "SERVER",
+        "tags": "main"
+      },
+      "expected": [
+        "s1",
+        "s7"
+      ]
+    },
+    {
+      "name": "numerical id descending, ties in the default order",
+      "route": "servers",
+      "parameters": {
+        "sort_by": "numerical_id",
+        "sort_order": "desc"
+      },
+      "expected": [
+        "s5",
+        "s3",
+        "s1",
+        "s4",
+        "s6",
+        "s2",
+        "s7",
+        "s8",
+        "s9"
+      ]
+    },
+    {
+      "name": "created_at ascending, ties in the default order",
+      "route": "servers",
+      "parameters": {
+        "sort_by": "created_at"
+      },
+      "expected": [
+        "s8",
+        "s6",
+        "s1",
+        "s3",
+        "s9",
+        "s5",
+        "s2",
+        "s4",
+        "s7"
+      ]
+    },
+    {
+      "name": "updated_at descending",
+      "route": "servers",
+      "parameters": {
+        "sort_by": "updated_at",
+        "sort_order": "desc"
+      },
+      "expected": [
+        "s8",
+        "s1",
+        "s6",
+        "s5",
+        "s3",
+        "s2",
+        "s7",
+        "s4",
+        "s9"
+      ]
+    },
+    {
+      "name": "state, trimmed, by bytes",
+      "route": "servers",
+      "parameters": {
+        "sort_by": " state "
+      },
+      "expected": [
+        "s4",
+        "s6",
+        "s1",
+        "s7",
+        "s9",
+        "s2",
+        "s8",
+        "s3",
+        "s5"
+      ]
+    },
+    {
+      "name": "a sort order alone keeps the default order",
+      "route": "servers",
+      "parameters": {
+        "sort_order": "desc"
+      },
+      "expected": [
+        "s4",
+        "s5",
+        "s6",
+        "s2",
+        "s1",
+        "s3",
+        "s7",
+        "s8",
+        "s9"
+      ]
+    },
+    {
+      "name": "default order: created_at descending, then id bytes",
+      "route": "server-groups",
+      "parameters": {},
+      "expected": [
+        "proxy",
+        "game",
+        "lobby",
+        "empty"
+      ]
+    },
+    {
+      "name": "a name",
+      "route": "server-groups",
+      "parameters": {
+        "name": "lobby"
+      },
+      "expected": [
+        "lobby"
+      ]
+    },
+    {
+      "name": "a name compares exactly, and a missed name is a missed lookup",
+      "route": "server-groups",
+      "parameters": {
+        "name": "Lobby"
+      },
+      "expected": "missed"
+    },
+    {
+      "name": "an id",
+      "route": "server-groups",
+      "parameters": {
+        "server_group_id": "f0000000-0000-4000-8000-000000000301"
+      },
+      "expected": [
+        "lobby"
+      ]
+    },
+    {
+      "name": "an unknown id is a missed lookup",
+      "route": "server-groups",
+      "parameters": {
+        "server_group_id": "f0000000-0000-4000-8000-000000000399"
+      },
+      "expected": "missed"
+    },
+    {
+      "name": "a type",
+      "route": "server-groups",
+      "parameters": {
+        "type": "SERVER"
+      },
+      "expected": [
+        "game",
+        "lobby",
+        "empty"
+      ]
+    },
+    {
+      "name": "a tag",
+      "route": "server-groups",
+      "parameters": {
+        "tags": "hub"
+      },
+      "expected": [
+        "lobby",
+        "empty"
+      ]
+    },
+    {
+      "name": "a tag nobody has",
+      "route": "server-groups",
+      "parameters": {
+        "tags": "nothing"
+      },
+      "expected": []
+    },
+    {
+      "name": "a limit",
+      "route": "server-groups",
+      "parameters": {
+        "limit": 2
+      },
+      "expected": [
+        "proxy",
+        "game"
+      ]
+    },
+    {
+      "name": "default order: created_at descending, then id bytes",
+      "route": "persistent-servers",
+      "parameters": {},
+      "expected": [
+        "archive",
+        "lobby-ps",
+        "survival"
+      ]
+    },
+    {
+      "name": "inactive",
+      "route": "persistent-servers",
+      "parameters": {
+        "active": false
+      },
+      "expected": [
+        "archive"
+      ]
+    },
+    {
+      "name": "active",
+      "route": "persistent-servers",
+      "parameters": {
+        "active": true
+      },
+      "expected": [
+        "lobby-ps",
+        "survival"
+      ]
+    },
+    {
+      "name": "a serverhost id",
+      "route": "persistent-servers",
+      "parameters": {
+        "serverhost_id": "0d000000-0000-4000-8000-000000000011"
+      },
+      "expected": [
+        "survival"
+      ]
+    },
+    {
+      "name": "tags",
+      "route": "persistent-servers",
+      "parameters": {
+        "tags": "hub,main"
+      },
+      "expected": [
+        "lobby-ps",
+        "survival"
+      ]
+    },
+    {
+      "name": "a name",
+      "route": "persistent-servers",
+      "parameters": {
+        "name": "survival"
+      },
+      "expected": [
+        "survival"
+      ]
+    },
+    {
+      "name": "a missed name is a missed lookup",
+      "route": "persistent-servers",
+      "parameters": {
+        "name": "missing"
+      },
+      "expected": "missed"
+    },
+    {
+      "name": "an id",
+      "route": "persistent-servers",
+      "parameters": {
+        "persistent_server_id": "10000000-0000-4000-8000-000000000402"
+      },
+      "expected": [
+        "archive"
+      ]
+    },
+    {
+      "name": "a tag nobody has",
+      "route": "persistent-servers",
+      "parameters": {
+        "limit": 1,
+        "tags": "nothing"
+      },
+      "expected": []
+    }
+  ]
+}

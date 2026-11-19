@@ -2,6 +2,7 @@ package app.simplecloud.api.internal.nats;
 
 import app.simplecloud.api.CloudApiException;
 import io.nats.client.Connection;
+import io.nats.client.ConnectionListener;
 import io.nats.client.Dispatcher;
 import io.nats.client.MessageHandler;
 import io.nats.client.Nats;
@@ -30,6 +31,25 @@ import java.util.logging.Logger;
 
 public final class NatsFailoverConnectionManager {
 
+    /**
+     * Hears the moments after which a subscriber must confirm its subscriptions with a flush before it can
+     * count on receiving every message again. Calls come from NATS and reconnect threads, so they must return
+     * quickly: they may take a lock that is held only briefly, but must not wait for I/O.
+     */
+    public interface SubscriptionListener {
+
+        /**
+         * The connection in use went down. Messages published from now on may never arrive.
+         */
+        void connectionLost();
+
+        /**
+         * Every subscription is sent on the connection in use: after the first connection, after jnats
+         * resubscribed on its own reconnect, and after this manager replaced the connection.
+         */
+        void subscriptionsSent();
+    }
+
     private static final Logger LOGGER = Logger.getLogger(NatsFailoverConnectionManager.class.getName());
     private static final Duration FLUSH_BEFORE_CLOSE_TIMEOUT = Duration.ofSeconds(1);
 
@@ -42,6 +62,8 @@ public final class NatsFailoverConnectionManager {
     private final AtomicReference<Connection> connectionRef;
     private final Connection connectionProxy;
     private final List<DispatcherProxyState> dispatchers = new CopyOnWriteArrayList<>();
+    private final List<SubscriptionListener> subscriptionListeners = new CopyOnWriteArrayList<>();
+    private final ConnectionListener subscriptionEventForwarder = this::reportConnectionEvent;
     private final Object bindLock = new Object();
     private boolean shutdown;
     private final AtomicBoolean reconnecting = new AtomicBoolean(false);
@@ -74,6 +96,27 @@ public final class NatsFailoverConnectionManager {
 
     public Connection getConnection() {
         return connectionProxy;
+    }
+
+    /**
+     * Adds a listener. When the connection in use is up, the listener hears
+     * {@link SubscriptionListener#subscriptionsSent} at once, because the subscriptions made before this call
+     * have been sent on it.
+     */
+    public void addSubscriptionListener(SubscriptionListener listener) {
+        boolean connected;
+        synchronized (bindLock) {
+            subscriptionListeners.add(listener);
+            Connection connection = connectionRef.get();
+            connected = connection != null && connection.getStatus() == Connection.Status.CONNECTED;
+        }
+        if (connected) {
+            listener.subscriptionsSent();
+        }
+    }
+
+    public void removeSubscriptionListener(SubscriptionListener listener) {
+        subscriptionListeners.remove(listener);
     }
 
     public void shutdown() {
@@ -192,6 +235,7 @@ public final class NatsFailoverConnectionManager {
                     }
                     oldConnection = connectionRef.getAndSet(newConnection);
                 }
+                reportSubscriptionsSent();
                 // Draining flushes the old connection, which blocks while it is down, so it must not hold bindLock.
                 drainQuietly(previousDispatchers);
                 if (oldConnection != null && oldConnection != newConnection) {
@@ -245,7 +289,37 @@ public final class NatsFailoverConnectionManager {
     }
 
     private Connection createConnection() throws IOException, InterruptedException {
-        return Nats.connect(createOptions(natsUrl, networkId, networkSecret, natsListener));
+        Connection connection = Nats.connect(createOptions(natsUrl, networkId, networkSecret, natsListener));
+        // Events from before this line are of a connection that is not in use yet, which the forwarder drops
+        // anyway: the bind in reconnectLoop reports the state it binds.
+        connection.addConnectionListener(subscriptionEventForwarder);
+        return connection;
+    }
+
+    private void reportConnectionEvent(Connection connection, ConnectionListener.Events event) {
+        // A replaced connection, or one not bound yet. The bind of the connection in use reports for it.
+        if (connection != connectionRef.get()) {
+            return;
+        }
+        switch (event) {
+            case DISCONNECTED, CLOSED -> reportConnectionLost();
+            // Not RECONNECTED: jnats reports it before it sends the subscriptions again.
+            case RESUBSCRIBED -> reportSubscriptionsSent();
+            default -> {
+            }
+        }
+    }
+
+    private void reportConnectionLost() {
+        for (SubscriptionListener listener : subscriptionListeners) {
+            listener.connectionLost();
+        }
+    }
+
+    private void reportSubscriptionsSent() {
+        for (SubscriptionListener listener : subscriptionListeners) {
+            listener.subscriptionsSent();
+        }
     }
 
     static Options createOptions(
