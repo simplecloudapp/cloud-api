@@ -9,7 +9,6 @@ class ReferenceMachineChecksTest {
 
     @TestFactory
     List<DynamicTest> referenceMachinePassesEveryCheck() {
-        ViewStarter reference = random -> new ReferenceMachine().start(random);
-        return ViewCheckTests.dynamicTests(reference);
+        return ViewChecksAsDynamicTests.dynamicTests(ReferenceMachine.STARTER);
     }
 }

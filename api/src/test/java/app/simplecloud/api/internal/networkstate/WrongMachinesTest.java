@@ -27,19 +27,26 @@ class WrongMachinesTest {
             for (String checkName : machine.caughtBy()) {
                 ViewCheck check = checksByName.get(checkName);
                 assertNotNull(check, "no check is named \"" + checkName + "\"");
-                String testName = machine.brokenRule() + " / " + checkName;
+                String testName = machine.fault() + " / " + checkName;
                 tests.add(dynamicTest(testName, () -> assertCheckFails(check, machine)));
             }
         }
         return tests;
     }
 
+    /**
+     * Only an assertion of the check itself catches the machine: when the set-up fails, the check never reached
+     * the rule it names.
+     */
     private static void assertCheckFails(ViewCheck check, WrongMachines.WrongMachine machine) {
         try {
             check.body().run(machine.starter());
-        } catch (AssertionError expected) {
+        } catch (SetUpFailed setUpFailed) {
+            fail("the check's set-up failed for a machine that " + machine.fault() + ", so the check never"
+                    + " reached its point: " + setUpFailed.getMessage(), setUpFailed);
+        } catch (AssertionError caught) {
             return;
         }
-        fail("the check passed for a machine that " + machine.brokenRule());
+        fail("the check passed for a machine that " + machine.fault());
     }
 }

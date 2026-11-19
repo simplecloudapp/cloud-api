@@ -7,9 +7,9 @@ import java.util.List;
 
 import static org.junit.jupiter.api.DynamicTest.dynamicTest;
 
-final class ViewCheckTests {
+final class ViewChecksAsDynamicTests {
 
-    private ViewCheckTests() {
+    private ViewChecksAsDynamicTests() {
     }
 
     static List<DynamicTest> dynamicTests(ViewStarter starter) {

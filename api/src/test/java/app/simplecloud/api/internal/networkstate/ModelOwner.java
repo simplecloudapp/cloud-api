@@ -21,6 +21,10 @@ import java.util.Set;
  */
 final class ModelOwner {
 
+    /**
+     * As often as the controller pulses.
+     */
+    static final long PULSE_INTERVAL_MILLIS = 5_000;
     private static final long PULSE_NEEDS_ROUND_WITHIN_MILLIS = 3_000;
 
     private Long lastRoundAt;

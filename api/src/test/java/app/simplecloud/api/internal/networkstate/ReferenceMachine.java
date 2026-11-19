@@ -12,30 +12,37 @@ import com.google.protobuf.ByteString;
 
 import java.util.ArrayList;
 import java.util.HashMap;
+import java.util.HashSet;
 import java.util.List;
 import java.util.Map;
 import java.util.Optional;
+import java.util.Set;
+
+import static app.simplecloud.api.internal.networkstate.RuleTimes.AUDIT_INTERVAL_SPREAD;
+import static app.simplecloud.api.internal.networkstate.RuleTimes.AUDIT_REACH_WAIT;
+import static app.simplecloud.api.internal.networkstate.RuleTimes.AUDIT_RETRY_SPREAD;
+import static app.simplecloud.api.internal.networkstate.RuleTimes.FIRST_BACK_OFF;
+import static app.simplecloud.api.internal.networkstate.RuleTimes.GAP_WAIT;
+import static app.simplecloud.api.internal.networkstate.RuleTimes.GOOD_PULSE_LIFETIME;
+import static app.simplecloud.api.internal.networkstate.RuleTimes.LOAD_SPACING;
+import static app.simplecloud.api.internal.networkstate.RuleTimes.LONGEST_BACK_OFF;
+import static app.simplecloud.api.internal.networkstate.RuleTimes.OWN_WRITE_WAIT;
+import static app.simplecloud.api.internal.networkstate.RuleTimes.PULSE_AHEAD_WAIT;
+import static app.simplecloud.api.internal.networkstate.RuleTimes.RANDOM_LOAD_DELAY_BOUND;
+import static app.simplecloud.api.internal.networkstate.RuleTimes.SHORTEST_AUDIT_INTERVAL;
+import static app.simplecloud.api.internal.networkstate.RuleTimes.SHORTEST_AUDIT_RETRY;
 
 /**
  * The plainest machine that follows the rules of {@link NetworkView}, written to be obviously right, not
  * fast. The checks are validated against it: they pass here, and each variant in {@link WrongMachines}
  * overrides one of its rules and must fail a check. Each rule is a method of its own for that reason.
+ *
+ * <p>It shares no code with {@link NetworkViewMachine}: each rule is written again from the text of
+ * {@link NetworkView}, in a form of its own, so that one mistake is unlikely to be in both machines.
  */
 class ReferenceMachine {
 
-    static final long GAP_WAIT_MILLIS = 3_000;
-    static final long BEHIND_PULSE_WAIT_MILLIS = 3_000;
-    static final long GOOD_PULSE_MAX_AGE_MILLIS = 15_000;
-    static final long LOAD_SPACING_MILLIS = 2_000;
-    static final long FIRST_BACK_OFF_MILLIS = 2_000;
-    static final long MAX_BACK_OFF_MILLIS = 30_000;
-    static final long RELOAD_JITTER_MILLIS = 2_000;
-    static final long AUDIT_INTERVAL_MIN_MILLIS = 20 * 60_000;
-    static final long AUDIT_INTERVAL_SPREAD_MILLIS = 10 * 60_000;
-    static final long AUDIT_RETRY_MIN_MILLIS = 2_000;
-    static final long AUDIT_RETRY_SPREAD_MILLIS = 8_000;
-    static final long AUDIT_REACH_WAIT_MILLIS = 3_000;
-    static final long OWN_WRITE_WAIT_MILLIS = 3_000;
+    static final ViewStarter STARTER = random -> new ReferenceMachine().start(random);
 
     NetworkView start(RandomSequence random) {
         return new View(this, new Memory(random));
@@ -73,10 +80,10 @@ class ReferenceMachine {
     record HeldBatch(StateBatch batch, long arrivedAt) {
     }
 
-    /**
-     * The highest revision that pulses showed above the copy, and when the first of them arrived.
-     */
-    record BehindPulse(long revision, long since) {
+    record BehindPulse(long highestRevision, long firstArrivedAt) {
+    }
+
+    record OwnWrite(long epoch, long revision, long handedOverAt) {
     }
 
     /**
@@ -118,12 +125,7 @@ class ReferenceMachine {
         long auditDueAt;
         NetworkState auditSnapshot;
         long auditComparingSince;
-        /**
-         * The kept own write's epoch, null before the first one.
-         */
-        Long ownWriteEpoch;
-        long ownWriteRevision;
-        long ownWriteHandedOverAt;
+        OwnWrite keptOwnWrite;
 
         Memory(RandomSequence random) {
             this.random = random;
@@ -149,11 +151,8 @@ class ReferenceMachine {
             auditDueAt = source.auditDueAt;
             auditSnapshot = source.auditSnapshot;
             auditComparingSince = source.auditComparingSince;
-            ownWriteEpoch = source.ownWriteEpoch;
-            ownWriteRevision = source.ownWriteRevision;
-            ownWriteHandedOverAt = source.ownWriteHandedOverAt;
+            keptOwnWrite = source.keptOwnWrite;
         }
-
     }
 
     static final class View implements NetworkView {
@@ -233,24 +232,38 @@ class ReferenceMachine {
         m.reloadStartsAt = reloadStartTime(m, now);
     }
 
+    /**
+     * Rule 6: the latest of now, the spacing and the back-off, plus the random delay.
+     */
     long reloadStartTime(Memory m, long now) {
-        long earliest = now;
-        if (m.lastLoadStartedAt != null) {
-            earliest = Math.max(earliest, m.lastLoadStartedAt + LOAD_SPACING_MILLIS);
-        }
-        if (m.failedLoadsInRow > 0) {
-            earliest = Math.max(earliest, m.lastLoadFailedAt + backOff(m.failedLoadsInRow));
-        }
-        long jitter = (long) (RELOAD_JITTER_MILLIS * drawNumber(m));
-        return earliest + jitter;
+        long latest = Math.max(now, Math.max(earliestSpacedStart(m), earliestStartAfterBackOff(m)));
+        return latest + randomLoadDelay(m);
     }
 
-    static long backOff(int failedLoadsInRow) {
-        long delay = FIRST_BACK_OFF_MILLIS;
-        for (int failure = 1; failure < failedLoadsInRow && delay < MAX_BACK_OFF_MILLIS; failure++) {
-            delay *= 2;
+    long earliestSpacedStart(Memory m) {
+        if (m.lastLoadStartedAt == null) {
+            return Long.MIN_VALUE;
         }
-        return Math.min(MAX_BACK_OFF_MILLIS, delay);
+        return m.lastLoadStartedAt + LOAD_SPACING;
+    }
+
+    long earliestStartAfterBackOff(Memory m) {
+        if (m.failedLoadsInRow == 0) {
+            return Long.MIN_VALUE;
+        }
+        return m.lastLoadFailedAt + backOff(m.failedLoadsInRow);
+    }
+
+    long randomLoadDelay(Memory m) {
+        return (long) (RANDOM_LOAD_DELAY_BOUND * drawNumber(m));
+    }
+
+    /**
+     * min(30 s, 2 s &times; 2^(n-1)) after n failed loads in a row, in doubles, so a long row cannot overflow.
+     */
+    static long backOff(int failedLoadsInRow) {
+        double doubled = FIRST_BACK_OFF * Math.pow(2, failedLoadsInRow - 1);
+        return (long) Math.min(LONGEST_BACK_OFF, doubled);
     }
 
     private static void ignoreRunningLoad(Memory m) {
@@ -394,7 +407,7 @@ class ReferenceMachine {
         }
         m.copy = applied;
         boolean reachedBehindPulse = m.behindPulse != null
-                && compare(Comparison.REACHED_PULSE, m.copy.revision(), m.behindPulse.revision()) >= 0;
+                && compare(Comparison.REACHED_PULSE, m.copy.revision(), m.behindPulse.highestRevision()) >= 0;
         if (reachedBehindPulse) {
             m.behindPulse = null;
         }
@@ -403,27 +416,29 @@ class ReferenceMachine {
         }
     }
 
+    /**
+     * Collects every id the copy's items name, then asks whether the copy holds them all.
+     */
     boolean referencesResolve(NetworkCopy copy) {
+        Set<ByteString> namedGroups = new HashSet<>();
+        Set<ByteString> namedPersistentServers = new HashSet<>();
         for (StateServer server : copy.servers().values()) {
-            if (!serverReferencesResolve(copy, server)) {
-                return false;
+            if (server.hasServerGroupId()) {
+                namedGroups.add(server.getServerGroupId());
+            }
+            if (server.hasPersistentServerId()) {
+                namedPersistentServers.add(server.getPersistentServerId());
             }
         }
+        Set<ByteString> namedBlueprints = new HashSet<>();
         for (StateServerGroup group : copy.serverGroups().values()) {
-            boolean blueprintMissing = group.hasBlueprintId() && !copy.blueprints().containsKey(group.getBlueprintId());
-            if (blueprintMissing) {
-                return false;
+            if (group.hasBlueprintId()) {
+                namedBlueprints.add(group.getBlueprintId());
             }
         }
-        return true;
-    }
-
-    private static boolean serverReferencesResolve(NetworkCopy copy, StateServer server) {
-        boolean groupMissing = server.hasServerGroupId()
-                && !copy.serverGroups().containsKey(server.getServerGroupId());
-        boolean persistentServerMissing = server.hasPersistentServerId()
-                && !copy.persistentServers().containsKey(server.getPersistentServerId());
-        return !groupMissing && !persistentServerMissing;
+        return copy.serverGroups().keySet().containsAll(namedGroups)
+                && copy.persistentServers().keySet().containsAll(namedPersistentServers)
+                && copy.blueprints().keySet().containsAll(namedBlueprints);
     }
 
     void onPulse(Memory m, StatePulse pulse, long now) {
@@ -449,7 +464,7 @@ class ReferenceMachine {
 
     boolean lacksGoodPulse(Memory m, long now) {
         long lastProof = m.goodPulseAt != null ? m.goodPulseAt : m.snapshotTakenAt;
-        return now - lastProof >= GOOD_PULSE_MAX_AGE_MILLIS;
+        return now - lastProof >= GOOD_PULSE_LIFETIME;
     }
 
     PulseFit fitOf(NetworkCopy copy, StatePulse pulse) {
@@ -471,9 +486,10 @@ class ReferenceMachine {
             m.behindPulse = new BehindPulse(pulse.getRevision(), now);
             return;
         }
-        boolean furtherAhead = compare(Comparison.FURTHER_PULSE, pulse.getRevision(), m.behindPulse.revision()) > 0;
+        boolean furtherAhead =
+                compare(Comparison.FURTHER_PULSE, pulse.getRevision(), m.behindPulse.highestRevision()) > 0;
         if (furtherAhead) {
-            m.behindPulse = new BehindPulse(pulse.getRevision(), m.behindPulse.since());
+            m.behindPulse = new BehindPulse(pulse.getRevision(), m.behindPulse.firstArrivedAt());
         }
     }
 
@@ -488,15 +504,18 @@ class ReferenceMachine {
         return m.mode == Mode.SYNCED && write.epoch() != m.copy.epoch();
     }
 
+    /**
+     * The write replaces the kept one, at the time it was handed over. Only a kept write of the same epoch can
+     * raise the revision.
+     */
     void keepOwnWrite(Memory m, ViewInput.WriteReturned write, long now) {
-        boolean keptInSameEpoch = m.ownWriteEpoch != null && m.ownWriteEpoch == write.epoch();
-        boolean keptIsHigher = keptInSameEpoch
-                && compare(Comparison.OWN_WRITE_KEPT, m.ownWriteRevision, write.revision()) > 0;
-        if (!keptIsHigher) {
-            m.ownWriteRevision = write.revision();
+        long revisionToKeep = write.revision();
+        OwnWrite kept = m.keptOwnWrite;
+        boolean keptInSameEpoch = kept != null && kept.epoch() == write.epoch();
+        if (keptInSameEpoch && compare(Comparison.OWN_WRITE_KEPT, kept.revision(), revisionToKeep) > 0) {
+            revisionToKeep = kept.revision();
         }
-        m.ownWriteEpoch = write.epoch();
-        m.ownWriteHandedOverAt = now;
+        m.keptOwnWrite = new OwnWrite(write.epoch(), revisionToKeep, now);
     }
 
     void actOnDeadlines(Memory m, long now, List<ViewEffect> effects) {
@@ -520,7 +539,7 @@ class ReferenceMachine {
 
     void takeAuditSnapshotIfNotReached(Memory m, long now, List<ViewEffect> effects) {
         boolean auditWaitedTooLong = m.auditPhase == AuditPhase.COMPARING
-                && now - m.auditComparingSince >= AUDIT_REACH_WAIT_MILLIS;
+                && now - m.auditComparingSince >= AUDIT_REACH_WAIT;
         if (auditWaitedTooLong) {
             effects.add(new ViewEffect.AuditFinished(AuditOutcome.NOT_REACHED));
             takeSnapshot(m, m.auditSnapshot, now, effects);
@@ -529,7 +548,7 @@ class ReferenceMachine {
 
     boolean heldTooLong(Memory m, long now) {
         for (HeldBatch held : m.heldBatches) {
-            if (now - held.arrivedAt() >= GAP_WAIT_MILLIS) {
+            if (now - held.arrivedAt() >= GAP_WAIT) {
                 return true;
             }
         }
@@ -537,7 +556,7 @@ class ReferenceMachine {
     }
 
     boolean behindPulseTooLong(Memory m, long now) {
-        return m.behindPulse != null && now - m.behindPulse.since() >= BEHIND_PULSE_WAIT_MILLIS;
+        return m.behindPulse != null && now - m.behindPulse.firstArrivedAt() >= PULSE_AHEAD_WAIT;
     }
 
     private void startReloadIfDue(Memory m, long now, List<ViewEffect> effects) {
@@ -549,7 +568,7 @@ class ReferenceMachine {
     }
 
     private void startAuditIfDue(Memory m, long now, List<ViewEffect> effects) {
-        boolean spaced = m.lastLoadStartedAt == null || now >= m.lastLoadStartedAt + LOAD_SPACING_MILLIS;
+        boolean spaced = now >= earliestSpacedStart(m);
         boolean due = m.mode == Mode.SYNCED
                 && m.auditPhase == AuditPhase.NONE
                 && !m.loadRunning
@@ -597,7 +616,7 @@ class ReferenceMachine {
         NetworkState snapshot = m.auditSnapshot;
         m.auditPhase = AuditPhase.NONE;
         m.auditSnapshot = null;
-        if (sameItems(m.copy, copyOf(snapshot))) {
+        if (equalLeavingOutMetrics(m.copy, copyOf(snapshot))) {
             effects.add(new ViewEffect.AuditFinished(AuditOutcome.MATCHED));
             m.auditDueAt = now + auditInterval(m);
             return;
@@ -610,12 +629,12 @@ class ReferenceMachine {
         effects.add(new ViewEffect.AuditFinished(AuditOutcome.JUMPED_PAST));
         m.auditPhase = AuditPhase.NONE;
         m.auditSnapshot = null;
-        long retryDelay = AUDIT_RETRY_MIN_MILLIS + (long) (AUDIT_RETRY_SPREAD_MILLIS * drawNumber(m));
+        long retryDelay = SHORTEST_AUDIT_RETRY + (long) (AUDIT_RETRY_SPREAD * drawNumber(m));
         m.auditDueAt = now + retryDelay;
     }
 
     long auditInterval(Memory m) {
-        return AUDIT_INTERVAL_MIN_MILLIS + (long) (AUDIT_INTERVAL_SPREAD_MILLIS * drawNumber(m));
+        return SHORTEST_AUDIT_INTERVAL + (long) (AUDIT_INTERVAL_SPREAD * drawNumber(m));
     }
 
     boolean isLive(Memory m, long now) {
@@ -623,7 +642,7 @@ class ReferenceMachine {
                 && m.heldBatches.isEmpty()
                 && m.behindPulse == null
                 && m.goodPulseAt != null
-                && now - m.goodPulseAt < GOOD_PULSE_MAX_AGE_MILLIS;
+                && now - m.goodPulseAt < GOOD_PULSE_LIFETIME;
     }
 
     boolean answersAllowed(Memory m, long now) {
@@ -645,15 +664,17 @@ class ReferenceMachine {
     }
 
     boolean copyHasOwnWrite(Memory m) {
-        if (m.ownWriteEpoch == null) {
+        OwnWrite kept = m.keptOwnWrite;
+        if (kept == null) {
             return true;
         }
-        boolean sameEpoch = m.copy.epoch() == m.ownWriteEpoch;
-        return sameEpoch && compare(Comparison.OWN_WRITE_REACHED, m.copy.revision(), m.ownWriteRevision) >= 0;
+        boolean sameEpoch = m.copy.epoch() == kept.epoch();
+        return sameEpoch && compare(Comparison.OWN_WRITE_REACHED, m.copy.revision(), kept.revision()) >= 0;
     }
 
     boolean ownWriteWaitIsOver(Memory m, long now) {
-        return now - m.ownWriteHandedOverAt >= OWN_WRITE_WAIT_MILLIS;
+        OwnWrite kept = m.keptOwnWrite;
+        return kept == null || now - kept.handedOverAt() >= OWN_WRITE_WAIT;
     }
 
     static NetworkCopy copyOf(NetworkState snapshot) {
@@ -724,10 +745,9 @@ class ReferenceMachine {
         return byId;
     }
 
-    static boolean sameItems(NetworkCopy first, NetworkCopy second) {
-        return first.servers().equals(second.servers())
-                && first.serverGroups().equals(second.serverGroups())
-                && first.persistentServers().equals(second.persistentServers())
-                && first.blueprints().equals(second.blueprints());
+    static boolean equalLeavingOutMetrics(NetworkCopy first, NetworkCopy second) {
+        NetworkCopy firstWithoutMetrics = withMetrics(first, List.of());
+        NetworkCopy secondWithoutMetrics = withMetrics(second, List.of());
+        return firstWithoutMetrics.equals(secondWithoutMetrics);
     }
 }

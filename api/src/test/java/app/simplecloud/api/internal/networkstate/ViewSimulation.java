@@ -54,7 +54,6 @@ import static org.junit.jupiter.api.Assertions.fail;
 final class ViewSimulation {
 
     private static final long TICK_MILLIS = 100;
-    private static final long PULSE_INTERVAL_MILLIS = 5_000;
     private static final long ROUND_INTERVAL_MILLIS = 1_000;
     private static final long LOAD_SPACING_MILLIS = 2_000;
     /**
@@ -414,7 +413,7 @@ final class ViewSimulation {
         OwnerSlot slot = new OwnerSlot(onOtherNatsServer);
         owners.add(slot);
         schedule(random.nextInt((int) ROUND_INTERVAL_MILLIS), () -> roundLoop(slot));
-        schedule(random.nextInt((int) PULSE_INTERVAL_MILLIS), () -> pulseLoop(slot));
+        schedule(random.nextInt((int) ModelOwner.PULSE_INTERVAL_MILLIS), () -> pulseLoop(slot));
     }
 
     private void notifyOwners() {
@@ -461,7 +460,7 @@ final class ViewSimulation {
         if (pulse != null) {
             publish(slot, new ViewInput.PulseReceived(pulse));
         }
-        schedule(PULSE_INTERVAL_MILLIS, () -> pulseLoop(slot));
+        schedule(ModelOwner.PULSE_INTERVAL_MILLIS, () -> pulseLoop(slot));
     }
 
     // The wire.

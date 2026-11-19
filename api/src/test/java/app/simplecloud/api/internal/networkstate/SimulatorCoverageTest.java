@@ -12,7 +12,7 @@ import static org.junit.jupiter.api.Assertions.assertTrue;
  */
 class SimulatorCoverageTest {
 
-    private static final ViewStarter REFERENCE = random -> new ReferenceMachine().start(random);
+    private static final ViewStarter REFERENCE = ReferenceMachine.STARTER;
 
     @Test
     void shortRuns_exerciseEveryFault() {

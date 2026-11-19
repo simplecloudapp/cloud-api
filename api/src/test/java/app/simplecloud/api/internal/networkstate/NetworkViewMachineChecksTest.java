@@ -9,6 +9,6 @@ class NetworkViewMachineChecksTest {
 
     @TestFactory
     List<DynamicTest> networkViewMachinePassesEveryCheck() {
-        return ViewCheckTests.dynamicTests(NetworkViewMachine::start);
+        return ViewChecksAsDynamicTests.dynamicTests(NetworkViewMachine::start);
     }
 }

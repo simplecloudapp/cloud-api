@@ -6,6 +6,7 @@ import build.buf.gen.simplecloud.controller.v2.StatePulse;
 
 import java.util.List;
 import java.util.Optional;
+import java.util.OptionalLong;
 
 import static org.junit.jupiter.api.Assertions.assertTrue;
 import static org.junit.jupiter.api.Assertions.fail;
@@ -13,14 +14,17 @@ import static org.junit.jupiter.api.Assertions.fail;
 /**
  * Plays the shell for one view in the example checks: it keeps the current view and the time, hands inputs
  * over and remembers the effects of the last step.
+ *
+ * <p>Its set-up steps ({@link #liveAt}, {@link #waitForLoad}, {@link #waitForLoadKeepingLive},
+ * {@link #requireLoadRequested}) throw {@link SetUpFailed} when the view does not get where they bring it.
+ * Its other methods that fail throw an {@link AssertionError}, because they check a rule.
  */
 final class ViewDriver {
-
-    private static final long PULSE_INTERVAL_MILLIS = 5_000;
 
     private NetworkView view;
     private long now;
     private List<ViewEffect> lastEffects = List.of();
+    private int auditsFinished;
 
     private ViewDriver(NetworkView view) {
         this.view = view;
@@ -48,12 +52,14 @@ final class ViewDriver {
     static ViewDriver liveAt(ViewStarter starter, NetworkState snapshot) {
         ViewDriver driver = start(starter);
         driver.subscribe();
-        driver.assertLoadRequested("a view loads a snapshot once its subscriptions are active");
+        driver.requireLoadRequested("a view whose subscriptions are active");
         driver.advance(100);
         driver.loadSnapshot(snapshot);
         driver.advance(100);
         driver.pulse(StateItems.pulse(snapshot.getEpoch(), snapshot.getRevision()));
-        assertTrue(driver.isLive(), "a view must be live after its snapshot and a good pulse");
+        if (!driver.readsStayOffHttp()) {
+            throw new SetUpFailed("the view is not live after its snapshot and a good pulse");
+        }
         return driver;
     }
 
@@ -65,6 +71,11 @@ final class ViewDriver {
         ViewStep step = view.step(input, now);
         view = step.view();
         lastEffects = step.effects();
+        for (ViewEffect effect : lastEffects) {
+            if (effect instanceof ViewEffect.AuditFinished) {
+                auditsFinished++;
+            }
+        }
     }
 
     void subscribe() {
@@ -120,57 +131,85 @@ final class ViewDriver {
     }
 
     /**
-     * Lets time pass in steps of 1 ms until the view asks for a load, and returns the time of that step.
+     * Lets time pass in steps of 1 ms until the view asks for a load, and returns the time of that step, or
+     * empty if it asks for none within {@code maxMillis}.
      */
-    long waitForLoad(long maxMillis) {
+    OptionalLong loadWithin(long maxMillis) {
         long deadline = now + maxMillis;
         while (now < deadline) {
             advance(1);
             if (requestedLoad()) {
-                return now;
+                return OptionalLong.of(now);
             }
         }
-        return fail("the view asked for no load within " + maxMillis + " ms");
+        return OptionalLong.empty();
     }
 
     /**
-     * Like {@link #waitForLoad}, in steps of 100 ms, and sends a pulse at the copy's revision every 5 s so
-     * that the view stays live meanwhile.
+     * Like {@link #loadWithin}, as a set-up step: returns the time of the load.
      */
-    long waitForLoadKeepingLive(long maxMillis) {
+    long waitForLoad(long maxMillis) {
+        OptionalLong loadAt = loadWithin(maxMillis);
+        if (loadAt.isEmpty()) {
+            throw new SetUpFailed("the view asked for no load within " + maxMillis + " ms");
+        }
+        return loadAt.getAsLong();
+    }
+
+    /**
+     * Like {@link #loadWithin}, in steps of 100 ms, and sends a pulse at the copy's revision at the relay's
+     * pulse interval so that the view stays live meanwhile.
+     */
+    OptionalLong loadWithinKeepingLive(long maxMillis) {
         long deadline = now + maxMillis;
-        long nextPulseAt = now + PULSE_INTERVAL_MILLIS;
+        long nextPulseAt = now + ModelOwner.PULSE_INTERVAL_MILLIS;
         while (now < deadline) {
             advance(100);
             if (requestedLoad()) {
-                return now;
+                return OptionalLong.of(now);
             }
             if (now >= nextPulseAt) {
                 sendPulseAtCopy();
-                nextPulseAt += PULSE_INTERVAL_MILLIS;
+                nextPulseAt += ModelOwner.PULSE_INTERVAL_MILLIS;
             }
             if (requestedLoad()) {
-                return now;
+                return OptionalLong.of(now);
             }
         }
-        return fail("the view asked for no load within " + maxMillis + " ms");
+        return OptionalLong.empty();
     }
 
     /**
-     * Lets time pass in steps of 100 ms until {@code time}, with a pulse at the copy's revision every 5 s,
-     * and fails if the view asks for a load meanwhile.
+     * Like {@link #loadWithinKeepingLive}, as a set-up step: returns the time of the load.
+     */
+    long waitForLoadKeepingLive(long maxMillis) {
+        OptionalLong loadAt = loadWithinKeepingLive(maxMillis);
+        if (loadAt.isEmpty()) {
+            throw new SetUpFailed("the view asked for no load within " + maxMillis + " ms while kept live");
+        }
+        return loadAt.getAsLong();
+    }
+
+    /**
+     * Lets time pass in steps of 100 ms until {@code time}, with a pulse at the copy's revision at the relay's
+     * pulse interval, and fails if the view asks for a load meanwhile.
      */
     void keepLiveWithoutLoadUntil(long time) {
-        long nextPulseAt = now + PULSE_INTERVAL_MILLIS;
+        long nextPulseAt = now + ModelOwner.PULSE_INTERVAL_MILLIS;
         while (now < time) {
             advance(100);
+            failIfLoadRequested();
             if (now >= nextPulseAt) {
                 sendPulseAtCopy();
-                nextPulseAt += PULSE_INTERVAL_MILLIS;
+                nextPulseAt += ModelOwner.PULSE_INTERVAL_MILLIS;
+                failIfLoadRequested();
             }
-            if (requestedLoad()) {
-                fail("the view asked for a load at " + now + " ms");
-            }
+        }
+    }
+
+    private void failIfLoadRequested() {
+        if (requestedLoad()) {
+            fail("the view asked for a load at " + now + " ms");
         }
     }
 
@@ -192,6 +231,17 @@ final class ViewDriver {
         assertTrue(requestedLoad(), message);
     }
 
+    /**
+     * A set-up step: fails with {@link SetUpFailed} unless the last step asked for a load.
+     *
+     * @param state the state that must ask for a load, for the message
+     */
+    void requireLoadRequested(String state) {
+        if (!requestedLoad()) {
+            throw new SetUpFailed(state + " asked for no load");
+        }
+    }
+
     Optional<AuditOutcome> lastAuditOutcome() {
         for (ViewEffect effect : lastEffects) {
             if (effect instanceof ViewEffect.AuditFinished finished) {
@@ -202,19 +252,26 @@ final class ViewDriver {
     }
 
     /**
-     * Returns whether the view is live (rule 5), as a read now shows it: it is answered or waits
-     * exactly while the view is live and the last pulse allowed answers. Every check's pulses allow answers
-     * unless the check says otherwise; before the first pulse no read is answered, so a check that looks at
-     * live there sends a pulse first.
+     * Counts every audit that finished in a step of this driver, so a check can look at a window of steps.
      */
-    boolean isLive() {
-        return isLiveAt(now);
+    int auditsFinished() {
+        return auditsFinished;
     }
 
     /**
-     * Asks whether the current view is live at a later time, without a step in between.
+     * Returns whether a read that starts now stays off HTTP: it is answered from the copy or waits. That is
+     * exactly while the view is live (rule 5) and the last pulse allowed answers. Every check's pulses allow
+     * answers unless the check says otherwise; before the first pulse every read goes over HTTP, so a check
+     * that looks at live there sends a pulse first.
      */
-    boolean isLiveAt(long time) {
+    boolean readsStayOffHttp() {
+        return readsStayOffHttpAt(now);
+    }
+
+    /**
+     * Asks whether a read stays off HTTP at a later time, without a step in between.
+     */
+    boolean readsStayOffHttpAt(long time) {
         return routeAt(time) != ReadRoute.OVER_HTTP;
     }
 
