@@ -107,7 +107,7 @@ class CopyFirstReadTest {
     }
 
     @Test
-    void aReadThatWaitedRelaysTheControllersExceptionUnwrapped() {
+    void aReadThatWaitedFailsWithTheControllersException() {
         CompletableFuture<Optional<NetworkCopy>> waitingCopy = new CompletableFuture<>();
         CopyFirstRead reads = new CopyFirstRead(() -> waitingCopy, NETWORK_ID);
         CloudApiException unavailable = new CloudApiException(CloudApiException.Reason.UNAVAILABLE, "timed out");
@@ -116,7 +116,7 @@ class CopyFirstReadTest {
         waitingCopy.complete(Optional.empty());
         Throwable seen = read.handle((answer, failure) -> failure).join();
 
-        assertSame(unavailable, seen);
+        assertSame(unavailable, seen.getCause());
     }
 
     @Test
@@ -129,7 +129,7 @@ class CopyFirstReadTest {
         }, this::controllerAnswer);
         Throwable seen = read.handle((answer, failure) -> failure).join();
 
-        assertSame(badInput, seen);
+        assertSame(badInput, seen.getCause());
         assertEquals(0, controllerReads.get());
     }
 
