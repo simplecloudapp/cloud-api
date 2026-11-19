@@ -21,8 +21,8 @@ import java.util.Set;
 import java.util.TreeMap;
 
 /**
- * The simulator's Postgres for one network (design 4.1): the items, the revision counter, the change log,
- * the last relayed number and the epoch. Writes keep the references whole, as foreign keys would. Every
+ * The simulator's Postgres for one network: the items, the revision counter, the change log, the last relayed
+ * number and the epoch. Writes keep the references whole, as foreign keys would. Every
  * state of the items is kept per epoch and revision, so a check can ask what the network looked like.
  */
 final class ModelDatabase {
@@ -41,10 +41,7 @@ final class ModelDatabase {
         BLUEPRINTS
     }
 
-    /**
-     * One row that a transaction changed, as a change log entry names it.
-     */
-    record EntityKey(Table table, ByteString id) {
+    record ChangedRow(Table table, ByteString id) {
     }
 
     record Items(
@@ -67,10 +64,10 @@ final class ModelDatabase {
     }
 
     /**
-     * One state of the database. {@code changeLog} maps a revision to the entities its transaction changed.
+     * One state of the database. {@code changeLog} maps a revision to the rows its transaction changed.
      */
-    record State(long epoch, long counter, long lastRelayed, Items items,
-                 NavigableMap<Long, Set<EntityKey>> changeLog) {
+    record State(long epoch, long headRevision, long lastRelayed, Items items,
+                 NavigableMap<Long, Set<ChangedRow>> changeLog) {
 
         State {
             changeLog = Collections.unmodifiableNavigableMap(new TreeMap<>(changeLog));
@@ -113,8 +110,8 @@ final class ModelDatabase {
     Commit commitRandomWrite() {
         WriteBuilder write = new WriteBuilder(current.items());
         write.makeRandomChange();
-        long revision = current.counter() + 1;
-        NavigableMap<Long, Set<EntityKey>> changeLog = new TreeMap<>(current.changeLog());
+        long revision = current.headRevision() + 1;
+        NavigableMap<Long, Set<ChangedRow>> changeLog = new TreeMap<>(current.changeLog());
         changeLog.put(revision, Set.copyOf(write.changed));
         Items items = write.result();
         moveTo(new State(current.epoch(), revision, current.lastRelayed(), items, changeLog));
@@ -133,8 +130,8 @@ final class ModelDatabase {
         if (!sameEpoch || !higher) {
             return;
         }
-        NavigableMap<Long, Set<EntityKey>> changeLog = new TreeMap<>(current.changeLog().tailMap(revision, false));
-        moveTo(new State(current.epoch(), current.counter(), revision, current.items(), changeLog));
+        NavigableMap<Long, Set<ChangedRow>> changeLog = new TreeMap<>(current.changeLog().tailMap(revision, false));
+        moveTo(new State(current.epoch(), current.headRevision(), revision, current.items(), changeLog));
     }
 
     /**
@@ -147,24 +144,30 @@ final class ModelDatabase {
         promotable.addAll(statesAFailoverCanLose);
         State promoted = promotable.get(random.nextInt(promotable.size()));
         long newEpoch = current.epoch() + 1;
-        NavigableMap<Long, Items> sharedHistory = itemsByEpoch.get(promoted.epoch()).headMap(promoted.counter(), true);
+        NavigableMap<Long, Items> sharedHistory =
+                itemsByEpoch.get(promoted.epoch()).headMap(promoted.headRevision(), true);
         itemsByEpoch.put(newEpoch, new TreeMap<>(sharedHistory));
+        // Not through moveTo, which would keep the old primary's head: a later failover promotes a standby of the
+        // new primary, and none of them ever had it.
         statesAFailoverCanLose.clear();
-        moveTo(new State(newEpoch, promoted.counter(), promoted.lastRelayed(), promoted.items(), promoted.changeLog()));
+        current = new State(newEpoch, promoted.headRevision(), promoted.lastRelayed(), promoted.items(),
+                promoted.changeLog());
     }
 
     /**
      * Deletes one unrelayed change log entry, as a bug would, so the relay finds fewer numbers than it needs.
+     * Returns whether there was one to delete.
      */
-    void loseChangeLogEntry() {
+    boolean loseChangeLogEntry() {
         List<Long> unrelayed = new ArrayList<>(current.changeLog().keySet());
         if (unrelayed.isEmpty()) {
-            return;
+            return false;
         }
         long lostRevision = unrelayed.get(random.nextInt(unrelayed.size()));
-        NavigableMap<Long, Set<EntityKey>> changeLog = new TreeMap<>(current.changeLog());
+        NavigableMap<Long, Set<ChangedRow>> changeLog = new TreeMap<>(current.changeLog());
         changeLog.remove(lostRevision);
-        moveTo(new State(current.epoch(), current.counter(), current.lastRelayed(), current.items(), changeLog));
+        moveTo(new State(current.epoch(), current.headRevision(), current.lastRelayed(), current.items(), changeLog));
+        return true;
     }
 
     private void moveTo(State next) {
@@ -183,7 +186,7 @@ final class ModelDatabase {
         private final Map<ByteString, StateServerGroup> groups;
         private final Map<ByteString, StatePersistentServer> persistentServers;
         private final Map<ByteString, StateBlueprint> blueprints;
-        private final Set<EntityKey> changed = new HashSet<>();
+        private final Set<ChangedRow> changed = new HashSet<>();
 
         WriteBuilder(Items items) {
             servers = new HashMap<>(items.servers());
@@ -234,14 +237,14 @@ final class ModelDatabase {
             }
             StateServerGroup group = pick(groups);
             if (roll < 85) {
-                putGroup(newGroup(group.getId()));
+                putGroup(randomGroup(group.getId()));
             } else {
                 deleteGroupWithItsServers(group.getId());
             }
         }
 
         private void createGroupWithFirstServer() {
-            StateServerGroup group = newGroup(randomId());
+            StateServerGroup group = randomGroup(randomId());
             putGroup(group);
             putServer(newServer(group.getId()));
         }
@@ -249,11 +252,11 @@ final class ModelDatabase {
         private void changePersistentServer() {
             int roll = random.nextInt(100);
             if (persistentServers.isEmpty() || (roll < 30 && persistentServers.size() < MAX_PERSISTENT_SERVERS)) {
-                StatePersistentServer persistentServer = newPersistentServer(randomId());
+                StatePersistentServer persistentServer = randomPersistentServer(randomId());
                 putPersistentServer(persistentServer);
                 putServer(newPersistentServerInstance(persistentServer.getId()));
             } else if (roll < 85) {
-                putPersistentServer(newPersistentServer(pick(persistentServers).getId()));
+                putPersistentServer(randomPersistentServer(pick(persistentServers).getId()));
             } else {
                 deletePersistentServerWithItsServers(pick(persistentServers).getId());
             }
@@ -262,15 +265,15 @@ final class ModelDatabase {
         private void changeBlueprint() {
             int roll = random.nextInt(100);
             if (blueprints.isEmpty() || (roll < 35 && blueprints.size() < MAX_BLUEPRINTS)) {
-                putBlueprint(newBlueprint(randomId()));
+                putBlueprint(randomBlueprint(randomId()));
                 return;
             }
             StateBlueprint blueprint = pick(blueprints);
             if (roll < 85 || isUsed(blueprint.getId())) {
-                putBlueprint(newBlueprint(blueprint.getId()));
+                putBlueprint(randomBlueprint(blueprint.getId()));
             } else {
                 blueprints.remove(blueprint.getId());
-                changed.add(new EntityKey(Table.BLUEPRINTS, blueprint.getId()));
+                changed.add(new ChangedRow(Table.BLUEPRINTS, blueprint.getId()));
             }
         }
 
@@ -290,7 +293,7 @@ final class ModelDatabase {
                 }
             }
             groups.remove(groupId);
-            changed.add(new EntityKey(Table.SERVER_GROUPS, groupId));
+            changed.add(new ChangedRow(Table.SERVER_GROUPS, groupId));
         }
 
         private void deletePersistentServerWithItsServers(ByteString persistentServerId) {
@@ -300,32 +303,32 @@ final class ModelDatabase {
                 }
             }
             persistentServers.remove(persistentServerId);
-            changed.add(new EntityKey(Table.PERSISTENT_SERVERS, persistentServerId));
+            changed.add(new ChangedRow(Table.PERSISTENT_SERVERS, persistentServerId));
         }
 
         private void putServer(StateServer server) {
             servers.put(server.getId(), server);
-            changed.add(new EntityKey(Table.SERVERS, server.getId()));
+            changed.add(new ChangedRow(Table.SERVERS, server.getId()));
         }
 
         private void deleteServer(ByteString serverId) {
             servers.remove(serverId);
-            changed.add(new EntityKey(Table.SERVERS, serverId));
+            changed.add(new ChangedRow(Table.SERVERS, serverId));
         }
 
         private void putGroup(StateServerGroup group) {
             groups.put(group.getId(), group);
-            changed.add(new EntityKey(Table.SERVER_GROUPS, group.getId()));
+            changed.add(new ChangedRow(Table.SERVER_GROUPS, group.getId()));
         }
 
         private void putPersistentServer(StatePersistentServer persistentServer) {
             persistentServers.put(persistentServer.getId(), persistentServer);
-            changed.add(new EntityKey(Table.PERSISTENT_SERVERS, persistentServer.getId()));
+            changed.add(new ChangedRow(Table.PERSISTENT_SERVERS, persistentServer.getId()));
         }
 
         private void putBlueprint(StateBlueprint blueprint) {
             blueprints.put(blueprint.getId(), blueprint);
-            changed.add(new EntityKey(Table.BLUEPRINTS, blueprint.getId()));
+            changed.add(new ChangedRow(Table.BLUEPRINTS, blueprint.getId()));
         }
 
         /**
@@ -374,7 +377,7 @@ final class ModelDatabase {
                     .setPropertiesJson(ByteString.copyFrom(properties, StandardCharsets.UTF_8));
         }
 
-        private StateServerGroup newGroup(ByteString id) {
+        private StateServerGroup randomGroup(ByteString id) {
             String info = "{\"version\":" + random.nextInt(1_000_000) + "}";
             StateServerGroup.Builder group = StateServerGroup.newBuilder()
                     .setId(id)
@@ -387,7 +390,7 @@ final class ModelDatabase {
             return group.build();
         }
 
-        private StatePersistentServer newPersistentServer(ByteString id) {
+        private StatePersistentServer randomPersistentServer(ByteString id) {
             String info = "{\"version\":" + random.nextInt(1_000_000) + "}";
             return StatePersistentServer.newBuilder()
                     .setId(id)
@@ -396,7 +399,7 @@ final class ModelDatabase {
                     .build();
         }
 
-        private StateBlueprint newBlueprint(ByteString id) {
+        private StateBlueprint randomBlueprint(ByteString id) {
             String info = "{\"version\":" + random.nextInt(1_000_000) + "}";
             return StateBlueprint.newBuilder()
                     .setId(id)

@@ -15,9 +15,15 @@ import java.util.Random;
 import java.util.Set;
 
 /**
- * The simulator's relay in one controller while it owns the network (design 4.2 and 4.3, with the
- * contract's decision on the pulse head). Between rounds it remembers what its last successful round read
- * and the last batch it published, so a new owner starts from the stored number.
+ * The simulator's relay: one controller while it owns the network.
+ *
+ * <p>A round reads the database once. It publishes one batch from the stored last relayed number up to the
+ * head, and the caller then stores the head as the new number. A new owner holds no state of its own, so it
+ * starts from the stored number.
+ *
+ * <p>A pulse names the epoch of the owner's last round. Its revision is the higher of two: the stored number
+ * that round read, and the owner's last batch in that epoch. An owner whose last round is 3 s old or older
+ * sends no pulse.
  */
 final class ModelOwner {
 
@@ -39,18 +45,18 @@ final class ModelOwner {
      */
     StateBatch runRound(ModelDatabase.State read, long now) {
         long lastRelayed = read.lastRelayed();
-        long head = read.counter();
+        long head = read.headRevision();
         lastRoundAt = now;
         roundEpoch = read.epoch();
         roundStoredNumber = lastRelayed;
         if (head <= lastRelayed) {
             return null;
         }
-        NavigableMap<Long, Set<ModelDatabase.EntityKey>> unrelayed =
+        NavigableMap<Long, Set<ModelDatabase.ChangedRow>> unrelayed =
                 read.changeLog().subMap(lastRelayed, false, head, true);
         boolean entriesMissing = unrelayed.size() < head - lastRelayed;
         StateBatch batch = entriesMissing
-                ? batchThatMakesViewsBehindReload(read.epoch(), head)
+                ? gapBatchAtHead(read.epoch(), head)
                 : batchOfChanges(read, lastRelayed, unrelayed);
         publishedEpoch = batch.getEpoch();
         publishedRevision = batch.getRevision();
@@ -88,7 +94,10 @@ final class ModelOwner {
         return roundStoredNumber;
     }
 
-    private static StateBatch batchThatMakesViewsBehindReload(long epoch, long head) {
+    /**
+     * Base = revision = head: a view behind the head holds it as a gap, and reloads.
+     */
+    private static StateBatch gapBatchAtHead(long epoch, long head) {
         return StateBatch.newBuilder()
                 .setEpoch(epoch)
                 .setBaseRevision(head)
@@ -97,23 +106,23 @@ final class ModelOwner {
     }
 
     private static StateBatch batchOfChanges(ModelDatabase.State read, long lastRelayed,
-                                             NavigableMap<Long, Set<ModelDatabase.EntityKey>> unrelayed) {
-        Set<ModelDatabase.EntityKey> changed = new HashSet<>();
-        for (Set<ModelDatabase.EntityKey> entities : unrelayed.values()) {
+                                             NavigableMap<Long, Set<ModelDatabase.ChangedRow>> unrelayed) {
+        Set<ModelDatabase.ChangedRow> changed = new HashSet<>();
+        for (Set<ModelDatabase.ChangedRow> entities : unrelayed.values()) {
             changed.addAll(entities);
         }
         StateBatch.Builder batch = StateBatch.newBuilder()
                 .setEpoch(read.epoch())
                 .setBaseRevision(lastRelayed)
-                .setRevision(read.counter());
-        for (ModelDatabase.EntityKey entity : changed) {
+                .setRevision(read.headRevision());
+        for (ModelDatabase.ChangedRow entity : changed) {
             addRowOrDeletedId(batch, read.items(), entity);
         }
         return batch.build();
     }
 
     private static void addRowOrDeletedId(StateBatch.Builder batch, ModelDatabase.Items items,
-                                          ModelDatabase.EntityKey entity) {
+                                          ModelDatabase.ChangedRow entity) {
         ByteString id = entity.id();
         switch (entity.table()) {
             case SERVERS -> {

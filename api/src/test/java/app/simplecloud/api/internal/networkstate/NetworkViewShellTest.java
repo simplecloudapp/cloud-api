@@ -156,7 +156,7 @@ class NetworkViewShellTest {
     @Test
     void closeEndsTheTicksTheSubscriptionsAndTheAnswers() {
         RecordingView view = new RecordingView(EMPTY_COPY);
-        view.answer(true);
+        view.allowAnswers(true);
         shell = startShell(view, unusedSnapshots());
         awaitTrue(() -> !view.received(ViewInput.TimePassed.class).isEmpty(), "the time ticks run");
 
@@ -174,7 +174,7 @@ class NetworkViewShellTest {
     @Test
     void aTickThatThrowsAnErrorEndsTheAnswersAndLeavesTheWritersAlone() {
         RecordingView view = new RecordingView(EMPTY_COPY);
-        view.answer(true);
+        view.allowAnswers(true);
         view.failOn(ViewInput.TimePassed.class);
         shell = startShell(view, unusedSnapshots());
         boolean answeredBeforeTheTick = shell.copyToAnswer().join().isPresent();
@@ -241,7 +241,7 @@ class NetworkViewShellTest {
     @Test
     void aStepThatThrowsSendsAWaitingReadOverHttp() throws Exception {
         RecordingView view = new RecordingView(EMPTY_COPY);
-        view.awaitOwnWrite(true);
+        view.waitForOwnWrite(true);
         shell = startShell(view, unusedSnapshots());
         CompletableFuture<Optional<NetworkCopy>> read = shell.copyToAnswer();
         view.failOn(ViewInput.TimePassed.class);

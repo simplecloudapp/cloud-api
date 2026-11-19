@@ -12,23 +12,37 @@ import static org.junit.jupiter.api.Assertions.assertTrue;
  */
 class SimulatorCoverageTest {
 
-    private static final ViewStarter REFERENCE = ReferenceMachine.STARTER;
+    private static final double LEAST_LIVE_SHARE = 0.4;
+    private static final int LEAST_LOADS = 1_000;
+    private static final int LEAST_OF_EACH_FAULT = 100;
+    /**
+     * Such a loss needs an owner on another NATS server and a message in the 100 ms after a reconnect.
+     */
+    private static final int LEAST_LOST_BEFORE_INTEREST_SPREAD = 10;
 
     @Test
     void shortRuns_exerciseEveryFault() {
-        ViewSimulation.Coverage coverage = ViewSimulation.runAll(REFERENCE, ViewSimulation.shortRuns());
+        ViewSimulation.Coverage coverage = ViewSimulation.runAll(ReferenceMachine.STARTER, ViewSimulation.shortRuns());
 
         double liveShare = (double) coverage.liveSteps() / coverage.steps();
-        assertTrue(liveShare > 0.4, "the view is live in only " + liveShare + " of the steps");
-        assertTrue(coverage.failovers() > 100, "failovers: " + coverage.failovers());
-        assertTrue(coverage.ownerChanges() > 100, "owner changes: " + coverage.ownerChanges());
-        assertTrue(coverage.connectionCuts() > 100, "connection cuts: " + coverage.connectionCuts());
-        assertTrue(coverage.loads() > 1_000, "loads: " + coverage.loads());
+        assertTrue(liveShare > LEAST_LIVE_SHARE, "the view is live in only " + liveShare + " of the steps");
+        assertTrue(coverage.loads() > LEAST_LOADS, "loads: " + coverage.loads());
+        for (ViewSimulation.Fault fault : ViewSimulation.Fault.values()) {
+            int count = coverage.count(fault);
+            assertTrue(count >= leastCountOf(fault), fault + ": " + count + " in " + coverage.faults());
+        }
+    }
+
+    private static int leastCountOf(ViewSimulation.Fault fault) {
+        if (fault == ViewSimulation.Fault.MESSAGE_LOST_BEFORE_INTEREST_SPREAD) {
+            return LEAST_LOST_BEFORE_INTEREST_SPREAD;
+        }
+        return LEAST_OF_EACH_FAULT;
     }
 
     @Test
     void longRuns_audit() {
-        ViewSimulation.Coverage coverage = ViewSimulation.runAll(REFERENCE, ViewSimulation.longRuns());
+        ViewSimulation.Coverage coverage = ViewSimulation.runAll(ReferenceMachine.STARTER, ViewSimulation.longRuns());
 
         assertEquals(EnumSet.of(AuditOutcome.MATCHED, AuditOutcome.JUMPED_PAST), coverage.auditOutcomes(),
                 "the long runs reach these audit outcomes; the examples cover the other two");

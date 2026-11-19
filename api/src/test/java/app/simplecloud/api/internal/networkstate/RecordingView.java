@@ -5,20 +5,19 @@ import java.util.Optional;
 import java.util.concurrent.CopyOnWriteArrayList;
 
 /**
- * A view for tests of the shell and of the reads it answers: it records every input, asks for nothing, and
- * answers reads from a fixed copy while {@link #answer} allows it, and otherwise lets them wait, for as long as
- * {@link #awaitOwnWrite} says so. It stays the same object across steps,
- * so a test can change it while a shell runs it.
+ * A view for tests of the shell: it records every input, asks for nothing, and answers reads from a fixed copy
+ * while {@link #allowAnswers} allows it, and otherwise lets them wait, for as long as {@link #waitForOwnWrite}
+ * says so. It stays the same object across steps, so a test can change it while a shell runs it.
  */
-public final class RecordingView implements NetworkView {
+final class RecordingView implements NetworkView {
 
     private final List<ViewInput> received = new CopyOnWriteArrayList<>();
     private final NetworkCopy copy;
-    private volatile boolean mayAnswer;
-    private volatile boolean awaitsOwnWrite;
+    private volatile boolean answersAllowed;
+    private volatile boolean waitsForOwnWrite;
     private volatile Class<? extends ViewInput> failingInput;
 
-    public RecordingView(NetworkCopy copy) {
+    RecordingView(NetworkCopy copy) {
         this.copy = copy;
     }
 
@@ -26,12 +25,12 @@ public final class RecordingView implements NetworkView {
         return new RecordingView(null);
     }
 
-    public void answer(boolean mayAnswer) {
-        this.mayAnswer = mayAnswer;
+    void allowAnswers(boolean answersAllowed) {
+        this.answersAllowed = answersAllowed;
     }
 
-    public void awaitOwnWrite(boolean awaitsOwnWrite) {
-        this.awaitsOwnWrite = awaitsOwnWrite;
+    void waitForOwnWrite(boolean waitsForOwnWrite) {
+        this.waitsForOwnWrite = waitsForOwnWrite;
     }
 
     /**
@@ -65,10 +64,10 @@ public final class RecordingView implements NetworkView {
 
     @Override
     public ReadRoute routeRead(long nowMillis) {
-        if (mayAnswer) {
+        if (answersAllowed) {
             return ReadRoute.FROM_COPY;
         }
-        return awaitsOwnWrite ? ReadRoute.WAIT : ReadRoute.OVER_HTTP;
+        return waitsForOwnWrite ? ReadRoute.WAIT : ReadRoute.OVER_HTTP;
     }
 
     @Override
