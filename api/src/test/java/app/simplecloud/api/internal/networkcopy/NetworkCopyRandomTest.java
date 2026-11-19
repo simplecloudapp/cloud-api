@@ -75,9 +75,9 @@ class NetworkCopyRandomTest {
 
         for (int step = 0; step < STEPS; step++) {
             int roll = random.nextInt(100);
-            if (roll < 20) {
+            if (roll < 5) {
                 sendPulse(copy, network);
-            } else if (roll < 23) {
+            } else if (roll < 6) {
                 network.startNewEpoch();
             } else {
                 StateBatch batch = network.change();
