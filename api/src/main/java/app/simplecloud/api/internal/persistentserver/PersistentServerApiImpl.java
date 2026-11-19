@@ -423,6 +423,7 @@ public class PersistentServerApiImpl implements PersistentServerApi {
                 cache.invalidateAll(QueryKey.of("persistentServers"));
                 cache.invalidateAll(QueryKey.of("persistentServer", "name"));
 
+                // Before the re-fetch, because the re-fetch may answer from the network copy.
                 networkCopy.waitForOwnWrite(httpResponse.getHeaders());
                 // Re-fetch to get the updated object
                 return getPersistentServerById(id).join();
