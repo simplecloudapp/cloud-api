@@ -18,6 +18,7 @@ import java.util.Map;
 import java.util.Optional;
 import java.util.concurrent.CompletableFuture;
 import java.util.concurrent.Executors;
+import java.util.concurrent.Future;
 import java.util.concurrent.ScheduledExecutorService;
 import java.util.concurrent.TimeUnit;
 import java.util.concurrent.TimeoutException;
@@ -38,9 +39,10 @@ import java.util.logging.Logger;
  * the next 100 ms tick after that at the latest.
  *
  * <p>A step that throws is a bug in the view, or a class loader that is going away. The shell logs it and
- * stops, as if closed but with its subscriptions left open: it takes no input and answers no read from then
- * on, so every read goes over HTTP, also a waiting one. A view that missed an input could otherwise answer
- * before an own write.
+ * stops: it takes no input and answers no read from then on, so every read goes over HTTP, also a waiting one.
+ * A view that missed an input could otherwise answer before an own write. The subscriptions and the 100 ms
+ * ticks keep running until {@link #close}, and the shell ignores what they deliver. They are left running
+ * because, with no step running, they cannot affect an answer, so the failing thread need not close them.
  */
 public final class NetworkViewShell implements NatsFailoverConnectionManager.SubscriptionListener, AnsweringView {
 
@@ -81,7 +83,7 @@ public final class NetworkViewShell implements NatsFailoverConnectionManager.Sub
      */
     private volatile boolean stopped;
     private volatile NetworkView view;
-    private CompletableFuture<NetworkState> runningLoad;
+    private CompletableFuture<NetworkState> snapshotLoadInFlight;
     private Dispatcher natsDispatcher;
 
     private NetworkViewShell(
@@ -183,8 +185,8 @@ public final class NetworkViewShell implements NatsFailoverConnectionManager.Sub
     public void close() {
         synchronized (stepLock) {
             stopped = true;
-            if (runningLoad != null) {
-                runningLoad.cancel(false);
+            if (snapshotLoadInFlight != null) {
+                snapshotLoadInFlight.cancel(false);
             }
             settleWaitingReads();
         }
@@ -291,7 +293,8 @@ public final class NetworkViewShell implements NatsFailoverConnectionManager.Sub
         } catch (Throwable failure) {
             // Also an Error: the threads that feed include the NATS dispatcher's and the writers'.
             stopped = true;
-            LOGGER.log(Level.SEVERE, "The network view failed to take " + input
+            // The input's kind only: a snapshot holds every server's properties.
+            LOGGER.log(Level.SEVERE, "The network view failed to take a " + input.getClass().getSimpleName()
                     + "; it answers no more reads, and they go over HTTP", failure);
             settleWaitingReads();
         }
@@ -364,7 +367,7 @@ public final class NetworkViewShell implements NatsFailoverConnectionManager.Sub
 
     private void startSnapshotLoad() {
         CompletableFuture<NetworkState> load = snapshots.load();
-        runningLoad = load;
+        snapshotLoadInFlight = load;
         // On the timer, never in this step: a load that fails at once would step the view inside this step.
         load.whenCompleteAsync(this::feedLoadAnswer, timer);
     }
@@ -379,6 +382,20 @@ public final class NetworkViewShell implements NatsFailoverConnectionManager.Sub
             case MATCHED, JUMPED_PAST -> LOGGER.fine("Network view audit: " + outcome + " ("
                     + count + " times since the view started)");
         }
+    }
+
+    /**
+     * Returns whether the calling thread holds the lock that every step runs under. For tests of this package.
+     */
+    boolean stepLockHeldByCurrentThread() {
+        return Thread.holdsLock(stepLock);
+    }
+
+    /**
+     * Returns the thread that sends the time ticks and hands over the load answers. For tests of this package.
+     */
+    Future<Thread> timerThread() {
+        return timer.submit(Thread::currentThread);
     }
 
     private void closeNatsDispatcher() {

@@ -16,14 +16,13 @@ import org.junit.jupiter.api.AfterEach;
 import org.junit.jupiter.api.Test;
 
 import java.io.IOException;
-import java.lang.reflect.Field;
 import java.time.Duration;
 import java.util.List;
 import java.util.Map;
 import java.util.Optional;
 import java.util.concurrent.CompletableFuture;
 import java.util.concurrent.ExecutionException;
-import java.util.concurrent.ScheduledExecutorService;
+import java.util.concurrent.Future;
 import java.util.concurrent.TimeUnit;
 import java.util.concurrent.TimeoutException;
 import java.util.concurrent.atomic.AtomicLong;
@@ -254,11 +253,10 @@ class NetworkViewShellTest {
     @Test
     void aReadThatABatchAnswersContinuesOnNeitherTheFeedingThreadNorTheTimerNorUnderTheLock() throws Exception {
         startLiveShellAtRevision10();
-        Object stepLock = stepLockOf(shell);
-        Thread timerThread = timerThreadOf(shell);
+        Thread timerThread = answerOf(shell.timerThread());
         shell.writeReturned(StateItems.EPOCH, 11);
         CompletableFuture<Optional<NetworkCopy>> read = shell.copyToAnswer();
-        CompletableFuture<Continuation> continuation = read.thenApply(answer -> Continuation.runningNow(stepLock));
+        CompletableFuture<Continuation> continuation = read.thenApply(answer -> Continuation.runningNow(shell));
         deliver(BATCH_SUBJECT, batch(10, 11).build());
         Continuation ran = answerOf(continuation);
 
@@ -271,11 +269,10 @@ class NetworkViewShellTest {
     @Test
     void aReadThatATickAnswersContinuesOnNeitherTheTimerNorUnderTheLock() throws Exception {
         startLiveShellAtRevision10();
-        Object stepLock = stepLockOf(shell);
-        Thread timerThread = timerThreadOf(shell);
+        Thread timerThread = answerOf(shell.timerThread());
         shell.writeReturned(StateItems.EPOCH, 11);
         CompletableFuture<Optional<NetworkCopy>> read = shell.copyToAnswer();
-        CompletableFuture<Continuation> continuation = read.thenApply(answer -> Continuation.runningNow(stepLock));
+        CompletableFuture<Continuation> continuation = read.thenApply(answer -> Continuation.runningNow(shell));
         clockMillis.set(3_000);
         Continuation ran = answerOf(continuation);
 
@@ -297,8 +294,8 @@ class NetworkViewShellTest {
 
     private record Continuation(Thread thread, boolean holdsStepLock) {
 
-        static Continuation runningNow(Object stepLock) {
-            return new Continuation(Thread.currentThread(), Thread.holdsLock(stepLock));
+        static Continuation runningNow(NetworkViewShell shell) {
+            return new Continuation(Thread.currentThread(), shell.stepLockHeldByCurrentThread());
         }
     }
 
@@ -347,22 +344,9 @@ class NetworkViewShellTest {
         awaitLiveAt(10);
     }
 
-    private static <T> T answerOf(CompletableFuture<T> read)
+    private static <T> T answerOf(Future<T> read)
             throws InterruptedException, ExecutionException, TimeoutException {
         return read.get(WAIT_LIMIT.toMillis(), TimeUnit.MILLISECONDS);
-    }
-
-    private static Object stepLockOf(NetworkViewShell shell) throws ReflectiveOperationException {
-        Field stepLock = NetworkViewShell.class.getDeclaredField("stepLock");
-        stepLock.setAccessible(true);
-        return stepLock.get(shell);
-    }
-
-    private static Thread timerThreadOf(NetworkViewShell shell) throws Exception {
-        Field timer = NetworkViewShell.class.getDeclaredField("timer");
-        timer.setAccessible(true);
-        ScheduledExecutorService executor = (ScheduledExecutorService) timer.get(shell);
-        return executor.submit(Thread::currentThread).get(WAIT_LIMIT.toMillis(), TimeUnit.MILLISECONDS);
     }
 
     private void awaitLiveAt(long revision) {
