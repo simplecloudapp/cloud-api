@@ -51,11 +51,7 @@ public class PersistentServerApiImpl implements PersistentServerApi {
     }
 
     public PersistentServerApiImpl(CloudApiOptions options, QueryCache cache, ApiClient httpClient) {
-        this(options, cache, httpClient, ForkJoinPool.commonPool());
-    }
-
-    public PersistentServerApiImpl(CloudApiOptions options, QueryCache cache, ApiClient httpClient, Executor executor) {
-        this(options, cache, httpClient, executor, ReadableCopies.none());
+        this(options, cache, httpClient, ForkJoinPool.commonPool(), ReadableCopies.none());
     }
 
     public PersistentServerApiImpl(CloudApiOptions options, QueryCache cache, ApiClient httpClient, Executor executor,
