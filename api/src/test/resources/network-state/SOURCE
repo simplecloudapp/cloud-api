@@ -1,0 +1,2 @@
+Copied from simplecloudapp/platform-controller, branch feat/network-state-sync, commit 15ce362,
+directory internal/web/testdata/network-state. The controller's tests write these files.
