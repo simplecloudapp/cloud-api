@@ -3,12 +3,10 @@ package app.simplecloud.api.internal;
 import app.simplecloud.api.CloudApi;
 import app.simplecloud.api.CloudApiOptions;
 import app.simplecloud.api.internal.networkstate.MonotonicClock;
-import app.simplecloud.api.internal.networkstate.NetworkView;
-import app.simplecloud.api.internal.networkstate.NetworkViewMachine;
+import app.simplecloud.api.internal.networkstate.NetworkCopy;
 import app.simplecloud.api.internal.networkstate.NetworkViewShell;
-import app.simplecloud.api.internal.networkstate.ReadRoute;
-import app.simplecloud.api.internal.networkstate.ViewInput;
 import app.simplecloud.api.server.Server;
+import app.simplecloud.api.server.ServerApi;
 import build.buf.gen.simplecloud.controller.v2.NetworkState;
 import build.buf.gen.simplecloud.controller.v2.StateBatch;
 import build.buf.gen.simplecloud.controller.v2.StatePulse;
@@ -16,20 +14,21 @@ import okhttp3.mockwebserver.Dispatcher;
 import okhttp3.mockwebserver.MockResponse;
 import okhttp3.mockwebserver.MockWebServer;
 import okhttp3.mockwebserver.RecordedRequest;
+import okio.Buffer;
 import org.jetbrains.annotations.NotNull;
 import org.junit.jupiter.api.AfterEach;
 import org.junit.jupiter.api.BeforeEach;
 import org.junit.jupiter.api.Test;
 
 import java.io.IOException;
-import java.lang.reflect.Field;
-import java.lang.reflect.Method;
 import java.net.URISyntaxException;
 import java.net.URL;
 import java.nio.file.Files;
 import java.nio.file.Path;
+import java.time.Duration;
 import java.util.List;
 import java.util.Objects;
+import java.util.Optional;
 import java.util.concurrent.CompletableFuture;
 import java.util.concurrent.ExecutionException;
 import java.util.concurrent.TimeUnit;
@@ -37,11 +36,13 @@ import java.util.concurrent.TimeoutException;
 import java.util.concurrent.atomic.AtomicInteger;
 
 import static org.junit.jupiter.api.Assertions.assertEquals;
+import static org.junit.jupiter.api.Assertions.assertNotNull;
 import static org.junit.jupiter.api.Assertions.assertTrue;
 
 /**
- * A write through a {@link CloudApiImpl} reaches the view it shares, so that the next read of what the write
- * changed waits for the copy to hold the write, for up to 3 s after the write.
+ * A write through a {@link CloudApiImpl} reaches the view it shares, so that every read after it waits for the
+ * copy to hold the write, for up to 3 s after the write. The view is the production one, fed as in production:
+ * its subscriptions, pulses and batches come over NATS, and its snapshot over HTTP.
  */
 class ReadYourWritesWiringTest {
 
@@ -49,12 +50,17 @@ class ReadYourWritesWiringTest {
      * {@code fixtureNetworkID} of the controller's fixture test.
      */
     private static final String NETWORK_ID = "0d000000-0000-4000-8000-000000000001";
+    private static final String PULSE_SUBJECT = NETWORK_ID + ".state.v1.pulse";
+    private static final String BATCH_SUBJECT = NETWORK_ID + ".state.v1.batch";
     private static final String SERVER_LIST_PATH = "/v0/servers";
+    private static final String SNAPSHOT_PATH = "/v0/network-state";
     private static final String STOPPED_SERVER_ID = "0d000000-0000-4000-8000-0000000000aa";
-    private static final String UNREACHABLE_NATS_URL = "nats://127.0.0.1:1";
+    private static final Duration LIVE_WAIT_LIMIT = Duration.ofSeconds(10);
+    private static final long OWN_WRITE_HOLD_MILLIS = 3_000;
 
     private final MockWebServer controller = new MockWebServer();
     private final AtomicInteger serverListRequests = new AtomicInteger();
+    private FakeNatsServer nats;
     private NetworkState snapshot;
     private String serverListBody;
 
@@ -65,27 +71,29 @@ class ReadYourWritesWiringTest {
         serverListBody = Files.readString(fixture.resolve("servers.json"));
         controller.setDispatcher(new ControllerDispatcher());
         controller.start();
+        nats = new FakeNatsServer();
     }
 
     @AfterEach
     void stop() throws IOException {
         controller.close();
+        nats.close();
     }
 
     @Test
-    void aServerReadAfterAServerWriteWaitsForTheCopyToHaveTheWrite() throws Exception {
+    void aServerReadAfterAServerWriteWaitsUntilTheCopyHasTheWrite() throws Exception {
         try (CloudApiImpl api = (CloudApiImpl) CloudApi.create(options())) {
-            NetworkViewShell shell = shellOf(api);
-            makeViewLive(shell);
+            ServerApi servers = api.server();
+            awaitLiveView(shellOf(api));
 
-            resultOf(api.server().stopServer(STOPPED_SERVER_ID));
-            CompletableFuture<List<Server>> read = api.server().getAllServers();
+            resultOf(servers.stopServer(STOPPED_SERVER_ID));
+            CompletableFuture<List<Server>> read = servers.getAllServers();
             boolean waitedForTheCopy = !read.isDone();
-            receiveBatchWithTheWrite(shell);
-            List<Server> servers = resultOf(read);
+            deliverBatchWithTheWrite();
+            List<Server> listed = resultOf(read);
 
             assertTrue(waitedForTheCopy, "the copy lacks the write, so the read waits for it");
-            assertEquals(snapshot.getServersCount(), servers.size(), "the copy answers once it has the write");
+            assertEquals(snapshot.getServersCount(), listed.size(), "the copy answers once it has the write");
             assertEquals(0, serverListRequests.get(), "no read went to the controller");
         }
     }
@@ -93,23 +101,24 @@ class ReadYourWritesWiringTest {
     @Test
     void aServerReadIsAnsweredFromTheCopyThreeSecondsAfterTheServerWriteThoughTheCopyLacksIt() throws Exception {
         try (CloudApiImpl api = (CloudApiImpl) CloudApi.create(options())) {
-            makeViewLive(shellOf(api));
+            ServerApi servers = api.server();
+            awaitLiveView(shellOf(api));
 
             long writeStartedAt = MonotonicClock.SYSTEM.nowMillis();
-            resultOf(api.server().stopServer(STOPPED_SERVER_ID));
-            List<Server> servers = resultOf(api.server().getAllServers());
+            resultOf(servers.stopServer(STOPPED_SERVER_ID));
+            List<Server> listed = resultOf(servers.getAllServers());
             long answeredAt = MonotonicClock.SYSTEM.nowMillis();
+            long waitedMillis = answeredAt - writeStartedAt;
 
-            assertTrue(answeredAt - writeStartedAt >= 3_000, "the read waits until 3 s after the write");
-            assertEquals(snapshot.getServersCount(), servers.size(),
-                    "then the copy answers, though it lacks the write");
+            assertTrue(waitedMillis >= OWN_WRITE_HOLD_MILLIS, "the read waits until 3 s after the write");
+            assertEquals(snapshot.getServersCount(), listed.size(), "then the copy answers, though it lacks the write");
             assertEquals(0, serverListRequests.get(), "no read went to the controller");
         }
     }
 
     private CloudApiOptions options() {
         return CloudApiOptions.builder()
-                .natsUrl(UNREACHABLE_NATS_URL)
+                .natsUrl(nats.url())
                 .controllerUrl("http://" + controller.getHostName() + ":" + controller.getPort())
                 .networkId(NETWORK_ID)
                 .networkSecret("networkPassword")
@@ -118,28 +127,40 @@ class ReadYourWritesWiringTest {
     }
 
     /**
-     * Replaces the shell's view by a live machine on the fixture's snapshot, since no NATS server sends the
-     * pulse that would make the shell's own view live. Under the shell's lock, so no tick steps the old view
-     * in between.
+     * Sends the snapshot's pulse until the view answers from its copy: a pulse that comes before the snapshot
+     * is loaded does not make the view live.
      */
-    private void makeViewLive(NetworkViewShell shell) throws ReflectiveOperationException {
-        long now = MonotonicClock.SYSTEM.nowMillis();
+    private void awaitLiveView(NetworkViewShell shell) throws IOException, InterruptedException {
+        long deadline = System.nanoTime() + LIVE_WAIT_LIMIT.toNanos();
         StatePulse pulse = StatePulse.newBuilder()
                 .setEpoch(snapshot.getEpoch())
                 .setRevision(snapshot.getRevision())
                 .setViewsMayAnswer(true)
                 .build();
-        NetworkView view = NetworkViewMachine.start(index -> 0.0);
-        view = view.step(new ViewInput.SubscriptionsActive(), now).view();
-        view = view.step(new ViewInput.SnapshotLoaded(snapshot), now).view();
-        view = view.step(new ViewInput.PulseReceived(pulse), now).view();
-        assertEquals(ReadRoute.FROM_COPY, view.routeRead(now));
+        while (!answersFromItsCopy(shell)) {
+            assertTrue(System.nanoTime() < deadline, "the view went live on the fixture's snapshot");
+            deliverWhenSubscribed(PULSE_SUBJECT, pulse.toByteArray());
+            Thread.sleep(20);
+        }
+    }
 
-        Object stepLock = readField(shell, "stepLock");
-        Field viewField = NetworkViewShell.class.getDeclaredField("view");
-        viewField.setAccessible(true);
-        synchronized (stepLock) {
-            viewField.set(shell, view);
+    private static boolean answersFromItsCopy(NetworkViewShell shell) {
+        Optional<NetworkCopy> copy = shell.copyToAnswer().join();
+        return copy.isPresent();
+    }
+
+    private void deliverBatchWithTheWrite() throws IOException {
+        StateBatch batch = StateBatch.newBuilder()
+                .setEpoch(snapshot.getEpoch())
+                .setBaseRevision(snapshot.getRevision())
+                .setRevision(snapshot.getRevision() + 1)
+                .build();
+        nats.deliver(BATCH_SUBJECT, batch.toByteArray());
+    }
+
+    private void deliverWhenSubscribed(String subject, byte[] payload) throws IOException {
+        if (nats.hasSubscription(subject)) {
+            nats.deliver(subject, payload);
         }
     }
 
@@ -151,30 +172,10 @@ class ReadYourWritesWiringTest {
         return call.get(5, TimeUnit.SECONDS);
     }
 
-    /**
-     * Steps the shell's view as a batch from NATS would, since no NATS server delivers one.
-     */
-    private void receiveBatchWithTheWrite(NetworkViewShell shell) throws ReflectiveOperationException {
-        StateBatch batch = StateBatch.newBuilder()
-                .setEpoch(snapshot.getEpoch())
-                .setBaseRevision(snapshot.getRevision())
-                .setRevision(snapshot.getRevision() + 1)
-                .build();
-        Method feed = NetworkViewShell.class.getDeclaredMethod("feed", ViewInput.class);
-        feed.setAccessible(true);
-        feed.invoke(shell, new ViewInput.BatchReceived(batch));
-    }
-
-    private static NetworkViewShell shellOf(CloudApiImpl api) throws ReflectiveOperationException {
-        SharedRuntime runtime = (SharedRuntime) readField(api, "runtime");
-        SharedNetworkView networkView = (SharedNetworkView) readField(runtime, "networkView");
+    private static NetworkViewShell shellOf(CloudApiImpl api) {
+        SharedNetworkView networkView = api.runtime().networkView();
+        assertNotNull(networkView, "the fixture's network and credential allow a view");
         return networkView.shell();
-    }
-
-    private static Object readField(Object owner, String name) throws ReflectiveOperationException {
-        Field field = owner.getClass().getDeclaredField(name);
-        field.setAccessible(true);
-        return field.get(owner);
     }
 
     private static Path fixtureDirectory() throws URISyntaxException {
@@ -183,24 +184,41 @@ class ReadYourWritesWiringTest {
     }
 
     /**
-     * Answers each write with a revision one past the snapshot's, and the server list with the fixture's.
+     * Answers the snapshot with the fixture's, each write with a revision one past the snapshot's, and the server
+     * list with the fixture's.
      */
     private final class ControllerDispatcher extends Dispatcher {
 
         @Override
         public @NotNull MockResponse dispatch(@NotNull RecordedRequest request) {
-            boolean serverList = "GET".equals(request.getMethod())
-                    && SERVER_LIST_PATH.equals(request.getRequestUrl().encodedPath());
-            if (serverList) {
+            String path = request.getRequestUrl().encodedPath();
+            boolean read = "GET".equals(request.getMethod());
+            if (read && SNAPSHOT_PATH.equals(path)) {
+                return snapshotResponse();
+            }
+            if (read && SERVER_LIST_PATH.equals(path)) {
                 serverListRequests.incrementAndGet();
                 return json(serverListBody);
             }
-            if ("GET".equals(request.getMethod())) {
+            if (read) {
                 return new MockResponse().setResponseCode(404);
             }
+            return writeResponse();
+        }
+
+        private MockResponse snapshotResponse() {
+            Buffer body = new Buffer().write(snapshot.toByteArray());
+            return new MockResponse()
+                    .setHeader("Content-Type", "application/x-protobuf")
+                    .setBody(body);
+        }
+
+        private MockResponse writeResponse() {
+            String epoch = Long.toUnsignedString(snapshot.getEpoch());
+            String revision = Long.toUnsignedString(snapshot.getRevision() + 1);
             return json("{}")
-                    .setHeader("X-SC-State-Epoch", Long.toUnsignedString(snapshot.getEpoch()))
-                    .setHeader("X-SC-State-Revision", Long.toUnsignedString(snapshot.getRevision() + 1));
+                    .setHeader("X-SC-State-Epoch", epoch)
+                    .setHeader("X-SC-State-Revision", revision);
         }
 
         private static MockResponse json(String body) {

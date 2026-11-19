@@ -85,6 +85,14 @@ final class SharedRuntime {
     }
 
     /**
+     * Returns the view of the instances, or null when their network and credential allow none. For tests of
+     * this package.
+     */
+    @Nullable SharedNetworkView networkView() {
+        return networkView;
+    }
+
+    /**
      * Returns the copies that answer the reads of all instances while the view lets them. When the network and
      * credential of the instances allow no view, it never hands out a copy.
      */

@@ -99,6 +99,13 @@ public class CloudApiImpl implements CloudApi {
         }
     }
 
+    /**
+     * Returns the runtime this instance shares. For tests of this package.
+     */
+    SharedRuntime runtime() {
+        return runtime;
+    }
+
     @Override
     public GroupApi group() {
         return groupApi;
