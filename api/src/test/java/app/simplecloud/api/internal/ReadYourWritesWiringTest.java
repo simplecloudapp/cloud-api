@@ -173,9 +173,9 @@ class ReadYourWritesWiringTest {
     }
 
     private static NetworkViewShell shellOf(CloudApiImpl api) {
-        SharedNetworkView networkView = api.runtime().networkView();
-        assertNotNull(networkView, "the fixture's network and credential allow a view");
-        return networkView.shell();
+        NetworkViewShell shell = api.runtime().networkViewShell();
+        assertNotNull(shell, "the fixture's network and credential allow a view");
+        return shell;
     }
 
     private static Path fixtureDirectory() throws URISyntaxException {

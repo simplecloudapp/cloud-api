@@ -2,8 +2,15 @@ package app.simplecloud.api.internal;
 
 import app.simplecloud.api.CloudApiOptions;
 import app.simplecloud.api.internal.nats.NatsFailoverConnectionManager;
+import app.simplecloud.api.internal.networkstate.MonotonicClock;
+import app.simplecloud.api.internal.networkstate.NetworkView;
+import app.simplecloud.api.internal.networkstate.NetworkViewMachine;
+import app.simplecloud.api.internal.networkstate.NetworkViewShell;
+import app.simplecloud.api.internal.networkstate.RandomSequence;
+import app.simplecloud.api.internal.networkstate.SnapshotLoader;
 import app.simplecloud.api.internal.networkstate.StateRevisionInterceptor;
 import app.simplecloud.api.internal.networkstate.read.ReadableCopies;
+import app.simplecloud.api.internal.web.ApiClients;
 import app.simplecloud.api.web.ApiClient;
 import okhttp3.OkHttpClient;
 import org.jetbrains.annotations.Nullable;
@@ -25,7 +32,7 @@ final class SharedRuntime {
     private final Settings settings;
     private final NatsFailoverConnectionManager natsConnectionManager;
     private final OkHttpClient httpClient;
-    private final @Nullable SharedNetworkView networkView;
+    private final @Nullable NetworkViewShell networkViewShell;
     private final ReadableCopies readableCopies;
     private int users;
 
@@ -43,8 +50,8 @@ final class SharedRuntime {
         try {
             // On the base client, because the client that reports writes needs the view's shell. The view's
             // snapshot loads are reads, which would report nothing anyway.
-            this.networkView = NetworkViewEligibility.allows(options)
-                    ? SharedNetworkView.open(options, natsConnectionManager, baseHttpClient)
+            this.networkViewShell = NetworkViewEligibility.allows(options)
+                    ? openNetworkViewShell(options, natsConnectionManager, baseHttpClient)
                     : null;
         } catch (RuntimeException | Error e) {
             // Under the lock, so other instances wait for this NATS close; it runs only when the view failed to open.
@@ -55,13 +62,46 @@ final class SharedRuntime {
             }
             throw e;
         }
-        if (networkView == null) {
+        if (networkViewShell == null) {
             this.httpClient = baseHttpClient;
             this.readableCopies = ReadableCopies.none();
         } else {
-            this.httpClient = StateRevisionInterceptor.newClientReportingWrites(baseHttpClient, networkView.shell());
-            this.readableCopies = new ReadableCopies(networkView.shell(), settings.networkId());
+            this.httpClient = StateRevisionInterceptor.newClientReportingWrites(baseHttpClient, networkViewShell);
+            this.readableCopies = new ReadableCopies(networkViewShell, settings.networkId());
         }
+    }
+
+    /**
+     * Starts the view on the given connections, which it leaves open when it closes. It does not block: the first
+     * snapshot load starts in the background once the subscriptions are confirmed. The view uses the
+     * connection settings, timeouts and component header of {@code options}, the options of the first
+     * instance that uses it.
+     */
+    private static NetworkViewShell openNetworkViewShell(
+            CloudApiOptions options,
+            NatsFailoverConnectionManager natsConnectionManager,
+            OkHttpClient httpClient
+    ) {
+        ApiClient apiClient = ApiClients.create(options, httpClient);
+        SnapshotLoader snapshots = new SnapshotLoader(apiClient, options.getControllerUrl(), options.getNetworkId());
+        RandomSequence random = RandomSequence.seeded(System.nanoTime());
+        NetworkView startView = NetworkViewMachine.start(random);
+        NetworkViewShell shell = NetworkViewShell.start(
+                options.getNetworkId(),
+                natsConnectionManager.getConnection(),
+                snapshots,
+                startView,
+                MonotonicClock.SYSTEM
+        );
+        try {
+            natsConnectionManager.addSubscriptionListener(shell);
+        } catch (RuntimeException | Error e) {
+            // The listener may be in the list already: the first call to it can throw.
+            natsConnectionManager.removeSubscriptionListener(shell);
+            shell.close();
+            throw e;
+        }
+        return shell;
     }
 
     static SharedRuntime acquire(CloudApiOptions options) {
@@ -85,11 +125,11 @@ final class SharedRuntime {
     }
 
     /**
-     * Returns the view of the instances, or null when their network and credential allow none. For tests of
-     * this package.
+     * Returns the shell that runs the view of the instances, or null when their network and credential allow
+     * none. For tests of this package.
      */
-    @Nullable SharedNetworkView networkView() {
-        return networkView;
+    @Nullable NetworkViewShell networkViewShell() {
+        return networkViewShell;
     }
 
     /**
@@ -112,10 +152,15 @@ final class SharedRuntime {
             OPEN.remove(settings);
         }
         // Outside the lock, because the NATS close can block for about a second while it flushes.
-        if (networkView != null) {
-            networkView.close();
+        if (networkViewShell != null) {
+            closeNetworkViewShell();
         }
         closeConnections(httpClient);
+    }
+
+    private void closeNetworkViewShell() {
+        natsConnectionManager.removeSubscriptionListener(networkViewShell);
+        networkViewShell.close();
     }
 
     /**

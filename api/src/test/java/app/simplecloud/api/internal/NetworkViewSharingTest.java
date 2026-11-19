@@ -4,7 +4,6 @@ import app.simplecloud.api.CloudApi;
 import app.simplecloud.api.CloudApiOptions;
 import app.simplecloud.api.internal.networkstate.NetworkViewShell;
 import okhttp3.OkHttpClient;
-import org.jetbrains.annotations.Nullable;
 import org.junit.jupiter.api.Test;
 
 import java.time.Duration;
@@ -40,11 +39,11 @@ class NetworkViewSharingTest {
              CloudApiImpl second = (CloudApiImpl) CloudApi.create(sharedOptions);
              CloudApiImpl withOtherCredential = (CloudApiImpl) CloudApi.create(otherCredential);
              CloudApiImpl withOtherController = (CloudApiImpl) CloudApi.create(otherController)) {
-            NetworkViewShell firstView = view(first);
+            NetworkViewShell firstView = first.runtime().networkViewShell();
 
-            assertSame(firstView, view(second));
-            assertNotSame(firstView, view(withOtherCredential));
-            assertNotSame(firstView, view(withOtherController));
+            assertSame(firstView, second.runtime().networkViewShell());
+            assertNotSame(firstView, withOtherCredential.runtime().networkViewShell());
+            assertNotSame(firstView, withOtherController.runtime().networkViewShell());
         }
     }
 
@@ -57,9 +56,9 @@ class NetworkViewSharingTest {
         try (CloudApiImpl withJwt = (CloudApiImpl) CloudApi.create(jwt);
              CloudApiImpl withJsonCredential = (CloudApiImpl) CloudApi.create(jsonCredential);
              CloudApiImpl withNamedNetwork = (CloudApiImpl) CloudApi.create(namedNetwork)) {
-            assertNull(view(withJwt));
-            assertNull(view(withJsonCredential));
-            assertNull(view(withNamedNetwork));
+            assertNull(withJwt.runtime().networkViewShell());
+            assertNull(withJsonCredential.runtime().networkViewShell());
+            assertNull(withNamedNetwork.runtime().networkViewShell());
         }
     }
 
@@ -68,11 +67,11 @@ class NetworkViewSharingTest {
         CloudApiOptions sharedOptions = options(UnaryOperator.identity());
         CloudApiImpl platformPlugin = (CloudApiImpl) CloudApi.create(sharedOptions);
         CloudApiImpl otherPlugin = (CloudApiImpl) CloudApi.create(sharedOptions);
-        NetworkViewShell sharedView = view(platformPlugin);
+        NetworkViewShell sharedView = platformPlugin.runtime().networkViewShell();
 
         platformPlugin.close();
         CloudApiImpl reenabledPlatformPlugin = (CloudApiImpl) CloudApi.create(sharedOptions);
-        NetworkViewShell viewOfReenabled = view(reenabledPlatformPlugin);
+        NetworkViewShell viewOfReenabled = reenabledPlatformPlugin.runtime().networkViewShell();
         boolean runsWhileInUse = viewThreadRuns();
         otherPlugin.close();
         reenabledPlatformPlugin.close();
@@ -82,7 +81,7 @@ class NetworkViewSharingTest {
         assertTrue(runsWhileInUse, "the view runs while another instance uses it");
         assertTrue(stoppedAfterLastClose, "the last close closes the view");
         try (CloudApiImpl afterRestart = (CloudApiImpl) CloudApi.create(sharedOptions)) {
-            assertNotSame(sharedView, view(afterRestart));
+            assertNotSame(sharedView, afterRestart.runtime().networkViewShell());
         }
     }
 
@@ -123,10 +122,5 @@ class NetworkViewSharingTest {
             Thread.sleep(10);
         }
         return true;
-    }
-
-    private static @Nullable NetworkViewShell view(CloudApiImpl api) {
-        SharedNetworkView networkView = api.runtime().networkView();
-        return networkView == null ? null : networkView.shell();
     }
 }
