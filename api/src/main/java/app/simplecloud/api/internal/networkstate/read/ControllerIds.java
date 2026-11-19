@@ -5,7 +5,6 @@ import com.google.protobuf.ByteString;
 import org.jetbrains.annotations.Nullable;
 
 import java.nio.ByteBuffer;
-import java.util.HexFormat;
 import java.util.UUID;
 
 /**
@@ -13,18 +12,24 @@ import java.util.UUID;
  */
 final class ControllerIds {
 
-    private static final HexFormat HEX = HexFormat.of();
+    private static final int ID_BYTES = 16;
 
     private ControllerIds() {
     }
 
     /**
-     * Formats a 16-byte id as pgx does: lowercase hex in 8-4-4-4-12 groups.
+     * Formats a 16-byte id as pgx does: lowercase hex in 8-4-4-4-12 groups. Throws
+     * {@link IllegalArgumentException} for an id of another length, which is a fault of the copy.
      */
     static String text(ByteString id) {
-        String hex = HEX.formatHex(id.toByteArray());
-        return hex.substring(0, 8) + "-" + hex.substring(8, 12) + "-" + hex.substring(12, 16) + "-"
-                + hex.substring(16, 20) + "-" + hex.substring(20);
+        if (id.size() != ID_BYTES) {
+            throw new IllegalArgumentException("An id has " + id.size() + " bytes, not " + ID_BYTES);
+        }
+        ByteBuffer idBytes = id.asReadOnlyByteBuffer();
+        long mostSignificant = idBytes.getLong();
+        long leastSignificant = idBytes.getLong();
+        UUID uuid = new UUID(mostSignificant, leastSignificant);
+        return uuid.toString();
     }
 
     /**
@@ -36,7 +41,7 @@ final class ControllerIds {
             return null;
         }
         UUID parsed = UUID.fromString(text);
-        ByteBuffer bytes = ByteBuffer.allocate(16);
+        ByteBuffer bytes = ByteBuffer.allocate(ID_BYTES);
         bytes.putLong(parsed.getMostSignificantBits());
         bytes.putLong(parsed.getLeastSignificantBits());
         return ByteString.copyFrom(bytes.array());

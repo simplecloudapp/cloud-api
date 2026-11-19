@@ -79,7 +79,7 @@ final class ModelOwner {
         for (StateServer server : read.items().servers().values()) {
             StateServerMetrics metrics = StateServerMetrics.newBuilder()
                     .setServerId(server.getId())
-                    .setPlayerCount(random.nextInt(50))
+                    .setPlayerCount(random.nextInt(ViewSimulation.MOST_PLAYERS))
                     .build();
             pulse.addMetrics(metrics);
         }

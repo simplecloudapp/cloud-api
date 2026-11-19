@@ -18,7 +18,7 @@ import java.util.function.Function;
  * {@code epoch}, and the metrics of the last pulse or snapshot. Each map is keyed by the item's 16-byte id
  * and cannot be changed.
  *
- * @param metrics per server id; a server without an entry shows zeros, as HTTP does
+ * @param metrics per server id; {@link #metricsOf} reads them
  */
 public record NetworkCopy(
         long epoch,
@@ -36,6 +36,15 @@ public record NetworkCopy(
         persistentServers = Map.copyOf(persistentServers);
         blueprints = Map.copyOf(blueprints);
         metrics = Map.copyOf(metrics);
+    }
+
+    /**
+     * Returns the metrics of a server, or the empty metrics, which show zeros as HTTP does, for a server without
+     * an entry.
+     */
+    public StateServerMetrics metricsOf(ByteString serverId) {
+        StateServerMetrics noMetrics = StateServerMetrics.getDefaultInstance();
+        return metrics.getOrDefault(serverId, noMetrics);
     }
 
     /**

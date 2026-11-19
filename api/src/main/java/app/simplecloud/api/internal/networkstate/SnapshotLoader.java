@@ -49,7 +49,7 @@ public final class SnapshotLoader {
             return CompletableFuture.failedFuture(e);
         }
         CompletableFuture<NetworkState> loaded = new CompletableFuture<>();
-        loaded.whenComplete((snapshot, error) -> cancelIfCancelled(loaded, call));
+        loaded.whenComplete((snapshot, error) -> cancelCallIfCancelled(loaded, call));
         call.enqueue(new SnapshotCallback(loaded));
         return loaded;
     }
@@ -63,7 +63,7 @@ public final class SnapshotLoader {
                 new HashMap<>(), new HashMap<>(), AUTH_NAMES, null);
     }
 
-    private static void cancelIfCancelled(CompletableFuture<NetworkState> loaded, Call call) {
+    private static void cancelCallIfCancelled(CompletableFuture<NetworkState> loaded, Call call) {
         if (loaded.isCancelled()) {
             call.cancel();
         }

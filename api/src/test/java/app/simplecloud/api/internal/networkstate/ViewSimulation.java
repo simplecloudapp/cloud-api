@@ -110,7 +110,7 @@ final class ViewSimulation {
     private static final int CRASH_BEFORE_STORE_ONE_IN = 20;
     private static final int OWN_WRITES_IN_TEN = 3;
     private static final int WRITE_BURST_ONE_IN = 5;
-    private static final int MOST_PLAYERS = 50;
+    static final int MOST_PLAYERS = 50;
 
     private static final long TICK_MILLIS = 100;
     private static final long ROUND_INTERVAL_MILLIS = 1_000;

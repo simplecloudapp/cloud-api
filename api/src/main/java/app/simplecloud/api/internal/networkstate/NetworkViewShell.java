@@ -226,7 +226,7 @@ public final class NetworkViewShell implements NatsFailoverConnectionManager.Sub
 
     private void confirmSubscriptions(long change) {
         while (!stopped && subscriptionChanges.get() == change) {
-            if (flushed()) {
+            if (flushSucceeded()) {
                 feedSubscriptionsActiveIfCurrent(change);
                 return;
             }
@@ -238,7 +238,7 @@ public final class NetworkViewShell implements NatsFailoverConnectionManager.Sub
         }
     }
 
-    private boolean flushed() {
+    private boolean flushSucceeded() {
         try {
             connection.flush(FLUSH_TIMEOUT);
             return true;
@@ -361,7 +361,7 @@ public final class NetworkViewShell implements NatsFailoverConnectionManager.Sub
     private void carryOut(ViewEffect effect) {
         switch (effect) {
             case ViewEffect.LoadSnapshot load -> startSnapshotLoad();
-            case ViewEffect.AuditFinished finished -> countAudit(finished.outcome());
+            case ViewEffect.AuditFinished finished -> countAndLogAudit(finished.outcome());
         }
     }
 
@@ -372,7 +372,7 @@ public final class NetworkViewShell implements NatsFailoverConnectionManager.Sub
         load.whenCompleteAsync(this::feedLoadAnswer, timer);
     }
 
-    private void countAudit(AuditOutcome outcome) {
+    private void countAndLogAudit(AuditOutcome outcome) {
         long count = auditCounts.merge(outcome, 1L, Long::sum);
         switch (outcome) {
             case DIFFERED -> LOGGER.warning("Network view audit: the copy differed from the snapshot at the same"

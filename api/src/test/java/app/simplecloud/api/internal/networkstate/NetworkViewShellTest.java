@@ -47,6 +47,10 @@ class NetworkViewShellTest {
      * Two time ticks of 100 ms and some room.
      */
     private static final long QUIET_MILLIS = 300;
+    /**
+     * Past the 2 s the view leaves between two loads, so that a reload may start at once.
+     */
+    private static final long PAST_LOAD_SPACING_MILLIS = 5_000;
 
     private static final NetworkCopy EMPTY_COPY = new NetworkCopy(StateItems.EPOCH, 10, Map.of(), Map.of(), Map.of(),
             Map.of(), Map.of());
@@ -128,7 +132,7 @@ class NetworkViewShellTest {
             shell.subscriptionsSent();
             RecordedRequest firstLoad = controller.takeRequest(WAIT_LIMIT.toMillis(), TimeUnit.MILLISECONDS);
             awaitLiveAt(10);
-            clockMillis.set(5_000);
+            clockMillis.set(PAST_LOAD_SPACING_MILLIS);
             shell.connectionLost();
             boolean answersAfterLoss = shell.copyToAnswer().join().isPresent();
             shell.subscriptionsSent();

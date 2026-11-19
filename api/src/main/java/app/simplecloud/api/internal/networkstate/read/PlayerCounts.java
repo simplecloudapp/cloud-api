@@ -26,8 +26,7 @@ final class PlayerCounts {
      * fresh, which the pulse leaves out as the controller leaves out stale metrics.
      */
     static long of(StateServer server, NetworkCopy copy) {
-        StateServerMetrics noMetrics = StateServerMetrics.getDefaultInstance();
-        StateServerMetrics metrics = copy.metrics().getOrDefault(server.getId(), noMetrics);
+        StateServerMetrics metrics = copy.metricsOf(server.getId());
         return of(metrics);
     }
 

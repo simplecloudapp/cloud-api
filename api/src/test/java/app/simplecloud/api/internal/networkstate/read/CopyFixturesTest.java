@@ -3,6 +3,7 @@ package app.simplecloud.api.internal.networkstate.read;
 import app.simplecloud.api.group.Group;
 import app.simplecloud.api.internal.group.GroupImpl;
 import app.simplecloud.api.internal.group.ServerGroupSource;
+import app.simplecloud.api.internal.networkstate.NetworkCopy;
 import app.simplecloud.api.internal.persistentserver.PersistentServerImpl;
 import app.simplecloud.api.internal.persistentserver.PersistentServerSource;
 import app.simplecloud.api.internal.server.ServerImpl;
@@ -138,7 +139,7 @@ class CopyFixturesTest {
 
     private static ReadableCopy readableCopyOf(Path directory) throws IOException {
         NetworkState snapshot = NetworkState.parseFrom(Files.readAllBytes(directory.resolve("network-state.pb")));
-        return new ReadableCopy(Copies.of(snapshot), FIXTURE_NETWORK_ID);
+        return new ReadableCopy(NetworkCopy.of(snapshot), FIXTURE_NETWORK_ID);
     }
 
     private static List<ServerImpl> servers(ModelsListServersResponse response) {

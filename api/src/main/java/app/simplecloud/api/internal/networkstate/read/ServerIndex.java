@@ -327,8 +327,7 @@ final class ServerIndex implements ServerSource {
      * metrics.
      */
     private static void setMetrics(ModelsServerSummary summary, StateServer row, NetworkCopy copy) {
-        StateServerMetrics noMetrics = StateServerMetrics.getDefaultInstance();
-        StateServerMetrics metrics = copy.metrics().getOrDefault(row.getId(), noMetrics);
+        StateServerMetrics metrics = copy.metricsOf(row.getId());
         summary.setPlayerCount(Math.toIntExact(PlayerCounts.of(metrics)));
         summary.setCpuUsage(finiteOrNull(metrics.getCpuUsage()));
         summary.setMemoryUsage(finiteOrNull(metrics.getMemoryUsage()));

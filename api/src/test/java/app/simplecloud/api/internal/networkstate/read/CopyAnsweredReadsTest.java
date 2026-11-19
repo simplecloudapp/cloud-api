@@ -88,7 +88,7 @@ class CopyAnsweredReadsTest {
         apiClient = ApiClients.create(options);
 
         NetworkState snapshot = NetworkState.parseFrom(Files.readAllBytes(fixture.resolve("network-state.pb")));
-        NetworkCopy copy = Copies.of(withReadableScalingModes(snapshot));
+        NetworkCopy copy = NetworkCopy.of(withReadableScalingModes(snapshot));
         AnsweringView alwaysTheFixture = () -> CompletableFuture.completedFuture(Optional.of(copy));
         startApis(new ReadableCopies(alwaysTheFixture, NETWORK_ID));
     }

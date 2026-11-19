@@ -5,6 +5,7 @@ import org.junit.jupiter.api.Test;
 
 import static org.junit.jupiter.api.Assertions.assertEquals;
 import static org.junit.jupiter.api.Assertions.assertNull;
+import static org.junit.jupiter.api.Assertions.assertThrows;
 
 class ControllerIdsTest {
 
@@ -13,6 +14,16 @@ class ControllerIdsTest {
     @Test
     void anIdIsWrittenInLowercaseGroups() {
         assertEquals("0d000000-0000-4000-8000-000000000a01", ControllerIds.text(ID));
+    }
+
+    @Test
+    void anIdOfAnotherLengthIsRefused() {
+        ByteString fifteenBytes = ID.substring(1);
+        ByteString seventeenBytes = ID.concat(ByteString.fromHex("ff"));
+
+        assertThrows(IllegalArgumentException.class, () -> ControllerIds.text(ByteString.EMPTY));
+        assertThrows(IllegalArgumentException.class, () -> ControllerIds.text(fifteenBytes));
+        assertThrows(IllegalArgumentException.class, () -> ControllerIds.text(seventeenBytes));
     }
 
     @Test
