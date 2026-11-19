@@ -1,7 +1,6 @@
 package app.simplecloud.api.internal.networkstate.read;
 
 import app.simplecloud.api.internal.group.GroupImpl;
-import app.simplecloud.api.internal.networkstate.NetworkCopy;
 import app.simplecloud.api.internal.persistentserver.PersistentServerImpl;
 import app.simplecloud.api.internal.server.ServerImpl;
 import app.simplecloud.api.web.JSON;
@@ -12,9 +11,6 @@ import app.simplecloud.api.web.models.ModelsPersistentServerSummary;
 import app.simplecloud.api.web.models.ModelsServerGroupSummary;
 import app.simplecloud.api.web.models.ModelsServerSummary;
 import build.buf.gen.simplecloud.controller.v2.NetworkState;
-import com.google.gson.JsonElement;
-import com.google.gson.JsonObject;
-import com.google.gson.JsonParser;
 import org.junit.jupiter.api.DynamicContainer;
 import org.junit.jupiter.api.DynamicTest;
 import org.junit.jupiter.api.TestFactory;
@@ -28,18 +24,16 @@ import java.nio.file.Path;
 import java.util.ArrayList;
 import java.util.List;
 import java.util.Objects;
-import java.util.Optional;
-import java.util.concurrent.Callable;
 import java.util.stream.Stream;
 
 import static org.junit.jupiter.api.Assertions.assertEquals;
 import static org.junit.jupiter.api.Assertions.assertFalse;
 
 /**
- * Answers each controller fixture's lists from its snapshot and compares the answers with the controller's
- * HTTP answers for the same database state: the JSON bodies, what the HTTP client reads from them (the
- * models, or the exception), and every public getter of the objects. The fixtures come from the controller's
- * {@code TestNetworkStateFixtures}; each case's {@code SOURCE} names the commit.
+ * Builds each controller fixture's servers, groups and persistent servers from its snapshot and compares
+ * them with what the HTTP client builds from the controller's HTTP answers for the same database state: every
+ * public getter of every object, in the same order, or the same exception. The fixtures come from the
+ * controller's {@code TestNetworkStateFixtures}; each case's {@code SOURCE} names the commit.
  */
 class CopyFixturesTest {
 
@@ -47,91 +41,49 @@ class CopyFixturesTest {
      * {@code fixtureNetworkID} of the controller's fixture test.
      */
     private static final String FIXTURE_NETWORK_ID = "0d000000-0000-4000-8000-000000000001";
-    private static final CopyServerList SERVER_LIST = new CopyServerList(FIXTURE_NETWORK_ID);
 
     @TestFactory
-    List<DynamicContainer> copyAnswersEqualTheControllersAnswers() throws IOException, URISyntaxException {
+    List<DynamicContainer> copyObjectsEqualTheObjectsOverHttp() throws IOException, URISyntaxException {
         List<DynamicContainer> cases = new ArrayList<>();
         for (Path directory : caseDirectories()) {
-            List<DynamicTest> routes = List.of(
+            List<DynamicTest> kinds = List.of(
                     DynamicTest.dynamicTest("servers", () -> serversEqual(directory)),
                     DynamicTest.dynamicTest("server groups", () -> serverGroupsEqual(directory)),
                     DynamicTest.dynamicTest("persistent servers", () -> persistentServersEqual(directory)));
-            cases.add(DynamicContainer.dynamicContainer(directory.getFileName().toString(), routes));
+            cases.add(DynamicContainer.dynamicContainer(directory.getFileName().toString(), kinds));
         }
         assertFalse(cases.isEmpty(), "no fixture cases found");
         return cases;
     }
 
     private static void serversEqual(Path directory) throws IOException {
-        NetworkCopy copy = copyOf(directory);
-        ServerListParameters noFilter = ListParameters.servers();
+        ReadableCopy copy = readableCopyOf(directory);
 
-        Optional<JsonObject> bodyFromCopy = SERVER_LIST.responseBody(copy, noFilter);
+        Outcome overHttp = Outcome.of(() -> PublicGetters.read(servers(readHttpAnswer(directory, "servers.json",
+                ModelsListServersResponse.class))));
+        Outcome fromCopy = Outcome.of(() -> PublicGetters.read(copy.servers(null)));
 
-        assertEquals(Optional.of(readBody(directory, "servers.json")), bodyFromCopy);
-        Callable<ModelsListServersResponse> overHttp = () -> readHttpAnswer(directory, "servers.json",
-                ModelsListServersResponse.class);
-        Callable<ModelsListServersResponse> fromCopy = () -> SERVER_LIST.answer(copy, noFilter).orElseThrow();
-        assertEquals(Outcome.of(overHttp), Outcome.of(fromCopy));
-        assertEquals(Outcome.of(() -> PublicGetters.read(servers(overHttp.call()))),
-                Outcome.of(() -> PublicGetters.read(servers(fromCopy.call()))));
+        assertEquals(overHttp, fromCopy);
     }
 
     private static void serverGroupsEqual(Path directory) throws IOException {
-        NetworkCopy copy = copyOf(directory);
-        ServerGroupListParameters noFilter = ListParameters.serverGroups();
+        ReadableCopy copy = readableCopyOf(directory);
 
-        Optional<JsonObject> bodyFromCopy = CopyServerGroupList.responseBody(copy, noFilter);
+        Outcome overHttp = Outcome.of(() -> PublicGetters.read(groups(readHttpAnswer(directory, "server-groups.json",
+                ModelsListServerGroupsResponse.class))));
+        Outcome fromCopy = Outcome.of(() -> PublicGetters.read(copy.serverGroups(null)));
 
-        JsonObject bodyOverHttp = readBody(directory, "server-groups.json");
-        assertEquals(Optional.of(bodyOverHttp), bodyFromCopy);
-        assertEquals(stateOrders(bodyOverHttp), stateOrders(bodyFromCopy.orElseThrow()));
-        Callable<ModelsListServerGroupsResponse> overHttp = () -> readHttpAnswer(directory, "server-groups.json",
-                ModelsListServerGroupsResponse.class);
-        Callable<ModelsListServerGroupsResponse> fromCopy = () -> new CopyServerGroupList().answer(copy, noFilter)
-                .orElseThrow();
-        assertEquals(Outcome.of(overHttp), Outcome.of(fromCopy));
-        assertEquals(Outcome.of(() -> PublicGetters.read(groups(overHttp.call()))),
-                Outcome.of(() -> PublicGetters.read(groups(fromCopy.call()))));
+        assertEquals(overHttp, fromCopy);
     }
 
     private static void persistentServersEqual(Path directory) throws IOException {
-        NetworkCopy copy = copyOf(directory);
-        PersistentServerListParameters noFilter = ListParameters.persistentServers();
+        ReadableCopy copy = readableCopyOf(directory);
 
-        Optional<JsonObject> bodyFromCopy = CopyPersistentServerList.responseBody(copy, noFilter);
+        Outcome overHttp = Outcome.of(() -> PublicGetters.read(persistentServers(readHttpAnswer(directory,
+                "persistent-servers.json", ModelsListPersistentServersResponse.class))));
+        Outcome fromCopy = Outcome.of(() -> PublicGetters.read(copy.persistentServers(null)));
 
-        assertEquals(Optional.of(readBody(directory, "persistent-servers.json")), bodyFromCopy);
-        Callable<ModelsListPersistentServersResponse> overHttp = () -> readHttpAnswer(directory,
-                "persistent-servers.json", ModelsListPersistentServersResponse.class);
-        Callable<ModelsListPersistentServersResponse> fromCopy = () -> new CopyPersistentServerList()
-                .answer(copy, noFilter)
-                .orElseThrow();
-        assertEquals(Outcome.of(overHttp), Outcome.of(fromCopy));
-        assertEquals(Outcome.of(() -> PublicGetters.read(persistentServers(overHttp.call()))),
-                Outcome.of(() -> PublicGetters.read(persistentServers(fromCopy.call()))));
-    }
-
-    /**
-     * Lists each group's {@code servers_by_state} keys in their order, which JSON equality ignores but the
-     * parsed map keeps.
-     */
-    private static List<List<String>> stateOrders(JsonObject body) {
-        List<List<String>> orders = new ArrayList<>();
-        JsonElement groups = body.get("server_groups");
-        if (groups.isJsonNull()) {
-            return orders;
-        }
-        for (JsonElement group : groups.getAsJsonArray()) {
-            JsonObject serversByState = group.getAsJsonObject().getAsJsonObject("stats").getAsJsonObject("servers_by_state");
-            orders.add(List.copyOf(serversByState.keySet()));
-        }
-        return orders;
-    }
-
-    private static JsonObject readBody(Path directory, String file) throws IOException {
-        return JsonParser.parseString(Files.readString(directory.resolve(file))).getAsJsonObject();
+        assertEquals(overHttp, fromCopy);
     }
 
     /**
@@ -143,9 +95,9 @@ class CopyFixturesTest {
         }
     }
 
-    private static NetworkCopy copyOf(Path directory) throws IOException {
+    private static ReadableCopy readableCopyOf(Path directory) throws IOException {
         NetworkState snapshot = NetworkState.parseFrom(Files.readAllBytes(directory.resolve("network-state.pb")));
-        return Copies.of(snapshot);
+        return new ReadableCopy(Copies.of(snapshot), FIXTURE_NETWORK_ID);
     }
 
     private static List<ServerImpl> servers(ModelsListServersResponse response) {

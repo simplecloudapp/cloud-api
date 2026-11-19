@@ -7,10 +7,8 @@ import app.simplecloud.api.blueprint.CreateBlueprintRequest;
 import app.simplecloud.api.group.*;
 import app.simplecloud.api.internal.blueprint.InlineBlueprintSupport;
 import app.simplecloud.api.internal.create.CreateRequestDefaults;
-import app.simplecloud.api.internal.networkstate.CopyFirstList;
 import app.simplecloud.api.internal.networkstate.AnsweringCopy;
-import app.simplecloud.api.internal.networkstate.read.CopyServerGroupList;
-import app.simplecloud.api.internal.networkstate.read.ServerGroupListParameters;
+import app.simplecloud.api.internal.networkstate.read.CopyFirstRead;
 import app.simplecloud.api.internal.web.ApiClients;
 import app.simplecloud.api.internal.web.ApiErrors;
 import app.simplecloud.api.internal.web.Identifiers;
@@ -41,29 +39,29 @@ public class GroupApiImpl implements GroupApi {
     private final CreateRequestDefaults createRequestDefaults;
     private final QueryCache cache;
     private final Executor executor;
-    private final CopyFirstList<ServerGroupListParameters, ModelsListServerGroupsResponse> serverGroupList;
+    private final CopyFirstRead reads;
 
     public GroupApiImpl(CloudApiOptions options, QueryCache cache) {
         this(options, cache, ApiClients.create(options));
     }
 
     public GroupApiImpl(CloudApiOptions options, QueryCache cache, ApiClient httpClient) {
-        this(options, cache, httpClient, ForkJoinPool.commonPool(), AnsweringCopy.NONE);
+        this(options, cache, httpClient, ForkJoinPool.commonPool());
     }
 
     public GroupApiImpl(CloudApiOptions options, QueryCache cache, ApiClient httpClient, Executor executor) {
-        this(options, cache, httpClient, executor, AnsweringCopy.NONE);
+        this(options, cache, httpClient, executor, new CopyFirstRead(AnsweringCopy.NONE, options.getNetworkId()));
     }
 
     public GroupApiImpl(CloudApiOptions options, QueryCache cache, ApiClient httpClient, Executor executor,
-            AnsweringCopy answeringCopy) {
+                        CopyFirstRead reads) {
         this(
                 options,
                 cache,
                 createServerGroupsApi(options, httpClient),
                 new InlineBlueprintSupport(options, createBlueprintsApi(options, httpClient)),
                 executor,
-                answeringCopy
+                reads
         );
     }
 
@@ -71,7 +69,8 @@ public class GroupApiImpl implements GroupApi {
                  QueryCache cache,
                  ServerGroupsApi serverGroupsApi,
                  BlueprintsApi blueprintsApi) {
-        this(options, cache, serverGroupsApi, new InlineBlueprintSupport(options, blueprintsApi), ForkJoinPool.commonPool(), AnsweringCopy.NONE);
+        this(options, cache, serverGroupsApi, new InlineBlueprintSupport(options, blueprintsApi), ForkJoinPool.commonPool(),
+                new CopyFirstRead(AnsweringCopy.NONE, options.getNetworkId()));
     }
 
     GroupApiImpl(CloudApiOptions options,
@@ -85,7 +84,7 @@ public class GroupApiImpl implements GroupApi {
                 serverGroupsApi,
                 new InlineBlueprintSupport(options, blueprintsApi, serverUrlResolver),
                 ForkJoinPool.commonPool(),
-                AnsweringCopy.NONE
+                new CopyFirstRead(AnsweringCopy.NONE, options.getNetworkId())
         );
     }
 
@@ -94,15 +93,14 @@ public class GroupApiImpl implements GroupApi {
                          ServerGroupsApi serverGroupsApi,
                          InlineBlueprintSupport inlineBlueprintSupport,
                          Executor executor,
-                         AnsweringCopy answeringCopy) {
+                         CopyFirstRead reads) {
         this.options = options;
         this.cache = cache;
         this.serverGroupsApi = serverGroupsApi;
         this.inlineBlueprintSupport = inlineBlueprintSupport;
         this.createRequestDefaults = new CreateRequestDefaults();
         this.executor = executor;
-        CopyServerGroupList copyServerGroupList = new CopyServerGroupList();
-        this.serverGroupList = new CopyFirstList<>(copyServerGroupList, answeringCopy, this::executeQuery, executor);
+        this.reads = reads;
     }
 
     @Override
@@ -182,20 +180,19 @@ public class GroupApiImpl implements GroupApi {
 
     @Override
     public CompletableFuture<Optional<Group>> findGroupByName(String name) {
-        ServerGroupListParameters parameters = listParameters(null, null, name);
         QueryKey key = QueryKey.of("group", "name", name);
-        CompletableFuture<Group> group = serverGroupList.read(
-                parameters,
-                response -> groupWithName(response, name),
-                fromController -> cache.fetchWithTransientMissRecovery(
+
+        return reads.readAgainOnMiss(
+                copy -> copy.serverGroupWithName(name),
+                Objects::isNull,
+                () -> cache.fetchWithTransientMissRecovery(
                         key,
-                        fromController,
+                        () -> fetchGroupByNameFromController(name),
                         Objects::isNull,
                         TRANSIENT_MISS_RETRY_DELAY,
                         TRANSIENT_MISS_MAX_RETRIES
                 )
-        );
-        return group.thenApply(Optional::ofNullable);
+        ).thenApply(Optional::ofNullable);
     }
 
     @Override
@@ -210,65 +207,47 @@ public class GroupApiImpl implements GroupApi {
         if (!Identifiers.isUuid(id)) {
             return CompletableFuture.completedFuture(Optional.empty());
         }
-        ServerGroupListParameters parameters = listParameters(null, id, null);
         QueryKey key = QueryKey.of("group", id);
-        CompletableFuture<Group> group = serverGroupList.read(
-                parameters,
-                response -> groupWithId(response, id),
-                fromController -> cache.fetchWithTransientMissRecovery(
+
+        return reads.readAgainOnMiss(
+                copy -> copy.serverGroupWithId(id),
+                Objects::isNull,
+                () -> cache.fetchWithTransientMissRecovery(
                         key,
-                        fromController,
+                        () -> fetchGroupByIdFromController(id),
                         Objects::isNull,
                         TRANSIENT_MISS_RETRY_DELAY,
                         TRANSIENT_MISS_MAX_RETRIES
                 )
-        );
-        return group.thenApply(Optional::ofNullable);
+        ).thenApply(Optional::ofNullable);
     }
 
     @Override
     public CompletableFuture<List<Group>> getAllGroups(@org.jetbrains.annotations.Nullable GroupQuery query) {
-        ServerGroupListParameters parameters = listParameters(query, null, null);
         QueryKey key = buildQueryKey(query);
-        return serverGroupList.read(
-                parameters,
-                GroupApiImpl::groupsOf,
-                fromController -> cache.fetch(key, fromController)
+
+        return reads.read(
+                copy -> copy.serverGroups(query),
+                () -> cache.fetch(key, () -> fetchGroupsFromController(query))
         );
     }
 
-    private static List<Group> groupsOf(ModelsListServerGroupsResponse response) {
-        List<ModelsServerGroupSummary> groups = response.getServerGroups();
-        if (groups == null) {
-            return List.of();
-        }
-        return groups.stream()
-                .<Group>map(GroupImpl::new)
-                .toList();
-    }
+    private CompletableFuture<List<Group>> fetchGroupsFromController(@Nullable GroupQuery query) {
+        return CompletableFuture.supplyAsync(() -> {
+            try {
+                ModelsListServerGroupsResponse response = executeQuery(query);
+                List<ModelsServerGroupSummary> groups = response.getServerGroups();
+                if (groups == null) {
+                    return List.of();
+                }
 
-    private static @Nullable Group groupWithName(ModelsListServerGroupsResponse response, String name) {
-        List<ModelsServerGroupSummary> groups = response.getServerGroups();
-        if (groups == null) {
-            return null;
-        }
-        return groups.stream()
-                .filter(summary -> name.equals(summary.getName()))
-                .findFirst()
-                .<Group>map(GroupImpl::new)
-                .orElse(null);
-    }
-
-    private static @Nullable Group groupWithId(ModelsListServerGroupsResponse response, String id) {
-        List<ModelsServerGroupSummary> groups = response.getServerGroups();
-        if (groups == null) {
-            return null;
-        }
-        return groups.stream()
-                .filter(summary -> id.equals(summary.getServerGroupId()))
-                .findFirst()
-                .<Group>map(GroupImpl::new)
-                .orElse(null);
+                return groups.stream()
+                        .<Group>map(GroupImpl::new)
+                        .toList();
+            } catch (ApiException e) {
+                throw ApiErrors.from(e);
+            }
+        }, executor);
     }
 
     private QueryKey buildQueryKey(@org.jetbrains.annotations.Nullable GroupQuery query) {
@@ -282,34 +261,24 @@ public class GroupApiImpl implements GroupApi {
         );
     }
 
-    /**
-     * The parameters of {@code GET /v0/server-groups} for a query, which both the copy and HTTP answer.
-     */
-    private static ServerGroupListParameters listParameters(@Nullable GroupQuery query,
-                                                            @Nullable String serverGroupId,
-                                                            @Nullable String name) {
-        return new ServerGroupListParameters(
+    private ModelsListServerGroupsResponse executeQuery(@org.jetbrains.annotations.Nullable GroupQuery query) throws ApiException {
+        return executeQuery(query, null, null);
+    }
+
+    private ModelsListServerGroupsResponse executeQuery(@Nullable GroupQuery query,
+                                                         @Nullable String serverGroupId,
+                                                         @Nullable String name) throws ApiException {
+        return serverGroupsApi.listServerGroups(
+                this.options.getNetworkId(),
                 serverGroupId,
                 name,
                 query != null && query.getType() != null ? query.getType().name() : null,
                 query != null ? query.getTag() : null,
+                null,
+                null,
+                null,
                 query != null ? query.getLimit() : null,
                 null
-        );
-    }
-
-    private ModelsListServerGroupsResponse executeQuery(ServerGroupListParameters parameters) throws ApiException {
-        return serverGroupsApi.listServerGroups(
-                this.options.getNetworkId(),
-                parameters.serverGroupId(),
-                parameters.name(),
-                parameters.type(),
-                parameters.tags(),
-                null,
-                null,
-                null,
-                parameters.limit(),
-                parameters.offset()
         );
     }
 
@@ -319,7 +288,7 @@ public class GroupApiImpl implements GroupApi {
         }
 
         try {
-            ModelsListServerGroupsResponse response = executeQuery(listParameters(null, null, name));
+            ModelsListServerGroupsResponse response = executeQuery(null, null, name);
             List<ModelsServerGroupSummary> groups = response.getServerGroups();
             if (groups == null) {
                 return false;
@@ -330,6 +299,46 @@ public class GroupApiImpl implements GroupApi {
         } catch (ApiException e) {
             throw ApiErrors.from(e);
         }
+    }
+
+    private CompletableFuture<Group> fetchGroupByNameFromController(String name) {
+        return CompletableFuture.supplyAsync(() -> {
+            try {
+                ModelsListServerGroupsResponse response = executeQuery(null, null, name);
+                List<ModelsServerGroupSummary> groups = response.getServerGroups();
+                if (groups == null) {
+                    return null;
+                }
+
+                return groups.stream()
+                        .filter(summary -> name.equals(summary.getName()))
+                        .findFirst()
+                        .<Group>map(GroupImpl::new)
+                        .orElse(null);
+            } catch (ApiException e) {
+                throw ApiErrors.from(e);
+            }
+        }, executor);
+    }
+
+    private CompletableFuture<Group> fetchGroupByIdFromController(String id) {
+        return CompletableFuture.supplyAsync(() -> {
+            try {
+                ModelsListServerGroupsResponse response = executeQuery(null, id, null);
+                List<ModelsServerGroupSummary> groups = response.getServerGroups();
+                if (groups == null) {
+                    return null;
+                }
+
+                return groups.stream()
+                        .filter(summary -> id.equals(summary.getServerGroupId()))
+                        .findFirst()
+                        .<Group>map(GroupImpl::new)
+                        .orElse(null);
+            } catch (ApiException e) {
+                throw ApiErrors.from(e);
+            }
+        }, executor);
     }
 
     @Override
@@ -575,7 +584,7 @@ public class GroupApiImpl implements GroupApi {
 
     @Nullable
     private String findAttachedBlueprintId(String groupId) throws ApiException {
-        ModelsListServerGroupsResponse response = executeQuery(listParameters(null, groupId, null));
+        ModelsListServerGroupsResponse response = executeQuery(null, groupId, null);
         List<ModelsServerGroupSummary> groups = response.getServerGroups();
         if (groups == null) {
             return null;

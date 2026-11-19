@@ -1,12 +1,14 @@
 package app.simplecloud.api.internal.networkstate.read;
 
+import app.simplecloud.api.group.Group;
+import app.simplecloud.api.group.GroupQuery;
+import app.simplecloud.api.group.GroupServerType;
 import app.simplecloud.api.internal.networkstate.NetworkCopy;
-import app.simplecloud.api.web.models.ModelsListPersistentServersResponse;
-import app.simplecloud.api.web.models.ModelsListServerGroupsResponse;
-import app.simplecloud.api.web.models.ModelsListServersResponse;
-import app.simplecloud.api.web.models.ModelsPersistentServerSummary;
-import app.simplecloud.api.web.models.ModelsServerGroupSummary;
-import app.simplecloud.api.web.models.ModelsServerSummary;
+import app.simplecloud.api.persistentserver.PersistentServer;
+import app.simplecloud.api.persistentserver.PersistentServerQuery;
+import app.simplecloud.api.server.Server;
+import app.simplecloud.api.server.ServerQuery;
+import app.simplecloud.api.server.ServerState;
 import build.buf.gen.simplecloud.controller.v2.StatePersistentServer;
 import build.buf.gen.simplecloud.controller.v2.StateServer;
 import build.buf.gen.simplecloud.controller.v2.StateServerGroup;
@@ -15,6 +17,7 @@ import com.google.gson.JsonElement;
 import com.google.gson.JsonObject;
 import com.google.gson.JsonParser;
 import com.google.protobuf.ByteString;
+import org.jetbrains.annotations.Nullable;
 import org.junit.jupiter.api.DynamicTest;
 import org.junit.jupiter.api.TestFactory;
 
@@ -26,105 +29,185 @@ import java.time.Instant;
 import java.time.temporal.ChronoUnit;
 import java.util.ArrayList;
 import java.util.HashMap;
+import java.util.HashSet;
+import java.util.LinkedHashMap;
 import java.util.List;
 import java.util.Map;
 import java.util.Objects;
-import java.util.Optional;
+import java.util.Set;
+import java.util.function.Function;
 
 import static org.junit.jupiter.api.Assertions.assertEquals;
+import static org.junit.jupiter.api.Assertions.assertNotNull;
 
 /**
- * Runs the shared filter, order and paging cases of {@code list-cases.json} against the copy's lists. Each
- * case expects the listed keys in order, {@code "rejected"} when the controller answers with an error, or
- * {@code "missed"} when it answers a lookup with nothing. The copy answers neither of the last two, so the
- * caller asks the controller.
+ * Runs the shared filter, order and lookup cases of {@code list-cases.json} against a readable copy, each
+ * with the query or lookup a plugin sends for it. Each case expects the listed keys in order, or
+ * {@code "missed"} when the controller answers with nothing.
  *
- * <p>The controller runs the same file against its real list routes on Postgres
+ * <p>The controller runs the same cases against its real list routes on Postgres
  * ({@code TestListRoutesAnswerTheSharedListCases}); {@code SOURCE} next to the file names the commit.
  */
 class ListCasesTest {
 
-    private static final String REJECTED = "rejected";
     private static final String MISSED = "missed";
 
+    private record TypedCase(String name, Function<ReadableCopy, List<String>> listedIds) {
+    }
+
     @TestFactory
-    List<DynamicTest> copyListsAnswerAsTheController() throws IOException {
+    List<DynamicTest> theCopyAnswersAsTheController() throws IOException {
         JsonObject world = readWorld();
-        NetworkCopy copy = copyOf(world);
-        CopyServerList serverList = new CopyServerList(world.get("network_id").getAsString());
+        ReadableCopy copy = new ReadableCopy(copyOf(world), world.get("network_id").getAsString());
         Map<String, String> keysById = keysById(world);
+        Map<String, TypedCase> typedCases = typedCasesByName();
 
         List<DynamicTest> tests = new ArrayList<>();
+        Set<String> recordedNames = new HashSet<>();
         for (JsonElement element : world.getAsJsonArray("cases")) {
             JsonObject listCase = element.getAsJsonObject();
-            String route = listCase.get("route").getAsString();
-            String name = route + ": " + listCase.get("name").getAsString();
-            JsonObject query = listCase.getAsJsonObject("parameters");
-            Optional<List<String>> expected = expectedKeys(listCase.get("expected"));
+            String name = listCase.get("route").getAsString() + ": " + listCase.get("name").getAsString();
+            recordedNames.add(name);
+            List<String> expected = expectedKeys(listCase.get("expected"));
+            TypedCase typedCase = typedCases.get(name);
             tests.add(DynamicTest.dynamicTest(name, () -> {
-                Optional<List<String>> listed = listedKeys(route, query, copy, serverList, keysById);
+                assertNotNull(typedCase, "no query for the recorded case");
+                List<String> listed = keysOf(typedCase.listedIds().apply(copy), keysById);
                 assertEquals(expected, listed);
             }));
         }
+        tests.add(DynamicTest.dynamicTest("every query has a recorded case",
+                () -> assertEquals(recordedNames, typedCases.keySet())));
         return tests;
     }
 
-    private static Optional<List<String>> expectedKeys(JsonElement expected) {
+    private static Map<String, TypedCase> typedCasesByName() {
+        List<TypedCase> cases = List.of(
+                servers("default order: groups by id bytes, then numerical id, persistent servers last by id", null),
+                servers("states", ServerQuery.create().filterByState(ServerState.AVAILABLE, ServerState.INGAME)),
+                servers("a name matches a group or a persistent server",
+                        ServerQuery.create().filterByServerGroupName("lobby")),
+                servers("a name compares exactly, and a name alone picks no server",
+                        ServerQuery.create().filterByServerGroupName("Lobby")),
+                servers("a name and a numerical id",
+                        ServerQuery.create().filterByServerGroupName("lobby").filterByNumericalId(1)),
+                servers("a numerical id nobody has is a missed lookup",
+                        ServerQuery.create().filterByServerGroupName("lobby").filterByNumericalId(9)),
+                serverWithId("a server id", "c0000000-0000-4000-8000-000000000201"),
+                serverWithId("a server id in upper case", "C0000000-0000-4000-8000-000000000201"),
+                serverWithId("an unknown server id is a missed lookup", "c0000000-0000-4000-8000-000000000299"),
+                servers("several group ids", ServerQuery.create().filterByServerGroupId(
+                        "0a000000-0000-4000-8000-000000000302", "70000000-0000-4000-8000-000000000303")),
+                servers("a persistent server id",
+                        ServerQuery.create().filterByPersistentServerId("e0000000-0000-4000-8000-000000000401")),
+                servers("a serverhost id",
+                        ServerQuery.create().filterByServerhostId("0d000000-0000-4000-8000-000000000011")),
+                servers("a type matches a group or a persistent server",
+                        ServerQuery.create().filterByServerGroupType(GroupServerType.PROXY)),
+                servers("a tag of a group or a persistent server", ServerQuery.create().filterByServerGroupTags("hub")),
+                servers("one tag in common is enough",
+                        ServerQuery.create().filterByServerGroupTags("minigame", "nothing")),
+                servers("filters combine", ServerQuery.create()
+                        .filterByState(ServerState.AVAILABLE)
+                        .filterByServerGroupType(GroupServerType.SERVER)
+                        .filterByServerGroupTags("main")),
+                servers("numerical id descending, ties in the default order",
+                        ServerQuery.create().sortBy("numerical_id").sortOrder("desc")),
+                servers("created_at ascending, ties in the default order", ServerQuery.create().sortBy("created_at")),
+                servers("updated_at descending", ServerQuery.create().sortBy("updated_at").sortOrder("desc")),
+                servers("state, trimmed, by bytes", ServerQuery.create().sortBy(" state ")),
+                servers("a sort order alone keeps the default order", ServerQuery.create().sortOrder("desc")),
+                serverGroups("default order: created_at descending, then id bytes", null),
+                serverGroupWithName("a name", "lobby"),
+                serverGroupWithName("a name compares exactly, and a missed name is a missed lookup", "Lobby"),
+                serverGroupWithId("an id", "f0000000-0000-4000-8000-000000000301"),
+                serverGroupWithId("an unknown id is a missed lookup", "f0000000-0000-4000-8000-000000000399"),
+                serverGroups("a type", GroupQuery.create().filterByType(GroupServerType.SERVER)),
+                serverGroups("a tag", GroupQuery.create().filterByTag("hub")),
+                serverGroups("a tag nobody has", GroupQuery.create().filterByTag("nothing")),
+                serverGroups("a limit", GroupQuery.create().limit(2)),
+                persistentServers("default order: created_at descending, then id bytes", null),
+                persistentServers("inactive", PersistentServerQuery.create().filterByActive(false)),
+                persistentServers("active", PersistentServerQuery.create().filterByActive(true)),
+                persistentServers("a serverhost id",
+                        PersistentServerQuery.create().filterByServerhostId("0d000000-0000-4000-8000-000000000011")),
+                persistentServers("tags", PersistentServerQuery.create().filterByTags("hub", "main")),
+                persistentServerWithName("a name", "survival"),
+                persistentServerWithName("a missed name is a missed lookup", "missing"),
+                persistentServerWithId("an id", "10000000-0000-4000-8000-000000000402"),
+                persistentServers("a tag nobody has", PersistentServerQuery.create().limit(1).filterByTags("nothing")));
+        Map<String, TypedCase> byName = new LinkedHashMap<>();
+        for (TypedCase typedCase : cases) {
+            byName.put(typedCase.name(), typedCase);
+        }
+        return byName;
+    }
+
+    private static TypedCase servers(String name, @Nullable ServerQuery query) {
+        return new TypedCase("servers: " + name, copy -> serverIds(copy.servers(query)));
+    }
+
+    private static TypedCase serverWithId(String name, String id) {
+        return new TypedCase("servers: " + name, copy -> serverIds(listOf(copy.serverWithId(id))));
+    }
+
+    private static TypedCase serverGroups(String name, @Nullable GroupQuery query) {
+        return new TypedCase("server-groups: " + name, copy -> groupIds(copy.serverGroups(query)));
+    }
+
+    private static TypedCase serverGroupWithId(String name, String id) {
+        return new TypedCase("server-groups: " + name, copy -> groupIds(listOf(copy.serverGroupWithId(id))));
+    }
+
+    private static TypedCase serverGroupWithName(String name, String groupName) {
+        return new TypedCase("server-groups: " + name,
+                copy -> groupIds(listOf(copy.serverGroupWithName(groupName))));
+    }
+
+    private static TypedCase persistentServers(String name, @Nullable PersistentServerQuery query) {
+        return new TypedCase("persistent-servers: " + name,
+                copy -> persistentServerIds(copy.persistentServers(query)));
+    }
+
+    private static TypedCase persistentServerWithId(String name, String id) {
+        return new TypedCase("persistent-servers: " + name,
+                copy -> persistentServerIds(listOf(copy.persistentServerWithId(id))));
+    }
+
+    private static TypedCase persistentServerWithName(String name, String persistentServerName) {
+        return new TypedCase("persistent-servers: " + name,
+                copy -> persistentServerIds(listOf(copy.persistentServerWithName(persistentServerName))));
+    }
+
+    private static <T> List<T> listOf(@Nullable T found) {
+        return found == null ? List.of() : List.of(found);
+    }
+
+    private static List<String> serverIds(List<Server> servers) {
+        return servers.stream().map(Server::getServerId).toList();
+    }
+
+    private static List<String> groupIds(List<Group> groups) {
+        return groups.stream().map(Group::getServerGroupId).toList();
+    }
+
+    private static List<String> persistentServerIds(List<PersistentServer> persistentServers) {
+        return persistentServers.stream().map(PersistentServer::getPersistentServerId).toList();
+    }
+
+    private static List<String> expectedKeys(JsonElement expected) {
         if (expected.isJsonPrimitive()) {
             String outcome = expected.getAsString();
-            if (!outcome.equals(REJECTED) && !outcome.equals(MISSED)) {
+            if (!outcome.equals(MISSED)) {
                 throw new IllegalArgumentException("Unknown expected outcome " + outcome);
             }
-            return Optional.empty();
+            return List.of();
         }
-        return Optional.of(strings(expected.getAsJsonArray()));
+        return strings(expected.getAsJsonArray());
     }
 
-    private static Optional<List<String>> listedKeys(
-            String route,
-            JsonObject query,
-            NetworkCopy copy,
-            CopyServerList serverList,
-            Map<String, String> keysById
-    ) {
-        return switch (route) {
-            case "servers" -> serverList.answer(copy, ListParameters.servers(query))
-                    .map(response -> serverKeys(response, keysById));
-            case "server-groups" -> new CopyServerGroupList().answer(copy, ListParameters.serverGroups(query))
-                    .map(response -> serverGroupKeys(response, keysById));
-            case "persistent-servers" -> new CopyPersistentServerList()
-                    .answer(copy, ListParameters.persistentServers(query))
-                    .map(response -> persistentServerKeys(response, keysById));
-            default -> throw new IllegalArgumentException("Unknown route " + route);
-        };
-    }
-
-    private static List<String> serverKeys(ModelsListServersResponse response, Map<String, String> keysById) {
-        List<String> keys = new ArrayList<>();
-        for (ModelsServerSummary server : Objects.requireNonNullElse(response.getServers(), List.<ModelsServerSummary>of())) {
-            keys.add(keysById.get(server.getServerId()));
-        }
-        return keys;
-    }
-
-    private static List<String> serverGroupKeys(ModelsListServerGroupsResponse response, Map<String, String> keysById) {
-        List<String> keys = new ArrayList<>();
-        for (ModelsServerGroupSummary group : Objects.requireNonNullElse(response.getServerGroups(),
-                List.<ModelsServerGroupSummary>of())) {
-            keys.add(keysById.get(group.getServerGroupId()));
-        }
-        return keys;
-    }
-
-    private static List<String> persistentServerKeys(
-            ModelsListPersistentServersResponse response,
-            Map<String, String> keysById
-    ) {
-        List<String> keys = new ArrayList<>();
-        for (ModelsPersistentServerSummary persistentServer : response.getPersistentServers()) {
-            keys.add(keysById.get(persistentServer.getPersistentServerId()));
-        }
-        return keys;
+    private static List<String> keysOf(List<String> ids, Map<String, String> keysById) {
+        return ids.stream().map(keysById::get).toList();
     }
 
     private static JsonObject readWorld() throws IOException {

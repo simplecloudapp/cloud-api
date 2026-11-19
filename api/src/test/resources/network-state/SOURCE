@@ -1,3 +1,5 @@
 list-cases.json is copied from the controller, branch feat/network-state-sync, at commit
 1f03629e1db9fd233dfe4495b3eed0d9f00eedb8, from internal/web/testdata/network-state/list-cases.json.
 The controller runs the same cases against its list routes in TestListRoutesAnswerTheSharedListCases.
+The cases whose parameters cloud-api's queries and lookups cannot send were removed from the copy: text
+forms, offsets, limits on servers, several group names, and parameters the controller refuses.

@@ -4,6 +4,7 @@ import app.simplecloud.api.CloudApiOptions;
 import app.simplecloud.api.internal.nats.NatsFailoverConnectionManager;
 import app.simplecloud.api.internal.networkstate.AnsweringCopy;
 import app.simplecloud.api.internal.networkstate.StateRevisionInterceptor;
+import app.simplecloud.api.internal.networkstate.read.CopyFirstRead;
 import app.simplecloud.api.web.ApiClient;
 import okhttp3.OkHttpClient;
 import org.jetbrains.annotations.Nullable;
@@ -26,7 +27,7 @@ final class SharedRuntime {
     private final NatsFailoverConnectionManager natsConnectionManager;
     private final OkHttpClient httpClient;
     private final @Nullable SharedNetworkView networkView;
-    private final AnsweringCopy answeringCopy;
+    private final CopyFirstRead copyFirstRead;
     private int users;
 
     private SharedRuntime(Settings settings, CloudApiOptions options) {
@@ -57,10 +58,10 @@ final class SharedRuntime {
         }
         if (networkView == null) {
             this.httpClient = baseHttpClient;
-            this.answeringCopy = AnsweringCopy.NONE;
+            this.copyFirstRead = new CopyFirstRead(AnsweringCopy.NONE, settings.networkId());
         } else {
             this.httpClient = StateRevisionInterceptor.addTo(baseHttpClient, networkView.shell());
-            this.answeringCopy = networkView.shell();
+            this.copyFirstRead = new CopyFirstRead(networkView.shell(), settings.networkId());
         }
     }
 
@@ -85,10 +86,11 @@ final class SharedRuntime {
     }
 
     /**
-     * Returns {@link AnsweringCopy#NONE} when the network and credential of the instances allow no view.
+     * Returns the reads of all instances, which the view's copy answers while it may. When the network and
+     * credential of the instances allow no view, the controller answers every read.
      */
-    AnsweringCopy answeringCopy() {
-        return answeringCopy;
+    CopyFirstRead copyFirstRead() {
+        return copyFirstRead;
     }
 
     /**

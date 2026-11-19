@@ -2,9 +2,9 @@ package app.simplecloud.api.internal;
 
 import app.simplecloud.api.CloudApi;
 import app.simplecloud.api.CloudApiOptions;
-import app.simplecloud.api.internal.networkstate.AnsweringCopy;
 import app.simplecloud.api.internal.networkstate.NetworkViewShell;
 import okhttp3.OkHttpClient;
+import org.jetbrains.annotations.Nullable;
 import org.junit.jupiter.api.Test;
 
 import java.lang.reflect.Field;
@@ -13,6 +13,7 @@ import java.util.function.UnaryOperator;
 
 import static org.junit.jupiter.api.Assertions.assertFalse;
 import static org.junit.jupiter.api.Assertions.assertNotSame;
+import static org.junit.jupiter.api.Assertions.assertNull;
 import static org.junit.jupiter.api.Assertions.assertSame;
 import static org.junit.jupiter.api.Assertions.assertTrue;
 
@@ -48,9 +49,9 @@ class NetworkViewSharingTest {
         try (CloudApiImpl withJwt = (CloudApiImpl) CloudApi.create(jwt);
              CloudApiImpl withJsonCredential = (CloudApiImpl) CloudApi.create(jsonCredential);
              CloudApiImpl withNamedNetwork = (CloudApiImpl) CloudApi.create(namedNetwork)) {
-            assertSame(AnsweringCopy.NONE, view(withJwt));
-            assertSame(AnsweringCopy.NONE, view(withJsonCredential));
-            assertSame(AnsweringCopy.NONE, view(withNamedNetwork));
+            assertNull(view(withJwt));
+            assertNull(view(withJsonCredential));
+            assertNull(view(withNamedNetwork));
         }
     }
 
@@ -59,7 +60,7 @@ class NetworkViewSharingTest {
         CloudApiOptions sharedOptions = options(UnaryOperator.identity());
         CloudApiImpl platformPlugin = (CloudApiImpl) CloudApi.create(sharedOptions);
         CloudApiImpl otherPlugin = (CloudApiImpl) CloudApi.create(sharedOptions);
-        NetworkViewShell sharedView = (NetworkViewShell) view(platformPlugin);
+        NetworkViewShell sharedView = view(platformPlugin);
 
         platformPlugin.close();
         CloudApiImpl reenabledPlatformPlugin = (CloudApiImpl) CloudApi.create(sharedOptions);
@@ -95,8 +96,11 @@ class NetworkViewSharingTest {
         return customizer.apply(builder).build();
     }
 
-    private static AnsweringCopy view(CloudApiImpl api) throws ReflectiveOperationException {
-        return runtime(api).answeringCopy();
+    private static @Nullable NetworkViewShell view(CloudApiImpl api) throws ReflectiveOperationException {
+        Field field = SharedRuntime.class.getDeclaredField("networkView");
+        field.setAccessible(true);
+        SharedNetworkView networkView = (SharedNetworkView) field.get(runtime(api));
+        return networkView == null ? null : networkView.shell();
     }
 
     private static SharedRuntime runtime(CloudApiImpl api) throws ReflectiveOperationException {

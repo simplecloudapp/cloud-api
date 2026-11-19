@@ -1,75 +1,47 @@
 package app.simplecloud.api.internal.networkstate.read;
 
+import app.simplecloud.api.internal.web.Identifiers;
 import app.simplecloud.api.web.JSON;
-import com.google.gson.JsonElement;
-import com.google.gson.JsonObject;
-import com.google.gson.JsonPrimitive;
+import com.google.gson.reflect.TypeToken;
 import com.google.protobuf.ByteString;
 import org.jetbrains.annotations.Nullable;
 
-import java.math.BigDecimal;
+import java.lang.reflect.Type;
+import java.nio.ByteBuffer;
 import java.time.Instant;
 import java.time.LocalDateTime;
 import java.time.ZoneOffset;
 import java.time.temporal.ChronoUnit;
-import java.util.ArrayList;
 import java.util.HexFormat;
-import java.util.List;
+import java.util.Map;
+import java.util.UUID;
 
 /**
- * Reads and writes JSON values as the controller's HTTP API does, so that an object built from a copy goes
- * through the same Gson, and the same generated model adapters, as an object read over HTTP.
+ * Reads and writes values as the controller's HTTP API does, so that an object built from a copy holds the
+ * same values as an object read over HTTP: the JSON the controller rendered goes through the HTTP client's
+ * Gson, and ids and times get the controller's text forms.
  */
 final class ControllerJson {
 
     private static final HexFormat HEX = HexFormat.of();
-    private static final BigDecimal SMALLEST_PLAIN_FLOAT = new BigDecimal("1e-6");
-    private static final BigDecimal LARGEST_PLAIN_FLOAT = new BigDecimal("1e21");
+    private static final Type PROPERTIES = new TypeToken<Map<String, Object>>() {
+    }.getType();
 
     private ControllerJson() {
     }
 
     /**
-     * Parses JSON text the controller rendered, with the adapter the HTTP client uses for a response body.
+     * Reads JSON the controller rendered into a generated model, as the HTTP client reads a response body.
      */
-    static JsonElement parse(ByteString json) {
-        return JSON.getGson().fromJson(json.toStringUtf8(), JsonElement.class);
-    }
-
-    static JsonObject parseObject(ByteString json) {
-        return parse(json).getAsJsonObject();
-    }
-
-    static <T> T toModel(JsonElement json, Class<T> model) {
-        return JSON.getGson().fromJson(json, model);
+    static <T> T toModel(ByteString json, Class<T> model) {
+        return JSON.deserialize(json.toStringUtf8(), model);
     }
 
     /**
-     * Returns a text member, or null where the controller wrote null or nothing.
+     * Reads a properties object, or null where the controller wrote null.
      */
-    static @Nullable String text(JsonObject object, String member) {
-        JsonElement value = object.get(member);
-        return value == null || value.isJsonNull() ? null : value.getAsString();
-    }
-
-    /**
-     * Returns a member that holds a list of texts, or null where the controller wrote null or nothing.
-     */
-    static @Nullable List<String> texts(JsonObject object, String member) {
-        JsonElement value = object.get(member);
-        if (value == null || value.isJsonNull()) {
-            return null;
-        }
-        List<String> texts = new ArrayList<>();
-        for (JsonElement element : value.getAsJsonArray()) {
-            texts.add(element.isJsonNull() ? null : element.getAsString());
-        }
-        return texts;
-    }
-
-    static @Nullable Boolean bool(JsonObject object, String member) {
-        JsonElement value = object.get(member);
-        return value == null || value.isJsonNull() ? null : value.getAsBoolean();
+    static @Nullable Map<String, Object> toProperties(ByteString json) {
+        return JSON.deserialize(json.toStringUtf8(), PROPERTIES);
     }
 
     /**
@@ -79,6 +51,21 @@ final class ControllerJson {
         String hex = HEX.formatHex(id.toByteArray());
         return hex.substring(0, 8) + "-" + hex.substring(8, 12) + "-" + hex.substring(12, 16) + "-"
                 + hex.substring(16, 20) + "-" + hex.substring(20);
+    }
+
+    /**
+     * Returns the 16 bytes of an id in the 8-4-4-4-12 form, in either case, or null for text in any other
+     * form, which matches no item.
+     */
+    static @Nullable ByteString idBytes(@Nullable String uuid) {
+        if (!Identifiers.isUuid(uuid)) {
+            return null;
+        }
+        UUID parsed = UUID.fromString(uuid);
+        ByteBuffer bytes = ByteBuffer.allocate(16);
+        bytes.putLong(parsed.getMostSignificantBits());
+        bytes.putLong(parsed.getLeastSignificantBits());
+        return ByteString.copyFrom(bytes.array());
     }
 
     /**
@@ -110,26 +97,6 @@ final class ControllerJson {
 
     static Instant fromNanos(long nanos) {
         return Instant.EPOCH.plusNanos(nanos);
-    }
-
-    /**
-     * Returns the number Go's JSON encoder writes for {@code value}: the shortest digits that read back as
-     * {@code value}, plain from 1e-6 up to 1e21 and in exponent form outside. The generated models hold such
-     * numbers as {@link BigDecimal}, whose equality counts the digits after the point, so {@code 0} must stay
-     * {@code 0} and not become {@code 0.0}.
-     *
-     * @throws IllegalArgumentException for NaN and the infinities, which Go's encoder refuses
-     */
-    static JsonPrimitive goFloat(double value) {
-        if (!Double.isFinite(value)) {
-            throw new IllegalArgumentException("Go's JSON encoder cannot write " + value);
-        }
-        BigDecimal shortest = new BigDecimal(Double.toString(value)).stripTrailingZeros();
-        BigDecimal magnitude = shortest.abs();
-        boolean plain = magnitude.signum() == 0
-                || (magnitude.compareTo(SMALLEST_PLAIN_FLOAT) >= 0 && magnitude.compareTo(LARGEST_PLAIN_FLOAT) < 0);
-        BigDecimal written = plain ? shortest.setScale(Math.max(0, shortest.scale())) : shortest;
-        return new JsonPrimitive(written);
     }
 
     private static void appendYear(StringBuilder text, int year) {

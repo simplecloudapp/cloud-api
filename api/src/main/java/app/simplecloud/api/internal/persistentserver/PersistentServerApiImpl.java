@@ -9,10 +9,8 @@ import app.simplecloud.api.group.SourceConfig;
 import app.simplecloud.api.group.WorkflowsConfig;
 import app.simplecloud.api.internal.blueprint.InlineBlueprintSupport;
 import app.simplecloud.api.internal.create.CreateRequestDefaults;
-import app.simplecloud.api.internal.networkstate.CopyFirstList;
 import app.simplecloud.api.internal.networkstate.AnsweringCopy;
-import app.simplecloud.api.internal.networkstate.read.CopyPersistentServerList;
-import app.simplecloud.api.internal.networkstate.read.PersistentServerListParameters;
+import app.simplecloud.api.internal.networkstate.read.CopyFirstRead;
 import app.simplecloud.api.internal.web.ApiClients;
 import app.simplecloud.api.internal.web.ApiErrors;
 import app.simplecloud.api.internal.web.Identifiers;
@@ -44,30 +42,29 @@ public class PersistentServerApiImpl implements PersistentServerApi {
     private final CreateRequestDefaults createRequestDefaults;
     private final QueryCache cache;
     private final Executor executor;
-    private final CopyFirstList<PersistentServerListParameters, ModelsListPersistentServersResponse>
-            persistentServerList;
+    private final CopyFirstRead reads;
 
     public PersistentServerApiImpl(CloudApiOptions options, QueryCache cache) {
         this(options, cache, ApiClients.create(options));
     }
 
     public PersistentServerApiImpl(CloudApiOptions options, QueryCache cache, ApiClient httpClient) {
-        this(options, cache, httpClient, ForkJoinPool.commonPool(), AnsweringCopy.NONE);
+        this(options, cache, httpClient, ForkJoinPool.commonPool());
     }
 
     public PersistentServerApiImpl(CloudApiOptions options, QueryCache cache, ApiClient httpClient, Executor executor) {
-        this(options, cache, httpClient, executor, AnsweringCopy.NONE);
+        this(options, cache, httpClient, executor, new CopyFirstRead(AnsweringCopy.NONE, options.getNetworkId()));
     }
 
     public PersistentServerApiImpl(CloudApiOptions options, QueryCache cache, ApiClient httpClient, Executor executor,
-            AnsweringCopy answeringCopy) {
+                                   CopyFirstRead reads) {
         this(
                 options,
                 cache,
                 createPersistentServersApi(options, httpClient),
                 new InlineBlueprintSupport(options, createBlueprintsApi(options, httpClient)),
                 executor,
-                answeringCopy
+                reads
         );
     }
 
@@ -75,7 +72,8 @@ public class PersistentServerApiImpl implements PersistentServerApi {
                             QueryCache cache,
                             PersistentServersApi persistentServersApi,
                             BlueprintsApi blueprintsApi) {
-        this(options, cache, persistentServersApi, new InlineBlueprintSupport(options, blueprintsApi), ForkJoinPool.commonPool(), AnsweringCopy.NONE);
+        this(options, cache, persistentServersApi, new InlineBlueprintSupport(options, blueprintsApi), ForkJoinPool.commonPool(),
+                new CopyFirstRead(AnsweringCopy.NONE, options.getNetworkId()));
     }
 
     PersistentServerApiImpl(CloudApiOptions options,
@@ -89,7 +87,7 @@ public class PersistentServerApiImpl implements PersistentServerApi {
                 persistentServersApi,
                 new InlineBlueprintSupport(options, blueprintsApi, serverUrlResolver),
                 ForkJoinPool.commonPool(),
-                AnsweringCopy.NONE
+                new CopyFirstRead(AnsweringCopy.NONE, options.getNetworkId())
         );
     }
 
@@ -98,16 +96,14 @@ public class PersistentServerApiImpl implements PersistentServerApi {
                                     PersistentServersApi persistentServersApi,
                                     InlineBlueprintSupport inlineBlueprintSupport,
                                     Executor executor,
-                                    AnsweringCopy answeringCopy) {
+                                    CopyFirstRead reads) {
         this.options = options;
         this.cache = cache;
         this.persistentServersApi = persistentServersApi;
         this.inlineBlueprintSupport = inlineBlueprintSupport;
         this.createRequestDefaults = new CreateRequestDefaults();
         this.executor = executor;
-        CopyPersistentServerList copyPersistentServerList = new CopyPersistentServerList();
-        this.persistentServerList = new CopyFirstList<>(copyPersistentServerList, answeringCopy, this::executeQuery,
-                executor);
+        this.reads = reads;
     }
 
     @Override
@@ -122,20 +118,19 @@ public class PersistentServerApiImpl implements PersistentServerApi {
         if (!Identifiers.isUuid(id)) {
             return CompletableFuture.completedFuture(Optional.empty());
         }
-        PersistentServerListParameters parameters = listParameters(null, id, null);
         QueryKey key = QueryKey.of("persistentServer", id);
-        CompletableFuture<PersistentServer> persistentServer = persistentServerList.read(
-                parameters,
-                response -> persistentServerWithId(response, id),
-                fromController -> cache.fetchWithTransientMissRecovery(
+
+        return reads.readAgainOnMiss(
+                copy -> copy.persistentServerWithId(id),
+                Objects::isNull,
+                () -> cache.fetchWithTransientMissRecovery(
                         key,
-                        fromController,
+                        () -> fetchPersistentServerByIdFromController(id),
                         Objects::isNull,
                         TRANSIENT_MISS_RETRY_DELAY,
                         TRANSIENT_MISS_MAX_RETRIES
                 )
-        );
-        return persistentServer.thenApply(Optional::ofNullable);
+        ).thenApply(Optional::ofNullable);
     }
 
     @Override
@@ -147,71 +142,49 @@ public class PersistentServerApiImpl implements PersistentServerApi {
 
     @Override
     public CompletableFuture<Optional<PersistentServer>> findPersistentServerByName(String name) {
-        PersistentServerListParameters parameters = listParameters(null, null, name);
         QueryKey key = QueryKey.of("persistentServer", "name", name);
-        CompletableFuture<PersistentServer> persistentServer = persistentServerList.read(
-                parameters,
-                response -> persistentServerWithName(response, name),
-                fromController -> cache.fetchWithTransientMissRecovery(
+
+        return reads.readAgainOnMiss(
+                copy -> copy.persistentServerWithName(name),
+                Objects::isNull,
+                () -> cache.fetchWithTransientMissRecovery(
                         key,
-                        fromController,
+                        () -> fetchPersistentServerByNameFromController(name),
                         Objects::isNull,
                         TRANSIENT_MISS_RETRY_DELAY,
                         TRANSIENT_MISS_MAX_RETRIES
                 )
-        );
-        return persistentServer.thenApply(Optional::ofNullable);
+        ).thenApply(Optional::ofNullable);
     }
 
     @Override
     public CompletableFuture<List<PersistentServer>> getAllPersistentServers(@Nullable PersistentServerQuery query) {
-        PersistentServerListParameters parameters = listParameters(query, null, null);
         QueryKey key = buildQueryKey(query);
-        return persistentServerList.read(
-                parameters,
-                PersistentServerApiImpl::persistentServersOf,
-                fromController -> cache.fetch(key, fromController)
+
+        return reads.read(
+                copy -> copy.persistentServers(query),
+                () -> cache.fetch(key, () -> fetchPersistentServersFromController(query))
         );
     }
 
-    private static List<PersistentServer> persistentServersOf(ModelsListPersistentServersResponse response) {
-        List<ModelsPersistentServerSummary> servers = response.getPersistentServers();
-        if (servers == null) {
-            return List.of();
-        }
-        return servers.stream()
-                .<PersistentServer>map(PersistentServerImpl::new)
-                .toList();
-    }
-
-    private static @Nullable PersistentServer persistentServerWithId(
-            ModelsListPersistentServersResponse response,
-            String id
+    private CompletableFuture<List<PersistentServer>> fetchPersistentServersFromController(
+            @Nullable PersistentServerQuery query
     ) {
-        List<ModelsPersistentServerSummary> servers = response.getPersistentServers();
-        if (servers == null) {
-            return null;
-        }
-        return servers.stream()
-                .filter(summary -> id.equals(summary.getPersistentServerId()))
-                .findFirst()
-                .<PersistentServer>map(PersistentServerImpl::new)
-                .orElse(null);
-    }
+        return CompletableFuture.supplyAsync(() -> {
+            try {
+                ModelsListPersistentServersResponse response = executeQuery(query, null, null);
+                List<ModelsPersistentServerSummary> servers = response.getPersistentServers();
+                if (servers == null) {
+                    return List.of();
+                }
 
-    private static @Nullable PersistentServer persistentServerWithName(
-            ModelsListPersistentServersResponse response,
-            String name
-    ) {
-        List<ModelsPersistentServerSummary> servers = response.getPersistentServers();
-        if (servers == null) {
-            return null;
-        }
-        return servers.stream()
-                .filter(summary -> name.equals(summary.getName()))
-                .findFirst()
-                .<PersistentServer>map(PersistentServerImpl::new)
-                .orElse(null);
+                return servers.stream()
+                        .<PersistentServer>map(PersistentServerImpl::new)
+                        .toList();
+            } catch (ApiException e) {
+                throw ApiErrors.from(e);
+            }
+        }, executor);
     }
 
     private QueryKey buildQueryKey(@Nullable PersistentServerQuery query) {
@@ -232,7 +205,7 @@ public class PersistentServerApiImpl implements PersistentServerApi {
         }
 
         try {
-            ModelsListPersistentServersResponse response = executeQuery(listParameters(null, null, name));
+            ModelsListPersistentServersResponse response = executeQuery(null, null, name);
             List<ModelsPersistentServerSummary> servers = response.getPersistentServers();
             if (servers == null) {
                 return false;
@@ -245,40 +218,64 @@ public class PersistentServerApiImpl implements PersistentServerApi {
         }
     }
 
-    /**
-     * The parameters of {@code GET /v0/persistent-servers} for a query, which both the copy and HTTP answer.
-     */
-    private static PersistentServerListParameters listParameters(@Nullable PersistentServerQuery query,
-                                                                 @Nullable String persistentServerId,
-                                                                 @Nullable String name) {
+    private CompletableFuture<PersistentServer> fetchPersistentServerByIdFromController(String id) {
+        return CompletableFuture.supplyAsync(() -> {
+            try {
+                ModelsListPersistentServersResponse response = executeQuery(null, id, null);
+                List<ModelsPersistentServerSummary> servers = response.getPersistentServers();
+                if (servers == null) {
+                    return null;
+                }
+
+                return servers.stream()
+                        .filter(summary -> id.equals(summary.getPersistentServerId()))
+                        .findFirst()
+                        .<PersistentServer>map(PersistentServerImpl::new)
+                        .orElse(null);
+            } catch (ApiException e) {
+                throw ApiErrors.from(e);
+            }
+        }, executor);
+    }
+
+    private CompletableFuture<PersistentServer> fetchPersistentServerByNameFromController(String name) {
+        return CompletableFuture.supplyAsync(() -> {
+            try {
+                ModelsListPersistentServersResponse response = executeQuery(null, null, name);
+                List<ModelsPersistentServerSummary> servers = response.getPersistentServers();
+                if (servers == null) {
+                    return null;
+                }
+
+                return servers.stream()
+                        .filter(summary -> name.equals(summary.getName()))
+                        .findFirst()
+                        .<PersistentServer>map(PersistentServerImpl::new)
+                        .orElse(null);
+            } catch (ApiException e) {
+                throw ApiErrors.from(e);
+            }
+        }, executor);
+    }
+
+    private ModelsListPersistentServersResponse executeQuery(@Nullable PersistentServerQuery query,
+                                                              @Nullable String persistentServerId,
+                                                              @Nullable String name) throws ApiException {
         String tags = query == null || query.getTags() == null || query.getTags().isEmpty()
                 ? null
                 : String.join(",", query.getTags());
-        return new PersistentServerListParameters(
+        return persistentServersApi.listPersistentServers(
+                options.getNetworkId(),
                 persistentServerId,
                 name,
+                null,
                 tags,
                 query != null ? query.getActive() : null,
+                null,
+                null,
                 query != null ? query.getServerhostId() : null,
                 query != null ? query.getLimit() : null,
                 null
-        );
-    }
-
-    private ModelsListPersistentServersResponse executeQuery(PersistentServerListParameters parameters)
-            throws ApiException {
-        return persistentServersApi.listPersistentServers(
-                options.getNetworkId(),
-                parameters.persistentServerId(),
-                parameters.name(),
-                null,
-                parameters.tags(),
-                parameters.active(),
-                null,
-                null,
-                parameters.serverhostId(),
-                parameters.limit(),
-                parameters.offset()
         );
     }
 
@@ -504,7 +501,7 @@ public class PersistentServerApiImpl implements PersistentServerApi {
 
     @Nullable
     private String findAttachedBlueprintId(String persistentServerId) throws ApiException {
-        ModelsListPersistentServersResponse response = executeQuery(listParameters(null, persistentServerId, null));
+        ModelsListPersistentServersResponse response = executeQuery(null, persistentServerId, null);
         List<ModelsPersistentServerSummary> servers = response.getPersistentServers();
         if (servers == null) {
             return null;

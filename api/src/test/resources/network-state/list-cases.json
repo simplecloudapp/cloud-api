@@ -197,25 +197,6 @@
       ]
     },
     {
-      "name": "an empty or blank parameter does not filter",
-      "route": "servers",
-      "parameters": {
-        "server_id": "",
-        "state": " "
-      },
-      "expected": [
-        "s4",
-        "s5",
-        "s6",
-        "s2",
-        "s1",
-        "s3",
-        "s7",
-        "s8",
-        "s9"
-      ]
-    },
-    {
       "name": "states",
       "route": "servers",
       "parameters": {
@@ -229,50 +210,6 @@
         "s7",
         "s8"
       ]
-    },
-    {
-      "name": "states with spaces and empty parts",
-      "route": "servers",
-      "parameters": {
-        "state": " AVAILABLE , ,INGAME "
-      },
-      "expected": [
-        "s4",
-        "s6",
-        "s2",
-        "s1",
-        "s7",
-        "s8"
-      ]
-    },
-    {
-      "name": "a state between a no-break space and an ideographic space, which Go trims",
-      "route": "servers",
-      "parameters": {
-        "state": "\u00a0AVAILABLE\u3000"
-      },
-      "expected": [
-        "s4",
-        "s6",
-        "s1",
-        "s7"
-      ]
-    },
-    {
-      "name": "a lowercase state is refused",
-      "route": "servers",
-      "parameters": {
-        "state": "available"
-      },
-      "expected": "rejected"
-    },
-    {
-      "name": "a state cloud-api knows but the controller does not is refused",
-      "route": "servers",
-      "parameters": {
-        "state": "UNKNOWN_STATE"
-      },
-      "expected": "rejected"
     },
     {
       "name": "a name matches a group or a persistent server",
@@ -296,14 +233,6 @@
       "expected": []
     },
     {
-      "name": "a name with a NUL character fails in Postgres",
-      "route": "servers",
-      "parameters": {
-        "name": "lob\u0000by"
-      },
-      "expected": "rejected"
-    },
-    {
       "name": "a name and a numerical id",
       "route": "servers",
       "parameters": {
@@ -323,33 +252,6 @@
         "numerical_id": "9"
       },
       "expected": "missed"
-    },
-    {
-      "name": "a numerical id with a plus sign",
-      "route": "servers",
-      "parameters": {
-        "numerical_id": "+3"
-      },
-      "expected": [
-        "s5",
-        "s3"
-      ]
-    },
-    {
-      "name": "a numerical id with a non-ASCII digit is refused",
-      "route": "servers",
-      "parameters": {
-        "numerical_id": "\u0663"
-      },
-      "expected": "rejected"
-    },
-    {
-      "name": "a numerical id beyond int32 is refused",
-      "route": "servers",
-      "parameters": {
-        "numerical_id": "2147483648"
-      },
-      "expected": "rejected"
     },
     {
       "name": "a server id",
@@ -372,48 +274,10 @@
       ]
     },
     {
-      "name": "a server id without dashes",
-      "route": "servers",
-      "parameters": {
-        "server_id": "c0000000000040008000000000000201"
-      },
-      "expected": [
-        "s1"
-      ]
-    },
-    {
-      "name": "a server id with other characters where the dashes go",
-      "route": "servers",
-      "parameters": {
-        "server_id": "c0000000_0000_4000_8000_000000000201"
-      },
-      "expected": [
-        "s1"
-      ]
-    },
-    {
-      "name": "a server id one character short is refused",
-      "route": "servers",
-      "parameters": {
-        "server_id": "c0000000-0000-4000-8000-00000000020"
-      },
-      "expected": "rejected"
-    },
-    {
       "name": "an unknown server id is a missed lookup",
       "route": "servers",
       "parameters": {
         "server_id": "c0000000-0000-4000-8000-000000000299"
-      },
-      "expected": "missed"
-    },
-    {
-      "name": "a server id beyond the page is a missed lookup",
-      "route": "servers",
-      "parameters": {
-        "server_id": "c0000000-0000-4000-8000-000000000201",
-        "limit": 1,
-        "offset": 1
       },
       "expected": "missed"
     },
@@ -461,14 +325,6 @@
         "s6",
         "s8"
       ]
-    },
-    {
-      "name": "a lowercase type is refused",
-      "route": "servers",
-      "parameters": {
-        "type": "proxy"
-      },
-      "expected": "rejected"
     },
     {
       "name": "a tag of a group or a persistent server",
@@ -582,22 +438,6 @@
       ]
     },
     {
-      "name": "an unknown sort field is refused",
-      "route": "servers",
-      "parameters": {
-        "sort_by": "name"
-      },
-      "expected": "rejected"
-    },
-    {
-      "name": "an unknown sort order is refused",
-      "route": "servers",
-      "parameters": {
-        "sort_order": "up"
-      },
-      "expected": "rejected"
-    },
-    {
       "name": "a sort order alone keeps the default order",
       "route": "servers",
       "parameters": {
@@ -614,91 +454,6 @@
         "s8",
         "s9"
       ]
-    },
-    {
-      "name": "a limit",
-      "route": "servers",
-      "parameters": {
-        "limit": 3
-      },
-      "expected": [
-        "s4",
-        "s5",
-        "s6"
-      ]
-    },
-    {
-      "name": "a limit and an offset",
-      "route": "servers",
-      "parameters": {
-        "limit": 3,
-        "offset": 2
-      },
-      "expected": [
-        "s6",
-        "s2",
-        "s1"
-      ]
-    },
-    {
-      "name": "an offset past the end",
-      "route": "servers",
-      "parameters": {
-        "limit": 2,
-        "offset": 100
-      },
-      "expected": []
-    },
-    {
-      "name": "the largest limit",
-      "route": "servers",
-      "parameters": {
-        "limit": 500
-      },
-      "expected": [
-        "s4",
-        "s5",
-        "s6",
-        "s2",
-        "s1",
-        "s3",
-        "s7",
-        "s8",
-        "s9"
-      ]
-    },
-    {
-      "name": "an offset without a limit is refused",
-      "route": "servers",
-      "parameters": {
-        "offset": 1
-      },
-      "expected": "rejected"
-    },
-    {
-      "name": "a limit of 0 is refused",
-      "route": "servers",
-      "parameters": {
-        "limit": 0
-      },
-      "expected": "rejected"
-    },
-    {
-      "name": "a limit above 500 is refused",
-      "route": "servers",
-      "parameters": {
-        "limit": 501
-      },
-      "expected": "rejected"
-    },
-    {
-      "name": "a negative offset is refused",
-      "route": "servers",
-      "parameters": {
-        "limit": 1,
-        "offset": -1
-      },
-      "expected": "rejected"
     },
     {
       "name": "default order: created_at descending, then id bytes",
@@ -718,17 +473,6 @@
         "name": "lobby"
       },
       "expected": [
-        "lobby"
-      ]
-    },
-    {
-      "name": "several names",
-      "route": "server-groups",
-      "parameters": {
-        "name": "lobby,game"
-      },
-      "expected": [
-        "game",
         "lobby"
       ]
     },
@@ -759,14 +503,6 @@
       "expected": "missed"
     },
     {
-      "name": "an id that does not parse is refused",
-      "route": "server-groups",
-      "parameters": {
-        "server_group_id": "lobby"
-      },
-      "expected": "rejected"
-    },
-    {
       "name": "a type",
       "route": "server-groups",
       "parameters": {
@@ -777,14 +513,6 @@
         "lobby",
         "empty"
       ]
-    },
-    {
-      "name": "a lowercase type is refused",
-      "route": "server-groups",
-      "parameters": {
-        "type": "proxy"
-      },
-      "expected": "rejected"
     },
     {
       "name": "a tag",
@@ -815,35 +543,6 @@
         "proxy",
         "game"
       ]
-    },
-    {
-      "name": "a limit and an offset",
-      "route": "server-groups",
-      "parameters": {
-        "limit": 2,
-        "offset": 1
-      },
-      "expected": [
-        "game",
-        "lobby"
-      ]
-    },
-    {
-      "name": "an offset past the end",
-      "route": "server-groups",
-      "parameters": {
-        "limit": 2,
-        "offset": 10
-      },
-      "expected": []
-    },
-    {
-      "name": "an offset without a limit is refused",
-      "route": "server-groups",
-      "parameters": {
-        "offset": 1
-      },
-      "expected": "rejected"
     },
     {
       "name": "default order: created_at descending, then id bytes",
@@ -887,14 +586,6 @@
       ]
     },
     {
-      "name": "a serverhost id that does not parse is refused",
-      "route": "persistent-servers",
-      "parameters": {
-        "serverhost_id": "h1"
-      },
-      "expected": "rejected"
-    },
-    {
       "name": "tags",
       "route": "persistent-servers",
       "parameters": {
@@ -934,17 +625,6 @@
       ]
     },
     {
-      "name": "a limit and an offset",
-      "route": "persistent-servers",
-      "parameters": {
-        "limit": 1,
-        "offset": 1
-      },
-      "expected": [
-        "lobby-ps"
-      ]
-    },
-    {
       "name": "a tag nobody has",
       "route": "persistent-servers",
       "parameters": {
@@ -952,14 +632,6 @@
         "tags": "nothing"
       },
       "expected": []
-    },
-    {
-      "name": "a limit above 500 is refused",
-      "route": "persistent-servers",
-      "parameters": {
-        "limit": 501
-      },
-      "expected": "rejected"
     }
   ]
 }
