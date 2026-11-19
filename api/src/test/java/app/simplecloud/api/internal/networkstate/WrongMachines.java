@@ -61,6 +61,9 @@ final class WrongMachines {
                         List.of("pulse: a batch that reaches a pulse ahead at exactly 3 s is on time")),
                 new WrongMachine("acts on the gap's deadline before the audit's", new GapDeadlineBeforeAudit(),
                         List.of("audit: the audit's deadline acts before the gap's")),
+                new WrongMachine("acts on the behind-pulse deadline before the audit's",
+                        new BehindPulseDeadlineBeforeAudit(),
+                        List.of("audit: the audit's deadline acts before the behind-pulse deadline")),
                 new WrongMachine("counts a held batch's 3 s from the taken snapshot", new GapCountsFromSnapshot(),
                         List.of("batch: a held batch's 3 s count from its arrival during a load")),
                 new WrongMachine("skips the gap deadline in the step that takes a snapshot",
@@ -289,6 +292,17 @@ final class WrongMachines {
         @Override
         void actOnSyncedDeadlines(Memory m, long now, List<ViewEffect> effects) {
             if (heldTooLong(m, now)) {
+                wantReload(m, now);
+                return;
+            }
+            super.actOnSyncedDeadlines(m, now, effects);
+        }
+    }
+
+    static final class BehindPulseDeadlineBeforeAudit extends ReferenceMachine {
+        @Override
+        void actOnSyncedDeadlines(Memory m, long now, List<ViewEffect> effects) {
+            if (behindPulseTooLong(m, now)) {
                 wantReload(m, now);
                 return;
             }

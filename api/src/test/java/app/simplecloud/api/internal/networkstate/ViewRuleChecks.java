@@ -197,6 +197,8 @@ final class ViewRuleChecks {
                         ViewRuleChecks::auditReachingSAtExactlyThreeSecondsCompares),
                 new ViewCheck("audit: the audit's deadline acts before the gap's",
                         ViewRuleChecks::auditDeadlineActsBeforeGapDeadline),
+                new ViewCheck("audit: the audit's deadline acts before the behind-pulse deadline",
+                        ViewRuleChecks::auditDeadlineActsBeforeBehindPulseDeadline),
                 new ViewCheck("audit: compares revisions at 2^63 unsigned",
                         ViewRuleChecks::auditComparesUnsigned),
                 new ViewCheck("audit: no audit starts while the view is not live",
@@ -1193,6 +1195,23 @@ final class ViewRuleChecks {
         assertEquals(Optional.of(AuditOutcome.NOT_REACHED), view.lastAuditOutcome(), "the audit's deadline acts first");
         assertEquals(14, view.copy().revision(), "its snapshot at 12 lets the held batch apply");
         assertFalse(view.requestedLoad(), "so the gap is closed and nothing reloads");
+    }
+
+    static void auditDeadlineActsBeforeBehindPulseDeadline(ViewStarter starter) {
+        ViewDriver view = auditLoading(starter);
+        view.loadSnapshot(network(12));
+        view.pulse(pulse(12));
+        long bothSince = view.now();
+        view.advanceWithoutLoadTo(bothSince + AUDIT_REACH_WAIT - 1, "both wait 3 s");
+        view.advance(1);
+        Optional<AuditOutcome> outcomeAtThreeSeconds = view.lastAuditOutcome();
+        long revisionAtThreeSeconds = view.copy().revision();
+        OptionalLong loadAfterwards = view.loadWithin(RELOAD_WAIT_LIMIT);
+
+        assertEquals(PULSE_AHEAD_WAIT, AUDIT_REACH_WAIT, "both deadlines fall in one step");
+        assertEquals(Optional.of(AuditOutcome.NOT_REACHED), outcomeAtThreeSeconds, "the audit's deadline acts first");
+        assertEquals(12, revisionAtThreeSeconds, "the view takes the audit's snapshot at 12");
+        assertEquals(OptionalLong.empty(), loadAfterwards, "the snapshot reaches the pulse, so nothing reloads");
     }
 
     static void auditComparesUnsigned(ViewStarter starter) {
