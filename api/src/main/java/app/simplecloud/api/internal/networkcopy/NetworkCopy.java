@@ -99,7 +99,11 @@ public final class NetworkCopy {
         if (dispatcher == null) {
             return;
         }
-        natsConnection.closeDispatcher(dispatcher);
+        try {
+            natsConnection.closeDispatcher(dispatcher);
+        } catch (IllegalStateException connectionAlreadyClosed) {
+            // A closed connection has no subscriptions left, so there is nothing to end.
+        }
     }
 
     /**

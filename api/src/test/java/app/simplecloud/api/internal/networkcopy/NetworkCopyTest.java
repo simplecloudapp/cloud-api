@@ -28,6 +28,7 @@ import java.util.Set;
 import java.util.UUID;
 import java.util.concurrent.atomic.AtomicLong;
 
+import static org.junit.jupiter.api.Assertions.assertDoesNotThrow;
 import static org.junit.jupiter.api.Assertions.assertEquals;
 import static org.junit.jupiter.api.Assertions.assertNotNull;
 import static org.junit.jupiter.api.Assertions.assertNull;
@@ -274,6 +275,15 @@ class NetworkCopyTest {
         );
 
         assertTimeout(Duration.ofSeconds(1), () -> copy.waitForOwnWrite(headers));
+    }
+
+    @Test
+    void closeReturnsNormallyWhenTheNatsConnectionIsAlreadyClosed() {
+        FakeNatsConnection nats = FakeNatsConnection.withoutRequests();
+        copy.start(nats.connection());
+        nats.close();
+
+        assertDoesNotThrow(copy::close);
     }
 
     @Test

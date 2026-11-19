@@ -28,6 +28,7 @@ public final class FakeNatsConnection {
     private final Map<String, MessageHandler> subscriptions = new ConcurrentHashMap<>();
     private final List<Message> published = new CopyOnWriteArrayList<>();
     private final Connection connection;
+    private volatile boolean closed;
 
     private FakeNatsConnection(RequestHandler requestHandler) {
         this.requestHandler = requestHandler;
@@ -67,6 +68,10 @@ public final class FakeNatsConnection {
         handler.onMessage(message);
     }
 
+    public void close() {
+        closed = true;
+    }
+
     public List<Message> published() {
         return published;
     }
@@ -87,7 +92,19 @@ public final class FakeNatsConnection {
         if (methodName.equals("createDispatcher")) {
             return createDispatcher();
         }
+        if (methodName.equals("closeDispatcher")) {
+            closeDispatcher();
+            return null;
+        }
         throw new AssertionError("Unexpected connection call: " + methodName);
+    }
+
+    private void closeDispatcher() {
+        if (closed) {
+            // What jnats throws for a closed connection.
+            throw new IllegalStateException("Connection is Closed");
+        }
+        subscriptions.clear();
     }
 
     private Dispatcher createDispatcher() {
