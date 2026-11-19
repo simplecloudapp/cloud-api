@@ -321,8 +321,8 @@ public final class NetworkViewMachine implements NetworkView {
     private void receiveSnapshot(NetworkState snapshot, long now, List<ViewEffect> effects) {
         RunningLoad answeredLoad = endRunningLoad();
         switch (answeredLoad) {
-            case RELOAD -> takeSnapshotOrReload(copyOf(snapshot), now, effects);
-            case AUDIT -> beginComparingOrReload(copyOf(snapshot), now, effects);
+            case RELOAD -> takeSnapshotOrReload(NetworkCopy.of(snapshot), now, effects);
+            case AUDIT -> beginComparingOrReload(NetworkCopy.of(snapshot), now, effects);
             case ABANDONED, NONE -> {
             }
         }
@@ -553,18 +553,6 @@ public final class NetworkViewMachine implements NetworkView {
 
     // The copy's items.
 
-    private static NetworkCopy copyOf(NetworkState snapshot) {
-        return new NetworkCopy(
-                snapshot.getEpoch(),
-                snapshot.getRevision(),
-                indexById(snapshot.getServersList(), StateServer::getId),
-                indexById(snapshot.getServerGroupsList(), StateServerGroup::getId),
-                indexById(snapshot.getPersistentServersList(), StatePersistentServer::getId),
-                indexById(snapshot.getBlueprintsList(), StateBlueprint::getId),
-                indexById(snapshot.getMetricsList(), StateServerMetrics::getServerId)
-        );
-    }
-
     private static NetworkCopy withBatch(NetworkCopy copy, StateBatch batch) {
         return new NetworkCopy(
                 copy.epoch(),
@@ -582,22 +570,16 @@ public final class NetworkViewMachine implements NetworkView {
     }
 
     private static NetworkCopy withMetrics(NetworkCopy copy, List<StateServerMetrics> metrics) {
+        Map<ByteString, StateServerMetrics> metricsById =
+                NetworkCopy.indexById(metrics, StateServerMetrics::getServerId);
         return new NetworkCopy(copy.epoch(), copy.revision(), copy.servers(), copy.serverGroups(),
-                copy.persistentServers(), copy.blueprints(), indexById(metrics, StateServerMetrics::getServerId));
-    }
-
-    private static <T> Map<ByteString, T> indexById(List<T> items, Function<T, ByteString> idOf) {
-        Map<ByteString, T> itemsById = new HashMap<>();
-        for (T item : items) {
-            itemsById.put(idOf.apply(item), item);
-        }
-        return itemsById;
+                copy.persistentServers(), copy.blueprints(), metricsById);
     }
 
     private static <T> Map<ByteString, T> withChanges(Map<ByteString, T> current, List<T> changed,
                                                       List<ByteString> deletedIds, Function<T, ByteString> idOf) {
         Map<ByteString, T> itemsAfterChanges = new HashMap<>(current);
-        itemsAfterChanges.putAll(indexById(changed, idOf));
+        itemsAfterChanges.putAll(NetworkCopy.indexById(changed, idOf));
         for (ByteString deletedId : deletedIds) {
             itemsAfterChanges.remove(deletedId);
         }
