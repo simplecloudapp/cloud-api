@@ -14,8 +14,11 @@ import java.util.concurrent.CopyOnWriteArrayList;
 
 /**
  * A NATS server for tests that speaks just enough of the protocol for one jnats client: it greets it, answers
- * its pings, remembers its subscriptions, and delivers what a test hands it to the matching ones. It drops
- * what the client publishes and checks no credential.
+ * its pings, remembers its subscriptions, and delivers what a test hands it to the matching ones. A test can drop
+ * the client's connection, and the client may connect again.
+ *
+ * <p>It does not support wildcards, unsubscribing, more than one client at a time (the latest client's
+ * subscriptions replace the ones before), credentials or TLS. It drops what the client publishes.
  */
 final class FakeNatsServer implements AutoCloseable {
 
@@ -46,6 +49,10 @@ final class FakeNatsServer implements AutoCloseable {
         return subscriptions.stream().anyMatch(subscription -> subscription.subject().equals(subject));
     }
 
+    int subscriptionCount() {
+        return subscriptions.size();
+    }
+
     /**
      * Sends the payload to every subscription of the subject.
      */
@@ -59,6 +66,16 @@ final class FakeNatsServer implements AutoCloseable {
                 String header = "MSG " + subject + " " + subscription.sid() + " " + payload.length + "\r\n";
                 writeMessage(out, header, payload);
             }
+        }
+    }
+
+    /**
+     * Closes the connection to the client, as a server that restarts would.
+     */
+    void dropClient() throws IOException {
+        for (Socket client : clients) {
+            client.close();
+            clients.remove(client);
         }
     }
 
