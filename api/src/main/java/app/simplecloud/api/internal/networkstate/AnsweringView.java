@@ -4,7 +4,7 @@ import java.util.Optional;
 import java.util.concurrent.CompletableFuture;
 
 /**
- * The view as a read sees it: it hands out the copy that may answer now. {@link NetworkViewShell} is the view;
+ * The view as a read sees it: it hands out the copy that may answer now. {@link NetworkViewShell} implements it;
  * {@link #NO_VIEW} stands in for it in an instance that has no view, so that readers need no null check.
  */
 @FunctionalInterface

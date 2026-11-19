@@ -14,11 +14,11 @@ import java.util.logging.Logger;
 /**
  * Hands a view the state revision of each network state write that a client sends, so that while the view
  * answers reads, a read waits for the copy to reach the write, for up to 3 s after the write. The controller
- * puts the revision on every successful response to a write of a network-scoped route. The interceptor hands
- * a write over only when its response was successful and both headers parse as unsigned numbers. A 4xx
- * committed nothing. A 5xx, a call that threw, and a response with missing or malformed headers hand over
- * nothing either, though the write may have committed: the copy gets it with its batch, and a read right after
- * it may be answered from a copy that lacks it.
+ * adds the epoch and revision headers to every successful response to a write of a network-scoped route, and
+ * only to a successful response, so nothing else hands over a write. The interceptor, too, hands a write over
+ * only when its response was successful and both headers parse as unsigned numbers. A 5xx, a call that threw,
+ * and a response with missing or malformed headers hand over nothing, though the write may have committed: the
+ * copy gets it with its batch, and a read right after it may be answered from a copy that lacks it.
  */
 public final class StateRevisionInterceptor implements Interceptor {
 

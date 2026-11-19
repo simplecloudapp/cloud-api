@@ -24,10 +24,11 @@ final class NetworkViewEligibility {
 
     /**
      * Returns whether {@code credential} may be one of the network's passwords: it is not blank, and the
-     * controller would not read it as a JWT, which it does for one that parses as a signed JWT, three parts
-     * split by dots, or JSON ({@code AuthenticateNetworkCredential} in
-     * {@code internal/auth/network_credentials.go}). A password the controller generates has only letters
-     * and digits.
+     * controller would not read it as a JWT. The controller reads a credential as a JWT only when go-jose parses
+     * it as a signed JWT in compact form, three parts split by dots ({@code AuthenticateNetworkCredential} in
+     * {@code internal/auth/network_credentials.go}). This check also refuses a brace, as a margin: the JSON form
+     * of a signed JWT starts with one, though the controller's go-jose v4 reads only the compact form. A
+     * password the controller generates has only letters and digits.
      *
      * <p>Safety does not rest on this rule. The controller answers 403 on {@code /v0/network-state} to every
      * credential but the network's password, so a view on any other credential never loads a snapshot and
