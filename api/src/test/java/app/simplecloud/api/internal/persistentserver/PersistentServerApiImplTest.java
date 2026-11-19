@@ -239,6 +239,25 @@ class PersistentServerApiImplTest {
     }
 
     @Test
+    void updatePersistentServer_returnsTheUpdateResponseWithoutASecondRequest() {
+        AtomicInteger order = new AtomicInteger();
+        FakePersistentServersApi persistentServersApi = new FakePersistentServersApi(order);
+        PersistentServerApiImpl api = new PersistentServerApiImpl(options(), new NoOpQueryCache(), persistentServersApi, new FakeBlueprintsApi(order));
+        UpdatePersistentServerRequest request = UpdatePersistentServerRequest.builder()
+                .maxPlayers(30)
+                .build();
+
+        PersistentServer persistentServer = api.updatePersistentServer(PERSISTENT_SERVER_ID, request).join();
+
+        assertEquals(0, persistentServersApi.getCalls);
+        assertEquals(PERSISTENT_SERVER_ID, persistentServer.getPersistentServerId());
+        assertEquals("Lobby-1-renamed", persistentServer.getName());
+        assertEquals(Integer.valueOf(30), persistentServer.getMaxPlayers());
+        assertEquals(4, persistentServer.getPlayerCount());
+        assertEquals("2026-04-23T00:00:00Z", persistentServer.getUpdatedAt());
+    }
+
+    @Test
     void deletePersistentServer_deletesReferencedBlueprintAfterServer() {
         AtomicInteger order = new AtomicInteger();
         FakeBlueprintsApi blueprintsApi = new FakeBlueprintsApi(order);
@@ -398,7 +417,15 @@ class PersistentServerApiImplTest {
                 ModelsPatchPersistentServerRequest request) {
             patchCalls++;
             lastPatchRequest = request;
-            return new ApiResponse<>(200, Map.of(), new ModelsUpdatePersistentServerResponse());
+
+            ModelsUpdatePersistentServerResponse response = new ModelsUpdatePersistentServerResponse();
+            response.setPersistentServerId(persistentServerId);
+            response.setName("Lobby-1-renamed");
+            response.setMaxPlayers(request.getMaxPlayers());
+            response.setPlayerCount(4);
+            response.setCreatedAt("2026-04-22T00:00:00Z");
+            response.setUpdatedAt("2026-04-23T00:00:00Z");
+            return new ApiResponse<>(200, Map.of(), response);
         }
 
         @Override

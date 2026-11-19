@@ -417,16 +417,14 @@ public class PersistentServerApiImpl implements PersistentServerApi {
                         id,
                         apiRequest
                 );
+                ModelsUpdatePersistentServerResponse updated = httpResponse.getData();
 
-                // Invalidate cache before re-fetching
                 cache.invalidate(QueryKey.of("persistentServer", id));
                 cache.invalidateAll(QueryKey.of("persistentServers"));
                 cache.invalidateAll(QueryKey.of("persistentServer", "name"));
 
-                // Before the re-fetch, because the re-fetch may answer from the network copy.
                 networkCopy.waitForOwnWrite(httpResponse.getHeaders());
-                // Re-fetch to get the updated object
-                return getPersistentServerById(id).join();
+                return new PersistentServerImpl(toSummary(updated));
             } catch (ApiException e) {
                 throw ApiErrors.from(e);
             }
@@ -524,6 +522,27 @@ public class PersistentServerApiImpl implements PersistentServerApi {
     }
 
     private ModelsPersistentServerSummary toSummary(ModelsCreatePersistentServerResponse response) {
+        ModelsPersistentServerSummary summary = new ModelsPersistentServerSummary();
+        summary.setPersistentServerId(response.getPersistentServerId());
+        summary.setName(response.getName());
+        summary.setType(response.getType());
+        summary.setMinMemory(response.getMinMemory());
+        summary.setMaxMemory(response.getMaxMemory());
+        summary.setMaxPlayers(response.getMaxPlayers());
+        summary.setActive(response.getActive());
+        summary.setPriority(response.getPriority());
+        summary.setPlayerCount(response.getPlayerCount());
+        summary.setServerhostId(response.getServerhostId());
+        summary.setSource(response.getSource());
+        summary.setWorkflows(response.getWorkflows());
+        summary.setProperties(response.getProperties());
+        summary.setTags(response.getTags());
+        summary.setCreatedAt(response.getCreatedAt());
+        summary.setUpdatedAt(response.getUpdatedAt());
+        return summary;
+    }
+
+    private ModelsPersistentServerSummary toSummary(ModelsUpdatePersistentServerResponse response) {
         ModelsPersistentServerSummary summary = new ModelsPersistentServerSummary();
         summary.setPersistentServerId(response.getPersistentServerId());
         summary.setName(response.getName());

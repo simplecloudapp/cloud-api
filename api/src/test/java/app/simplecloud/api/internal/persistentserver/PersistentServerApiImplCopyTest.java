@@ -26,6 +26,7 @@ import okio.Buffer;
 import org.junit.jupiter.api.AfterEach;
 import org.junit.jupiter.api.BeforeEach;
 import org.junit.jupiter.api.Test;
+import org.junit.jupiter.api.Timeout;
 
 import java.io.IOException;
 import java.nio.ByteBuffer;
@@ -39,6 +40,7 @@ import java.util.concurrent.CopyOnWriteArrayList;
 
 import static org.junit.jupiter.api.Assertions.assertEquals;
 import static org.junit.jupiter.api.Assertions.assertTimeout;
+import static org.junit.jupiter.api.Assertions.assertTrue;
 
 /**
  * The copy gets its messages through a fake NATS connection and loads from a local controller,
@@ -54,7 +56,7 @@ class PersistentServerApiImplCopyTest {
     private static final String PERSISTENT_SERVER_LIST = "{\"persistent_servers\":[{\"persistent_server_id\":\"" + SURVIVAL + "\","
             + "\"name\":\"survival\",\"created_at\":\"2026-11-17T09:00:00Z\"}]}";
     private static final String WRITE_ANSWER = "{\"persistent_server_id\":\"" + SURVIVAL + "\",\"name\":\"survival\","
-            + "\"type\":\"SERVER\",\"properties\":{\"motd\":\"hello\"}}";
+            + "\"type\":\"SERVER\",\"max_players\":30,\"properties\":{\"motd\":\"hello\"}}";
 
     private final List<String> controllerRequests = new CopyOnWriteArrayList<>();
     private volatile boolean sendsRevisionHeaders = true;
@@ -154,6 +156,22 @@ class PersistentServerApiImplCopyTest {
         api.updatePersistentServer(SURVIVAL, updateRequest()).join();
 
         assertEquals(6, copy.contents().revision());
+    }
+
+    @Test
+    @Timeout(10)
+    void updatePersistentServerWhoseBatchNeverComesReturnsTheNewValuesAfterThreeSeconds() throws InterruptedException {
+        receive("pulse", pulse());
+        Duration shortestWait = Duration.ofSeconds(3);
+        Duration longestWait = Duration.ofSeconds(5);
+        long startNanos = System.nanoTime();
+
+        PersistentServer updated = api.updatePersistentServer(SURVIVAL, updateRequest()).join();
+
+        Duration waited = Duration.ofNanos(System.nanoTime() - startNanos);
+        assertEquals(Integer.valueOf(30), updated.getMaxPlayers());
+        assertTrue(waited.compareTo(shortestWait) >= 0, "waited " + waited);
+        assertTrue(waited.compareTo(longestWait) <= 0, "waited " + waited);
     }
 
     @Test
