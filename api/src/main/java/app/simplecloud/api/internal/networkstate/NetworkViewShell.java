@@ -12,7 +12,6 @@ import io.nats.client.Message;
 import java.time.Duration;
 import java.util.ArrayList;
 import java.util.EnumMap;
-import java.util.Iterator;
 import java.util.List;
 import java.util.Map;
 import java.util.Optional;
@@ -29,14 +28,14 @@ import java.util.logging.Logger;
 /**
  * Runs one network's {@link NetworkView} in this process, and makes none of its decisions. Each input steps
  * the view on the thread it arrives on, under one lock, except the answers to snapshot loads, which step it
- * on the shell's timer thread. The shell then carries out the effects the view returns. The inputs are the
- * messages on {@code <network>.state.v1.batch} and {@code <network>.state.v1.pulse}, the connection's state,
- * the answers to snapshot loads, this process's writes and a time tick.
+ * on the thread that sends the time ticks. The shell then carries out the effects the view returns. The
+ * inputs are the messages on {@code <network>.state.v1.batch} and {@code <network>.state.v1.pulse}, the
+ * connection's state, the answers to snapshot loads, this process's writes and a time tick.
  *
  * <p>A read that the view says waits for an own write waits for the copy. After every step, also each time
- * tick, the shell asks the view again for each waiting read, and answers it from the copy or sends it over
- * HTTP once the view says so. The view ends a wait 3 s after the own write returned, so a read is answered within
- * the next 100 ms tick after that at the latest.
+ * tick, the shell asks the view again where the waiting reads go, and answers all of them from the copy or
+ * sends them over HTTP once the view says so. The view ends a wait 3 s after the own write returned, so a
+ * read is answered within the next 100 ms tick after that at the latest.
  *
  * <p>A step that throws is a bug in the view, or a class loader that is going away. The shell logs it and
  * stops: it takes no input and answers no read from then on, so every read goes over HTTP, also a waiting one.
@@ -62,10 +61,7 @@ public final class NetworkViewShell implements NatsFailoverConnectionManager.Sub
     private final Connection connection;
     private final SnapshotLoader snapshots;
     private final MonotonicClock clock;
-    /**
-     * Sends the time ticks and hands over the answers to snapshot loads.
-     */
-    private final ScheduledExecutorService timer;
+    private final ScheduledExecutorService tickAndLoadAnswerExecutor;
     private final Object stepLock = new Object();
     /**
      * Counts losses and resends of the subscriptions, so that a flush that ends after a later change does
@@ -99,7 +95,7 @@ public final class NetworkViewShell implements NatsFailoverConnectionManager.Sub
         this.snapshots = snapshots;
         this.view = startView;
         this.clock = clock;
-        this.timer = Executors.newSingleThreadScheduledExecutor(Thread.ofPlatform()
+        this.tickAndLoadAnswerExecutor = Executors.newSingleThreadScheduledExecutor(Thread.ofPlatform()
                 .name("simplecloud-network-view-" + networkId)
                 .daemon(true)
                 .factory());
@@ -124,8 +120,8 @@ public final class NetworkViewShell implements NatsFailoverConnectionManager.Sub
     ) {
         NetworkViewShell shell = new NetworkViewShell(networkId, connection, snapshots, startView, clock);
         shell.subscribe();
-        shell.timer.scheduleWithFixedDelay(shell::tick, TIME_PASSED_INTERVAL_MILLIS, TIME_PASSED_INTERVAL_MILLIS,
-                TimeUnit.MILLISECONDS);
+        shell.tickAndLoadAnswerExecutor.scheduleWithFixedDelay(shell::tick, TIME_PASSED_INTERVAL_MILLIS,
+                TIME_PASSED_INTERVAL_MILLIS, TimeUnit.MILLISECONDS);
         return shell;
     }
 
@@ -151,7 +147,7 @@ public final class NetworkViewShell implements NatsFailoverConnectionManager.Sub
         return switch (route) {
             case FROM_COPY -> CompletableFuture.completedFuture(current.copy());
             case OVER_HTTP -> CompletableFuture.completedFuture(Optional.empty());
-            case WAIT -> waitForOwnWrite();
+            case WAIT -> registerWaitingRead();
         };
     }
 
@@ -190,7 +186,7 @@ public final class NetworkViewShell implements NatsFailoverConnectionManager.Sub
             }
             settleWaitingReads();
         }
-        timer.shutdownNow();
+        tickAndLoadAnswerExecutor.shutdownNow();
         // Outside the lock, which the dispatcher's thread takes for every message.
         closeNatsDispatcher();
     }
@@ -307,7 +303,7 @@ public final class NetworkViewShell implements NatsFailoverConnectionManager.Sub
         return current.routeRead(now);
     }
 
-    private CompletableFuture<Optional<NetworkCopy>> waitForOwnWrite() {
+    private CompletableFuture<Optional<NetworkCopy>> registerWaitingRead() {
         CompletableFuture<Optional<NetworkCopy>> read = new CompletableFuture<>();
         synchronized (stepLock) {
             waitingReads.add(read);
@@ -323,22 +319,16 @@ public final class NetworkViewShell implements NatsFailoverConnectionManager.Sub
      */
     private void settleWaitingReads() {
         long now = clock.nowMillis();
-        Iterator<CompletableFuture<Optional<NetworkCopy>>> waiting = waitingReads.iterator();
-        while (waiting.hasNext()) {
-            CompletableFuture<Optional<NetworkCopy>> read = waiting.next();
-            ReadRoute route = routeOf(view, now);
-            switch (route) {
-                case FROM_COPY -> {
-                    waiting.remove();
-                    answerOnOwnThread(read, view.copy());
-                }
-                case OVER_HTTP -> {
-                    waiting.remove();
-                    answerOnOwnThread(read, Optional.empty());
-                }
-                case WAIT -> {
-                }
-            }
+        ReadRoute route = routeOf(view, now);
+        if (route == ReadRoute.WAIT) {
+            return;
+        }
+        boolean fromCopy = route == ReadRoute.FROM_COPY;
+        Optional<NetworkCopy> answer = fromCopy ? view.copy() : Optional.empty();
+        List<CompletableFuture<Optional<NetworkCopy>>> settled = List.copyOf(waitingReads);
+        waitingReads.clear();
+        for (CompletableFuture<Optional<NetworkCopy>> read : settled) {
+            answerOnOwnThread(read, answer);
         }
     }
 
@@ -368,8 +358,8 @@ public final class NetworkViewShell implements NatsFailoverConnectionManager.Sub
     private void startSnapshotLoad() {
         CompletableFuture<NetworkState> load = snapshots.load();
         snapshotLoadInFlight = load;
-        // On the timer, never in this step: a load that fails at once would step the view inside this step.
-        load.whenCompleteAsync(this::feedLoadAnswer, timer);
+        // On the executor, never in this step: a load that fails at once would step the view inside this step.
+        load.whenCompleteAsync(this::feedLoadAnswer, tickAndLoadAnswerExecutor);
     }
 
     private void countAndLogAudit(AuditOutcome outcome) {
@@ -394,8 +384,8 @@ public final class NetworkViewShell implements NatsFailoverConnectionManager.Sub
     /**
      * Returns the thread that sends the time ticks and hands over the load answers. For tests of this package.
      */
-    Future<Thread> timerThread() {
-        return timer.submit(Thread::currentThread);
+    Future<Thread> tickAndLoadAnswerThread() {
+        return tickAndLoadAnswerExecutor.submit(Thread::currentThread);
     }
 
     private void closeNatsDispatcher() {

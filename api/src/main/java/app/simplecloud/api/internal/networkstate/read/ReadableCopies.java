@@ -14,7 +14,7 @@ import java.util.concurrent.CompletableFuture;
 public final class ReadableCopies {
 
     // Without a view no copy is ever handed out, so its network id is never read.
-    private static final ReadableCopies NONE = new ReadableCopies(AnsweringView.NO_VIEW, "");
+    private static final ReadableCopies NONE = new ReadableCopies(ReadableCopies::noCopyToAnswer, "");
 
     private final AnsweringView view;
     private final String networkId;
@@ -39,17 +39,17 @@ public final class ReadableCopies {
         return NONE;
     }
 
+    private static CompletableFuture<Optional<NetworkCopy>> noCopyToAnswer() {
+        return CompletableFuture.completedFuture(Optional.empty());
+    }
+
     /**
      * Returns the copy that may answer a read now, or empty, so the controller answers it. The future is
      * complete on return unless the read waits for an own write.
      */
     public CompletableFuture<Optional<ReadableCopy>> copyToAnswer() {
         CompletableFuture<Optional<NetworkCopy>> copy = view.copyToAnswer();
-        return copy.thenApply(this::readableFormOf);
-    }
-
-    private Optional<ReadableCopy> readableFormOf(Optional<NetworkCopy> copy) {
-        return copy.map(this::readableCopyOf);
+        return copy.thenApply(copyToAnswer -> copyToAnswer.map(this::readableCopyOf));
     }
 
     private ReadableCopy readableCopyOf(NetworkCopy copy) {

@@ -565,7 +565,7 @@ public final class NetworkViewMachine implements NetworkView {
                         batch.getDeletedPersistentServerIdsList(), StatePersistentServer::getId),
                 withChanges(copy.blueprints(), batch.getBlueprintsList(), batch.getDeletedBlueprintIdsList(),
                         StateBlueprint::getId),
-                copy.metrics()
+                copy.metricsByServerId()
         );
     }
 

@@ -735,7 +735,7 @@ class ReferenceMachine {
             blueprints.remove(id);
         }
         return new NetworkCopy(copy.epoch(), batch.getRevision(), servers, groups, persistentServers, blueprints,
-                copy.metrics());
+                copy.metricsByServerId());
     }
 
     static NetworkCopy withMetrics(NetworkCopy copy, List<StateServerMetrics> metrics) {

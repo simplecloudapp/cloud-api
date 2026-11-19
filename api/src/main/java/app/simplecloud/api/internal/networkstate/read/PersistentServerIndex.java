@@ -121,7 +121,8 @@ final class PersistentServerIndex implements PersistentServerSource {
     /**
      * Adds up the players of each persistent server's counted servers in one pass over the servers, as
      * {@code loadPersistentServerPlayerCountsFromMetrics} in {@code internal/web/persistent_servers.go} does.
-     * It skips counts of 0 or less; the pulse carries no count below 0, so every count adds as it is.
+     * The controller skips counts of 0 or less; the pulse carries no count below 0, so adding every count gives
+     * the same sum.
      */
     private static Map<ByteString, Long> playerCountsByPersistentServer(NetworkCopy copy) {
         Map<ByteString, Long> playerCounts = new HashMap<>();
@@ -137,8 +138,6 @@ final class PersistentServerIndex implements PersistentServerSource {
 
     /**
      * A built persistent server with the values its filters and order read, from its summary.
-     *
-     * @param serverhostId null for a persistent server without a serverhost
      */
     private record ListedPersistentServer(
             PersistentServer persistentServer,

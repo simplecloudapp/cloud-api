@@ -624,7 +624,7 @@ final class WrongMachines {
             NetworkCopy before = m.copy;
             super.takeSnapshot(m, snapshot, now, effects);
             if (before != null) {
-                m.copy = withMetrics(m.copy, List.copyOf(before.metrics().values()));
+                m.copy = withMetrics(m.copy, List.copyOf(before.metricsByServerId().values()));
             }
         }
     }

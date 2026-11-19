@@ -24,6 +24,10 @@ import java.util.logging.Logger;
  * controller, on the caller's thread before the read returns. A read that fails holds its exception as the
  * cause of a {@link CompletionException}, whichever source failed.
  *
+ * <p>When the copy's source fails and the controller answers instead, the failure is logged as a WARNING at
+ * most once in 10 minutes per {@code ReadSources} object, so per kind and per {@code CloudApi} instance, and
+ * at FINE otherwise.
+ *
  * @param <S> the kind's source, such as {@link app.simplecloud.api.internal.server.ServerSource}
  */
 public final class ReadSources<S> {
@@ -54,9 +58,12 @@ public final class ReadSources<S> {
     private static final int MISS_MAX_RETRIES = 2;
     /**
      * The copy changes every few seconds, so a broken item would otherwise warn on every read, or warn once and
-     * stay silent while it stays broken.
+     * stay silent while it stays broken. Each {@code ReadSources} object keeps its own interval, so it holds per
+     * kind and per {@code CloudApi} instance.
      */
     private static final Duration FAILURE_WARNING_INTERVAL = Duration.ofMinutes(10);
+    // The executor's delay is the whole step.
+    private static final Runnable NOTHING_TO_RUN = () -> { };
 
     private static final Logger LOGGER = Logger.getLogger(ReadSources.class.getName());
 
@@ -97,7 +104,7 @@ public final class ReadSources<S> {
      * A {@link CloudApiException} of the copy's source, which it throws for bad input, fails the read.
      */
     public <T> CompletableFuture<T> ask(Read<S, T> read) {
-        CompletableFuture<Answer<T>> answer = answerOf(read);
+        CompletableFuture<Answer<T>> answer = askChosenSource(read);
         return answer.thenApply(Answer::value);
     }
 
@@ -112,7 +119,7 @@ public final class ReadSources<S> {
     }
 
     private <T> CompletableFuture<Answer<T>> lookUpWithRetries(Read<S, T> read, int retriesLeft) {
-        CompletableFuture<Answer<T>> answer = answerOf(read);
+        CompletableFuture<Answer<T>> answer = askChosenSource(read);
         return answer.thenCompose(answered -> keepOrAskAgain(answered, read, retriesLeft));
     }
 
@@ -129,8 +136,8 @@ public final class ReadSources<S> {
         // Not completeOnTimeout or orTimeout: their stages run on the JVM's one shared delay thread, while the
         // delayed executor hands the retry to the common pool.
         Executor afterMissDelay = CompletableFuture.delayedExecutor(MISS_RETRY_DELAY_MILLIS, TimeUnit.MILLISECONDS);
-        CompletableFuture<Read<S, T>> readAfterDelay = CompletableFuture.supplyAsync(() -> read, afterMissDelay);
-        return readAfterDelay.thenCompose(delayedRead -> lookUpWithRetries(delayedRead, retriesLeft));
+        CompletableFuture<Void> missDelayOver = CompletableFuture.runAsync(NOTHING_TO_RUN, afterMissDelay);
+        return missDelayOver.thenCompose(delayOver -> lookUpWithRetries(read, retriesLeft));
     }
 
     private static boolean holdsNothing(@Nullable Object answer) {
@@ -138,14 +145,14 @@ public final class ReadSources<S> {
         return answer == null || emptyCollection;
     }
 
-    private <T> CompletableFuture<Answer<T>> answerOf(Read<S, T> read) {
+    private <T> CompletableFuture<Answer<T>> askChosenSource(Read<S, T> read) {
         CompletableFuture<Optional<ReadableCopy>> copy = copies.copyToAnswer();
-        return copy.thenCompose(copyToAnswer -> answerFrom(copyToAnswer, read));
+        return copy.thenCompose(copyToAnswer -> askCopyOrController(copyToAnswer, read));
     }
 
-    private <T> CompletableFuture<Answer<T>> answerFrom(Optional<ReadableCopy> copy, Read<S, T> read) {
+    private <T> CompletableFuture<Answer<T>> askCopyOrController(Optional<ReadableCopy> copy, Read<S, T> read) {
         if (copy.isEmpty()) {
-            return controllerAnswer(read);
+            return askController(read);
         }
         CompletableFuture<T> copyAnswer = askCopy(copy.get(), read);
         CompletableFuture<Answer<T>> answer = copyAnswer.thenApply(Answer::ofCopy);
@@ -164,7 +171,7 @@ public final class ReadSources<S> {
         }
     }
 
-    private <T> CompletableFuture<Answer<T>> controllerAnswer(Read<S, T> read) {
+    private <T> CompletableFuture<Answer<T>> askController(Read<S, T> read) {
         CompletableFuture<T> answer = read.from(controller);
         return answer.thenApply(Answer::ofController);
     }
@@ -180,7 +187,7 @@ public final class ReadSources<S> {
             return CompletableFuture.failedFuture(cause);
         }
         logCopyFailure(cause);
-        return controllerAnswer(read);
+        return askController(read);
     }
 
     private static Throwable causeOf(Throwable failure) {

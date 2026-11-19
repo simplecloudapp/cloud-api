@@ -108,23 +108,23 @@ final class ModelOwner {
     private static StateBatch batchOfChanges(ModelDatabase.State read, long lastRelayed,
                                              NavigableMap<Long, Set<ModelDatabase.ChangedRow>> unrelayed) {
         Set<ModelDatabase.ChangedRow> changed = new HashSet<>();
-        for (Set<ModelDatabase.ChangedRow> entities : unrelayed.values()) {
-            changed.addAll(entities);
+        for (Set<ModelDatabase.ChangedRow> changedRows : unrelayed.values()) {
+            changed.addAll(changedRows);
         }
         StateBatch.Builder batch = StateBatch.newBuilder()
                 .setEpoch(read.epoch())
                 .setBaseRevision(lastRelayed)
                 .setRevision(read.headRevision());
-        for (ModelDatabase.ChangedRow entity : changed) {
-            addRowOrDeletedId(batch, read.items(), entity);
+        for (ModelDatabase.ChangedRow changedRow : changed) {
+            addRowOrDeletedId(batch, read.items(), changedRow);
         }
         return batch.build();
     }
 
     private static void addRowOrDeletedId(StateBatch.Builder batch, ModelDatabase.Items items,
-                                          ModelDatabase.ChangedRow entity) {
-        ByteString id = entity.id();
-        switch (entity.table()) {
+                                          ModelDatabase.ChangedRow changedRow) {
+        ByteString id = changedRow.id();
+        switch (changedRow.table()) {
             case SERVERS -> {
                 StateServer row = items.servers().get(id);
                 if (row != null) {

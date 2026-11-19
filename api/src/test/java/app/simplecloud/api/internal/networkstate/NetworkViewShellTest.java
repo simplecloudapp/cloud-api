@@ -255,9 +255,9 @@ class NetworkViewShellTest {
     }
 
     @Test
-    void aReadThatABatchAnswersContinuesOnNeitherTheFeedingThreadNorTheTimerNorUnderTheLock() throws Exception {
+    void aReadThatABatchAnswersContinuesOnNeitherTheFeedingThreadNorTheTickThreadNorUnderTheLock() throws Exception {
         startLiveShellAtRevision10();
-        Thread timerThread = answerOf(shell.timerThread());
+        Thread tickThread = answerOf(shell.tickAndLoadAnswerThread());
         shell.writeReturned(StateItems.EPOCH, 11);
         CompletableFuture<Optional<NetworkCopy>> read = shell.copyToAnswer();
         CompletableFuture<Continuation> continuation = read.thenApply(answer -> Continuation.runningNow(shell));
@@ -266,21 +266,21 @@ class NetworkViewShellTest {
 
         assertNotEquals(Thread.currentThread(), ran.thread(),
                 "the caller's continuation must not run on the thread that delivers batches");
-        assertNotEquals(timerThread, ran.thread(), "the caller's continuation must not stall the ticks");
+        assertNotEquals(tickThread, ran.thread(), "the caller's continuation must not stall the ticks");
         assertFalse(ran.holdsStepLock(), "the caller's continuation must not run under the shell's lock");
     }
 
     @Test
-    void aReadThatATickAnswersContinuesOnNeitherTheTimerNorUnderTheLock() throws Exception {
+    void aReadThatATickAnswersContinuesOnNeitherTheTickThreadNorUnderTheLock() throws Exception {
         startLiveShellAtRevision10();
-        Thread timerThread = answerOf(shell.timerThread());
+        Thread tickThread = answerOf(shell.tickAndLoadAnswerThread());
         shell.writeReturned(StateItems.EPOCH, 11);
         CompletableFuture<Optional<NetworkCopy>> read = shell.copyToAnswer();
         CompletableFuture<Continuation> continuation = read.thenApply(answer -> Continuation.runningNow(shell));
         clockMillis.set(3_000);
         Continuation ran = answerOf(continuation);
 
-        assertNotEquals(timerThread, ran.thread(), "the caller's continuation must not stall the ticks");
+        assertNotEquals(tickThread, ran.thread(), "the caller's continuation must not stall the ticks");
         assertFalse(ran.holdsStepLock(), "the caller's continuation must not run under the shell's lock");
     }
 

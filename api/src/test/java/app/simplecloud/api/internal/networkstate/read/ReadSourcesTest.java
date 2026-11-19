@@ -174,9 +174,9 @@ class ReadSourcesTest {
     void aFailedBuildIsNotRepeatedForTheSameCopy() {
         NetworkCopy serverWithoutItsGroup = serverWithoutItsGroup();
         AnsweringView sameCopy = () -> CompletableFuture.completedFuture(Optional.of(serverWithoutItsGroup));
-        ServerSource controllerServers = new ServerIndex(copyAt(1), NETWORK_ID);
+        ServerSource standInController = new ServerIndex(copyAt(1), NETWORK_ID);
         ReadableCopies copies = new ReadableCopies(sameCopy, NETWORK_ID);
-        ReadSources<ServerSource> sources = new ReadSources<>(copies, ReadableCopy::servers, controllerServers);
+        ReadSources<ServerSource> sources = new ReadSources<>(copies, ReadableCopy::servers, standInController);
 
         sources.ask(source -> source.servers(null)).join();
         sources.ask(source -> source.servers(null)).join();

@@ -17,8 +17,6 @@ import java.util.function.Function;
  * A view's copy of its network: the items as they were in the database at {@code revision} of
  * {@code epoch}, and the metrics of the last pulse or snapshot. Each map is keyed by the item's 16-byte id
  * and cannot be changed.
- *
- * @param metrics per server id; {@link #metricsOf} reads them
  */
 public record NetworkCopy(
         long epoch,
@@ -27,7 +25,7 @@ public record NetworkCopy(
         Map<ByteString, StateServerGroup> serverGroups,
         Map<ByteString, StatePersistentServer> persistentServers,
         Map<ByteString, StateBlueprint> blueprints,
-        Map<ByteString, StateServerMetrics> metrics
+        Map<ByteString, StateServerMetrics> metricsByServerId
 ) {
 
     public NetworkCopy {
@@ -35,7 +33,7 @@ public record NetworkCopy(
         serverGroups = Map.copyOf(serverGroups);
         persistentServers = Map.copyOf(persistentServers);
         blueprints = Map.copyOf(blueprints);
-        metrics = Map.copyOf(metrics);
+        metricsByServerId = Map.copyOf(metricsByServerId);
     }
 
     /**
@@ -44,7 +42,7 @@ public record NetworkCopy(
      */
     public StateServerMetrics metricsOf(ByteString serverId) {
         StateServerMetrics noMetrics = StateServerMetrics.getDefaultInstance();
-        return metrics.getOrDefault(serverId, noMetrics);
+        return metricsByServerId.getOrDefault(serverId, noMetrics);
     }
 
     /**

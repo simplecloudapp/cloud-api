@@ -678,7 +678,8 @@ final class ViewRuleChecks {
         view.loseConnection();
         view.pulse(pulse(10).toBuilder().addMetrics(metrics(2, 40)).build());
 
-        assertEquals(Map.of(id(2), metrics(2, 40)), view.copy().metrics(), "a pulse replaces metrics in every state");
+        assertEquals(Map.of(id(2), metrics(2, 40)), view.copy().metricsByServerId(),
+                "a pulse replaces metrics in every state");
     }
 
     static void lowerPulseNeitherReloadsNorCounts(ViewStarter starter) {
@@ -785,7 +786,7 @@ final class ViewRuleChecks {
         view.advance(100);
         view.pulse(lowerWithMetrics);
 
-        assertEquals(Map.of(id(2), metrics(2, 40)), view.copy().metrics(),
+        assertEquals(Map.of(id(2), metrics(2, 40)), view.copy().metricsByServerId(),
                 "a pulse replaces the metrics, also a lower one; server 1 now shows zeros");
     }
 
@@ -950,7 +951,8 @@ final class ViewRuleChecks {
         view.requireLoadRequested("a reconnect");
         view.loadSnapshot(network(12));
 
-        assertEquals(Map.of(id(1), metrics(1, 5)), view.copy().metrics(), "a taken snapshot replaces the metrics");
+        assertEquals(Map.of(id(1), metrics(1, 5)), view.copy().metricsByServerId(),
+                "a taken snapshot replaces the metrics");
     }
 
     static void loadsTwoSecondsApart(ViewStarter starter) {
