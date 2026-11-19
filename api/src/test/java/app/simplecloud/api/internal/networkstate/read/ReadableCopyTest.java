@@ -3,7 +3,10 @@ package app.simplecloud.api.internal.networkstate.read;
 import app.simplecloud.api.CloudApiException;
 import app.simplecloud.api.group.Group;
 import app.simplecloud.api.group.GroupQuery;
+import app.simplecloud.api.internal.group.ServerGroupSource;
 import app.simplecloud.api.internal.networkstate.NetworkCopy;
+import app.simplecloud.api.internal.persistentserver.PersistentServerSource;
+import app.simplecloud.api.internal.server.ServerSource;
 import app.simplecloud.api.persistentserver.PersistentServer;
 import app.simplecloud.api.persistentserver.PersistentServerQuery;
 import app.simplecloud.api.server.Server;
@@ -51,15 +54,18 @@ class ReadableCopyTest {
             .setState("AVAILABLE")
             .setPropertiesJson(json("{}"))
             .build();
-    private static final ReadableCopy COPY = new ReadableCopy(new NetworkCopy(1, 1, Map.of(SERVER_ID_BYTES, SERVER),
-            Map.of(GROUP_ID_BYTES, GROUP), Map.of(PERSISTENT_SERVER_ID_BYTES, PERSISTENT_SERVER), Map.of(), Map.of()),
-            NETWORK_ID);
+    private static final NetworkCopy NETWORK_COPY = new NetworkCopy(1, 1, Map.of(SERVER_ID_BYTES, SERVER),
+            Map.of(GROUP_ID_BYTES, GROUP), Map.of(PERSISTENT_SERVER_ID_BYTES, PERSISTENT_SERVER), Map.of(), Map.of());
+    private static final ReadableCopy COPY = new ReadableCopy(NETWORK_COPY, NETWORK_ID);
+    private static final ServerSource SERVERS = COPY.servers();
+    private static final ServerGroupSource SERVER_GROUPS = COPY.serverGroups();
+    private static final PersistentServerSource PERSISTENT_SERVERS = COPY.persistentServers();
 
     @Test
     void anUnknownServerSortFieldIsAnInvalidRequest() {
         ServerQuery unknownField = ServerQuery.create().sortBy("name");
 
-        CloudApiException thrown = assertThrows(CloudApiException.class, () -> COPY.servers(unknownField));
+        CloudApiException thrown = assertThrows(CloudApiException.class, () -> SERVERS.servers(unknownField));
 
         assertEquals(CloudApiException.Reason.INVALID_REQUEST, thrown.getReason());
     }
@@ -68,7 +74,7 @@ class ReadableCopyTest {
     void anUnknownServerSortOrderIsAnInvalidRequest() {
         ServerQuery unknownOrder = ServerQuery.create().sortBy("created_at").sortOrder("up");
 
-        CloudApiException thrown = assertThrows(CloudApiException.class, () -> COPY.servers(unknownOrder));
+        CloudApiException thrown = assertThrows(CloudApiException.class, () -> SERVERS.servers(unknownOrder));
 
         assertEquals(CloudApiException.Reason.INVALID_REQUEST, thrown.getReason());
     }
@@ -77,7 +83,7 @@ class ReadableCopyTest {
     void aGroupLimitBelowOneIsAnInvalidRequest() {
         GroupQuery zeroLimit = GroupQuery.create().limit(0);
 
-        CloudApiException thrown = assertThrows(CloudApiException.class, () -> COPY.serverGroups(zeroLimit));
+        CloudApiException thrown = assertThrows(CloudApiException.class, () -> SERVER_GROUPS.serverGroups(zeroLimit));
 
         assertEquals(CloudApiException.Reason.INVALID_REQUEST, thrown.getReason());
     }
@@ -87,7 +93,7 @@ class ReadableCopyTest {
         PersistentServerQuery negativeLimit = PersistentServerQuery.create().limit(-1);
 
         CloudApiException thrown = assertThrows(CloudApiException.class,
-                () -> COPY.persistentServers(negativeLimit));
+                () -> PERSISTENT_SERVERS.persistentServers(negativeLimit));
 
         assertEquals(CloudApiException.Reason.INVALID_REQUEST, thrown.getReason());
     }
@@ -97,11 +103,11 @@ class ReadableCopyTest {
         ServerQuery byGroupName = ServerQuery.create().filterByServerGroupId("lobby");
         ServerQuery byServerhostName = ServerQuery.create().filterByServerhostId("h1");
 
-        assertNull(COPY.serverWithId("server-1"));
-        assertNull(COPY.serverGroupWithId("lobby"));
-        assertNull(COPY.persistentServerWithId("survival"));
-        assertEquals(List.of(), COPY.servers(byGroupName));
-        assertEquals(List.of(), COPY.servers(byServerhostName));
+        assertNull(SERVERS.serverWithId("server-1").join());
+        assertNull(SERVER_GROUPS.serverGroupWithId("lobby").join());
+        assertNull(PERSISTENT_SERVERS.persistentServerWithId("survival").join());
+        assertEquals(List.of(), SERVERS.servers(byGroupName).join());
+        assertEquals(List.of(), SERVERS.servers(byServerhostName).join());
     }
 
     @Test
@@ -114,29 +120,37 @@ class ReadableCopyTest {
         ReadableCopy copy = new ReadableCopy(new NetworkCopy(1, 1, Map.of(SERVER_ID_BYTES, SERVER),
                 Map.of(GROUP_ID_BYTES, GROUP), Map.of(), Map.of(), Map.of(SERVER_ID_BYTES, notANumber)), NETWORK_ID);
 
-        Server server = copy.serverWithId(SERVER_ID);
+        ServerSource servers = copy.servers();
+        Server server = servers.serverWithId(SERVER_ID).join();
 
         assertNull(server.getCpuUsage());
         assertEquals(0.5, server.getMemoryUsage());
     }
 
     @Test
-    void aServerWhoseGroupTheCopyLacksIsABugInTheView() {
+    void aServerWhoseGroupTheCopyLacksFailsTheBuildOnceForThatCopy() {
         ReadableCopy copy = new ReadableCopy(new NetworkCopy(1, 1, Map.of(SERVER_ID_BYTES, SERVER), Map.of(),
                 Map.of(), Map.of(), Map.of()), NETWORK_ID);
 
-        assertThrows(IllegalStateException.class, () -> copy.servers(null));
+        IllegalStateException first = assertThrows(IllegalStateException.class, copy::servers);
+        IllegalStateException second = assertThrows(IllegalStateException.class, copy::servers);
+
+        assertSame(first, second);
     }
 
     @Test
     void everyReadOfOneCopyGetsTheSameObjects() {
-        Server serverOfList = COPY.servers(null).getFirst();
-        Group groupOfList = COPY.serverGroups(null).getFirst();
-        PersistentServer persistentServerOfList = COPY.persistentServers(null).getFirst();
+        Server serverOfList = SERVERS.servers(null).join().getFirst();
+        Group groupOfList = SERVER_GROUPS.serverGroups(null).join().getFirst();
+        PersistentServer persistentServerOfList = PERSISTENT_SERVERS.persistentServers(null).join().getFirst();
+        Server serverById = SERVERS.serverWithId(SERVER_ID).join();
+        Group groupByName = SERVER_GROUPS.serverGroupWithName("lobby").join();
+        PersistentServer persistentServerByName = PERSISTENT_SERVERS.persistentServerWithName("survival").join();
 
-        assertSame(serverOfList, COPY.serverWithId(SERVER_ID));
-        assertSame(groupOfList, COPY.serverGroupWithName("lobby"));
-        assertSame(persistentServerOfList, COPY.persistentServerWithName("survival"));
+        assertSame(serverOfList, serverById);
+        assertSame(groupOfList, groupByName);
+        assertSame(persistentServerOfList, persistentServerByName);
+        assertSame(SERVERS, COPY.servers());
     }
 
     private static ByteString json(String text) {

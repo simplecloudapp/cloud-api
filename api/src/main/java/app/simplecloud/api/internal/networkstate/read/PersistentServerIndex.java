@@ -3,6 +3,7 @@ package app.simplecloud.api.internal.networkstate.read;
 import app.simplecloud.api.CloudApiException;
 import app.simplecloud.api.internal.networkstate.NetworkCopy;
 import app.simplecloud.api.internal.persistentserver.PersistentServerImpl;
+import app.simplecloud.api.internal.persistentserver.PersistentServerSource;
 import app.simplecloud.api.persistentserver.PersistentServer;
 import app.simplecloud.api.persistentserver.PersistentServerQuery;
 import app.simplecloud.api.web.models.ModelsPersistentServerSummary;
@@ -13,34 +14,38 @@ import org.jetbrains.annotations.Nullable;
 
 import java.time.Instant;
 import java.util.ArrayList;
-import java.util.Collections;
 import java.util.Comparator;
 import java.util.HashMap;
 import java.util.HashSet;
 import java.util.List;
 import java.util.Map;
 import java.util.Set;
+import java.util.concurrent.CompletableFuture;
 
 /**
- * A copy's persistent servers as the controller's persistent server list shows them: each one's
- * {@code summary_json} with the {@code player_count} the copy computes, because it changes with every server.
- * Built once, they answer the persistent server questions of a {@link ReadableCopy}.
+ * The persistent servers of one copy as API objects, built once, and the persistent server source of that copy.
+ * Each one is the controller's {@code summary_json} for it, with the {@code player_count} the copy computes,
+ * because it changes with every server.
+ *
+ * <p>Every answer is complete on return. A query with a limit below 1 throws a {@link CloudApiException} with
+ * {@link CloudApiException.Reason#INVALID_REQUEST} from {@link #persistentServers} itself. An id in another
+ * form than 8-4-4-4-12 matches nothing.
  */
-final class CopyPersistentServers {
+final class PersistentServerIndex implements PersistentServerSource {
 
     /**
      * {@code ORDER BY created_at DESC, id}.
      */
     private static final Comparator<ListedPersistentServer> DEFAULT_ORDER = Comparator
             .comparing(ListedPersistentServer::createdAt, Comparator.reverseOrder())
-            .thenComparing(ListedPersistentServer::id, ByteOrder.ID);
+            .thenComparing(ListedPersistentServer::id, ControllerSortOrder.ID);
 
     private final List<ListedPersistentServer> inDefaultOrder;
     private final List<PersistentServer> allPersistentServers;
     private final Map<ByteString, PersistentServer> byId;
     private final Map<String, PersistentServer> byName;
 
-    CopyPersistentServers(NetworkCopy copy) {
+    PersistentServerIndex(NetworkCopy copy) {
         Map<ByteString, Long> playerCounts = playerCountsByPersistentServer(copy);
         List<ListedPersistentServer> listed = new ArrayList<>();
         for (StatePersistentServer persistentServer : copy.persistentServers().values()) {
@@ -68,15 +73,29 @@ final class CopyPersistentServers {
         this.byName = persistentServersByName;
     }
 
+    @Override
+    public CompletableFuture<@Nullable PersistentServer> persistentServerWithId(String id) {
+        ByteString idBytes = ControllerIds.bytes(id);
+        PersistentServer persistentServer = idBytes == null ? null : byId.get(idBytes);
+        return CompletableFuture.completedFuture(persistentServer);
+    }
+
+    @Override
+    public CompletableFuture<@Nullable PersistentServer> persistentServerWithName(String name) {
+        PersistentServer persistentServer = byName.get(name);
+        return CompletableFuture.completedFuture(persistentServer);
+    }
+
     /**
-     * Returns the persistent servers that match every filter the query sets, in the default order, up to its
-     * limit.
+     * Lists the persistent servers that match every filter the query sets, in the default order, up to its
+     * limit, and all of them for no query.
      *
      * @throws CloudApiException with {@link CloudApiException.Reason#INVALID_REQUEST} for a limit below 1
      */
-    List<PersistentServer> persistentServers(@Nullable PersistentServerQuery query) {
+    @Override
+    public CompletableFuture<List<PersistentServer>> persistentServers(@Nullable PersistentServerQuery query) {
         if (query == null) {
-            return allPersistentServers;
+            return CompletableFuture.completedFuture(allPersistentServers);
         }
         List<String> tags = query.getTags();
         Boolean active = query.getActive();
@@ -84,27 +103,19 @@ final class CopyPersistentServers {
         boolean filtersByTags = tags != null && !tags.isEmpty();
         boolean filtersByServerhost = serverhostId != null && !serverhostId.isBlank();
         Set<String> wantedTags = filtersByTags ? new HashSet<>(tags) : Set.of();
-        ByteString wantedServerhost = filtersByServerhost ? ControllerJson.idBytes(serverhostId) : null;
+        ByteString wantedServerhost = filtersByServerhost ? ControllerIds.bytes(serverhostId) : null;
 
         List<PersistentServer> matching = new ArrayList<>();
         for (ListedPersistentServer listed : inDefaultOrder) {
-            boolean tagsMatch = !filtersByTags || listed.hasTagOf(wantedTags);
+            boolean tagsMatch = !filtersByTags || Tags.haveOneInCommon(wantedTags, listed.tags());
             boolean activeMatches = active == null || active.equals(listed.active());
             boolean serverhostMatches = !filtersByServerhost || listed.isOnServerhost(wantedServerhost);
             if (tagsMatch && activeMatches && serverhostMatches) {
                 matching.add(listed.persistentServer());
             }
         }
-        return List.copyOf(QueryLimit.firstOf(matching, query.getLimit()));
-    }
-
-    @Nullable PersistentServer persistentServerWithId(String id) {
-        ByteString idBytes = ControllerJson.idBytes(id);
-        return idBytes == null ? null : byId.get(idBytes);
-    }
-
-    @Nullable PersistentServer persistentServerWithName(String name) {
-        return byName.get(name);
+        List<PersistentServer> limited = QueryLimit.firstOf(matching, query.getLimit());
+        return CompletableFuture.completedFuture(List.copyOf(limited));
     }
 
     /**
@@ -115,9 +126,10 @@ final class CopyPersistentServers {
     private static Map<ByteString, Long> playerCountsByPersistentServer(NetworkCopy copy) {
         Map<ByteString, Long> playerCounts = new HashMap<>();
         for (StateServer server : copy.servers().values()) {
-            boolean counted = server.hasPersistentServerId() && OnlinePlayers.areCounted(server.getState());
+            boolean counted = server.hasPersistentServerId() && PlayerCounts.countedIn(server.getState());
             if (counted) {
-                playerCounts.merge(server.getPersistentServerId(), OnlinePlayers.reportedBy(server, copy), Long::sum);
+                long playerCount = PlayerCounts.of(server, copy);
+                playerCounts.merge(server.getPersistentServerId(), playerCount, Long::sum);
             }
         }
         return playerCounts;
@@ -143,7 +155,7 @@ final class CopyPersistentServers {
                 ByteString id,
                 ModelsPersistentServerSummary summary
         ) {
-            ByteString serverhostId = ControllerJson.idBytes(summary.getServerhostId());
+            ByteString serverhostId = ControllerIds.bytes(summary.getServerhostId());
             Instant createdAt = Instant.parse(summary.getCreatedAt());
             return new ListedPersistentServer(persistentServer, id, summary.getName(), summary.getTags(),
                     summary.getActive(), serverhostId, createdAt);
@@ -151,13 +163,6 @@ final class CopyPersistentServers {
 
         boolean isOnServerhost(@Nullable ByteString wanted) {
             return serverhostId != null && serverhostId.equals(wanted);
-        }
-
-        /**
-         * Tags match as Postgres's {@code &&} does: one tag in common is enough.
-         */
-        boolean hasTagOf(Set<String> wanted) {
-            return tags != null && !Collections.disjoint(wanted, tags);
         }
     }
 }

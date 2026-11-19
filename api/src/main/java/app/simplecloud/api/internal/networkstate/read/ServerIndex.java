@@ -4,6 +4,7 @@ import app.simplecloud.api.CloudApiException;
 import app.simplecloud.api.group.GroupServerType;
 import app.simplecloud.api.internal.networkstate.NetworkCopy;
 import app.simplecloud.api.internal.server.ServerImpl;
+import app.simplecloud.api.internal.server.ServerSource;
 import app.simplecloud.api.server.Server;
 import app.simplecloud.api.server.ServerQuery;
 import app.simplecloud.api.server.ServerState;
@@ -23,29 +24,30 @@ import org.jetbrains.annotations.Nullable;
 import java.math.BigDecimal;
 import java.util.ArrayList;
 import java.util.Collection;
-import java.util.Collections;
 import java.util.Comparator;
 import java.util.HashMap;
 import java.util.HashSet;
+import java.util.LinkedHashMap;
 import java.util.List;
 import java.util.Map;
 import java.util.Set;
 import java.util.UUID;
+import java.util.concurrent.CompletableFuture;
 import java.util.function.Predicate;
 
 /**
- * A copy's servers as the controller's server list shows them ({@code buildServerSummary} in
- * {@code internal/web/server_mapper.go}), built once, and the server questions of a {@link ReadableCopy}.
- * Each group, persistent server and blueprint is read from its JSON once, however many servers it has.
+ * The servers of one copy as API objects, built once, and the server source of that copy. Each server holds
+ * what the controller's server list shows for it ({@code buildServerSummary} in
+ * {@code internal/web/server_mapper.go}). Each group, persistent server and blueprint is read from its JSON
+ * once, however many servers it has.
+ *
+ * <p>Every answer is complete on return. A query with an unknown sort field or sort order throws a
+ * {@link CloudApiException} with {@link CloudApiException.Reason#INVALID_REQUEST} from {@link #servers}
+ * itself. An id in another form than 8-4-4-4-12 matches nothing.
  */
-final class CopyServers {
+final class ServerIndex implements ServerSource {
 
-    private static final Map<String, Comparator<ListedServer>> SORT_FIELDS = Map.of(
-            "created_at", Comparator.comparingLong(ListedServer::createdAtMicros),
-            "updated_at", Comparator.comparingLong(ListedServer::updatedAtMicros),
-            "numerical_id", Comparator.comparingInt(ListedServer::numericalId),
-            "state", Comparator.comparing(ListedServer::state, ByteOrder.TEXT));
-    private static final String SORT_FIELD_NAMES = "created_at, updated_at, numerical_id or state";
+    private static final Map<String, Comparator<ListedServer>> SORT_FIELDS = sortFields();
     private static final Comparator<ListedServer> KEEPS_DEFAULT_ORDER = (first, second) -> 0;
 
     /**
@@ -53,9 +55,9 @@ final class CopyServers {
      * server's server after every group id.
      */
     private static final Comparator<StateServer> DEFAULT_ORDER = Comparator
-            .comparing(CopyServers::groupIdOrNull, Comparator.nullsLast(ByteOrder.ID))
+            .comparing(ServerIndex::groupIdOrNull, Comparator.nullsLast(ControllerSortOrder.ID))
             .thenComparingInt(StateServer::getNumericalId)
-            .thenComparing(StateServer::getId, ByteOrder.ID);
+            .thenComparing(StateServer::getId, ControllerSortOrder.ID);
 
     private final List<ListedServer> inDefaultOrder;
     private final List<Server> allServers;
@@ -66,7 +68,7 @@ final class CopyServers {
      * @throws IllegalStateException if a reference of a server does not resolve in the copy, which a view's
      *                               copy rules out
      */
-    CopyServers(NetworkCopy copy, String networkId) {
+    ServerIndex(NetworkCopy copy, String networkId) {
         String networkIdText = UUID.fromString(networkId).toString();
         Map<ByteString, ModelsServerGroupInfo> groups = groupInfos(copy);
         Map<ByteString, ModelsPersistentServerInfo> persistentServers = persistentServerInfos(copy);
@@ -86,15 +88,53 @@ final class CopyServers {
         this.byId = Map.copyOf(servers);
     }
 
+    @Override
+    public CompletableFuture<@Nullable Server> serverWithId(String id) {
+        ByteString idBytes = ControllerIds.bytes(id);
+        Server server = idBytes == null ? null : byId.get(idBytes);
+        return CompletableFuture.completedFuture(server);
+    }
+
     /**
-     * Returns the servers that match every filter the query sets, in its order.
+     * Picks the first server in the default order whose parent has the name, as a lookup over HTTP picks the
+     * first of the list it filters by name and numerical id.
+     */
+    @Override
+    public CompletableFuture<@Nullable Server> serverWithNumericalId(String groupName, int numericalId) {
+        for (ListedServer listed : inDefaultOrder) {
+            boolean ofGroup = groupName.equals(listed.parentName());
+            boolean withNumericalId = listed.numericalId() == numericalId;
+            if (ofGroup && withNumericalId) {
+                return CompletableFuture.completedFuture(listed.server());
+            }
+        }
+        return CompletableFuture.completedFuture(null);
+    }
+
+    /**
+     * Lists the servers whose parent has the name, as the controller filters by a group name.
+     */
+    @Override
+    public CompletableFuture<List<Server>> serversOfGroup(String groupName) {
+        List<Server> ofGroup = new ArrayList<>();
+        for (ListedServer listed : inDefaultOrder) {
+            if (groupName.equals(listed.parentName())) {
+                ofGroup.add(listed.server());
+            }
+        }
+        return CompletableFuture.completedFuture(List.copyOf(ofGroup));
+    }
+
+    /**
+     * Lists the servers that match every filter the query sets, in its order, and all of them for no query.
      *
      * @throws CloudApiException with {@link CloudApiException.Reason#INVALID_REQUEST} for an unknown sort field
      *                           or sort order
      */
-    List<Server> servers(@Nullable ServerQuery query) {
+    @Override
+    public CompletableFuture<List<Server>> servers(@Nullable ServerQuery query) {
         if (query == null) {
-            return allServers;
+            return CompletableFuture.completedFuture(allServers);
         }
         Comparator<ListedServer> order = orderOf(query);
         Predicate<ListedServer> matches = filterOf(query);
@@ -106,12 +146,17 @@ final class CopyServers {
         }
         // A stable sort, so servers that tie on the field keep the default order, as the SQL appends it.
         matching.sort(order);
-        return serversOf(matching);
+        List<Server> servers = serversOf(matching);
+        return CompletableFuture.completedFuture(servers);
     }
 
-    @Nullable Server serverWithId(String id) {
-        ByteString idBytes = ControllerJson.idBytes(id);
-        return idBytes == null ? null : byId.get(idBytes);
+    private static Map<String, Comparator<ListedServer>> sortFields() {
+        Map<String, Comparator<ListedServer>> fields = new LinkedHashMap<>();
+        fields.put("created_at", Comparator.comparingLong(ListedServer::createdAtMicros));
+        fields.put("updated_at", Comparator.comparingLong(ListedServer::updatedAtMicros));
+        fields.put("numerical_id", Comparator.comparingInt(ListedServer::numericalId));
+        fields.put("state", Comparator.comparing(ListedServer::state, ControllerSortOrder.TEXT));
+        return fields;
     }
 
     private static List<Server> serversOf(List<ListedServer> listed) {
@@ -139,7 +184,8 @@ final class CopyServers {
         }
         Comparator<ListedServer> byField = SORT_FIELDS.get(field);
         if (byField == null) {
-            throw invalidRequest("Unknown sort field '" + query.getSortBy() + "', use " + SORT_FIELD_NAMES);
+            String knownFields = String.join(", ", SORT_FIELDS.keySet());
+            throw invalidRequest("Unknown sort field '" + query.getSortBy() + "', use one of " + knownFields);
         }
         return descending ? byField.reversed() : byField;
     }
@@ -155,11 +201,11 @@ final class CopyServers {
             filters.add(listed -> listed.hasStateOf(states));
         }
         if (isSet(query.getServerhostId())) {
-            ByteString serverhostId = ControllerJson.idBytes(query.getServerhostId());
+            ByteString serverhostId = ControllerIds.bytes(query.getServerhostId());
             filters.add(listed -> listed.isOnServerhost(serverhostId));
         }
         if (isSet(query.getPersistentServerId())) {
-            ByteString persistentServerId = ControllerJson.idBytes(query.getPersistentServerId());
+            ByteString persistentServerId = ControllerIds.bytes(query.getPersistentServerId());
             filters.add(listed -> listed.isOfPersistentServer(persistentServerId));
         }
         if (isSet(query.getNumericalIds())) {
@@ -176,7 +222,7 @@ final class CopyServers {
         }
         if (isSet(query.getServerGroupTags())) {
             Set<String> tags = new HashSet<>(query.getServerGroupTags());
-            filters.add(listed -> listed.parentHasTagOf(tags));
+            filters.add(listed -> Tags.haveOneInCommon(tags, listed.parentTags()));
         }
         return listed -> matchesAll(listed, filters);
     }
@@ -205,7 +251,7 @@ final class CopyServers {
     private static Set<ByteString> idsOf(List<String> uuids) {
         Set<ByteString> ids = new HashSet<>();
         for (String uuid : uuids) {
-            ByteString id = ControllerJson.idBytes(uuid);
+            ByteString id = ControllerIds.bytes(uuid);
             if (id != null) {
                 ids.add(id);
             }
@@ -245,18 +291,18 @@ final class CopyServers {
             NetworkCopy copy
     ) {
         ModelsServerSummary summary = new ModelsServerSummary();
-        summary.setServerId(ControllerJson.uuid(row.getId()));
+        summary.setServerId(ControllerIds.text(row.getId()));
         summary.setNetworkId(networkId);
         if (row.hasServerGroupId()) {
-            summary.setServerGroupId(ControllerJson.uuid(row.getServerGroupId()));
+            summary.setServerGroupId(ControllerIds.text(row.getServerGroupId()));
             summary.setServerGroup(resolve(groups, row.getServerGroupId(), "server group"));
         }
         if (row.hasPersistentServerId()) {
-            summary.setPersistentServerId(ControllerJson.uuid(row.getPersistentServerId()));
+            summary.setPersistentServerId(ControllerIds.text(row.getPersistentServerId()));
             summary.setPersistentServer(resolve(persistentServers, row.getPersistentServerId(), "persistent server"));
         }
         if (row.hasServerhostId()) {
-            summary.setServerhostId(ControllerJson.uuid(row.getServerhostId()));
+            summary.setServerhostId(ControllerIds.text(row.getServerhostId()));
         }
         summary.setNumericalId(row.getNumericalId());
         if (row.hasIp()) {
@@ -270,8 +316,8 @@ final class CopyServers {
         summary.setMaxPlayers(Math.toIntExact(row.getMaxPlayers()));
         summary.setState(ModelsServerSummary.StateEnum.fromValue(row.getState()));
         summary.setProperties(ControllerJson.toProperties(row.getPropertiesJson()));
-        summary.setCreatedAt(ControllerJson.timestamp(ControllerJson.fromMicros(row.getCreatedAtMicros())));
-        summary.setUpdatedAt(ControllerJson.timestamp(ControllerJson.fromMicros(row.getUpdatedAtMicros())));
+        summary.setCreatedAt(ControllerTimestamps.ofMicros(row.getCreatedAtMicros()));
+        summary.setUpdatedAt(ControllerTimestamps.ofMicros(row.getUpdatedAtMicros()));
         setMetrics(summary, row, copy);
         return summary;
     }
@@ -281,12 +327,13 @@ final class CopyServers {
      * metrics.
      */
     private static void setMetrics(ModelsServerSummary summary, StateServer row, NetworkCopy copy) {
-        StateServerMetrics metrics = copy.metrics().getOrDefault(row.getId(), StateServerMetrics.getDefaultInstance());
-        summary.setPlayerCount(Math.toIntExact(OnlinePlayers.reportedBy(row, copy)));
+        StateServerMetrics noMetrics = StateServerMetrics.getDefaultInstance();
+        StateServerMetrics metrics = copy.metrics().getOrDefault(row.getId(), noMetrics);
+        summary.setPlayerCount(Math.toIntExact(PlayerCounts.of(metrics)));
         summary.setCpuUsage(finiteOrNull(metrics.getCpuUsage()));
         summary.setMemoryUsage(finiteOrNull(metrics.getMemoryUsage()));
         String lastActivity = metrics.hasLastActivityNanos()
-                ? ControllerJson.timestamp(ControllerJson.fromNanos(metrics.getLastActivityNanos()))
+                ? ControllerTimestamps.ofNanos(metrics.getLastActivityNanos())
                 : "";
         summary.setLastActivity(lastActivity);
     }
@@ -321,7 +368,7 @@ final class CopyServers {
         }
         ModelsSourceInfo source = info.getSource();
         if (source == null) {
-            throw new IllegalStateException("Server group " + ControllerJson.uuid(group.getId()) + " has no source");
+            throw new IllegalStateException("Server group " + ControllerIds.text(group.getId()) + " has no source");
         }
         ModelsBlueprintInfo blueprint = blueprints.computeIfAbsent(group.getBlueprintId(),
                 blueprintId -> blueprintInfo(blueprintId, copy));
@@ -351,7 +398,7 @@ final class CopyServers {
     private static <T> T resolve(Map<ByteString, T> items, ByteString id, String kind) {
         T item = items.get(id);
         if (item == null) {
-            throw new IllegalStateException("The copy has no " + kind + " " + ControllerJson.uuid(id));
+            throw new IllegalStateException("The copy has no " + kind + " " + ControllerIds.text(id));
         }
         return item;
     }
@@ -416,13 +463,6 @@ final class CopyServers {
 
         boolean isOfPersistentServer(@Nullable ByteString persistentServerId) {
             return row.hasPersistentServerId() && row.getPersistentServerId().equals(persistentServerId);
-        }
-
-        /**
-         * Tags match as Postgres's {@code &&} does: one tag in common is enough.
-         */
-        boolean parentHasTagOf(Set<String> tags) {
-            return parentTags != null && !Collections.disjoint(tags, parentTags);
         }
     }
 }

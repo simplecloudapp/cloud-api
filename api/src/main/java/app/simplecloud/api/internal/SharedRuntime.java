@@ -2,9 +2,8 @@ package app.simplecloud.api.internal;
 
 import app.simplecloud.api.CloudApiOptions;
 import app.simplecloud.api.internal.nats.NatsFailoverConnectionManager;
-import app.simplecloud.api.internal.networkstate.AnsweringCopy;
 import app.simplecloud.api.internal.networkstate.StateRevisionInterceptor;
-import app.simplecloud.api.internal.networkstate.read.CopyFirstRead;
+import app.simplecloud.api.internal.networkstate.read.ReadableCopies;
 import app.simplecloud.api.web.ApiClient;
 import okhttp3.OkHttpClient;
 import org.jetbrains.annotations.Nullable;
@@ -27,7 +26,7 @@ final class SharedRuntime {
     private final NatsFailoverConnectionManager natsConnectionManager;
     private final OkHttpClient httpClient;
     private final @Nullable SharedNetworkView networkView;
-    private final CopyFirstRead copyFirstRead;
+    private final ReadableCopies readableCopies;
     private int users;
 
     private SharedRuntime(Settings settings, CloudApiOptions options) {
@@ -58,10 +57,10 @@ final class SharedRuntime {
         }
         if (networkView == null) {
             this.httpClient = baseHttpClient;
-            this.copyFirstRead = new CopyFirstRead(AnsweringCopy.NONE, settings.networkId());
+            this.readableCopies = ReadableCopies.none();
         } else {
             this.httpClient = StateRevisionInterceptor.addTo(baseHttpClient, networkView.shell());
-            this.copyFirstRead = new CopyFirstRead(networkView.shell(), settings.networkId());
+            this.readableCopies = new ReadableCopies(networkView.shell(), settings.networkId());
         }
     }
 
@@ -86,11 +85,11 @@ final class SharedRuntime {
     }
 
     /**
-     * Returns the reads of all instances, which the view's copy answers while it may. When the network and
-     * credential of the instances allow no view, the controller answers every read.
+     * Returns the copies that answer the reads of all instances while the view lets them. When the network and
+     * credential of the instances allow no view, it never hands out a copy.
      */
-    CopyFirstRead copyFirstRead() {
-        return copyFirstRead;
+    ReadableCopies readableCopies() {
+        return readableCopies;
     }
 
     /**

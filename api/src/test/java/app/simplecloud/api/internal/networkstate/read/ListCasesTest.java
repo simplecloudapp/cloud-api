@@ -3,7 +3,10 @@ package app.simplecloud.api.internal.networkstate.read;
 import app.simplecloud.api.group.Group;
 import app.simplecloud.api.group.GroupQuery;
 import app.simplecloud.api.group.GroupServerType;
+import app.simplecloud.api.internal.group.ServerGroupSource;
 import app.simplecloud.api.internal.networkstate.NetworkCopy;
+import app.simplecloud.api.internal.persistentserver.PersistentServerSource;
+import app.simplecloud.api.internal.server.ServerSource;
 import app.simplecloud.api.persistentserver.PersistentServer;
 import app.simplecloud.api.persistentserver.PersistentServerQuery;
 import app.simplecloud.api.server.Server;
@@ -35,7 +38,6 @@ import java.util.List;
 import java.util.Map;
 import java.util.Objects;
 import java.util.Set;
-import java.util.function.Function;
 
 import static org.junit.jupiter.api.Assertions.assertEquals;
 import static org.junit.jupiter.api.Assertions.assertNotNull;
@@ -52,7 +54,16 @@ class ListCasesTest {
 
     private static final String MISSED = "missed";
 
-    private record TypedCase(String name, Function<ReadableCopy, List<String>> listedIds) {
+    /**
+     * The ids a case's query or lookup lists from a copy, in order.
+     */
+    @FunctionalInterface
+    private interface CaseRead {
+
+        List<String> idsIn(ReadableCopy copy);
+    }
+
+    private record TypedCase(String name, CaseRead read) {
     }
 
     @TestFactory
@@ -70,11 +81,7 @@ class ListCasesTest {
             recordedNames.add(name);
             List<String> expected = expectedKeys(listCase.get("expected"));
             TypedCase typedCase = typedCases.get(name);
-            tests.add(DynamicTest.dynamicTest(name, () -> {
-                assertNotNull(typedCase, "no query for the recorded case");
-                List<String> listed = keysOf(typedCase.listedIds().apply(copy), keysById);
-                assertEquals(expected, listed);
-            }));
+            tests.add(DynamicTest.dynamicTest(name, () -> assertListed(expected, typedCase, copy, keysById)));
         }
         tests.add(DynamicTest.dynamicTest("every query has a recorded case",
                 () -> assertEquals(recordedNames, typedCases.keySet())));
@@ -143,40 +150,97 @@ class ListCasesTest {
         return byName;
     }
 
+    private static void assertListed(
+            List<String> expected,
+            @Nullable TypedCase typedCase,
+            ReadableCopy copy,
+            Map<String, String> keysById
+    ) {
+        assertNotNull(typedCase, "no query for the recorded case");
+        List<String> ids = typedCase.read().idsIn(copy);
+        List<String> listed = keysOf(ids, keysById);
+        assertEquals(expected, listed);
+    }
+
     private static TypedCase servers(String name, @Nullable ServerQuery query) {
-        return new TypedCase("servers: " + name, copy -> serverIds(copy.servers(query)));
+        return new TypedCase("servers: " + name, copy -> serverIds(copy, query));
     }
 
     private static TypedCase serverWithId(String name, String id) {
-        return new TypedCase("servers: " + name, copy -> serverIds(listOf(copy.serverWithId(id))));
+        return new TypedCase("servers: " + name, copy -> serverIdWithId(copy, id));
     }
 
     private static TypedCase serverGroups(String name, @Nullable GroupQuery query) {
-        return new TypedCase("server-groups: " + name, copy -> groupIds(copy.serverGroups(query)));
+        return new TypedCase("server-groups: " + name, copy -> groupIds(copy, query));
     }
 
     private static TypedCase serverGroupWithId(String name, String id) {
-        return new TypedCase("server-groups: " + name, copy -> groupIds(listOf(copy.serverGroupWithId(id))));
+        return new TypedCase("server-groups: " + name, copy -> groupIdWithId(copy, id));
     }
 
     private static TypedCase serverGroupWithName(String name, String groupName) {
-        return new TypedCase("server-groups: " + name,
-                copy -> groupIds(listOf(copy.serverGroupWithName(groupName))));
+        return new TypedCase("server-groups: " + name, copy -> groupIdWithName(copy, groupName));
     }
 
     private static TypedCase persistentServers(String name, @Nullable PersistentServerQuery query) {
-        return new TypedCase("persistent-servers: " + name,
-                copy -> persistentServerIds(copy.persistentServers(query)));
+        return new TypedCase("persistent-servers: " + name, copy -> persistentServerIds(copy, query));
     }
 
     private static TypedCase persistentServerWithId(String name, String id) {
-        return new TypedCase("persistent-servers: " + name,
-                copy -> persistentServerIds(listOf(copy.persistentServerWithId(id))));
+        return new TypedCase("persistent-servers: " + name, copy -> persistentServerIdWithId(copy, id));
     }
 
     private static TypedCase persistentServerWithName(String name, String persistentServerName) {
         return new TypedCase("persistent-servers: " + name,
-                copy -> persistentServerIds(listOf(copy.persistentServerWithName(persistentServerName))));
+                copy -> persistentServerIdWithName(copy, persistentServerName));
+    }
+
+    private static List<String> serverIds(ReadableCopy copy, @Nullable ServerQuery query) {
+        ServerSource source = copy.servers();
+        List<Server> servers = source.servers(query).join();
+        return serverIds(servers);
+    }
+
+    private static List<String> serverIdWithId(ReadableCopy copy, String id) {
+        ServerSource source = copy.servers();
+        Server server = source.serverWithId(id).join();
+        return serverIds(listOf(server));
+    }
+
+    private static List<String> groupIds(ReadableCopy copy, @Nullable GroupQuery query) {
+        ServerGroupSource source = copy.serverGroups();
+        List<Group> groups = source.serverGroups(query).join();
+        return groupIds(groups);
+    }
+
+    private static List<String> groupIdWithId(ReadableCopy copy, String id) {
+        ServerGroupSource source = copy.serverGroups();
+        Group group = source.serverGroupWithId(id).join();
+        return groupIds(listOf(group));
+    }
+
+    private static List<String> groupIdWithName(ReadableCopy copy, String name) {
+        ServerGroupSource source = copy.serverGroups();
+        Group group = source.serverGroupWithName(name).join();
+        return groupIds(listOf(group));
+    }
+
+    private static List<String> persistentServerIds(ReadableCopy copy, @Nullable PersistentServerQuery query) {
+        PersistentServerSource source = copy.persistentServers();
+        List<PersistentServer> persistentServers = source.persistentServers(query).join();
+        return persistentServerIds(persistentServers);
+    }
+
+    private static List<String> persistentServerIdWithId(ReadableCopy copy, String id) {
+        PersistentServerSource source = copy.persistentServers();
+        PersistentServer persistentServer = source.persistentServerWithId(id).join();
+        return persistentServerIds(listOf(persistentServer));
+    }
+
+    private static List<String> persistentServerIdWithName(ReadableCopy copy, String name) {
+        PersistentServerSource source = copy.persistentServers();
+        PersistentServer persistentServer = source.persistentServerWithName(name).join();
+        return persistentServerIds(listOf(persistentServer));
     }
 
     private static <T> List<T> listOf(@Nullable T found) {

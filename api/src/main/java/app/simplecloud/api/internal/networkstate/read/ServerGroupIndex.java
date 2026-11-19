@@ -5,6 +5,7 @@ import app.simplecloud.api.group.Group;
 import app.simplecloud.api.group.GroupQuery;
 import app.simplecloud.api.group.GroupServerType;
 import app.simplecloud.api.internal.group.GroupImpl;
+import app.simplecloud.api.internal.group.ServerGroupSource;
 import app.simplecloud.api.internal.networkstate.NetworkCopy;
 import app.simplecloud.api.web.models.ModelsServerGroupStats;
 import app.simplecloud.api.web.models.ModelsServerGroupSummary;
@@ -15,7 +16,6 @@ import org.jetbrains.annotations.Nullable;
 
 import java.time.Instant;
 import java.util.ArrayList;
-import java.util.Collections;
 import java.util.Comparator;
 import java.util.HashMap;
 import java.util.HashSet;
@@ -23,27 +23,32 @@ import java.util.List;
 import java.util.Map;
 import java.util.Set;
 import java.util.TreeMap;
+import java.util.concurrent.CompletableFuture;
 
 /**
- * A copy's groups as the controller's group list shows them: each group's {@code summary_json} with the
- * {@code stats} the copy computes, because they change with every server. Built once, they answer the group
- * questions of a {@link ReadableCopy}.
+ * The groups of one copy as API objects, built once, and the group source of that copy. Each group is the
+ * controller's {@code summary_json} for it, with the {@code stats} the copy computes, because they change with
+ * every server.
+ *
+ * <p>Every answer is complete on return. A query with a limit below 1 throws a {@link CloudApiException} with
+ * {@link CloudApiException.Reason#INVALID_REQUEST} from {@link #serverGroups} itself. An id in another form
+ * than 8-4-4-4-12 matches nothing.
  */
-final class CopyServerGroups {
+final class ServerGroupIndex implements ServerGroupSource {
 
     /**
      * {@code ORDER BY created_at DESC, id}.
      */
     private static final Comparator<ListedGroup> DEFAULT_ORDER = Comparator
             .comparing(ListedGroup::createdAt, Comparator.reverseOrder())
-            .thenComparing(ListedGroup::id, ByteOrder.ID);
+            .thenComparing(ListedGroup::id, ControllerSortOrder.ID);
 
     private final List<ListedGroup> inDefaultOrder;
     private final List<Group> allGroups;
     private final Map<ByteString, Group> byId;
     private final Map<String, Group> byName;
 
-    CopyServerGroups(NetworkCopy copy) {
+    ServerGroupIndex(NetworkCopy copy) {
         Map<ByteString, GroupStats> stats = statsByGroup(copy);
         List<ListedGroup> listed = new ArrayList<>();
         for (StateServerGroup group : copy.serverGroups().values()) {
@@ -70,36 +75,42 @@ final class CopyServerGroups {
         this.byName = groupsByName;
     }
 
+    @Override
+    public CompletableFuture<@Nullable Group> serverGroupWithId(String id) {
+        ByteString idBytes = ControllerIds.bytes(id);
+        Group group = idBytes == null ? null : byId.get(idBytes);
+        return CompletableFuture.completedFuture(group);
+    }
+
+    @Override
+    public CompletableFuture<@Nullable Group> serverGroupWithName(String name) {
+        Group group = byName.get(name);
+        return CompletableFuture.completedFuture(group);
+    }
+
     /**
-     * Returns the groups that match the query's type and tags, in the default order, up to its limit. The
-     * query's sorting is not read, because the controller is not asked for it either.
+     * Lists the groups that match the query's type and tags, in the default order, up to its limit, and all of
+     * them for no query. The query's sorting is not read, because the controller is not asked for it either.
      *
      * @throws CloudApiException with {@link CloudApiException.Reason#INVALID_REQUEST} for a limit below 1
      */
-    List<Group> serverGroups(@Nullable GroupQuery query) {
+    @Override
+    public CompletableFuture<List<Group>> serverGroups(@Nullable GroupQuery query) {
         if (query == null) {
-            return allGroups;
+            return CompletableFuture.completedFuture(allGroups);
         }
         GroupServerType type = query.getType();
         Set<String> tags = tagsOf(query.getTag());
         List<Group> matching = new ArrayList<>();
         for (ListedGroup listed : inDefaultOrder) {
             boolean typeMatches = type == null || listed.hasType(type);
-            boolean tagsMatch = tags.isEmpty() || listed.hasTagOf(tags);
+            boolean tagsMatch = tags.isEmpty() || Tags.haveOneInCommon(tags, listed.tags());
             if (typeMatches && tagsMatch) {
                 matching.add(listed.group());
             }
         }
-        return List.copyOf(QueryLimit.firstOf(matching, query.getLimit()));
-    }
-
-    @Nullable Group serverGroupWithId(String id) {
-        ByteString idBytes = ControllerJson.idBytes(id);
-        return idBytes == null ? null : byId.get(idBytes);
-    }
-
-    @Nullable Group serverGroupWithName(String name) {
-        return byName.get(name);
+        List<Group> limited = QueryLimit.firstOf(matching, query.getLimit());
+        return CompletableFuture.completedFuture(List.copyOf(limited));
     }
 
     /**
@@ -144,15 +155,15 @@ final class CopyServerGroups {
         /**
          * By key bytes, the order in which Go's encoder writes a map, which the HTTP client's map keeps.
          */
-        private final Map<String, Integer> serversByState = new TreeMap<>(ByteOrder.TEXT);
+        private final Map<String, Integer> serversByState = new TreeMap<>(ControllerSortOrder.TEXT);
         private int totalServers;
         private long onlinePlayers;
 
         void add(StateServer server, NetworkCopy copy) {
             totalServers++;
             serversByState.merge(server.getState(), 1, Integer::sum);
-            if (OnlinePlayers.areCounted(server.getState())) {
-                onlinePlayers += OnlinePlayers.reportedBy(server, copy);
+            if (PlayerCounts.countedIn(server.getState())) {
+                onlinePlayers += PlayerCounts.of(server, copy);
             }
         }
 
@@ -184,13 +195,6 @@ final class CopyServerGroups {
 
         boolean hasType(GroupServerType wanted) {
             return wanted.name().equals(type);
-        }
-
-        /**
-         * Tags match as Postgres's {@code &&} does: one tag in common is enough.
-         */
-        boolean hasTagOf(Set<String> wanted) {
-            return tags != null && !Collections.disjoint(wanted, tags);
         }
     }
 }

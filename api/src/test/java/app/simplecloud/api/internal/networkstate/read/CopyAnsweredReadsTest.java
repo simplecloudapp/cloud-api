@@ -7,7 +7,7 @@ import app.simplecloud.api.group.GroupQuery;
 import app.simplecloud.api.group.GroupServerType;
 import app.simplecloud.api.internal.cache.NoOpQueryCache;
 import app.simplecloud.api.internal.group.GroupApiImpl;
-import app.simplecloud.api.internal.networkstate.AnsweringCopy;
+import app.simplecloud.api.internal.networkstate.AnsweringView;
 import app.simplecloud.api.internal.networkstate.NetworkCopy;
 import app.simplecloud.api.internal.persistentserver.PersistentServerApiImpl;
 import app.simplecloud.api.internal.server.ServerApiImpl;
@@ -89,7 +89,8 @@ class CopyAnsweredReadsTest {
 
         NetworkState snapshot = NetworkState.parseFrom(Files.readAllBytes(fixture.resolve("network-state.pb")));
         NetworkCopy copy = Copies.of(withReadableScalingModes(snapshot));
-        startApis(() -> CompletableFuture.completedFuture(Optional.of(copy)));
+        AnsweringView alwaysTheFixture = () -> CompletableFuture.completedFuture(Optional.of(copy));
+        startApis(new ReadableCopies(alwaysTheFixture, NETWORK_ID));
     }
 
     @AfterEach
@@ -279,7 +280,7 @@ class CopyAnsweredReadsTest {
 
     @Test
     void aReadNoCopyAnswersGoesToTheController() {
-        startApis(AnsweringCopy.NONE);
+        startApis(ReadableCopies.none());
 
         List<Server> all = servers.getAllServers(null).join();
 
@@ -287,12 +288,11 @@ class CopyAnsweredReadsTest {
         assertEquals(1, requests.get());
     }
 
-    private void startApis(AnsweringCopy answeringCopy) {
-        CopyFirstRead reads = new CopyFirstRead(answeringCopy, NETWORK_ID);
-        servers = new ServerApiImpl(options, new NoOpQueryCache(), apiClient, CALLER_THREAD, reads);
-        groups = new GroupApiImpl(options, new NoOpQueryCache(), apiClient, CALLER_THREAD, reads);
+    private void startApis(ReadableCopies copies) {
+        servers = new ServerApiImpl(options, new NoOpQueryCache(), apiClient, CALLER_THREAD, copies);
+        groups = new GroupApiImpl(options, new NoOpQueryCache(), apiClient, CALLER_THREAD, copies);
         persistentServers = new PersistentServerApiImpl(options, new NoOpQueryCache(), apiClient, CALLER_THREAD,
-                reads);
+                copies);
     }
 
     private static CloudApiException.Reason failureReason(CompletableFuture<?> read) {

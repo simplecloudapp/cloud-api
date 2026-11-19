@@ -11,7 +11,7 @@ import app.simplecloud.api.internal.cache.NoOpQueryCache;
 import app.simplecloud.api.internal.cache.QueryCacheImpl;
 import app.simplecloud.api.internal.event.EventApiImpl;
 import app.simplecloud.api.internal.group.GroupApiImpl;
-import app.simplecloud.api.internal.networkstate.read.CopyFirstRead;
+import app.simplecloud.api.internal.networkstate.read.ReadableCopies;
 import app.simplecloud.api.internal.persistentserver.PersistentServerApiImpl;
 import app.simplecloud.api.internal.server.ServerApiImpl;
 import app.simplecloud.api.internal.player.PlayerApiImpl;
@@ -72,12 +72,12 @@ public class CloudApiImpl implements CloudApi {
 
             // Initialize APIs with cache
             this.apiClient = ApiClients.create(options, runtime.httpClient());
-            CopyFirstRead reads = runtime.copyFirstRead();
+            ReadableCopies copies = runtime.readableCopies();
             this.playerApi = new PlayerApiImpl(options, natsConnection.asConnection(), apiClient, executor);
             this.eventApi = new EventApiImpl(natsConnection.asConnection(), options.getNetworkId(), playerApi);
-            this.serverApi = new ServerApiImpl(options, queryCache, apiClient, executor, reads);
-            this.groupApi = new GroupApiImpl(options, queryCache, apiClient, executor, reads);
-            this.persistentServerApi = new PersistentServerApiImpl(options, queryCache, apiClient, executor, reads);
+            this.serverApi = new ServerApiImpl(options, queryCache, apiClient, executor, copies);
+            this.groupApi = new GroupApiImpl(options, queryCache, apiClient, executor, copies);
+            this.persistentServerApi = new PersistentServerApiImpl(options, queryCache, apiClient, executor, copies);
 
             // Setup event-based cache invalidation with debouncing
             if (cacheConfig.isEnabled() && cacheConfig.isAutoInvalidateOnEvents()) {

@@ -8,16 +8,16 @@ import build.buf.gen.simplecloud.controller.v2.StateServerMetrics;
  * The player counts the controller shows for a server and adds up for a group's stats and a persistent
  * server's player count.
  */
-final class OnlinePlayers {
+final class PlayerCounts {
 
-    private OnlinePlayers() {
+    private PlayerCounts() {
     }
 
     /**
      * Returns whether the controller counts the players of a server in this state
      * ({@code GetRunningServersByGroups}, {@code ListActiveServersForPersistentServerPlayerCount}).
      */
-    static boolean areCounted(String state) {
+    static boolean countedIn(String state) {
         return state.equals("AVAILABLE") || state.equals("INGAME");
     }
 
@@ -25,11 +25,16 @@ final class OnlinePlayers {
      * Returns the server's player count from the copy's metrics, or 0 for a server whose metrics are not
      * fresh, which the pulse leaves out as the controller leaves out stale metrics.
      */
-    static long reportedBy(StateServer server, NetworkCopy copy) {
-        StateServerMetrics metrics = copy.metrics().get(server.getId());
-        if (metrics == null) {
-            return 0;
-        }
+    static long of(StateServer server, NetworkCopy copy) {
+        StateServerMetrics noMetrics = StateServerMetrics.getDefaultInstance();
+        StateServerMetrics metrics = copy.metrics().getOrDefault(server.getId(), noMetrics);
+        return of(metrics);
+    }
+
+    /**
+     * The pulse carries the count as an unsigned 32-bit number.
+     */
+    static long of(StateServerMetrics metrics) {
         return Integer.toUnsignedLong(metrics.getPlayerCount());
     }
 }

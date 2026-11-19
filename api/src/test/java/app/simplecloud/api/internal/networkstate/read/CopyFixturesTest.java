@@ -1,8 +1,14 @@
 package app.simplecloud.api.internal.networkstate.read;
 
+import app.simplecloud.api.group.Group;
 import app.simplecloud.api.internal.group.GroupImpl;
+import app.simplecloud.api.internal.group.ServerGroupSource;
 import app.simplecloud.api.internal.persistentserver.PersistentServerImpl;
+import app.simplecloud.api.internal.persistentserver.PersistentServerSource;
 import app.simplecloud.api.internal.server.ServerImpl;
+import app.simplecloud.api.internal.server.ServerSource;
+import app.simplecloud.api.persistentserver.PersistentServer;
+import app.simplecloud.api.server.Server;
 import app.simplecloud.api.web.JSON;
 import app.simplecloud.api.web.models.ModelsListPersistentServersResponse;
 import app.simplecloud.api.web.models.ModelsListServerGroupsResponse;
@@ -59,9 +65,8 @@ class CopyFixturesTest {
     private static void serversEqual(Path directory) throws IOException {
         ReadableCopy copy = readableCopyOf(directory);
 
-        Outcome overHttp = Outcome.of(() -> PublicGetters.read(servers(readHttpAnswer(directory, "servers.json",
-                ModelsListServersResponse.class))));
-        Outcome fromCopy = Outcome.of(() -> PublicGetters.read(copy.servers(null)));
+        Outcome overHttp = Outcome.of(() -> serversOverHttp(directory));
+        Outcome fromCopy = Outcome.of(() -> serversFromCopy(copy));
 
         assertEquals(overHttp, fromCopy);
     }
@@ -69,9 +74,8 @@ class CopyFixturesTest {
     private static void serverGroupsEqual(Path directory) throws IOException {
         ReadableCopy copy = readableCopyOf(directory);
 
-        Outcome overHttp = Outcome.of(() -> PublicGetters.read(groups(readHttpAnswer(directory, "server-groups.json",
-                ModelsListServerGroupsResponse.class))));
-        Outcome fromCopy = Outcome.of(() -> PublicGetters.read(copy.serverGroups(null)));
+        Outcome overHttp = Outcome.of(() -> serverGroupsOverHttp(directory));
+        Outcome fromCopy = Outcome.of(() -> serverGroupsFromCopy(copy));
 
         assertEquals(overHttp, fromCopy);
     }
@@ -79,11 +83,48 @@ class CopyFixturesTest {
     private static void persistentServersEqual(Path directory) throws IOException {
         ReadableCopy copy = readableCopyOf(directory);
 
-        Outcome overHttp = Outcome.of(() -> PublicGetters.read(persistentServers(readHttpAnswer(directory,
-                "persistent-servers.json", ModelsListPersistentServersResponse.class))));
-        Outcome fromCopy = Outcome.of(() -> PublicGetters.read(copy.persistentServers(null)));
+        Outcome overHttp = Outcome.of(() -> persistentServersOverHttp(directory));
+        Outcome fromCopy = Outcome.of(() -> persistentServersFromCopy(copy));
 
         assertEquals(overHttp, fromCopy);
+    }
+
+    private static Object serversOverHttp(Path directory) throws IOException {
+        ModelsListServersResponse answer = readHttpAnswer(directory, "servers.json", ModelsListServersResponse.class);
+        List<ServerImpl> servers = servers(answer);
+        return PublicGetters.read(servers);
+    }
+
+    private static Object serversFromCopy(ReadableCopy copy) {
+        ServerSource source = copy.servers();
+        List<Server> servers = source.servers(null).join();
+        return PublicGetters.read(servers);
+    }
+
+    private static Object serverGroupsOverHttp(Path directory) throws IOException {
+        ModelsListServerGroupsResponse answer = readHttpAnswer(directory, "server-groups.json",
+                ModelsListServerGroupsResponse.class);
+        List<GroupImpl> groups = groups(answer);
+        return PublicGetters.read(groups);
+    }
+
+    private static Object serverGroupsFromCopy(ReadableCopy copy) {
+        ServerGroupSource source = copy.serverGroups();
+        List<Group> groups = source.serverGroups(null).join();
+        return PublicGetters.read(groups);
+    }
+
+    private static Object persistentServersOverHttp(Path directory) throws IOException {
+        ModelsListPersistentServersResponse answer = readHttpAnswer(directory, "persistent-servers.json",
+                ModelsListPersistentServersResponse.class);
+        List<PersistentServerImpl> persistentServers = persistentServers(answer);
+        return PublicGetters.read(persistentServers);
+    }
+
+    private static Object persistentServersFromCopy(ReadableCopy copy) {
+        PersistentServerSource source = copy.persistentServers();
+        List<PersistentServer> persistentServers = source.persistentServers(null).join();
+        return PublicGetters.read(persistentServers);
     }
 
     /**

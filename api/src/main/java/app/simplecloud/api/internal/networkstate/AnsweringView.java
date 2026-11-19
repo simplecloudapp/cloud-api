@@ -4,18 +4,17 @@ import java.util.Optional;
 import java.util.concurrent.CompletableFuture;
 
 /**
- * Tells a read which copy of the network may answer it now. The network's view, {@link NetworkViewShell}, is
- * the one that decides; {@link #NONE} stands in for it in an instance that has no view, so that readers need no
- * null check.
+ * The view as a read sees it: it hands out the copy that may answer now. {@link NetworkViewShell} is the view;
+ * {@link #NO_VIEW} stands in for it in an instance that has no view, so that readers need no null check.
  */
 @FunctionalInterface
-public interface AnsweringCopy {
+public interface AnsweringView {
 
     /**
      * For an instance whose network or credential allows no view: no copy ever answers, so every read goes over
      * HTTP.
      */
-    AnsweringCopy NONE = () -> CompletableFuture.completedFuture(Optional.empty());
+    AnsweringView NO_VIEW = () -> CompletableFuture.completedFuture(Optional.empty());
 
     /**
      * Returns the copy to answer a read from, or empty, so the read goes over HTTP. The future is complete on

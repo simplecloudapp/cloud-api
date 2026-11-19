@@ -10,11 +10,11 @@ import java.util.Comparator;
  * under collation {@code C} and as Go's JSON encoder sorts map keys, where {@link String#compareTo} compares
  * UTF-16 units.
  */
-final class ByteOrder {
+final class ControllerSortOrder {
 
     static final Comparator<ByteString> ID = ByteString.unsignedLexicographicalComparator();
     static final Comparator<String> TEXT = Comparator.comparing(ByteString::copyFromUtf8, ID);
 
-    private ByteOrder() {
+    private ControllerSortOrder() {
     }
 }
