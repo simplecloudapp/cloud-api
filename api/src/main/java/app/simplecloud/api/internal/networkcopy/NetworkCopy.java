@@ -111,11 +111,13 @@ public final class NetworkCopy {
      * The current contents, or null while reads must go to the controller.
      */
     public @Nullable NetworkContents contents() {
+        // The time first: a pulse writes its contents before its time, so a fresh time means contents at least as new.
+        long pulseNanos = lastPulseNanos;
         NetworkContents current = contents;
         if (current == null) {
             return null;
         }
-        long nanosSincePulse = nanoTime.getAsLong() - lastPulseNanos;
+        long nanosSincePulse = nanoTime.getAsLong() - pulseNanos;
         if (nanosSincePulse > PULSE_SILENCE_LIMIT.toNanos()) {
             return null;
         }
@@ -132,8 +134,9 @@ public final class NetworkCopy {
         if (epoch == null || revision == null) {
             return;
         }
-        long giveUpAt = System.nanoTime() + OWN_WRITE_WAIT.toNanos();
-        while (lacksWrite(epoch, revision) && System.nanoTime() < giveUpAt) {
+        // The real time, not the copy's time source: the loop sleeps in real time.
+        long waitStart = System.nanoTime();
+        while (lacksWrite(epoch, revision) && System.nanoTime() - waitStart < OWN_WRITE_WAIT.toNanos()) {
             boolean interrupted = sleepWasInterrupted(OWN_WRITE_POLL);
             if (interrupted) {
                 return;
@@ -157,10 +160,8 @@ public final class NetworkCopy {
             } else {
                 items.setMetrics(pulse.getMetricsList());
             }
-            NetworkContents newContents = items.toContents();
-            // Before the contents, so a reader that sees these contents also sees the time of their pulse.
+            contents = items.toContents();
             lastPulseNanos = nanoTime.getAsLong();
-            contents = newContents;
         } catch (IOException | RuntimeException e) {
             forgetCopy("the network state could not be loaded or read: " + e);
         }

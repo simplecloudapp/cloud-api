@@ -43,8 +43,8 @@ class NetworkCopyTest {
     private static final String FIRST_SERVER = "00000000-0000-4000-8000-000000000201";
     private static final String SECOND_SERVER = "00000000-0000-4000-8000-000000000202";
 
-    // Close to the end of the long range, so the test that advances 30 minutes crosses the wrap, as System.nanoTime may.
-    private final AtomicLong nanoTime = new AtomicLong(Long.MAX_VALUE - Duration.ofMinutes(1).toNanos());
+    // Close to the end of the long range, so the tests of both limits cross the wrap, as System.nanoTime may.
+    private final AtomicLong nanoTime = new AtomicLong(Long.MAX_VALUE - Duration.ofSeconds(10).toNanos());
     private MockWebServer controller;
     private volatile NetworkState servedState = state(1, 5, FIRST_SERVER);
     private volatile int answerCode = 200;
