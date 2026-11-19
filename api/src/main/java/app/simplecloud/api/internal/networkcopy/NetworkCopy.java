@@ -42,7 +42,7 @@ public final class NetworkCopy {
 
     // Changed only inside onPulse and onBatch.
     private @Nullable ReceivedNetworkState received;
-    private boolean refused;
+    private boolean loadRefused;
     private long lastLoadNanos;
 
     // Read by any thread.
@@ -143,9 +143,31 @@ public final class NetworkCopy {
         }
     }
 
+    private void onPulseMessage(Message message) {
+        StatePulse pulse;
+        try {
+            pulse = StatePulse.parseFrom(message.getData());
+        } catch (InvalidProtocolBufferException e) {
+            LOGGER.warning("Ignored a network state pulse that could not be read: " + e);
+            return;
+        }
+        onPulse(pulse);
+    }
+
+    private void onBatchMessage(Message message) {
+        StateBatch batch;
+        try {
+            batch = StateBatch.parseFrom(message.getData());
+        } catch (InvalidProtocolBufferException e) {
+            LOGGER.warning("Ignored a network state batch that could not be read: " + e);
+            return;
+        }
+        onBatch(batch);
+    }
+
     // Synchronized with onBatch: while the NATS connection is replaced, two NATS threads can deliver for a moment.
     synchronized void onPulse(StatePulse pulse) {
-        if (refused) {
+        if (loadRefused) {
             return;
         }
         if (!pulse.getViewsMayAnswer()) {
@@ -190,28 +212,6 @@ public final class NetworkCopy {
         }
     }
 
-    private void onPulseMessage(Message message) {
-        StatePulse pulse;
-        try {
-            pulse = StatePulse.parseFrom(message.getData());
-        } catch (InvalidProtocolBufferException e) {
-            LOGGER.warning("Ignored a network state pulse that could not be read: " + e);
-            return;
-        }
-        onPulse(pulse);
-    }
-
-    private void onBatchMessage(Message message) {
-        StateBatch batch;
-        try {
-            batch = StateBatch.parseFrom(message.getData());
-        } catch (InvalidProtocolBufferException e) {
-            LOGGER.warning("Ignored a network state batch that could not be read: " + e);
-            return;
-        }
-        onBatch(batch);
-    }
-
     private boolean mustLoad(StatePulse pulse) {
         if (received == null) {
             return true;
@@ -225,25 +225,17 @@ public final class NetworkCopy {
         if (pulseIsAheadOfCopy) {
             return true;
         }
-        // A fresh load limits how long an item the relay missed can stay wrong.
+        // A fresh load limits how long a change that never reached the copy can stay wrong.
         long nanosSinceLoad = nanoTime.getAsLong() - lastLoadNanos;
         boolean lastLoadIsOld = nanosSinceLoad >= FRESH_LOAD_INTERVAL.toNanos();
         return lastLoadIsOld;
-    }
-
-    private void forgetCopy(String reason) {
-        if (contents != null) {
-            LOGGER.info("Network copy dropped, reads go to the controller: " + reason);
-        }
-        received = null;
-        contents = null;
     }
 
     private ReceivedNetworkState loadState() throws IOException {
         try (Response response = httpClient.newCall(networkStateRequest).execute()) {
             if (response.code() == HttpURLConnection.HTTP_FORBIDDEN) {
                 // The controller gives the full state only to the network password. A JWT never gets it.
-                refused = true;
+                loadRefused = true;
                 LOGGER.warning("Network copy is off for this connection: the controller refuses the network state to this credential");
                 throw new IOException("the controller refuses the network state to this credential");
             }
@@ -253,6 +245,14 @@ public final class NetworkCopy {
             NetworkState snapshot = NetworkState.parseFrom(response.body().bytes());
             return ReceivedNetworkState.fromSnapshot(snapshot, networkId);
         }
+    }
+
+    private void forgetCopy(String reason) {
+        if (contents != null) {
+            LOGGER.info("Network copy dropped, reads go to the controller: " + reason);
+        }
+        received = null;
+        contents = null;
     }
 
     private boolean lacksWrite(long epoch, long revision) {

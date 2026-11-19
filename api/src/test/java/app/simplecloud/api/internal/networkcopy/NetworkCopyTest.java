@@ -40,13 +40,13 @@ import static org.junit.jupiter.api.Assertions.assertTrue;
 class NetworkCopyTest {
 
     private static final String NETWORK_ID = "0d000000-0000-4000-8000-000000000001";
-    private static final String FIRST_SERVER = "00000000-0000-4000-8000-000000000201";
-    private static final String SECOND_SERVER = "00000000-0000-4000-8000-000000000202";
+    private static final String FIRST_SERVER_ID = "00000000-0000-4000-8000-000000000201";
+    private static final String SECOND_SERVER_ID = "00000000-0000-4000-8000-000000000202";
 
     // Close to the end of the long range, so the tests of both limits cross the wrap, as System.nanoTime may.
     private final AtomicLong nanoTime = new AtomicLong(Long.MAX_VALUE - Duration.ofSeconds(10).toNanos());
     private MockWebServer controller;
-    private volatile NetworkState servedState = state(1, 5, FIRST_SERVER);
+    private volatile NetworkState servedState = state(1, 5, FIRST_SERVER_ID);
     private volatile int answerCode = 200;
     private NetworkCopy copy;
 
@@ -75,7 +75,7 @@ class NetworkCopyTest {
 
         copy.onPulse(pulse(1, 5));
 
-        assertNotNull(copy.contents().serverById(FIRST_SERVER));
+        assertNotNull(copy.contents().serverById(FIRST_SERVER_ID));
         RecordedRequest load = controller.takeRequest();
         assertEquals("/v0/network-state", load.getPath());
         assertEquals(NETWORK_ID, load.getHeader("X-Network-ID"));
@@ -87,31 +87,31 @@ class NetworkCopyTest {
     void pulseAtTheCopysRevisionOnlyTakesItsMetrics() {
         copy.onPulse(pulse(1, 5));
         StateServerMetrics metrics = StateServerMetrics.newBuilder()
-                .setServerId(uuidBytes(FIRST_SERVER))
+                .setServerId(uuidBytes(FIRST_SERVER_ID))
                 .setPlayerCount(6)
                 .build();
 
         copy.onPulse(pulse(1, 5).toBuilder().addMetrics(metrics).build());
 
         assertEquals(1, controller.getRequestCount());
-        assertEquals(6, copy.contents().serverById(FIRST_SERVER).getPlayerCount());
+        assertEquals(6, copy.contents().serverById(FIRST_SERVER_ID).getPlayerCount());
     }
 
     @Test
     void pulseWithANewerRevisionLoads() {
         copy.onPulse(pulse(1, 5));
-        servedState = state(1, 6, FIRST_SERVER, SECOND_SERVER);
+        servedState = state(1, 6, FIRST_SERVER_ID, SECOND_SERVER_ID);
 
         copy.onPulse(pulse(1, 6));
 
         assertEquals(2, controller.getRequestCount());
-        assertNotNull(copy.contents().serverById(SECOND_SERVER));
+        assertNotNull(copy.contents().serverById(SECOND_SERVER_ID));
     }
 
     @Test
     void pulseWithAnotherEpochLoads() {
         copy.onPulse(pulse(1, 5));
-        servedState = state(2, 5, SECOND_SERVER);
+        servedState = state(2, 5, SECOND_SERVER_ID);
 
         copy.onPulse(pulse(2, 5));
 
@@ -136,10 +136,10 @@ class NetworkCopyTest {
     void batchThatFitsIsApplied() {
         copy.onPulse(pulse(1, 5));
 
-        copy.onBatch(batch(1, 5, 6).addServers(server(SECOND_SERVER)).build());
+        copy.onBatch(batch(1, 5, 6).addServers(server(SECOND_SERVER_ID)).build());
 
         assertEquals(6, copy.contents().revision());
-        assertNotNull(copy.contents().serverById(SECOND_SERVER));
+        assertNotNull(copy.contents().serverById(SECOND_SERVER_ID));
     }
 
     @Test
@@ -167,9 +167,9 @@ class NetworkCopyTest {
     void batchTheCopyAlreadyHoldsIsIgnored() {
         copy.onPulse(pulse(1, 5));
 
-        copy.onBatch(batch(1, 3, 5).addDeletedServerIds(uuidBytes(FIRST_SERVER)).build());
+        copy.onBatch(batch(1, 3, 5).addDeletedServerIds(uuidBytes(FIRST_SERVER_ID)).build());
 
-        assertNotNull(copy.contents().serverById(FIRST_SERVER));
+        assertNotNull(copy.contents().serverById(FIRST_SERVER_ID));
     }
 
     @Test
@@ -204,12 +204,12 @@ class NetworkCopyTest {
                 .setId(uuidBytes("0a000000-0000-4000-8000-000000000301"))
                 .setSummaryJson(ByteString.copyFromUtf8("{not json"))
                 .build();
-        servedState = state(1, 5, FIRST_SERVER).toBuilder().addServerGroups(unreadableGroup).build();
+        servedState = state(1, 5, FIRST_SERVER_ID).toBuilder().addServerGroups(unreadableGroup).build();
 
         copy.onPulse(pulse(1, 5));
         assertNull(copy.contents());
 
-        servedState = state(1, 5, FIRST_SERVER);
+        servedState = state(1, 5, FIRST_SERVER_ID);
         copy.onPulse(pulse(1, 5));
         assertNotNull(copy.contents());
     }
@@ -254,14 +254,14 @@ class NetworkCopyTest {
         upperCaseCopy.onPulse(pulse(1, 5));
 
         NetworkContents network = upperCaseCopy.contents();
-        ModelsServerSummary server = network.serverById(FIRST_SERVER);
+        ModelsServerSummary server = network.serverById(FIRST_SERVER_ID);
         assertEquals(NETWORK_ID, server.getNetworkId());
     }
 
     @Test
     void ownWriteWaitsUntilABatchBringsTheWrite() {
         copy.onPulse(pulse(1, 5));
-        StateBatch write = batch(1, 5, 6).addServers(server(SECOND_SERVER)).build();
+        StateBatch write = batch(1, 5, 6).addServers(server(SECOND_SERVER_ID)).build();
         Thread.ofVirtual().start(() -> applyLater(write));
         Map<String, List<String>> headers = Map.of(
                 "x-sc-state-epoch", List.of("1"),

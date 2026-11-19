@@ -23,6 +23,7 @@ import org.jetbrains.annotations.Nullable;
 
 import java.time.Duration;
 import java.util.ArrayList;
+import java.util.Collections;
 import java.util.HashMap;
 import java.util.List;
 import java.util.Map;
@@ -264,7 +265,7 @@ public class GroupApiImpl implements GroupApi {
         }
     }
 
-    private CompletableFuture<List<Group>> getAllGroupsOverHttp(@org.jetbrains.annotations.Nullable GroupQuery query) {
+    private CompletableFuture<List<Group>> getAllGroupsOverHttp(@Nullable GroupQuery query) {
         QueryKey key = buildQueryKey(query);
 
         return cache.fetch(key, () -> CompletableFuture.supplyAsync(() -> {
@@ -289,7 +290,7 @@ public class GroupApiImpl implements GroupApi {
         for (ModelsServerGroupSummary summary : summaries) {
             groups.add(new GroupImpl(summary));
         }
-        return groups;
+        return Collections.unmodifiableList(groups);
     }
 
     private QueryKey buildQueryKey(@org.jetbrains.annotations.Nullable GroupQuery query) {

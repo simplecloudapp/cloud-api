@@ -227,7 +227,7 @@ public class ServerApiImpl implements ServerApi {
         for (ModelsServerSummary summary : summaries) {
             servers.add(new ServerImpl(summary));
         }
-        return servers;
+        return Collections.unmodifiableList(servers);
     }
 
     private CompletableFuture<List<Server>> fetchServersFromController(@Nullable ServerQuery query) {

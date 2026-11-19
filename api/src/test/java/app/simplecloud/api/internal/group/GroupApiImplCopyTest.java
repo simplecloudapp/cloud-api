@@ -47,13 +47,13 @@ import static org.junit.jupiter.api.Assertions.assertTimeout;
 class GroupApiImplCopyTest {
 
     private static final String NETWORK_ID = "0d000000-0000-4000-8000-000000000001";
-    private static final String LOBBY_GROUP = "0a000000-0000-4000-8000-000000000301";
-    private static final String GAME_GROUP = "0a000000-0000-4000-8000-000000000302";
+    private static final String LOBBY_GROUP_ID = "0a000000-0000-4000-8000-000000000301";
+    private static final String GAME_GROUP_ID = "0a000000-0000-4000-8000-000000000302";
     private static final String NETWORK_STATE_LOAD = "GET /v0/network-state";
     private static final String GROUP_LIST_READ = "GET /v0/server-groups";
-    private static final String GROUP_LIST = "{\"server_groups\":[{\"server_group_id\":\"" + LOBBY_GROUP + "\","
+    private static final String GROUP_LIST_JSON = "{\"server_groups\":[{\"server_group_id\":\"" + LOBBY_GROUP_ID + "\","
             + "\"name\":\"lobby\",\"created_at\":\"2026-11-17T09:00:00Z\"}]}";
-    private static final String WRITE_ANSWER = "{\"server_group_id\":\"" + LOBBY_GROUP + "\",\"name\":\"lobby\","
+    private static final String WRITE_ANSWER_JSON = "{\"server_group_id\":\"" + LOBBY_GROUP_ID + "\",\"name\":\"lobby\","
             + "\"type\":\"SERVER\",\"properties\":{\"motd\":\"hello\"}}";
 
     private final List<String> controllerRequests = new CopyOnWriteArrayList<>();
@@ -88,9 +88,9 @@ class GroupApiImplCopyTest {
     void findGroupByIdAnswersFromTheCopy() throws InterruptedException {
         receive("pulse", pulse());
 
-        Optional<Group> group = api.findGroupById(GAME_GROUP).join();
+        Optional<Group> group = api.findGroupById(GAME_GROUP_ID).join();
 
-        assertEquals(GAME_GROUP, group.orElseThrow().getServerGroupId());
+        assertEquals(GAME_GROUP_ID, group.orElseThrow().getServerGroupId());
         assertEquals(List.of(NETWORK_STATE_LOAD), controllerRequests);
     }
 
@@ -100,7 +100,7 @@ class GroupApiImplCopyTest {
 
         Optional<Group> group = api.findGroupByName("lobby").join();
 
-        assertEquals(LOBBY_GROUP, group.orElseThrow().getServerGroupId());
+        assertEquals(LOBBY_GROUP_ID, group.orElseThrow().getServerGroupId());
         assertEquals(List.of(NETWORK_STATE_LOAD), controllerRequests);
     }
 
@@ -111,7 +111,7 @@ class GroupApiImplCopyTest {
 
         List<Group> groups = api.getAllGroups(newestOnly).join();
 
-        assertEquals(List.of(GAME_GROUP), groupIds(groups));
+        assertEquals(List.of(GAME_GROUP_ID), groupIds(groups));
         assertEquals(List.of(NETWORK_STATE_LOAD), controllerRequests);
     }
 
@@ -125,13 +125,13 @@ class GroupApiImplCopyTest {
                 NetworkCopy.neverStarted()
         );
 
-        Optional<Group> byId = apiWithoutCopy.findGroupById(LOBBY_GROUP).join();
+        Optional<Group> byId = apiWithoutCopy.findGroupById(LOBBY_GROUP_ID).join();
         Optional<Group> byName = apiWithoutCopy.findGroupByName("lobby").join();
         List<Group> all = apiWithoutCopy.getAllGroups(null).join();
 
-        assertEquals(LOBBY_GROUP, byId.orElseThrow().getServerGroupId());
-        assertEquals(LOBBY_GROUP, byName.orElseThrow().getServerGroupId());
-        assertEquals(List.of(LOBBY_GROUP), groupIds(all));
+        assertEquals(LOBBY_GROUP_ID, byId.orElseThrow().getServerGroupId());
+        assertEquals(LOBBY_GROUP_ID, byName.orElseThrow().getServerGroupId());
+        assertEquals(List.of(LOBBY_GROUP_ID), groupIds(all));
         assertEquals(List.of(GROUP_LIST_READ, GROUP_LIST_READ, GROUP_LIST_READ), controllerRequests);
     }
 
@@ -150,7 +150,7 @@ class GroupApiImplCopyTest {
         receive("pulse", pulse());
         receiveLater(batchToRevision6());
 
-        api.updateGroup(LOBBY_GROUP, updateRequest()).join();
+        api.updateGroup(LOBBY_GROUP_ID, updateRequest()).join();
 
         assertEquals(6, copy.contents().revision());
     }
@@ -160,7 +160,7 @@ class GroupApiImplCopyTest {
         receive("pulse", pulse());
         receiveLater(batchToRevision6());
 
-        api.deleteGroup(LOBBY_GROUP).join();
+        api.deleteGroup(LOBBY_GROUP_ID).join();
 
         assertEquals(6, copy.contents().revision());
     }
@@ -170,7 +170,7 @@ class GroupApiImplCopyTest {
         receive("pulse", pulse());
         receiveLater(batchToRevision6());
 
-        api.updateGroupProperties(LOBBY_GROUP, Map.of("motd", "hello")).join();
+        api.updateGroupProperties(LOBBY_GROUP_ID, Map.of("motd", "hello")).join();
 
         assertEquals(6, copy.contents().revision());
     }
@@ -180,7 +180,7 @@ class GroupApiImplCopyTest {
         receive("pulse", pulse());
         receiveLater(batchToRevision6());
 
-        api.deleteGroupProperties(LOBBY_GROUP, List.of("motd")).join();
+        api.deleteGroupProperties(LOBBY_GROUP_ID, List.of("motd")).join();
 
         assertEquals(6, copy.contents().revision());
     }
@@ -197,10 +197,10 @@ class GroupApiImplCopyTest {
 
     private void runEachWrite() {
         api.createGroup(createRequest()).join();
-        api.updateGroup(LOBBY_GROUP, updateRequest()).join();
-        api.deleteGroup(LOBBY_GROUP).join();
-        api.updateGroupProperties(LOBBY_GROUP, Map.of("motd", "hello")).join();
-        api.deleteGroupProperties(LOBBY_GROUP, List.of("motd")).join();
+        api.updateGroup(LOBBY_GROUP_ID, updateRequest()).join();
+        api.deleteGroup(LOBBY_GROUP_ID).join();
+        api.updateGroupProperties(LOBBY_GROUP_ID, Map.of("motd", "hello")).join();
+        api.deleteGroupProperties(LOBBY_GROUP_ID, List.of("motd")).join();
     }
 
     private MockResponse answer(RecordedRequest request) {
@@ -211,9 +211,9 @@ class GroupApiImplCopyTest {
             return new MockResponse().setBody(state);
         }
         if (route.equals(GROUP_LIST_READ)) {
-            return json(GROUP_LIST);
+            return json(GROUP_LIST_JSON);
         }
-        MockResponse written = json(WRITE_ANSWER);
+        MockResponse written = json(WRITE_ANSWER_JSON);
         if (sendsRevisionHeaders) {
             // The case the controller's Go server sends.
             written.setHeader("X-Sc-State-Epoch", "1");
@@ -270,8 +270,8 @@ class GroupApiImplCopyTest {
         return NetworkState.newBuilder()
                 .setEpoch(1)
                 .setRevision(5)
-                .addServerGroups(group(LOBBY_GROUP, "lobby", "2026-11-17T09:00:00Z"))
-                .addServerGroups(group(GAME_GROUP, "game", "2026-11-17T10:00:00Z"))
+                .addServerGroups(group(LOBBY_GROUP_ID, "lobby", "2026-11-17T09:00:00Z"))
+                .addServerGroups(group(GAME_GROUP_ID, "game", "2026-11-17T10:00:00Z"))
                 .build();
     }
 

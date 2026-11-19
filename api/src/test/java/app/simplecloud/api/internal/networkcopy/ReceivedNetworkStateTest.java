@@ -35,9 +35,9 @@ import static org.junit.jupiter.api.Assertions.assertThrows;
 class ReceivedNetworkStateTest {
 
     private static final String NETWORK_ID = "0d000000-0000-4000-8000-000000000001";
-    private static final String GROUP_A = "0a000000-0000-4000-8000-000000000301";
-    private static final String GROUP_B = "0b000000-0000-4000-8000-000000000302";
-    private static final String PERSISTENT_SERVER = "0c000000-0000-4000-8000-000000000401";
+    private static final String GROUP_A_ID = "0a000000-0000-4000-8000-000000000301";
+    private static final String GROUP_B_ID = "0b000000-0000-4000-8000-000000000302";
+    private static final String PERSISTENT_SERVER_ID = "0c000000-0000-4000-8000-000000000401";
 
     // The only fixture without groups, so neither group statistics nor blueprints need to be removed.
     @Test
@@ -96,11 +96,11 @@ class ReceivedNetworkStateTest {
     @Test
     void serversAreOrderedByGroupThenNumericalIdThenId() {
         NetworkState snapshot = NetworkState.newBuilder()
-                .addServers(groupServer("00000000-0000-4000-8000-000000000201", GROUP_B, 1))
+                .addServers(groupServer("00000000-0000-4000-8000-000000000201", GROUP_B_ID, 1))
                 .addServers(serverOfPersistentServer("00000000-0000-4000-8000-000000000202"))
-                .addServers(groupServer("00000000-0000-4000-8000-000000000204", GROUP_A, 2))
-                .addServers(groupServer("00000000-0000-4000-8000-000000000205", GROUP_A, 1))
-                .addServers(groupServer("00000000-0000-4000-8000-000000000203", GROUP_A, 1))
+                .addServers(groupServer("00000000-0000-4000-8000-000000000204", GROUP_A_ID, 2))
+                .addServers(groupServer("00000000-0000-4000-8000-000000000205", GROUP_A_ID, 1))
+                .addServers(groupServer("00000000-0000-4000-8000-000000000203", GROUP_A_ID, 1))
                 .build();
 
         NetworkContents contents = ReceivedNetworkState.fromSnapshot(snapshot, NETWORK_ID).toContents();
@@ -118,8 +118,8 @@ class ReceivedNetworkStateTest {
     @Test
     void groupsAreOrderedNewestFirstThenById() {
         NetworkState snapshot = NetworkState.newBuilder()
-                .addServerGroups(group(GROUP_B, "older", "2026-11-17T09:00:00Z"))
-                .addServerGroups(group(GROUP_A, "newer", "2026-11-17T09:00:00.5Z"))
+                .addServerGroups(group(GROUP_B_ID, "older", "2026-11-17T09:00:00Z"))
+                .addServerGroups(group(GROUP_A_ID, "newer", "2026-11-17T09:00:00.5Z"))
                 .addServerGroups(group("0a000000-0000-4000-8000-000000000300", "newer too", "2026-11-17T09:00:00.5Z"))
                 .build();
 
@@ -134,7 +134,7 @@ class ReceivedNetworkStateTest {
 
     @Test
     void timestampsKeepOnlyTheFractionDigitsTheyNeed() {
-        StateServer server = groupServer("00000000-0000-4000-8000-000000000201", GROUP_A, 1).toBuilder()
+        StateServer server = groupServer("00000000-0000-4000-8000-000000000201", GROUP_A_ID, 1).toBuilder()
                 .setCreatedAtMicros(1794909600000000L)
                 .setUpdatedAtMicros(1794909600000001L)
                 .build();
@@ -153,13 +153,13 @@ class ReceivedNetworkStateTest {
     @Test
     void serverGroupInfoShowsTheGroupsBlueprintById() {
         String blueprintId = "0e000000-0000-4000-8000-000000000101";
-        String info = "{\"id\":\"" + GROUP_A + "\",\"source\":{\"type\":\"blueprint\"}}";
-        StateServerGroup group = group(GROUP_A, "lobby", "2026-11-17T09:00:00Z").toBuilder()
+        String info = "{\"id\":\"" + GROUP_A_ID + "\",\"source\":{\"type\":\"blueprint\"}}";
+        StateServerGroup group = group(GROUP_A_ID, "lobby", "2026-11-17T09:00:00Z").toBuilder()
                 .setBlueprintId(uuidBytes(blueprintId))
                 .setInfoJson(ByteString.copyFromUtf8(info))
                 .build();
         NetworkState snapshot = NetworkState.newBuilder()
-                .addServers(groupServer("00000000-0000-4000-8000-000000000201", GROUP_A, 1))
+                .addServers(groupServer("00000000-0000-4000-8000-000000000201", GROUP_A_ID, 1))
                 .addServerGroups(group)
                 .build();
 
@@ -178,24 +178,24 @@ class ReceivedNetworkStateTest {
         NetworkState snapshot = NetworkState.newBuilder()
                 .setEpoch(4)
                 .setRevision(10)
-                .addServers(groupServer(changedServer, GROUP_A, 1))
-                .addServers(groupServer(deletedServer, GROUP_A, 2))
-                .addServerGroups(group(GROUP_A, "lobby", "2026-11-17T09:00:00Z"))
-                .addServerGroups(group(GROUP_B, "game", "2026-11-17T09:00:00Z"))
-                .addPersistentServers(persistentServer(PERSISTENT_SERVER, "survival"))
+                .addServers(groupServer(changedServer, GROUP_A_ID, 1))
+                .addServers(groupServer(deletedServer, GROUP_A_ID, 2))
+                .addServerGroups(group(GROUP_A_ID, "lobby", "2026-11-17T09:00:00Z"))
+                .addServerGroups(group(GROUP_B_ID, "game", "2026-11-17T09:00:00Z"))
+                .addPersistentServers(persistentServer(PERSISTENT_SERVER_ID, "survival"))
                 .addPersistentServers(persistentServer(deletedPersistentServer, "archive"))
                 .build();
         StateBatch batch = StateBatch.newBuilder()
                 .setEpoch(4)
                 .setBaseRevision(10)
                 .setRevision(12)
-                .addServers(groupServer(changedServer, GROUP_A, 7))
-                .addServers(groupServer(newServer, GROUP_A, 3))
+                .addServers(groupServer(changedServer, GROUP_A_ID, 7))
+                .addServers(groupServer(newServer, GROUP_A_ID, 3))
                 .addDeletedServerIds(uuidBytes(deletedServer))
-                .addServerGroups(group(GROUP_A, "lobby renamed", "2026-11-17T09:00:00Z"))
+                .addServerGroups(group(GROUP_A_ID, "lobby renamed", "2026-11-17T09:00:00Z"))
                 .addServerGroups(group("0d000000-0000-4000-8000-000000000303", "new group", "2026-11-17T08:00:00Z"))
-                .addDeletedServerGroupIds(uuidBytes(GROUP_B))
-                .addPersistentServers(persistentServer(PERSISTENT_SERVER, "survival renamed"))
+                .addDeletedServerGroupIds(uuidBytes(GROUP_B_ID))
+                .addPersistentServers(persistentServer(PERSISTENT_SERVER_ID, "survival renamed"))
                 .addPersistentServers(persistentServer(newPersistentServer, "creative"))
                 .addDeletedPersistentServerIds(uuidBytes(deletedPersistentServer))
                 .build();
@@ -208,18 +208,18 @@ class ReceivedNetworkStateTest {
         assertEquals(List.of(newServer, changedServer), serverIds(contents));
         assertEquals(7, contents.serverById(changedServer).getNumericalId());
         assertEquals("lobby renamed", contents.serverById(changedServer).getServerGroup().getName());
-        assertEquals("lobby renamed", contents.groupById(GROUP_A).getName());
+        assertEquals("lobby renamed", contents.groupById(GROUP_A_ID).getName());
         assertEquals("new group", contents.groupByName("new group").getName());
-        assertNull(contents.groupById(GROUP_B));
-        assertEquals("survival renamed", contents.persistentServerById(PERSISTENT_SERVER).getName());
+        assertNull(contents.groupById(GROUP_B_ID));
+        assertEquals("survival renamed", contents.persistentServerById(PERSISTENT_SERVER_ID).getName());
         assertEquals("creative", contents.persistentServerById(newPersistentServer).getName());
         assertNull(contents.persistentServerById(deletedPersistentServer));
     }
 
     @Test
     void newMetricsReplaceAllOldMetrics() {
-        StateServer first = groupServer("00000000-0000-4000-8000-000000000201", GROUP_A, 1);
-        StateServer second = groupServer("00000000-0000-4000-8000-000000000202", GROUP_A, 2);
+        StateServer first = groupServer("00000000-0000-4000-8000-000000000201", GROUP_A_ID, 1);
+        StateServer second = groupServer("00000000-0000-4000-8000-000000000202", GROUP_A_ID, 2);
         NetworkState snapshot = NetworkState.newBuilder()
                 .addServers(first)
                 .addServers(second)
@@ -244,7 +244,7 @@ class ReceivedNetworkStateTest {
                 .addServers(available)
                 .addServers(ingame)
                 .addServers(starting)
-                .addPersistentServers(persistentServer(PERSISTENT_SERVER, "survival"))
+                .addPersistentServers(persistentServer(PERSISTENT_SERVER_ID, "survival"))
                 .addMetrics(metrics(available.getId(), 3))
                 .addMetrics(metrics(ingame.getId(), 4))
                 .addMetrics(metrics(starting.getId(), 5))
@@ -252,13 +252,13 @@ class ReceivedNetworkStateTest {
 
         NetworkContents contents = ReceivedNetworkState.fromSnapshot(snapshot, NETWORK_ID).toContents();
 
-        ModelsPersistentServerSummary summary = contents.persistentServerById(PERSISTENT_SERVER);
+        ModelsPersistentServerSummary summary = contents.persistentServerById(PERSISTENT_SERVER_ID);
         assertEquals(7, summary.getPlayerCount());
     }
 
     @Test
     void unreadableJsonIsRefused() {
-        StateServerGroup unreadable = group(GROUP_A, "lobby", "2026-11-17T09:00:00Z").toBuilder()
+        StateServerGroup unreadable = group(GROUP_A_ID, "lobby", "2026-11-17T09:00:00Z").toBuilder()
                 .setSummaryJson(ByteString.copyFromUtf8("{not json"))
                 .build();
         NetworkState snapshot = NetworkState.newBuilder().addServerGroups(unreadable).build();
@@ -279,7 +279,7 @@ class ReceivedNetworkStateTest {
     private static StateServer serverOfPersistentServer(String id) {
         return StateServer.newBuilder()
                 .setId(uuidBytes(id))
-                .setPersistentServerId(uuidBytes(PERSISTENT_SERVER))
+                .setPersistentServerId(uuidBytes(PERSISTENT_SERVER_ID))
                 .setNumericalId(1)
                 .setState("AVAILABLE")
                 .setPropertiesJson(ByteString.copyFromUtf8("{}"))

@@ -68,7 +68,7 @@ public final class NetworkContents {
     }
 
     /**
-     * Exact match on the id text, as the HTTP path does today.
+     * Exact match on the id text, as the HTTP path does.
      */
     public @Nullable ModelsServerSummary serverById(String id) {
         return serversById.get(id);
@@ -312,6 +312,7 @@ public final class NetworkContents {
         return asked.contains(value);
     }
 
+    // Case does not count, as the controller's list route parses asked ids as UUIDs. Lookups by id compare text, as their HTTP path does.
     private static boolean isOneOfIds(@Nullable String id, @Nullable List<String> askedIds) {
         if (askedIds == null || askedIds.isEmpty()) {
             return true;

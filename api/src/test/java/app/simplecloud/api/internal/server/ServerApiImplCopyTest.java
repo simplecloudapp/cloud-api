@@ -46,14 +46,14 @@ import static org.junit.jupiter.api.Assertions.assertTimeout;
 class ServerApiImplCopyTest {
 
     private static final String NETWORK_ID = "0d000000-0000-4000-8000-000000000001";
-    private static final String LOBBY_GROUP = "0a000000-0000-4000-8000-000000000301";
-    private static final String FIRST_SERVER = "00000000-0000-4000-8000-000000000201";
-    private static final String SECOND_SERVER = "00000000-0000-4000-8000-000000000202";
+    private static final String LOBBY_GROUP_ID = "0a000000-0000-4000-8000-000000000301";
+    private static final String FIRST_SERVER_ID = "00000000-0000-4000-8000-000000000201";
+    private static final String SECOND_SERVER_ID = "00000000-0000-4000-8000-000000000202";
     private static final String NETWORK_STATE_LOAD = "GET /v0/network-state";
     private static final String SERVER_LIST_READ = "GET /v0/servers";
-    private static final String SERVER_LIST = "{\"servers\":[{\"server_id\":\"" + FIRST_SERVER + "\","
-            + "\"server_group_id\":\"" + LOBBY_GROUP + "\",\"numerical_id\":1,\"state\":\"AVAILABLE\"}]}";
-    private static final String WRITE_ANSWER = "{\"server\":{\"server_id\":\"" + FIRST_SERVER + "\",\"state\":\"AVAILABLE\"},"
+    private static final String SERVER_LIST_JSON = "{\"servers\":[{\"server_id\":\"" + FIRST_SERVER_ID + "\","
+            + "\"server_group_id\":\"" + LOBBY_GROUP_ID + "\",\"numerical_id\":1,\"state\":\"AVAILABLE\"}]}";
+    private static final String WRITE_ANSWER_JSON = "{\"server\":{\"server_id\":\"" + FIRST_SERVER_ID + "\",\"state\":\"AVAILABLE\"},"
             + "\"properties\":{\"motd\":\"hello\"}}";
 
     private final List<String> controllerRequests = new CopyOnWriteArrayList<>();
@@ -88,9 +88,9 @@ class ServerApiImplCopyTest {
     void findServerByIdAnswersFromTheCopy() throws InterruptedException {
         receive("pulse", pulse());
 
-        Optional<Server> server = api.findServerById(SECOND_SERVER).join();
+        Optional<Server> server = api.findServerById(SECOND_SERVER_ID).join();
 
-        assertEquals(SECOND_SERVER, server.orElseThrow().getServerId());
+        assertEquals(SECOND_SERVER_ID, server.orElseThrow().getServerId());
         assertEquals(List.of(NETWORK_STATE_LOAD), controllerRequests);
     }
 
@@ -100,7 +100,7 @@ class ServerApiImplCopyTest {
 
         Optional<Server> server = api.findServerByNumericalId("lobby", 2).join();
 
-        assertEquals(SECOND_SERVER, server.orElseThrow().getServerId());
+        assertEquals(SECOND_SERVER_ID, server.orElseThrow().getServerId());
         assertEquals(List.of(NETWORK_STATE_LOAD), controllerRequests);
     }
 
@@ -110,7 +110,7 @@ class ServerApiImplCopyTest {
 
         List<Server> servers = api.getServersByGroup("lobby").join();
 
-        assertEquals(List.of(FIRST_SERVER, SECOND_SERVER), serverIds(servers));
+        assertEquals(List.of(FIRST_SERVER_ID, SECOND_SERVER_ID), serverIds(servers));
         assertEquals(List.of(NETWORK_STATE_LOAD), controllerRequests);
     }
 
@@ -121,7 +121,7 @@ class ServerApiImplCopyTest {
 
         List<Server> servers = api.getAllServers(query).join();
 
-        assertEquals(List.of(SECOND_SERVER), serverIds(servers));
+        assertEquals(List.of(SECOND_SERVER_ID), serverIds(servers));
         assertEquals(List.of(NETWORK_STATE_LOAD), controllerRequests);
     }
 
@@ -135,15 +135,15 @@ class ServerApiImplCopyTest {
                 NetworkCopy.neverStarted()
         );
 
-        Optional<Server> byId = apiWithoutCopy.findServerById(FIRST_SERVER).join();
+        Optional<Server> byId = apiWithoutCopy.findServerById(FIRST_SERVER_ID).join();
         Optional<Server> byNumericalId = apiWithoutCopy.findServerByNumericalId("lobby", 1).join();
         List<Server> ofGroup = apiWithoutCopy.getServersByGroup("lobby").join();
         List<Server> all = apiWithoutCopy.getAllServers(null).join();
 
-        assertEquals(FIRST_SERVER, byId.orElseThrow().getServerId());
-        assertEquals(FIRST_SERVER, byNumericalId.orElseThrow().getServerId());
-        assertEquals(List.of(FIRST_SERVER), serverIds(ofGroup));
-        assertEquals(List.of(FIRST_SERVER), serverIds(all));
+        assertEquals(FIRST_SERVER_ID, byId.orElseThrow().getServerId());
+        assertEquals(FIRST_SERVER_ID, byNumericalId.orElseThrow().getServerId());
+        assertEquals(List.of(FIRST_SERVER_ID), serverIds(ofGroup));
+        assertEquals(List.of(FIRST_SERVER_ID), serverIds(all));
         assertEquals(List.of(SERVER_LIST_READ, SERVER_LIST_READ, SERVER_LIST_READ, SERVER_LIST_READ), controllerRequests);
     }
 
@@ -152,7 +152,7 @@ class ServerApiImplCopyTest {
         receive("pulse", pulse());
         receiveLater(batchToRevision6());
 
-        api.stopServer(FIRST_SERVER).join();
+        api.stopServer(FIRST_SERVER_ID).join();
 
         assertEquals(6, copy.contents().revision());
     }
@@ -162,7 +162,7 @@ class ServerApiImplCopyTest {
         receive("pulse", pulse());
         receiveLater(batchToRevision6());
 
-        api.updateServer(FIRST_SERVER, UpdateServerRequest.builder().maxPlayers(30).build()).join();
+        api.updateServer(FIRST_SERVER_ID, UpdateServerRequest.builder().maxPlayers(30).build()).join();
 
         assertEquals(6, copy.contents().revision());
     }
@@ -172,7 +172,7 @@ class ServerApiImplCopyTest {
         receive("pulse", pulse());
         receiveLater(batchToRevision6());
 
-        api.updateServerProperties(FIRST_SERVER, Map.of("motd", "hello")).join();
+        api.updateServerProperties(FIRST_SERVER_ID, Map.of("motd", "hello")).join();
 
         assertEquals(6, copy.contents().revision());
     }
@@ -182,7 +182,7 @@ class ServerApiImplCopyTest {
         receive("pulse", pulse());
         receiveLater(batchToRevision6());
 
-        api.deleteServerProperties(FIRST_SERVER, List.of("motd")).join();
+        api.deleteServerProperties(FIRST_SERVER_ID, List.of("motd")).join();
 
         assertEquals(6, copy.contents().revision());
     }
@@ -198,10 +198,10 @@ class ServerApiImplCopyTest {
     }
 
     private void runEachWrite() {
-        api.stopServer(FIRST_SERVER).join();
-        api.updateServer(FIRST_SERVER, UpdateServerRequest.builder().maxPlayers(30).build()).join();
-        api.updateServerProperties(FIRST_SERVER, Map.of("motd", "hello")).join();
-        api.deleteServerProperties(FIRST_SERVER, List.of("motd")).join();
+        api.stopServer(FIRST_SERVER_ID).join();
+        api.updateServer(FIRST_SERVER_ID, UpdateServerRequest.builder().maxPlayers(30).build()).join();
+        api.updateServerProperties(FIRST_SERVER_ID, Map.of("motd", "hello")).join();
+        api.deleteServerProperties(FIRST_SERVER_ID, List.of("motd")).join();
     }
 
     private MockResponse answer(RecordedRequest request) {
@@ -212,9 +212,9 @@ class ServerApiImplCopyTest {
             return new MockResponse().setBody(state);
         }
         if (route.equals(SERVER_LIST_READ)) {
-            return json(SERVER_LIST);
+            return json(SERVER_LIST_JSON);
         }
-        MockResponse written = json(WRITE_ANSWER);
+        MockResponse written = json(WRITE_ANSWER_JSON);
         if (sendsRevisionHeaders) {
             // The case the controller's Go server sends.
             written.setHeader("X-Sc-State-Epoch", "1");
@@ -259,16 +259,16 @@ class ServerApiImplCopyTest {
                 .setEpoch(1)
                 .setRevision(5)
                 .addServerGroups(lobbyGroup())
-                .addServers(lobbyServer(FIRST_SERVER, 1))
-                .addServers(lobbyServer(SECOND_SERVER, 2))
+                .addServers(lobbyServer(FIRST_SERVER_ID, 1))
+                .addServers(lobbyServer(SECOND_SERVER_ID, 2))
                 .build();
     }
 
     private static StateServerGroup lobbyGroup() {
-        String summary = "{\"server_group_id\":\"" + LOBBY_GROUP + "\",\"name\":\"lobby\",\"created_at\":\"2026-11-17T09:00:00Z\"}";
-        String info = "{\"id\":\"" + LOBBY_GROUP + "\",\"name\":\"lobby\"}";
+        String summary = "{\"server_group_id\":\"" + LOBBY_GROUP_ID + "\",\"name\":\"lobby\",\"created_at\":\"2026-11-17T09:00:00Z\"}";
+        String info = "{\"id\":\"" + LOBBY_GROUP_ID + "\",\"name\":\"lobby\"}";
         return StateServerGroup.newBuilder()
-                .setId(uuidBytes(LOBBY_GROUP))
+                .setId(uuidBytes(LOBBY_GROUP_ID))
                 .setSummaryJson(ByteString.copyFromUtf8(summary))
                 .setInfoJson(ByteString.copyFromUtf8(info))
                 .build();
@@ -277,7 +277,7 @@ class ServerApiImplCopyTest {
     private static StateServer lobbyServer(String id, int numericalId) {
         return StateServer.newBuilder()
                 .setId(uuidBytes(id))
-                .setServerGroupId(uuidBytes(LOBBY_GROUP))
+                .setServerGroupId(uuidBytes(LOBBY_GROUP_ID))
                 .setNumericalId(numericalId)
                 .setState("AVAILABLE")
                 .setPropertiesJson(ByteString.copyFromUtf8("{}"))

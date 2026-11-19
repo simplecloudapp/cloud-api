@@ -49,13 +49,13 @@ import static org.junit.jupiter.api.Assertions.assertTrue;
 class PersistentServerApiImplCopyTest {
 
     private static final String NETWORK_ID = "0d000000-0000-4000-8000-000000000001";
-    private static final String SURVIVAL = "0c000000-0000-4000-8000-000000000401";
-    private static final String CREATIVE = "0c000000-0000-4000-8000-000000000402";
+    private static final String SURVIVAL_ID = "0c000000-0000-4000-8000-000000000401";
+    private static final String CREATIVE_ID = "0c000000-0000-4000-8000-000000000402";
     private static final String NETWORK_STATE_LOAD = "GET /v0/network-state";
     private static final String PERSISTENT_SERVER_LIST_READ = "GET /v0/persistent-servers";
-    private static final String PERSISTENT_SERVER_LIST = "{\"persistent_servers\":[{\"persistent_server_id\":\"" + SURVIVAL + "\","
+    private static final String PERSISTENT_SERVER_LIST_JSON = "{\"persistent_servers\":[{\"persistent_server_id\":\"" + SURVIVAL_ID + "\","
             + "\"name\":\"survival\",\"created_at\":\"2026-11-17T09:00:00Z\"}]}";
-    private static final String WRITE_ANSWER = "{\"persistent_server_id\":\"" + SURVIVAL + "\",\"name\":\"survival\","
+    private static final String WRITE_ANSWER_JSON = "{\"persistent_server_id\":\"" + SURVIVAL_ID + "\",\"name\":\"survival\","
             + "\"type\":\"SERVER\",\"max_players\":30,\"properties\":{\"motd\":\"hello\"}}";
 
     private final List<String> controllerRequests = new CopyOnWriteArrayList<>();
@@ -90,9 +90,9 @@ class PersistentServerApiImplCopyTest {
     void findPersistentServerByIdAnswersFromTheCopy() throws InterruptedException {
         receive("pulse", pulse());
 
-        Optional<PersistentServer> persistentServer = api.findPersistentServerById(CREATIVE).join();
+        Optional<PersistentServer> persistentServer = api.findPersistentServerById(CREATIVE_ID).join();
 
-        assertEquals(CREATIVE, persistentServer.orElseThrow().getPersistentServerId());
+        assertEquals(CREATIVE_ID, persistentServer.orElseThrow().getPersistentServerId());
         assertEquals(List.of(NETWORK_STATE_LOAD), controllerRequests);
     }
 
@@ -102,7 +102,7 @@ class PersistentServerApiImplCopyTest {
 
         Optional<PersistentServer> persistentServer = api.findPersistentServerByName("survival").join();
 
-        assertEquals(SURVIVAL, persistentServer.orElseThrow().getPersistentServerId());
+        assertEquals(SURVIVAL_ID, persistentServer.orElseThrow().getPersistentServerId());
         assertEquals(List.of(NETWORK_STATE_LOAD), controllerRequests);
     }
 
@@ -113,7 +113,7 @@ class PersistentServerApiImplCopyTest {
 
         List<PersistentServer> persistentServers = api.getAllPersistentServers(newestOnly).join();
 
-        assertEquals(List.of(CREATIVE), persistentServerIds(persistentServers));
+        assertEquals(List.of(CREATIVE_ID), persistentServerIds(persistentServers));
         assertEquals(List.of(NETWORK_STATE_LOAD), controllerRequests);
     }
 
@@ -127,13 +127,13 @@ class PersistentServerApiImplCopyTest {
                 NetworkCopy.neverStarted()
         );
 
-        Optional<PersistentServer> byId = apiWithoutCopy.findPersistentServerById(SURVIVAL).join();
+        Optional<PersistentServer> byId = apiWithoutCopy.findPersistentServerById(SURVIVAL_ID).join();
         Optional<PersistentServer> byName = apiWithoutCopy.findPersistentServerByName("survival").join();
         List<PersistentServer> all = apiWithoutCopy.getAllPersistentServers(null).join();
 
-        assertEquals(SURVIVAL, byId.orElseThrow().getPersistentServerId());
-        assertEquals(SURVIVAL, byName.orElseThrow().getPersistentServerId());
-        assertEquals(List.of(SURVIVAL), persistentServerIds(all));
+        assertEquals(SURVIVAL_ID, byId.orElseThrow().getPersistentServerId());
+        assertEquals(SURVIVAL_ID, byName.orElseThrow().getPersistentServerId());
+        assertEquals(List.of(SURVIVAL_ID), persistentServerIds(all));
         List<String> expectedRequests = List.of(PERSISTENT_SERVER_LIST_READ, PERSISTENT_SERVER_LIST_READ, PERSISTENT_SERVER_LIST_READ);
         assertEquals(expectedRequests, controllerRequests);
     }
@@ -153,7 +153,7 @@ class PersistentServerApiImplCopyTest {
         receive("pulse", pulse());
         receiveLater(batchToRevision6());
 
-        api.updatePersistentServer(SURVIVAL, updateRequest()).join();
+        api.updatePersistentServer(SURVIVAL_ID, updateRequest()).join();
 
         assertEquals(6, copy.contents().revision());
     }
@@ -166,7 +166,7 @@ class PersistentServerApiImplCopyTest {
         Duration longestWait = Duration.ofSeconds(5);
         long startNanos = System.nanoTime();
 
-        PersistentServer updated = api.updatePersistentServer(SURVIVAL, updateRequest()).join();
+        PersistentServer updated = api.updatePersistentServer(SURVIVAL_ID, updateRequest()).join();
 
         Duration waited = Duration.ofNanos(System.nanoTime() - startNanos);
         assertEquals(Integer.valueOf(30), updated.getMaxPlayers());
@@ -179,7 +179,7 @@ class PersistentServerApiImplCopyTest {
         receive("pulse", pulse());
         receiveLater(batchToRevision6());
 
-        api.deletePersistentServer(SURVIVAL).join();
+        api.deletePersistentServer(SURVIVAL_ID).join();
 
         assertEquals(6, copy.contents().revision());
     }
@@ -189,7 +189,7 @@ class PersistentServerApiImplCopyTest {
         receive("pulse", pulse());
         receiveLater(batchToRevision6());
 
-        api.updatePersistentServerProperties(SURVIVAL, Map.of("motd", "hello")).join();
+        api.updatePersistentServerProperties(SURVIVAL_ID, Map.of("motd", "hello")).join();
 
         assertEquals(6, copy.contents().revision());
     }
@@ -199,7 +199,7 @@ class PersistentServerApiImplCopyTest {
         receive("pulse", pulse());
         receiveLater(batchToRevision6());
 
-        api.deletePersistentServerProperties(SURVIVAL, List.of("motd")).join();
+        api.deletePersistentServerProperties(SURVIVAL_ID, List.of("motd")).join();
 
         assertEquals(6, copy.contents().revision());
     }
@@ -216,10 +216,10 @@ class PersistentServerApiImplCopyTest {
 
     private void runEachWrite() {
         api.createPersistentServer(createRequest()).join();
-        api.updatePersistentServer(SURVIVAL, updateRequest()).join();
-        api.deletePersistentServer(SURVIVAL).join();
-        api.updatePersistentServerProperties(SURVIVAL, Map.of("motd", "hello")).join();
-        api.deletePersistentServerProperties(SURVIVAL, List.of("motd")).join();
+        api.updatePersistentServer(SURVIVAL_ID, updateRequest()).join();
+        api.deletePersistentServer(SURVIVAL_ID).join();
+        api.updatePersistentServerProperties(SURVIVAL_ID, Map.of("motd", "hello")).join();
+        api.deletePersistentServerProperties(SURVIVAL_ID, List.of("motd")).join();
     }
 
     private MockResponse answer(RecordedRequest request) {
@@ -230,9 +230,9 @@ class PersistentServerApiImplCopyTest {
             return new MockResponse().setBody(state);
         }
         if (route.equals(PERSISTENT_SERVER_LIST_READ)) {
-            return json(PERSISTENT_SERVER_LIST);
+            return json(PERSISTENT_SERVER_LIST_JSON);
         }
-        MockResponse written = json(WRITE_ANSWER);
+        MockResponse written = json(WRITE_ANSWER_JSON);
         if (sendsRevisionHeaders) {
             // The case the controller's Go server sends.
             written.setHeader("X-Sc-State-Epoch", "1");
@@ -289,8 +289,8 @@ class PersistentServerApiImplCopyTest {
         return NetworkState.newBuilder()
                 .setEpoch(1)
                 .setRevision(5)
-                .addPersistentServers(persistentServer(SURVIVAL, "survival", "2026-11-17T09:00:00Z"))
-                .addPersistentServers(persistentServer(CREATIVE, "creative", "2026-11-17T10:00:00Z"))
+                .addPersistentServers(persistentServer(SURVIVAL_ID, "survival", "2026-11-17T09:00:00Z"))
+                .addPersistentServers(persistentServer(CREATIVE_ID, "creative", "2026-11-17T10:00:00Z"))
                 .build();
     }
 

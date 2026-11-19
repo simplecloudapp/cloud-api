@@ -26,6 +26,7 @@ import org.jetbrains.annotations.Nullable;
 
 import java.time.Duration;
 import java.util.ArrayList;
+import java.util.Collections;
 import java.util.HashMap;
 import java.util.List;
 import java.util.Map;
@@ -224,7 +225,7 @@ public class PersistentServerApiImpl implements PersistentServerApi {
         for (ModelsPersistentServerSummary summary : summaries) {
             persistentServers.add(new PersistentServerImpl(summary));
         }
-        return persistentServers;
+        return Collections.unmodifiableList(persistentServers);
     }
 
     private QueryKey buildQueryKey(@Nullable PersistentServerQuery query) {

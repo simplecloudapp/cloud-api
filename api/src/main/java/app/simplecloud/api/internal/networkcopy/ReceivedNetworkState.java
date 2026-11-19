@@ -15,6 +15,7 @@ import build.buf.gen.simplecloud.controller.v2.StateServerGroup;
 import build.buf.gen.simplecloud.controller.v2.StateServerMetrics;
 import com.google.gson.reflect.TypeToken;
 import com.google.protobuf.ByteString;
+import org.jetbrains.annotations.Nullable;
 
 import java.lang.reflect.Type;
 import java.math.BigDecimal;
@@ -33,7 +34,7 @@ import java.util.UUID;
 /**
  * What the controller sent about one network, by id, at one revision.
  * Changed only inside {@code NetworkCopy.onPulse} and {@code NetworkCopy.onBatch}, under the copy's lock.
- * Parts that the generated HTTP classes refuse make the methods throw a {@link RuntimeException}.
+ * JSON that the generated model classes cannot read makes the methods throw a {@link RuntimeException}.
  */
 final class ReceivedNetworkState {
     private static final Type PROPERTIES_TYPE = new TypeToken<Map<String, Object>>() {
@@ -55,6 +56,7 @@ final class ReceivedNetworkState {
     private final Map<String, PersistentServerItem> persistentServersById = new HashMap<>();
     private Map<String, StateServerMetrics> metricsByServerId = new HashMap<>();
 
+    // Keeps the message, not a built summary: a server's summary also shows its metrics and its group's or persistent server's info, which change without the server.
     private record ServerItem(StateServer stateServer, Map<String, Object> properties) {
     }
 
@@ -169,7 +171,7 @@ final class ReceivedNetworkState {
         serversById.put(uuidText(server.getId()), new ServerItem(server, properties));
     }
 
-    // The group part comes without its blueprint. The public API reads only the blueprint's id.
+    // The group's info JSON comes without its blueprint. The public API reads only the blueprint's id.
     private void putGroup(StateServerGroup group) {
         String summaryJson = group.getSummaryJson().toStringUtf8();
         ModelsServerGroupSummary summary = JSON.deserialize(summaryJson, ModelsServerGroupSummary.class);
@@ -239,7 +241,7 @@ final class ReceivedNetworkState {
     }
 
     // Without fresh metrics the controller shows zeros and an empty last activity.
-    private static void fillMetrics(ModelsServerSummary summary, StateServerMetrics metrics) {
+    private static void fillMetrics(ModelsServerSummary summary, @Nullable StateServerMetrics metrics) {
         if (metrics == null) {
             summary.setPlayerCount(0);
             summary.setCpuUsage(BigDecimal.ZERO);
