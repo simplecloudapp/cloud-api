@@ -38,15 +38,9 @@ public sealed interface ViewInput {
     record SnapshotFailed() implements ViewInput {
     }
 
-    /**
-     * A batch arrived.
-     */
     record BatchReceived(StateBatch batch) implements ViewInput {
     }
 
-    /**
-     * A pulse arrived.
-     */
     record PulseReceived(StatePulse pulse) implements ViewInput {
     }
 

@@ -43,7 +43,7 @@ class StateRevisionInterceptorTest {
         SnapshotLoader unusedSnapshots = new SnapshotLoader(new ApiClient(), "http://127.0.0.1:1", NETWORK_ID);
         FakeNatsConnection nats = FakeNatsConnection.withoutRequests();
         shell = NetworkViewShell.start(NETWORK_ID, nats.connection(), unusedSnapshots, view, () -> 0);
-        client = StateRevisionInterceptor.addTo(new OkHttpClient(), shell);
+        client = StateRevisionInterceptor.newClientReportingWrites(new OkHttpClient(), shell);
     }
 
     @AfterEach

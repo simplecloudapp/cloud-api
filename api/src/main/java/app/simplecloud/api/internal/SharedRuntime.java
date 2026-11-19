@@ -59,7 +59,7 @@ final class SharedRuntime {
             this.httpClient = baseHttpClient;
             this.readableCopies = ReadableCopies.none();
         } else {
-            this.httpClient = StateRevisionInterceptor.addTo(baseHttpClient, networkView.shell());
+            this.httpClient = StateRevisionInterceptor.newClientReportingWrites(baseHttpClient, networkView.shell());
             this.readableCopies = new ReadableCopies(networkView.shell(), settings.networkId());
         }
     }

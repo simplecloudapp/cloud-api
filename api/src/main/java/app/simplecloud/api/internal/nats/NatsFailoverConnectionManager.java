@@ -33,8 +33,8 @@ public final class NatsFailoverConnectionManager {
 
     /**
      * Hears the moments after which a subscriber must confirm its subscriptions with a flush before it can
-     * count on receiving every message again. Calls come from NATS and reconnect threads, so they must not
-     * block.
+     * count on receiving every message again. Calls come from NATS and reconnect threads, so they must return
+     * quickly: they may take a lock that is held only briefly, but must not wait for I/O.
      */
     public interface SubscriptionListener {
 
@@ -63,7 +63,7 @@ public final class NatsFailoverConnectionManager {
     private final Connection connectionProxy;
     private final List<DispatcherProxyState> dispatchers = new CopyOnWriteArrayList<>();
     private final List<SubscriptionListener> subscriptionListeners = new CopyOnWriteArrayList<>();
-    private final ConnectionListener subscriptionEventForwarder = new SubscriptionEventForwarder();
+    private final ConnectionListener subscriptionEventForwarder = this::reportConnectionEvent;
     private final Object bindLock = new Object();
     private boolean shutdown;
     private final AtomicBoolean reconnecting = new AtomicBoolean(false);
@@ -408,14 +408,6 @@ public final class NatsFailoverConnectionManager {
             thread.setDaemon(true);
             return thread;
         };
-    }
-
-    private final class SubscriptionEventForwarder implements ConnectionListener {
-
-        @Override
-        public void connectionEvent(Connection connection, Events event) {
-            reportConnectionEvent(connection, event);
-        }
     }
 
     private final class DispatcherProxyState {

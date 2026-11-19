@@ -40,7 +40,7 @@ public final class StateRevisionInterceptor implements Interceptor {
      * Returns a client that sends its requests through {@code httpClient}'s connection pool and dispatcher,
      * and hands {@code shell} the revision of each of its writes before the write's caller gets the response.
      */
-    public static OkHttpClient addTo(OkHttpClient httpClient, NetworkViewShell shell) {
+    public static OkHttpClient newClientReportingWrites(OkHttpClient httpClient, NetworkViewShell shell) {
         return httpClient.newBuilder()
                 .addInterceptor(new StateRevisionInterceptor(shell))
                 .build();
