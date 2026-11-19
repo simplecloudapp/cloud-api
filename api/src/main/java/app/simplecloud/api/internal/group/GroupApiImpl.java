@@ -1,5 +1,6 @@
 package app.simplecloud.api.internal.group;
 
+import app.simplecloud.api.CloudApiException;
 import app.simplecloud.api.CloudApiOptions;
 import app.simplecloud.api.cache.QueryCache;
 import app.simplecloud.api.cache.QueryKey;
@@ -7,17 +8,21 @@ import app.simplecloud.api.blueprint.CreateBlueprintRequest;
 import app.simplecloud.api.group.*;
 import app.simplecloud.api.internal.blueprint.InlineBlueprintSupport;
 import app.simplecloud.api.internal.create.CreateRequestDefaults;
+import app.simplecloud.api.internal.networkcopy.NetworkContents;
+import app.simplecloud.api.internal.networkcopy.NetworkCopy;
 import app.simplecloud.api.internal.web.ApiClients;
 import app.simplecloud.api.internal.web.ApiErrors;
 import app.simplecloud.api.internal.web.Identifiers;
 import app.simplecloud.api.web.ApiException;
 import app.simplecloud.api.web.ApiClient;
+import app.simplecloud.api.web.ApiResponse;
 import app.simplecloud.api.web.apis.BlueprintsApi;
 import app.simplecloud.api.web.apis.ServerGroupsApi;
 import app.simplecloud.api.web.models.*;
 import org.jetbrains.annotations.Nullable;
 
 import java.time.Duration;
+import java.util.ArrayList;
 import java.util.HashMap;
 import java.util.List;
 import java.util.Map;
@@ -37,6 +42,7 @@ public class GroupApiImpl implements GroupApi {
     private final CreateRequestDefaults createRequestDefaults;
     private final QueryCache cache;
     private final Executor executor;
+    private final NetworkCopy networkCopy;
 
     public GroupApiImpl(CloudApiOptions options, QueryCache cache) {
         this(options, cache, ApiClients.create(options));
@@ -47,12 +53,21 @@ public class GroupApiImpl implements GroupApi {
     }
 
     public GroupApiImpl(CloudApiOptions options, QueryCache cache, ApiClient httpClient, Executor executor) {
+        this(options, cache, httpClient, executor, NetworkCopy.absent());
+    }
+
+    public GroupApiImpl(CloudApiOptions options,
+                        QueryCache cache,
+                        ApiClient httpClient,
+                        Executor executor,
+                        NetworkCopy networkCopy) {
         this(
                 options,
                 cache,
                 createServerGroupsApi(options, httpClient),
                 new InlineBlueprintSupport(options, createBlueprintsApi(options, httpClient)),
-                executor
+                executor,
+                networkCopy
         );
     }
 
@@ -60,7 +75,14 @@ public class GroupApiImpl implements GroupApi {
                  QueryCache cache,
                  ServerGroupsApi serverGroupsApi,
                  BlueprintsApi blueprintsApi) {
-        this(options, cache, serverGroupsApi, new InlineBlueprintSupport(options, blueprintsApi), ForkJoinPool.commonPool());
+        this(
+                options,
+                cache,
+                serverGroupsApi,
+                new InlineBlueprintSupport(options, blueprintsApi),
+                ForkJoinPool.commonPool(),
+                NetworkCopy.absent()
+        );
     }
 
     GroupApiImpl(CloudApiOptions options,
@@ -73,7 +95,8 @@ public class GroupApiImpl implements GroupApi {
                 cache,
                 serverGroupsApi,
                 new InlineBlueprintSupport(options, blueprintsApi, serverUrlResolver),
-                ForkJoinPool.commonPool()
+                ForkJoinPool.commonPool(),
+                NetworkCopy.absent()
         );
     }
 
@@ -81,13 +104,15 @@ public class GroupApiImpl implements GroupApi {
                          QueryCache cache,
                          ServerGroupsApi serverGroupsApi,
                          InlineBlueprintSupport inlineBlueprintSupport,
-                         Executor executor) {
+                         Executor executor,
+                         NetworkCopy networkCopy) {
         this.options = options;
         this.cache = cache;
         this.serverGroupsApi = serverGroupsApi;
         this.inlineBlueprintSupport = inlineBlueprintSupport;
         this.createRequestDefaults = new CreateRequestDefaults();
         this.executor = executor;
+        this.networkCopy = networkCopy;
     }
 
     @Override
@@ -167,6 +192,18 @@ public class GroupApiImpl implements GroupApi {
 
     @Override
     public CompletableFuture<Optional<Group>> findGroupByName(String name) {
+        NetworkContents network = networkCopy.contents();
+        if (network == null) {
+            return findGroupByNameOverHttp(name);
+        }
+        ModelsServerGroupSummary group = network.groupByName(name);
+        if (group == null) {
+            return CompletableFuture.completedFuture(Optional.empty());
+        }
+        return CompletableFuture.completedFuture(Optional.of(new GroupImpl(group)));
+    }
+
+    private CompletableFuture<Optional<Group>> findGroupByNameOverHttp(String name) {
         QueryKey key = QueryKey.of("group", "name", name);
 
         return cache.fetchWithTransientMissRecovery(
@@ -190,6 +227,18 @@ public class GroupApiImpl implements GroupApi {
         if (!Identifiers.isUuid(id)) {
             return CompletableFuture.completedFuture(Optional.empty());
         }
+        NetworkContents network = networkCopy.contents();
+        if (network == null) {
+            return findGroupByIdOverHttp(id);
+        }
+        ModelsServerGroupSummary group = network.groupById(id);
+        if (group == null) {
+            return CompletableFuture.completedFuture(Optional.empty());
+        }
+        return CompletableFuture.completedFuture(Optional.of(new GroupImpl(group)));
+    }
+
+    private CompletableFuture<Optional<Group>> findGroupByIdOverHttp(String id) {
         QueryKey key = QueryKey.of("group", id);
 
         return cache.fetchWithTransientMissRecovery(
@@ -203,6 +252,27 @@ public class GroupApiImpl implements GroupApi {
 
     @Override
     public CompletableFuture<List<Group>> getAllGroups(@org.jetbrains.annotations.Nullable GroupQuery query) {
+        NetworkContents network = networkCopy.contents();
+        if (network == null) {
+            return getAllGroupsOverHttp(query);
+        }
+        try {
+            List<ModelsServerGroupSummary> matching = network.groups(query);
+            return CompletableFuture.completedFuture(toGroups(matching));
+        } catch (CloudApiException invalidQuery) {
+            return CompletableFuture.failedFuture(invalidQuery);
+        }
+    }
+
+    private static List<Group> toGroups(List<ModelsServerGroupSummary> summaries) {
+        List<Group> groups = new ArrayList<>(summaries.size());
+        for (ModelsServerGroupSummary summary : summaries) {
+            groups.add(new GroupImpl(summary));
+        }
+        return groups;
+    }
+
+    private CompletableFuture<List<Group>> getAllGroupsOverHttp(@org.jetbrains.annotations.Nullable GroupQuery query) {
         QueryKey key = buildQueryKey(query);
 
         return cache.fetch(key, () -> CompletableFuture.supplyAsync(() -> {
@@ -355,9 +425,9 @@ public class GroupApiImpl implements GroupApi {
                     apiRequest.setSource(convertSourceConfig(effectiveSource));
                 }
 
-                ModelsCreateServerGroupResponse response;
+                ApiResponse<ModelsCreateServerGroupResponse> httpResponse;
                 try {
-                    response = serverGroupsApi.createServerGroup(
+                    httpResponse = serverGroupsApi.createServerGroupWithHttpInfo(
                             this.options.getNetworkId(),
                             apiRequest
                     );
@@ -370,6 +440,7 @@ public class GroupApiImpl implements GroupApi {
                             () -> groupExistsWithBlueprint(request.getName(), blueprintId)
                     );
                 }
+                ModelsCreateServerGroupResponse response = httpResponse.getData();
 
                 // Invalidate group list caches (new group created)
                 cache.invalidateAll(QueryKey.of("groups"));
@@ -393,6 +464,7 @@ public class GroupApiImpl implements GroupApi {
                 summary.setCreatedAt(response.getCreatedAt());
                 summary.setUpdatedAt(response.getUpdatedAt());
 
+                networkCopy.waitForOwnWrite(httpResponse.getHeaders());
                 return new GroupImpl(summary);
             } catch (ApiException e) {
                 throw ApiErrors.from(e);
@@ -430,11 +502,12 @@ public class GroupApiImpl implements GroupApi {
                     apiRequest.setWorkflows(convertWorkflowsConfig(request.getWorkflows()));
                 }
 
-                ModelsUpdateServerGroupResponse response = serverGroupsApi.patchServerGroup(
+                ApiResponse<ModelsUpdateServerGroupResponse> httpResponse = serverGroupsApi.patchServerGroupWithHttpInfo(
                         this.options.getNetworkId(),
                         id,
                         apiRequest
                 );
+                ModelsUpdateServerGroupResponse response = httpResponse.getData();
 
                 ModelsServerGroupSummary summary = new ModelsServerGroupSummary();
                 summary.setServerGroupId(response.getServerGroupId());
@@ -461,6 +534,7 @@ public class GroupApiImpl implements GroupApi {
                 cache.invalidateAll(QueryKey.of("groups"));
                 cache.invalidateAll(QueryKey.of("group", "name"));
 
+                networkCopy.waitForOwnWrite(httpResponse.getHeaders());
                 return group;
             } catch (ApiException e) {
                 throw ApiErrors.from(e);
@@ -577,7 +651,7 @@ public class GroupApiImpl implements GroupApi {
             try {
                 String blueprintId = findAttachedBlueprintId(id);
 
-                serverGroupsApi.deleteServerGroup(
+                ApiResponse<ModelsDeleteServerGroupResponse> httpResponse = serverGroupsApi.deleteServerGroupWithHttpInfo(
                         this.options.getNetworkId(),
                         id
                 );
@@ -588,6 +662,7 @@ public class GroupApiImpl implements GroupApi {
                 cache.invalidateAll(QueryKey.of("group", "name"));
 
                 inlineBlueprintSupport.deleteBlueprint(blueprintId);
+                networkCopy.waitForOwnWrite(httpResponse.getHeaders());
             } catch (ApiException e) {
                 throw ApiErrors.from(e);
             }
@@ -601,17 +676,19 @@ public class GroupApiImpl implements GroupApi {
                 ModelsPatchPropertiesRequest request = new ModelsPatchPropertiesRequest();
                 request.setProperties(properties);
 
-                ModelsPatchPropertiesResponse response = serverGroupsApi.patchServerGroupProperties(
+                ApiResponse<ModelsPatchPropertiesResponse> httpResponse = serverGroupsApi.patchServerGroupPropertiesWithHttpInfo(
                         this.options.getNetworkId(),
                         id,
                         request
                 );
+                ModelsPatchPropertiesResponse response = httpResponse.getData();
 
                 // Invalidate group cache (properties changed)
                 cache.invalidate(QueryKey.of("group", id));
                 cache.invalidateAll(QueryKey.of("groups"));
                 cache.invalidateAll(QueryKey.of("group", "name"));
 
+                networkCopy.waitForOwnWrite(httpResponse.getHeaders());
                 Map<String, Object> result = response.getProperties();
                 return result != null ? result : new HashMap<>();
             } catch (ApiException e) {
@@ -627,17 +704,19 @@ public class GroupApiImpl implements GroupApi {
                 ModelsDeletePropertiesRequest request = new ModelsDeletePropertiesRequest();
                 request.setKeys(keys);
 
-                ModelsDeletePropertiesResponse response = serverGroupsApi.deleteServerGroupProperties(
+                ApiResponse<ModelsDeletePropertiesResponse> httpResponse = serverGroupsApi.deleteServerGroupPropertiesWithHttpInfo(
                         this.options.getNetworkId(),
                         id,
                         request
                 );
+                ModelsDeletePropertiesResponse response = httpResponse.getData();
 
                 // Invalidate group cache (properties changed)
                 cache.invalidate(QueryKey.of("group", id));
                 cache.invalidateAll(QueryKey.of("groups"));
                 cache.invalidateAll(QueryKey.of("group", "name"));
 
+                networkCopy.waitForOwnWrite(httpResponse.getHeaders());
                 Map<String, Object> result = response.getProperties();
                 return result != null ? result : new HashMap<>();
             } catch (ApiException e) {

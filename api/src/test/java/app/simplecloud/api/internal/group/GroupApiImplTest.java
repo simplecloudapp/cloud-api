@@ -14,6 +14,7 @@ import app.simplecloud.api.group.SourceConfig;
 import app.simplecloud.api.group.UpdateGroupRequest;
 import app.simplecloud.api.internal.cache.NoOpQueryCache;
 import app.simplecloud.api.web.ApiException;
+import app.simplecloud.api.web.ApiResponse;
 import app.simplecloud.api.web.apis.BlueprintsApi;
 import app.simplecloud.api.web.apis.ServerGroupsApi;
 import app.simplecloud.api.web.models.ModelsCreateBlueprintRequest;
@@ -573,17 +574,19 @@ class GroupApiImplTest {
             this.order = order;
         }
 
+        // Writes read the response headers, so this fake overrides the forms that return them.
         @Override
-        public app.simplecloud.api.web.models.ModelsDeleteServerGroupResponse deleteServerGroup(String xNetworkID,
-                                                                                                    String serverGroupId) {
+        public ApiResponse<app.simplecloud.api.web.models.ModelsDeleteServerGroupResponse> deleteServerGroupWithHttpInfo(
+                String xNetworkID,
+                String serverGroupId) {
             deleteCalls++;
             deleteOrder = order.incrementAndGet();
-            return new app.simplecloud.api.web.models.ModelsDeleteServerGroupResponse();
+            return new ApiResponse<>(200, Map.of(), new app.simplecloud.api.web.models.ModelsDeleteServerGroupResponse());
         }
 
         @Override
-        public ModelsCreateServerGroupResponse createServerGroup(String xNetworkID,
-                                                                  ModelsCreateServerGroupRequest request) throws ApiException {
+        public ApiResponse<ModelsCreateServerGroupResponse> createServerGroupWithHttpInfo(String xNetworkID,
+                                                                                          ModelsCreateServerGroupRequest request) throws ApiException {
             postCalls++;
             postOrder = order.incrementAndGet();
             lastCreateRequest = request;
@@ -608,16 +611,17 @@ class GroupApiImplTest {
             response.setTags(lastCreateRequest.getTags());
             response.setCreatedAt("2026-04-22T00:00:00Z");
             response.setUpdatedAt("2026-04-22T00:00:00Z");
-            return response;
+            return new ApiResponse<>(200, Map.of(), response);
         }
 
         @Override
-        public ModelsUpdateServerGroupResponse patchServerGroup(String xNetworkID,
-                                                                    String serverGroupId,
-                                                                    ModelsPatchServerGroupRequest request) {
+        public ApiResponse<ModelsUpdateServerGroupResponse> patchServerGroupWithHttpInfo(String xNetworkID,
+                                                                                         String serverGroupId,
+                                                                                         ModelsPatchServerGroupRequest request) {
             patchCalls++;
             lastPatchRequest = request;
-            return updateResponse(serverGroupId, request.getActive());
+            ModelsUpdateServerGroupResponse response = updateResponse(serverGroupId, request.getActive());
+            return new ApiResponse<>(200, Map.of(), response);
         }
 
         @Override
