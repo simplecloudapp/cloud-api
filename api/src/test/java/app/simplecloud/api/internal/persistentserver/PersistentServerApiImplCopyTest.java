@@ -124,7 +124,7 @@ class PersistentServerApiImplCopyTest {
                 new NoOpQueryCache(),
                 ApiClients.create(options()),
                 Runnable::run,
-                NetworkCopy.absent()
+                NetworkCopy.neverStarted()
         );
 
         Optional<PersistentServer> byId = apiWithoutCopy.findPersistentServerById(SURVIVAL).join();

@@ -41,32 +41,32 @@ class NetworkCopyRandomTest {
     private static final String NETWORK_ID = "0d000000-0000-4000-8000-000000000001";
     private static final int STEPS = 300;
 
-    private MockWebServer controller;
+    private MockWebServer controllerHttp;
     private volatile NetworkState servedState = NetworkState.getDefaultInstance();
 
     @BeforeEach
     void startController() throws IOException {
-        controller = new MockWebServer();
-        controller.setDispatcher(new Dispatcher() {
+        controllerHttp = new MockWebServer();
+        controllerHttp.setDispatcher(new Dispatcher() {
             @Override
             public MockResponse dispatch(RecordedRequest request) {
                 return new MockResponse().setBody(new Buffer().write(servedState.toByteArray()));
             }
         });
-        controller.start();
+        controllerHttp.start();
     }
 
     @AfterEach
     void stopController() throws IOException {
-        controller.close();
+        controllerHttp.close();
     }
 
     @ParameterizedTest(name = "seed {0}")
     @ValueSource(longs = {1, 2, 3, 4, 5, 6, 7, 8, 9, 10, 11, 12, 13, 14, 15, 16, 17, 18, 19, 20})
     void copyEqualsAFreshSnapshotAfterTheLastPulse(long seed) {
         Random random = new Random(seed);
-        Network network = new Network(random);
-        String controllerUrl = "http://" + controller.getHostName() + ":" + controller.getPort();
+        FakeController controller = new FakeController(random);
+        String controllerUrl = "http://" + controllerHttp.getHostName() + ":" + controllerHttp.getPort();
         LongSupplier stoppedNanoTime = () -> 0L;
         NetworkCopy copy = new NetworkCopy(new OkHttpClient(), controllerUrl, NETWORK_ID, "", stoppedNanoTime);
         List<StateBatch> heldBatches = new ArrayList<>();
@@ -74,20 +74,20 @@ class NetworkCopyRandomTest {
         for (int step = 0; step < STEPS; step++) {
             int roll = random.nextInt(100);
             if (roll < 5) {
-                sendPulse(copy, network);
+                sendPulse(copy, controller);
             } else if (roll < 6) {
-                network.startNewEpoch();
+                controller.startNewEpoch();
             } else {
-                StateBatch batch = network.change();
+                StateBatch batch = controller.change();
                 deliverUnreliably(copy, batch, heldBatches, random);
             }
         }
         for (StateBatch held : heldBatches) {
             copy.onBatch(held);
         }
-        sendPulse(copy, network);
+        sendPulse(copy, controller);
 
-        NetworkContents fresh = NetworkItems.fromSnapshot(network.snapshot(), NETWORK_ID).toContents();
+        NetworkContents fresh = ReceivedNetworkState.fromSnapshot(controller.snapshot(), NETWORK_ID).toContents();
         NetworkContents copied = copy.contents();
         assertNotNull(copied);
         assertEquals(fresh.servers(null), copied.servers(null));
@@ -96,9 +96,9 @@ class NetworkCopyRandomTest {
     }
 
     // The pulse first, so a load on this pulse gets the pulse's metrics.
-    private void sendPulse(NetworkCopy copy, Network network) {
-        StatePulse pulse = network.pulse();
-        servedState = network.snapshot();
+    private void sendPulse(NetworkCopy copy, FakeController controller) {
+        StatePulse pulse = controller.pulse();
+        servedState = controller.snapshot();
         copy.onPulse(pulse);
     }
 
@@ -125,7 +125,7 @@ class NetworkCopyRandomTest {
     /**
      * The controller's side: items by id, a revision that counts changes, and one batch per change.
      */
-    private static final class Network {
+    private static final class FakeController {
         private final Random random;
         private final Map<String, StateServer> servers = new LinkedHashMap<>();
         private final Map<String, StateServerGroup> groups = new LinkedHashMap<>();
@@ -134,7 +134,7 @@ class NetworkCopyRandomTest {
         private long epoch = 1;
         private long revision = 1;
 
-        Network(Random random) {
+        FakeController(Random random) {
             this.random = random;
         }
 

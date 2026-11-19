@@ -28,8 +28,8 @@ import java.util.logging.Logger;
 public final class NetworkCopy {
     private static final Logger LOGGER = Logger.getLogger(NetworkCopy.class.getName());
     private static final Duration PULSE_SILENCE_LIMIT = Duration.ofSeconds(15);
-    private static final Duration OWN_WRITE_WAIT = Duration.ofSeconds(3);
-    private static final Duration OWN_WRITE_POLL = Duration.ofMillis(20);
+    private static final Duration OWN_WRITE_WAIT_LIMIT = Duration.ofSeconds(3);
+    private static final Duration OWN_WRITE_POLL_INTERVAL = Duration.ofMillis(20);
     private static final Duration LOAD_TIME_LIMIT = Duration.ofSeconds(10);
     private static final Duration FRESH_LOAD_INTERVAL = Duration.ofMinutes(30);
 
@@ -41,7 +41,7 @@ public final class NetworkCopy {
     private @Nullable Dispatcher dispatcher;
 
     // Changed only inside onPulse and onBatch.
-    private @Nullable NetworkItems items;
+    private @Nullable ReceivedNetworkState received;
     private boolean refused;
     private long lastLoadNanos;
 
@@ -72,8 +72,7 @@ public final class NetworkCopy {
     /**
      * A copy that never has contents, for API objects built without a shared runtime.
      */
-    public static NetworkCopy absent() {
-        // Never started, so it never loads.
+    public static NetworkCopy neverStarted() {
         return new NetworkCopy(new OkHttpClient(), "http://localhost", "", "");
     }
 
@@ -136,8 +135,8 @@ public final class NetworkCopy {
         }
         // The real time, not the copy's time source: the loop sleeps in real time.
         long waitStart = System.nanoTime();
-        while (lacksWrite(epoch, revision) && System.nanoTime() - waitStart < OWN_WRITE_WAIT.toNanos()) {
-            boolean interrupted = sleepWasInterrupted(OWN_WRITE_POLL);
+        while (lacksWrite(epoch, revision) && System.nanoTime() - waitStart < OWN_WRITE_WAIT_LIMIT.toNanos()) {
+            boolean interrupted = sleepWasInterrupted(OWN_WRITE_POLL_INTERVAL);
             if (interrupted) {
                 return;
             }
@@ -155,12 +154,12 @@ public final class NetworkCopy {
         }
         try {
             if (mustLoad(pulse)) {
-                items = loadItems();
+                received = loadState();
                 lastLoadNanos = nanoTime.getAsLong();
             } else {
-                items.setMetrics(pulse.getMetricsList());
+                received.setMetrics(pulse.getMetricsList());
             }
-            contents = items.toContents();
+            contents = received.toContents();
             lastPulseNanos = nanoTime.getAsLong();
         } catch (IOException | RuntimeException e) {
             forgetCopy("the network state could not be loaded or read: " + e);
@@ -168,24 +167,24 @@ public final class NetworkCopy {
     }
 
     synchronized void onBatch(StateBatch batch) {
-        if (items == null) {
+        if (received == null) {
             return;
         }
-        boolean otherEpoch = batch.getEpoch() != items.epoch();
-        int baseComparedToCopy = Long.compareUnsigned(batch.getBaseRevision(), items.revision());
+        boolean otherEpoch = batch.getEpoch() != received.epoch();
+        int baseComparedToCopy = Long.compareUnsigned(batch.getBaseRevision(), received.revision());
         boolean startsAfterCopy = baseComparedToCopy > 0;
         if (otherEpoch || startsAfterCopy) {
             forgetCopy("a change message did not fit the copy");
             return;
         }
-        int revisionComparedToCopy = Long.compareUnsigned(batch.getRevision(), items.revision());
+        int revisionComparedToCopy = Long.compareUnsigned(batch.getRevision(), received.revision());
         boolean alreadyApplied = revisionComparedToCopy <= 0;
         if (alreadyApplied) {
             return;
         }
         try {
-            items.apply(batch);
-            contents = items.toContents();
+            received.apply(batch);
+            contents = received.toContents();
         } catch (RuntimeException e) {
             forgetCopy("a change message could not be read: " + e);
         }
@@ -214,14 +213,14 @@ public final class NetworkCopy {
     }
 
     private boolean mustLoad(StatePulse pulse) {
-        if (items == null) {
+        if (received == null) {
             return true;
         }
-        boolean otherEpoch = items.epoch() != pulse.getEpoch();
+        boolean otherEpoch = received.epoch() != pulse.getEpoch();
         if (otherEpoch) {
             return true;
         }
-        int pulseComparedToCopy = Long.compareUnsigned(pulse.getRevision(), items.revision());
+        int pulseComparedToCopy = Long.compareUnsigned(pulse.getRevision(), received.revision());
         boolean pulseIsAheadOfCopy = pulseComparedToCopy > 0;
         if (pulseIsAheadOfCopy) {
             return true;
@@ -236,22 +235,23 @@ public final class NetworkCopy {
         if (contents != null) {
             LOGGER.info("Network copy dropped, reads go to the controller: " + reason);
         }
-        items = null;
+        received = null;
         contents = null;
     }
 
-    private NetworkItems loadItems() throws IOException {
+    private ReceivedNetworkState loadState() throws IOException {
         try (Response response = httpClient.newCall(networkStateRequest).execute()) {
             if (response.code() == HttpURLConnection.HTTP_FORBIDDEN) {
                 // The controller gives the full state only to the network password. A JWT never gets it.
                 refused = true;
+                LOGGER.warning("Network copy is off for this connection: the controller refuses the network state to this credential");
                 throw new IOException("the controller refuses the network state to this credential");
             }
             if (!response.isSuccessful()) {
                 throw new IOException("GET /v0/network-state answered " + response.code());
             }
             NetworkState snapshot = NetworkState.parseFrom(response.body().bytes());
-            return NetworkItems.fromSnapshot(snapshot, networkId);
+            return ReceivedNetworkState.fromSnapshot(snapshot, networkId);
         }
     }
 

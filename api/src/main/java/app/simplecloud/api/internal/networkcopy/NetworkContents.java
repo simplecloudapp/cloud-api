@@ -24,7 +24,7 @@ import java.util.Set;
  * as the controller's list routes return them. Never changes.
  */
 public final class NetworkContents {
-    private static final Set<String> SORT_FIELDS = Set.of("created_at", "updated_at", "numerical_id", "state");
+    private static final Set<String> SERVER_SORT_FIELDS = Set.of("created_at", "updated_at", "numerical_id", "state");
 
     private final long epoch;
     private final long revision;
@@ -198,7 +198,7 @@ public final class NetworkContents {
     private static void sortAsAsked(List<ModelsServerSummary> servers, ServerQuery query) {
         String field = trimmed(query.getSortBy());
         String order = trimmed(query.getSortOrder());
-        boolean knownField = field.isEmpty() || SORT_FIELDS.contains(field);
+        boolean knownField = field.isEmpty() || SERVER_SORT_FIELDS.contains(field);
         if (!knownField) {
             throw ApiErrors.invalidRequest("invalid sort_by field; valid options: created_at, updated_at, numerical_id, state");
         }

@@ -56,7 +56,7 @@ public class PersistentServerApiImpl implements PersistentServerApi {
     }
 
     public PersistentServerApiImpl(CloudApiOptions options, QueryCache cache, ApiClient httpClient, Executor executor) {
-        this(options, cache, httpClient, executor, NetworkCopy.absent());
+        this(options, cache, httpClient, executor, NetworkCopy.neverStarted());
     }
 
     public PersistentServerApiImpl(CloudApiOptions options,
@@ -84,7 +84,7 @@ public class PersistentServerApiImpl implements PersistentServerApi {
                 persistentServersApi,
                 new InlineBlueprintSupport(options, blueprintsApi),
                 ForkJoinPool.commonPool(),
-                NetworkCopy.absent()
+                NetworkCopy.neverStarted()
         );
     }
 
@@ -99,7 +99,7 @@ public class PersistentServerApiImpl implements PersistentServerApi {
                 persistentServersApi,
                 new InlineBlueprintSupport(options, blueprintsApi, serverUrlResolver),
                 ForkJoinPool.commonPool(),
-                NetworkCopy.absent()
+                NetworkCopy.neverStarted()
         );
     }
 
@@ -199,14 +199,6 @@ public class PersistentServerApiImpl implements PersistentServerApi {
         }
     }
 
-    private static List<PersistentServer> toPersistentServers(List<ModelsPersistentServerSummary> summaries) {
-        List<PersistentServer> persistentServers = new ArrayList<>(summaries.size());
-        for (ModelsPersistentServerSummary summary : summaries) {
-            persistentServers.add(new PersistentServerImpl(summary));
-        }
-        return persistentServers;
-    }
-
     private CompletableFuture<List<PersistentServer>> getAllPersistentServersOverHttp(@Nullable PersistentServerQuery query) {
         QueryKey key = buildQueryKey(query);
 
@@ -225,6 +217,14 @@ public class PersistentServerApiImpl implements PersistentServerApi {
                 throw ApiErrors.from(e);
             }
         }, executor));
+    }
+
+    private static List<PersistentServer> toPersistentServers(List<ModelsPersistentServerSummary> summaries) {
+        List<PersistentServer> persistentServers = new ArrayList<>(summaries.size());
+        for (ModelsPersistentServerSummary summary : summaries) {
+            persistentServers.add(new PersistentServerImpl(summary));
+        }
+        return persistentServers;
     }
 
     private QueryKey buildQueryKey(@Nullable PersistentServerQuery query) {
@@ -417,14 +417,14 @@ public class PersistentServerApiImpl implements PersistentServerApi {
                         id,
                         apiRequest
                 );
-                ModelsUpdatePersistentServerResponse updated = httpResponse.getData();
+                ModelsUpdatePersistentServerResponse response = httpResponse.getData();
 
                 cache.invalidate(QueryKey.of("persistentServer", id));
                 cache.invalidateAll(QueryKey.of("persistentServers"));
                 cache.invalidateAll(QueryKey.of("persistentServer", "name"));
 
                 networkCopy.waitForOwnWrite(httpResponse.getHeaders());
-                return new PersistentServerImpl(toSummary(updated));
+                return new PersistentServerImpl(toSummary(response));
             } catch (ApiException e) {
                 throw ApiErrors.from(e);
             }

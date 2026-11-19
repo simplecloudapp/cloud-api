@@ -35,7 +35,7 @@ import java.util.UUID;
  * Changed only inside {@code NetworkCopy.onPulse} and {@code NetworkCopy.onBatch}, under the copy's lock.
  * Parts that the generated HTTP classes refuse make the methods throw a {@link RuntimeException}.
  */
-final class NetworkItems {
+final class ReceivedNetworkState {
     private static final Type PROPERTIES_TYPE = new TypeToken<Map<String, Object>>() {
     }.getType();
 
@@ -50,12 +50,12 @@ final class NetworkItems {
     private final String networkId;
     private final long epoch;
     private long revision;
-    private final Map<String, ServerItem> servers = new HashMap<>();
-    private final Map<String, GroupItem> groups = new HashMap<>();
-    private final Map<String, PersistentServerItem> persistentServers = new HashMap<>();
+    private final Map<String, ServerItem> serversById = new HashMap<>();
+    private final Map<String, GroupItem> groupsById = new HashMap<>();
+    private final Map<String, PersistentServerItem> persistentServersById = new HashMap<>();
     private Map<String, StateServerMetrics> metricsByServerId = new HashMap<>();
 
-    private record ServerItem(StateServer row, Map<String, Object> properties) {
+    private record ServerItem(StateServer stateServer, Map<String, Object> properties) {
     }
 
     private record GroupItem(ModelsServerGroupSummary summary, ModelsServerGroupInfo infoInsideServers, Instant createdAt) {
@@ -66,28 +66,28 @@ final class NetworkItems {
                                         Instant createdAt) {
     }
 
-    private NetworkItems(String networkId, long epoch, long revision) {
+    private ReceivedNetworkState(String networkId, long epoch, long revision) {
         this.networkId = networkId;
         this.epoch = epoch;
         this.revision = revision;
     }
 
     /**
-     * The items of a full state.
+     * What a full snapshot holds.
      */
-    static NetworkItems fromSnapshot(NetworkState snapshot, String networkId) {
-        NetworkItems items = new NetworkItems(networkId, snapshot.getEpoch(), snapshot.getRevision());
+    static ReceivedNetworkState fromSnapshot(NetworkState snapshot, String networkId) {
+        ReceivedNetworkState received = new ReceivedNetworkState(networkId, snapshot.getEpoch(), snapshot.getRevision());
         for (StateServer server : snapshot.getServersList()) {
-            items.putServer(server);
+            received.putServer(server);
         }
         for (StateServerGroup group : snapshot.getServerGroupsList()) {
-            items.putGroup(group);
+            received.putGroup(group);
         }
         for (StatePersistentServer persistentServer : snapshot.getPersistentServersList()) {
-            items.putPersistentServer(persistentServer);
+            received.putPersistentServer(persistentServer);
         }
-        items.setMetrics(snapshot.getMetricsList());
-        return items;
+        received.setMetrics(snapshot.getMetricsList());
+        return received;
     }
 
     long epoch() {
@@ -99,26 +99,26 @@ final class NetworkItems {
     }
 
     /**
-     * Puts the batch's items in, removes its deleted ids, and moves to the batch's revision.
+     * Puts the batch's servers, groups and persistent servers in, removes its deleted ids, and moves to the batch's revision.
      */
     void apply(StateBatch batch) {
         for (StateServer server : batch.getServersList()) {
             putServer(server);
         }
         for (ByteString id : batch.getDeletedServerIdsList()) {
-            servers.remove(uuidText(id));
+            serversById.remove(uuidText(id));
         }
         for (StateServerGroup group : batch.getServerGroupsList()) {
             putGroup(group);
         }
         for (ByteString id : batch.getDeletedServerGroupIdsList()) {
-            groups.remove(uuidText(id));
+            groupsById.remove(uuidText(id));
         }
         for (StatePersistentServer persistentServer : batch.getPersistentServersList()) {
             putPersistentServer(persistentServer);
         }
         for (ByteString id : batch.getDeletedPersistentServerIdsList()) {
-            persistentServers.remove(uuidText(id));
+            persistentServersById.remove(uuidText(id));
         }
         revision = batch.getRevision();
     }
@@ -135,25 +135,25 @@ final class NetworkItems {
     }
 
     /**
-     * Builds the three lists from the items, in the controller's default order.
+     * Builds the three lists from this state, in the controller's default order.
      */
     NetworkContents toContents() {
-        List<ModelsServerSummary> serverList = new ArrayList<>(servers.size());
-        for (ServerItem server : servers.values()) {
+        List<ModelsServerSummary> serverList = new ArrayList<>(serversById.size());
+        for (ServerItem server : serversById.values()) {
             serverList.add(serverSummary(server));
         }
-        serverList.sort(NetworkItems::compareServers);
+        serverList.sort(ReceivedNetworkState::compareServers);
 
-        List<GroupItem> groupItems = new ArrayList<>(groups.values());
-        groupItems.sort(NetworkItems::compareGroups);
+        List<GroupItem> groupItems = new ArrayList<>(groupsById.values());
+        groupItems.sort(ReceivedNetworkState::compareGroups);
         List<ModelsServerGroupSummary> groupList = new ArrayList<>(groupItems.size());
         for (GroupItem group : groupItems) {
             groupList.add(group.summary());
         }
 
         Map<String, Integer> playerCounts = playerCountsByPersistentServerId(serverList);
-        List<PersistentServerItem> persistentServerItems = new ArrayList<>(persistentServers.values());
-        persistentServerItems.sort(NetworkItems::comparePersistentServers);
+        List<PersistentServerItem> persistentServerItems = new ArrayList<>(persistentServersById.values());
+        persistentServerItems.sort(ReceivedNetworkState::comparePersistentServers);
         List<ModelsPersistentServerSummary> persistentServerList = new ArrayList<>(persistentServerItems.size());
         for (PersistentServerItem persistentServer : persistentServerItems) {
             int playerCount = playerCounts.getOrDefault(persistentServer.summary().getPersistentServerId(), 0);
@@ -166,7 +166,7 @@ final class NetworkItems {
     private void putServer(StateServer server) {
         String propertiesJson = server.getPropertiesJson().toStringUtf8();
         Map<String, Object> properties = JSON.deserialize(propertiesJson, PROPERTIES_TYPE);
-        servers.put(uuidText(server.getId()), new ServerItem(server, properties));
+        serversById.put(uuidText(server.getId()), new ServerItem(server, properties));
     }
 
     // The group part comes without its blueprint. The public API reads only the blueprint's id.
@@ -181,7 +181,7 @@ final class NetworkItems {
             info.getSource().setBlueprint(blueprint);
         }
         Instant createdAt = Instant.parse(summary.getCreatedAt());
-        groups.put(uuidText(group.getId()), new GroupItem(summary, info, createdAt));
+        groupsById.put(uuidText(group.getId()), new GroupItem(summary, info, createdAt));
     }
 
     private void putPersistentServer(StatePersistentServer persistentServer) {
@@ -190,56 +190,56 @@ final class NetworkItems {
         String infoJson = persistentServer.getInfoJson().toStringUtf8();
         ModelsPersistentServerInfo info = JSON.deserialize(infoJson, ModelsPersistentServerInfo.class);
         Instant createdAt = Instant.parse(summary.getCreatedAt());
-        persistentServers.put(uuidText(persistentServer.getId()), new PersistentServerItem(summary, info, createdAt));
+        persistentServersById.put(uuidText(persistentServer.getId()), new PersistentServerItem(summary, info, createdAt));
     }
 
     private ModelsServerSummary serverSummary(ServerItem item) {
-        StateServer row = item.row();
-        String id = uuidText(row.getId());
+        StateServer stateServer = item.stateServer();
+        String id = uuidText(stateServer.getId());
         ModelsServerSummary summary = new ModelsServerSummary();
         summary.setServerId(id);
         summary.setNetworkId(networkId);
-        if (row.hasServerGroupId()) {
-            String groupId = uuidText(row.getServerGroupId());
+        if (stateServer.hasServerGroupId()) {
+            String groupId = uuidText(stateServer.getServerGroupId());
             summary.setServerGroupId(groupId);
-            GroupItem group = groups.get(groupId);
+            GroupItem group = groupsById.get(groupId);
             if (group != null) {
                 summary.setServerGroup(group.infoInsideServers());
             }
         }
-        if (row.hasPersistentServerId()) {
-            String persistentServerId = uuidText(row.getPersistentServerId());
+        if (stateServer.hasPersistentServerId()) {
+            String persistentServerId = uuidText(stateServer.getPersistentServerId());
             summary.setPersistentServerId(persistentServerId);
-            PersistentServerItem persistentServer = persistentServers.get(persistentServerId);
+            PersistentServerItem persistentServer = persistentServersById.get(persistentServerId);
             if (persistentServer != null) {
                 summary.setPersistentServer(persistentServer.infoInsideServers());
             }
         }
-        if (row.hasServerhostId()) {
-            summary.setServerhostId(uuidText(row.getServerhostId()));
+        if (stateServer.hasServerhostId()) {
+            summary.setServerhostId(uuidText(stateServer.getServerhostId()));
         }
-        summary.setNumericalId(row.getNumericalId());
-        if (row.hasIp()) {
-            summary.setIp(row.getIp());
+        summary.setNumericalId(stateServer.getNumericalId());
+        if (stateServer.hasIp()) {
+            summary.setIp(stateServer.getIp());
         }
-        if (row.hasPort()) {
-            summary.setPort(Math.toIntExact(row.getPort()));
+        if (stateServer.hasPort()) {
+            summary.setPort(Math.toIntExact(stateServer.getPort()));
         }
-        summary.setMinMemory(Math.toIntExact(row.getMinMemory()));
-        summary.setMaxMemory(Math.toIntExact(row.getMaxMemory()));
-        summary.setMaxPlayers(Math.toIntExact(row.getMaxPlayers()));
-        summary.setState(ModelsServerSummary.StateEnum.fromValue(row.getState()));
+        summary.setMinMemory(Math.toIntExact(stateServer.getMinMemory()));
+        summary.setMaxMemory(Math.toIntExact(stateServer.getMaxMemory()));
+        summary.setMaxPlayers(Math.toIntExact(stateServer.getMaxPlayers()));
+        summary.setState(ModelsServerSummary.StateEnum.fromValue(stateServer.getState()));
         summary.setProperties(item.properties());
-        Instant createdAt = instantOfMicros(row.getCreatedAtMicros());
+        Instant createdAt = instantOfMicros(stateServer.getCreatedAtMicros());
         summary.setCreatedAt(formatTimestamp(createdAt));
-        Instant updatedAt = instantOfMicros(row.getUpdatedAtMicros());
+        Instant updatedAt = instantOfMicros(stateServer.getUpdatedAtMicros());
         summary.setUpdatedAt(formatTimestamp(updatedAt));
-        setMetricsOf(summary, metricsByServerId.get(id));
+        fillMetrics(summary, metricsByServerId.get(id));
         return summary;
     }
 
     // Without fresh metrics the controller shows zeros and an empty last activity.
-    private static void setMetricsOf(ModelsServerSummary summary, StateServerMetrics metrics) {
+    private static void fillMetrics(ModelsServerSummary summary, StateServerMetrics metrics) {
         if (metrics == null) {
             summary.setPlayerCount(0);
             summary.setCpuUsage(BigDecimal.ZERO);
@@ -258,7 +258,7 @@ final class NetworkItems {
         }
     }
 
-    // A copy, because the parsed summary is shared by every contents built from these items.
+    // A copy, because the parsed summary is shared by every contents built from this state.
     private static ModelsPersistentServerSummary persistentServerSummary(PersistentServerItem item, int playerCount) {
         ModelsPersistentServerSummary parsed = item.summary();
         ModelsPersistentServerSummary summary = new ModelsPersistentServerSummary();

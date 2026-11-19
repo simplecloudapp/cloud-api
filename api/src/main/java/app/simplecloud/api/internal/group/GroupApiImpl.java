@@ -53,7 +53,7 @@ public class GroupApiImpl implements GroupApi {
     }
 
     public GroupApiImpl(CloudApiOptions options, QueryCache cache, ApiClient httpClient, Executor executor) {
-        this(options, cache, httpClient, executor, NetworkCopy.absent());
+        this(options, cache, httpClient, executor, NetworkCopy.neverStarted());
     }
 
     public GroupApiImpl(CloudApiOptions options,
@@ -81,7 +81,7 @@ public class GroupApiImpl implements GroupApi {
                 serverGroupsApi,
                 new InlineBlueprintSupport(options, blueprintsApi),
                 ForkJoinPool.commonPool(),
-                NetworkCopy.absent()
+                NetworkCopy.neverStarted()
         );
     }
 
@@ -96,7 +96,7 @@ public class GroupApiImpl implements GroupApi {
                 serverGroupsApi,
                 new InlineBlueprintSupport(options, blueprintsApi, serverUrlResolver),
                 ForkJoinPool.commonPool(),
-                NetworkCopy.absent()
+                NetworkCopy.neverStarted()
         );
     }
 
@@ -264,14 +264,6 @@ public class GroupApiImpl implements GroupApi {
         }
     }
 
-    private static List<Group> toGroups(List<ModelsServerGroupSummary> summaries) {
-        List<Group> groups = new ArrayList<>(summaries.size());
-        for (ModelsServerGroupSummary summary : summaries) {
-            groups.add(new GroupImpl(summary));
-        }
-        return groups;
-    }
-
     private CompletableFuture<List<Group>> getAllGroupsOverHttp(@org.jetbrains.annotations.Nullable GroupQuery query) {
         QueryKey key = buildQueryKey(query);
 
@@ -290,6 +282,14 @@ public class GroupApiImpl implements GroupApi {
                 throw ApiErrors.from(e);
             }
         }, executor));
+    }
+
+    private static List<Group> toGroups(List<ModelsServerGroupSummary> summaries) {
+        List<Group> groups = new ArrayList<>(summaries.size());
+        for (ModelsServerGroupSummary summary : summaries) {
+            groups.add(new GroupImpl(summary));
+        }
+        return groups;
     }
 
     private QueryKey buildQueryKey(@org.jetbrains.annotations.Nullable GroupQuery query) {

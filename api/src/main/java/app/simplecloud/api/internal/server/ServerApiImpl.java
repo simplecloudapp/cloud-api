@@ -56,7 +56,7 @@ public class ServerApiImpl implements ServerApi {
     }
 
     public ServerApiImpl(CloudApiOptions options, QueryCache cache, ApiClient httpClient, Executor executor) {
-        this(options, cache, httpClient, executor, NetworkCopy.absent());
+        this(options, cache, httpClient, executor, NetworkCopy.neverStarted());
     }
 
     public ServerApiImpl(CloudApiOptions options,
@@ -198,14 +198,6 @@ public class ServerApiImpl implements ServerApi {
         }
     }
 
-    private static List<Server> toServers(List<ModelsServerSummary> summaries) {
-        List<Server> servers = new ArrayList<>(summaries.size());
-        for (ModelsServerSummary summary : summaries) {
-            servers.add(new ServerImpl(summary));
-        }
-        return servers;
-    }
-
     private CompletableFuture<List<Server>> getAllServersOverHttp(@Nullable ServerQuery query) {
         QueryKey key = buildQueryKey(query);
 
@@ -228,6 +220,14 @@ public class ServerApiImpl implements ServerApi {
                     }
                     return servers;
                 });
+    }
+
+    private static List<Server> toServers(List<ModelsServerSummary> summaries) {
+        List<Server> servers = new ArrayList<>(summaries.size());
+        for (ModelsServerSummary summary : summaries) {
+            servers.add(new ServerImpl(summary));
+        }
+        return servers;
     }
 
     private CompletableFuture<List<Server>> fetchServersFromController(@Nullable ServerQuery query) {

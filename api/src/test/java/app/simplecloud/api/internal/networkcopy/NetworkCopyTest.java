@@ -320,8 +320,8 @@ class NetworkCopyTest {
     }
 
     @Test
-    void absentCopyNeverHasContents() {
-        assertNull(NetworkCopy.absent().contents());
+    void neverStartedCopyNeverHasContents() {
+        assertNull(NetworkCopy.neverStarted().contents());
     }
 
     private void applyLater(StateBatch batch) {

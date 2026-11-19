@@ -122,7 +122,7 @@ class GroupApiImplCopyTest {
                 new NoOpQueryCache(),
                 ApiClients.create(options()),
                 Runnable::run,
-                NetworkCopy.absent()
+                NetworkCopy.neverStarted()
         );
 
         Optional<Group> byId = apiWithoutCopy.findGroupById(LOBBY_GROUP).join();

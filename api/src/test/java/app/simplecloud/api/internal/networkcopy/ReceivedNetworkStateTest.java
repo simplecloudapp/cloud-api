@@ -32,7 +32,7 @@ import static org.junit.jupiter.api.Assertions.assertEquals;
 import static org.junit.jupiter.api.Assertions.assertNull;
 import static org.junit.jupiter.api.Assertions.assertThrows;
 
-class NetworkItemsTest {
+class ReceivedNetworkStateTest {
 
     private static final String NETWORK_ID = "0d000000-0000-4000-8000-000000000001";
     private static final String GROUP_A = "0a000000-0000-4000-8000-000000000301";
@@ -51,7 +51,7 @@ class NetworkItemsTest {
         ModelsListPersistentServersResponse expectedPersistentServers =
                 JSON.deserialize(persistentServerList, ModelsListPersistentServersResponse.class);
 
-        NetworkContents contents = NetworkItems.fromSnapshot(snapshot, NETWORK_ID).toContents();
+        NetworkContents contents = ReceivedNetworkState.fromSnapshot(snapshot, NETWORK_ID).toContents();
 
         assertEquals(expectedServers.getServers(), contents.servers(null));
         assertNull(expectedGroups.getServerGroups());
@@ -77,7 +77,7 @@ class NetworkItemsTest {
         keepOnlyBlueprintIds(expectedServers);
         removeGroupStatistics(expectedGroups);
 
-        NetworkContents contents = NetworkItems.fromSnapshot(snapshot, NETWORK_ID).toContents();
+        NetworkContents contents = ReceivedNetworkState.fromSnapshot(snapshot, NETWORK_ID).toContents();
 
         assertEquals(expectedServers, contents.servers(null));
         assertEquals(expectedGroups, contents.groups(null));
@@ -90,20 +90,20 @@ class NetworkItemsTest {
         String groupList = fixtureText("several-groups", "server-groups.json");
 
         assertThrows(RuntimeException.class, () -> JSON.deserialize(groupList, ModelsListServerGroupsResponse.class));
-        assertThrows(RuntimeException.class, () -> NetworkItems.fromSnapshot(snapshot, NETWORK_ID));
+        assertThrows(RuntimeException.class, () -> ReceivedNetworkState.fromSnapshot(snapshot, NETWORK_ID));
     }
 
     @Test
     void serversAreOrderedByGroupThenNumericalIdThenId() {
         NetworkState snapshot = NetworkState.newBuilder()
                 .addServers(groupServer("00000000-0000-4000-8000-000000000201", GROUP_B, 1))
-                .addServers(persistentServer("00000000-0000-4000-8000-000000000202"))
+                .addServers(serverOfPersistentServer("00000000-0000-4000-8000-000000000202"))
                 .addServers(groupServer("00000000-0000-4000-8000-000000000204", GROUP_A, 2))
                 .addServers(groupServer("00000000-0000-4000-8000-000000000205", GROUP_A, 1))
                 .addServers(groupServer("00000000-0000-4000-8000-000000000203", GROUP_A, 1))
                 .build();
 
-        NetworkContents contents = NetworkItems.fromSnapshot(snapshot, NETWORK_ID).toContents();
+        NetworkContents contents = ReceivedNetworkState.fromSnapshot(snapshot, NETWORK_ID).toContents();
 
         List<String> expected = List.of(
                 "00000000-0000-4000-8000-000000000203",
@@ -123,7 +123,7 @@ class NetworkItemsTest {
                 .addServerGroups(group("0a000000-0000-4000-8000-000000000300", "newer too", "2026-11-17T09:00:00.5Z"))
                 .build();
 
-        NetworkContents contents = NetworkItems.fromSnapshot(snapshot, NETWORK_ID).toContents();
+        NetworkContents contents = ReceivedNetworkState.fromSnapshot(snapshot, NETWORK_ID).toContents();
 
         List<String> names = new ArrayList<>();
         for (ModelsServerGroupSummary group : contents.groups(null)) {
@@ -143,7 +143,7 @@ class NetworkItemsTest {
                 .build();
         NetworkState snapshot = NetworkState.newBuilder().addServers(server).addMetrics(metrics).build();
 
-        ModelsServerSummary summary = NetworkItems.fromSnapshot(snapshot, NETWORK_ID).toContents().servers(null).getFirst();
+        ModelsServerSummary summary = ReceivedNetworkState.fromSnapshot(snapshot, NETWORK_ID).toContents().servers(null).getFirst();
 
         assertEquals("2026-11-17T10:00:00Z", summary.getCreatedAt());
         assertEquals("2026-11-17T10:00:00.000001Z", summary.getUpdatedAt());
@@ -163,7 +163,7 @@ class NetworkItemsTest {
                 .addServerGroups(group)
                 .build();
 
-        ModelsServerSummary server = NetworkItems.fromSnapshot(snapshot, NETWORK_ID).toContents().servers(null).getFirst();
+        ModelsServerSummary server = ReceivedNetworkState.fromSnapshot(snapshot, NETWORK_ID).toContents().servers(null).getFirst();
 
         assertEquals(blueprintId, server.getServerGroup().getSource().getBlueprint().getId());
     }
@@ -182,8 +182,8 @@ class NetworkItemsTest {
                 .addServers(groupServer(deletedServer, GROUP_A, 2))
                 .addServerGroups(group(GROUP_A, "lobby", "2026-11-17T09:00:00Z"))
                 .addServerGroups(group(GROUP_B, "game", "2026-11-17T09:00:00Z"))
-                .addPersistentServers(persistentServerItem(PERSISTENT_SERVER, "survival"))
-                .addPersistentServers(persistentServerItem(deletedPersistentServer, "archive"))
+                .addPersistentServers(persistentServer(PERSISTENT_SERVER, "survival"))
+                .addPersistentServers(persistentServer(deletedPersistentServer, "archive"))
                 .build();
         StateBatch batch = StateBatch.newBuilder()
                 .setEpoch(4)
@@ -195,16 +195,16 @@ class NetworkItemsTest {
                 .addServerGroups(group(GROUP_A, "lobby renamed", "2026-11-17T09:00:00Z"))
                 .addServerGroups(group("0d000000-0000-4000-8000-000000000303", "new group", "2026-11-17T08:00:00Z"))
                 .addDeletedServerGroupIds(uuidBytes(GROUP_B))
-                .addPersistentServers(persistentServerItem(PERSISTENT_SERVER, "survival renamed"))
-                .addPersistentServers(persistentServerItem(newPersistentServer, "creative"))
+                .addPersistentServers(persistentServer(PERSISTENT_SERVER, "survival renamed"))
+                .addPersistentServers(persistentServer(newPersistentServer, "creative"))
                 .addDeletedPersistentServerIds(uuidBytes(deletedPersistentServer))
                 .build();
-        NetworkItems items = NetworkItems.fromSnapshot(snapshot, NETWORK_ID);
+        ReceivedNetworkState received = ReceivedNetworkState.fromSnapshot(snapshot, NETWORK_ID);
 
-        items.apply(batch);
-        NetworkContents contents = items.toContents();
+        received.apply(batch);
+        NetworkContents contents = received.toContents();
 
-        assertEquals(12, items.revision());
+        assertEquals(12, received.revision());
         assertEquals(List.of(newServer, changedServer), serverIds(contents));
         assertEquals(7, contents.serverById(changedServer).getNumericalId());
         assertEquals("lobby renamed", contents.serverById(changedServer).getServerGroup().getName());
@@ -225,10 +225,10 @@ class NetworkItemsTest {
                 .addServers(second)
                 .addMetrics(metrics(first.getId(), 5))
                 .build();
-        NetworkItems items = NetworkItems.fromSnapshot(snapshot, NETWORK_ID);
+        ReceivedNetworkState received = ReceivedNetworkState.fromSnapshot(snapshot, NETWORK_ID);
 
-        items.setMetrics(List.of(metrics(second.getId(), 8)));
-        List<ModelsServerSummary> servers = items.toContents().servers(null);
+        received.setMetrics(List.of(metrics(second.getId(), 8)));
+        List<ModelsServerSummary> servers = received.toContents().servers(null);
 
         assertEquals(0, servers.get(0).getPlayerCount());
         assertEquals("", servers.get(0).getLastActivity());
@@ -237,20 +237,20 @@ class NetworkItemsTest {
 
     @Test
     void persistentServerCountsThePlayersOfItsAvailableAndIngameServers() {
-        StateServer available = persistentServer("00000000-0000-4000-8000-000000000201");
-        StateServer ingame = persistentServer("00000000-0000-4000-8000-000000000202").toBuilder().setState("INGAME").build();
-        StateServer starting = persistentServer("00000000-0000-4000-8000-000000000203").toBuilder().setState("STARTING").build();
+        StateServer available = serverOfPersistentServer("00000000-0000-4000-8000-000000000201");
+        StateServer ingame = serverOfPersistentServer("00000000-0000-4000-8000-000000000202").toBuilder().setState("INGAME").build();
+        StateServer starting = serverOfPersistentServer("00000000-0000-4000-8000-000000000203").toBuilder().setState("STARTING").build();
         NetworkState snapshot = NetworkState.newBuilder()
                 .addServers(available)
                 .addServers(ingame)
                 .addServers(starting)
-                .addPersistentServers(persistentServerItem(PERSISTENT_SERVER, "survival"))
+                .addPersistentServers(persistentServer(PERSISTENT_SERVER, "survival"))
                 .addMetrics(metrics(available.getId(), 3))
                 .addMetrics(metrics(ingame.getId(), 4))
                 .addMetrics(metrics(starting.getId(), 5))
                 .build();
 
-        NetworkContents contents = NetworkItems.fromSnapshot(snapshot, NETWORK_ID).toContents();
+        NetworkContents contents = ReceivedNetworkState.fromSnapshot(snapshot, NETWORK_ID).toContents();
 
         ModelsPersistentServerSummary summary = contents.persistentServerById(PERSISTENT_SERVER);
         assertEquals(7, summary.getPlayerCount());
@@ -263,7 +263,7 @@ class NetworkItemsTest {
                 .build();
         NetworkState snapshot = NetworkState.newBuilder().addServerGroups(unreadable).build();
 
-        assertThrows(RuntimeException.class, () -> NetworkItems.fromSnapshot(snapshot, NETWORK_ID));
+        assertThrows(RuntimeException.class, () -> ReceivedNetworkState.fromSnapshot(snapshot, NETWORK_ID));
     }
 
     private static StateServer groupServer(String id, String groupId, int numericalId) {
@@ -276,7 +276,7 @@ class NetworkItemsTest {
                 .build();
     }
 
-    private static StateServer persistentServer(String id) {
+    private static StateServer serverOfPersistentServer(String id) {
         return StateServer.newBuilder()
                 .setId(uuidBytes(id))
                 .setPersistentServerId(uuidBytes(PERSISTENT_SERVER))
@@ -296,7 +296,7 @@ class NetworkItemsTest {
                 .build();
     }
 
-    private static StatePersistentServer persistentServerItem(String id, String name) {
+    private static StatePersistentServer persistentServer(String id, String name) {
         String summary = "{\"persistent_server_id\":\"" + id + "\",\"name\":\"" + name + "\",\"created_at\":\"2026-11-17T09:00:00Z\"}";
         String info = "{\"id\":\"" + id + "\",\"name\":\"" + name + "\"}";
         return StatePersistentServer.newBuilder()
@@ -369,7 +369,7 @@ class NetworkItemsTest {
 
     private static byte[] fixture(String fixtureCase, String file) throws IOException {
         String path = "/network-state/" + fixtureCase + "/" + file;
-        try (InputStream stream = NetworkItemsTest.class.getResourceAsStream(path)) {
+        try (InputStream stream = ReceivedNetworkStateTest.class.getResourceAsStream(path)) {
             return stream.readAllBytes();
         }
     }
