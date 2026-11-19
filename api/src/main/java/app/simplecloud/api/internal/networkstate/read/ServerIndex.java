@@ -8,20 +8,13 @@ import app.simplecloud.api.internal.server.ServerSource;
 import app.simplecloud.api.server.Server;
 import app.simplecloud.api.server.ServerQuery;
 import app.simplecloud.api.server.ServerState;
-import app.simplecloud.api.web.models.ModelsBlueprintInfo;
 import app.simplecloud.api.web.models.ModelsPersistentServerInfo;
 import app.simplecloud.api.web.models.ModelsServerGroupInfo;
 import app.simplecloud.api.web.models.ModelsServerSummary;
-import app.simplecloud.api.web.models.ModelsSourceInfo;
-import build.buf.gen.simplecloud.controller.v2.StateBlueprint;
-import build.buf.gen.simplecloud.controller.v2.StatePersistentServer;
 import build.buf.gen.simplecloud.controller.v2.StateServer;
-import build.buf.gen.simplecloud.controller.v2.StateServerGroup;
-import build.buf.gen.simplecloud.controller.v2.StateServerMetrics;
 import com.google.protobuf.ByteString;
 import org.jetbrains.annotations.Nullable;
 
-import java.math.BigDecimal;
 import java.util.ArrayList;
 import java.util.Collection;
 import java.util.Comparator;
@@ -31,15 +24,12 @@ import java.util.LinkedHashMap;
 import java.util.List;
 import java.util.Map;
 import java.util.Set;
-import java.util.UUID;
 import java.util.concurrent.CompletableFuture;
 import java.util.function.Predicate;
 
 /**
- * The servers of one copy as API objects, built once, and the server source of that copy. Each server holds
- * what the controller's server list shows for it ({@code buildServerSummary} in
- * {@code internal/web/server_mapper.go}). Each group, persistent server and blueprint is read from its JSON
- * once, however many servers it has.
+ * The servers of one copy as API objects, built once, and the server source of that copy. It keeps them in the
+ * controller's default order, and filters and sorts them as the controller's server list does.
  *
  * <p>Every answer is complete on return. A query with an unknown sort field or sort order throws a
  * {@link CloudApiException} with {@link CloudApiException.Reason#INVALID_REQUEST} from {@link #servers}
@@ -69,16 +59,14 @@ final class ServerIndex implements ServerSource {
      *                               copy rules out
      */
     ServerIndex(NetworkCopy copy, String networkId) {
-        String networkIdText = UUID.fromString(networkId).toString();
-        Map<ByteString, ModelsServerGroupInfo> groups = groupInfos(copy);
-        Map<ByteString, ModelsPersistentServerInfo> persistentServers = persistentServerInfos(copy);
+        ServerSummaries summaries = new ServerSummaries(copy, networkId);
         List<StateServer> rows = new ArrayList<>(copy.servers().values());
         rows.sort(DEFAULT_ORDER);
 
         List<ListedServer> listed = new ArrayList<>();
         Map<ByteString, Server> servers = new HashMap<>();
         for (StateServer row : rows) {
-            ModelsServerSummary summary = summaryOf(row, networkIdText, groups, persistentServers, copy);
+            ModelsServerSummary summary = summaries.of(row);
             ListedServer server = ListedServer.of(new ServerImpl(summary), row, summary);
             listed.add(server);
             servers.put(row.getId(), server.server());
@@ -277,129 +265,6 @@ final class ServerIndex implements ServerSource {
 
     private static CloudApiException invalidRequest(String message) {
         return new CloudApiException(CloudApiException.Reason.INVALID_REQUEST, message);
-    }
-
-    /**
-     * Sets the members that come from the row and leaves a NULL column unset, as Go's {@code omitempty}
-     * leaves out its member.
-     */
-    private static ModelsServerSummary summaryOf(
-            StateServer row,
-            String networkId,
-            Map<ByteString, ModelsServerGroupInfo> groups,
-            Map<ByteString, ModelsPersistentServerInfo> persistentServers,
-            NetworkCopy copy
-    ) {
-        ModelsServerSummary summary = new ModelsServerSummary();
-        summary.setServerId(ControllerIds.text(row.getId()));
-        summary.setNetworkId(networkId);
-        if (row.hasServerGroupId()) {
-            summary.setServerGroupId(ControllerIds.text(row.getServerGroupId()));
-            summary.setServerGroup(resolve(groups, row.getServerGroupId(), "server group"));
-        }
-        if (row.hasPersistentServerId()) {
-            summary.setPersistentServerId(ControllerIds.text(row.getPersistentServerId()));
-            summary.setPersistentServer(resolve(persistentServers, row.getPersistentServerId(), "persistent server"));
-        }
-        if (row.hasServerhostId()) {
-            summary.setServerhostId(ControllerIds.text(row.getServerhostId()));
-        }
-        summary.setNumericalId(row.getNumericalId());
-        if (row.hasIp()) {
-            summary.setIp(row.getIp());
-        }
-        if (row.hasPort()) {
-            summary.setPort(Math.toIntExact(row.getPort()));
-        }
-        summary.setMinMemory(Math.toIntExact(row.getMinMemory()));
-        summary.setMaxMemory(Math.toIntExact(row.getMaxMemory()));
-        summary.setMaxPlayers(Math.toIntExact(row.getMaxPlayers()));
-        summary.setState(ModelsServerSummary.StateEnum.fromValue(row.getState()));
-        summary.setProperties(ControllerJson.toProperties(row.getPropertiesJson()));
-        summary.setCreatedAt(ControllerTimestamps.ofMicros(row.getCreatedAtMicros()));
-        summary.setUpdatedAt(ControllerTimestamps.ofMicros(row.getUpdatedAtMicros()));
-        setMetrics(summary, row, copy);
-        return summary;
-    }
-
-    /**
-     * Sets zeros and an empty last activity for a server the pulse left out, as the controller does for stale
-     * metrics.
-     */
-    private static void setMetrics(ModelsServerSummary summary, StateServer row, NetworkCopy copy) {
-        StateServerMetrics metrics = copy.metricsOf(row.getId());
-        summary.setPlayerCount(Math.toIntExact(PlayerCounts.of(metrics)));
-        summary.setCpuUsage(finiteOrNull(metrics.getCpuUsage()));
-        summary.setMemoryUsage(finiteOrNull(metrics.getMemoryUsage()));
-        String lastActivity = metrics.hasLastActivityNanos()
-                ? ControllerTimestamps.ofNanos(metrics.getLastActivityNanos())
-                : "";
-        summary.setLastActivity(lastActivity);
-    }
-
-    private static @Nullable BigDecimal finiteOrNull(double metric) {
-        return Double.isFinite(metric) ? BigDecimal.valueOf(metric) : null;
-    }
-
-    private static Map<ByteString, ModelsServerGroupInfo> groupInfos(NetworkCopy copy) {
-        Map<ByteString, ModelsBlueprintInfo> blueprints = new HashMap<>();
-        Map<ByteString, ModelsServerGroupInfo> infos = new HashMap<>();
-        for (StateServerGroup group : copy.serverGroups().values()) {
-            infos.put(group.getId(), groupInfo(group, blueprints, copy));
-        }
-        return infos;
-    }
-
-    /**
-     * Joins the group's blueprint into its info, where the controller's join puts it: into {@code source},
-     * whenever the group names a blueprint, also for an image source.
-     *
-     * @param blueprints the blueprints read so far, so that each is read once
-     */
-    private static ModelsServerGroupInfo groupInfo(
-            StateServerGroup group,
-            Map<ByteString, ModelsBlueprintInfo> blueprints,
-            NetworkCopy copy
-    ) {
-        ModelsServerGroupInfo info = ControllerJson.toModel(group.getInfoJson(), ModelsServerGroupInfo.class);
-        if (!group.hasBlueprintId()) {
-            return info;
-        }
-        ModelsSourceInfo source = info.getSource();
-        if (source == null) {
-            throw new IllegalStateException("Server group " + ControllerIds.text(group.getId()) + " has no source");
-        }
-        ModelsBlueprintInfo blueprint = blueprints.computeIfAbsent(group.getBlueprintId(),
-                blueprintId -> blueprintInfo(blueprintId, copy));
-        source.setBlueprint(blueprint);
-        return info;
-    }
-
-    private static ModelsBlueprintInfo blueprintInfo(ByteString blueprintId, NetworkCopy copy) {
-        StateBlueprint blueprint = resolve(copy.blueprints(), blueprintId, "blueprint");
-        return ControllerJson.toModel(blueprint.getInfoJson(), ModelsBlueprintInfo.class);
-    }
-
-    private static Map<ByteString, ModelsPersistentServerInfo> persistentServerInfos(NetworkCopy copy) {
-        Map<ByteString, ModelsPersistentServerInfo> infos = new HashMap<>();
-        for (StatePersistentServer persistentServer : copy.persistentServers().values()) {
-            ModelsPersistentServerInfo info = ControllerJson.toModel(persistentServer.getInfoJson(),
-                    ModelsPersistentServerInfo.class);
-            infos.put(persistentServer.getId(), info);
-        }
-        return infos;
-    }
-
-    /**
-     * Follows a reference between items of a copy. A view checks after every batch and snapshot that each one
-     * resolves, so a missing item here is a bug in the view, not a state of the network.
-     */
-    private static <T> T resolve(Map<ByteString, T> items, ByteString id, String kind) {
-        T item = items.get(id);
-        if (item == null) {
-            throw new IllegalStateException("The copy has no " + kind + " " + ControllerIds.text(id));
-        }
-        return item;
     }
 
     private static @Nullable ByteString groupIdOrNull(StateServer server) {
