@@ -4,6 +4,8 @@ import app.simplecloud.api.CloudApiException;
 import app.simplecloud.api.CloudApiOptions;
 import app.simplecloud.api.cache.QueryCache;
 import app.simplecloud.api.cache.QueryKey;
+import app.simplecloud.api.internal.networkcopy.NetworkContents;
+import app.simplecloud.api.internal.networkcopy.NetworkCopy;
 import app.simplecloud.api.internal.web.ApiClients;
 import app.simplecloud.api.internal.web.ApiErrors;
 import app.simplecloud.api.internal.web.Identifiers;
@@ -13,6 +15,7 @@ import app.simplecloud.api.server.ServerQuery;
 import app.simplecloud.api.server.UpdateServerRequest;
 import app.simplecloud.api.web.ApiException;
 import app.simplecloud.api.web.ApiClient;
+import app.simplecloud.api.web.ApiResponse;
 import app.simplecloud.api.web.apis.ServersApi;
 import app.simplecloud.api.web.models.ModelsDeletePropertiesRequest;
 import app.simplecloud.api.web.models.ModelsDeletePropertiesResponse;
@@ -22,6 +25,7 @@ import app.simplecloud.api.web.models.ModelsPatchPropertiesResponse;
 import app.simplecloud.api.web.models.ModelsPatchServerRequest;
 import app.simplecloud.api.web.models.ModelsPatchServerResponse;
 import app.simplecloud.api.web.models.ModelsServerSummary;
+import app.simplecloud.api.web.models.ModelsStopServerResponse;
 import org.jetbrains.annotations.NotNull;
 import org.jetbrains.annotations.Nullable;
 
@@ -41,6 +45,7 @@ public class ServerApiImpl implements ServerApi {
     private final ServersApi serversApi;
     private final QueryCache cache;
     private final Executor executor;
+    private final NetworkCopy networkCopy;
 
     public ServerApiImpl(CloudApiOptions options, QueryCache cache) {
         this(options, cache, ApiClients.create(options));
@@ -51,14 +56,27 @@ public class ServerApiImpl implements ServerApi {
     }
 
     public ServerApiImpl(CloudApiOptions options, QueryCache cache, ApiClient httpClient, Executor executor) {
-        this(options, cache, createServersApi(options, httpClient), executor);
+        this(options, cache, httpClient, executor, NetworkCopy.absent());
     }
 
-    private ServerApiImpl(CloudApiOptions options, QueryCache cache, ServersApi serversApi, Executor executor) {
+    public ServerApiImpl(CloudApiOptions options,
+                         QueryCache cache,
+                         ApiClient httpClient,
+                         Executor executor,
+                         NetworkCopy networkCopy) {
+        this(options, cache, createServersApi(options, httpClient), executor, networkCopy);
+    }
+
+    private ServerApiImpl(CloudApiOptions options,
+                          QueryCache cache,
+                          ServersApi serversApi,
+                          Executor executor,
+                          NetworkCopy networkCopy) {
         this.options = options;
         this.cache = cache;
         this.serversApi = serversApi;
         this.executor = executor;
+        this.networkCopy = networkCopy;
     }
 
     @Override
@@ -73,6 +91,18 @@ public class ServerApiImpl implements ServerApi {
         if (!Identifiers.isUuid(id)) {
             return CompletableFuture.completedFuture(Optional.empty());
         }
+        NetworkContents network = networkCopy.contents();
+        if (network == null) {
+            return findServerByIdOverHttp(id);
+        }
+        ModelsServerSummary server = network.serverById(id);
+        if (server == null) {
+            return CompletableFuture.completedFuture(Optional.empty());
+        }
+        return CompletableFuture.completedFuture(Optional.of(new ServerImpl(server)));
+    }
+
+    private CompletableFuture<Optional<Server>> findServerByIdOverHttp(String id) {
         QueryKey key = QueryKey.of("server", id);
 
         return cache.fetchWithTransientMissRecovery(
@@ -93,6 +123,21 @@ public class ServerApiImpl implements ServerApi {
 
     @Override
     public CompletableFuture<Optional<Server>> findServerByNumericalId(String groupName, int numericalId) {
+        NetworkContents network = networkCopy.contents();
+        if (network == null) {
+            return findServerByNumericalIdOverHttp(groupName, numericalId);
+        }
+        ServerQuery query = ServerQuery.create()
+                .filterByServerGroupName(groupName)
+                .filterByNumericalId(numericalId);
+        List<ModelsServerSummary> matching = network.servers(query);
+        if (matching.isEmpty()) {
+            return CompletableFuture.completedFuture(Optional.empty());
+        }
+        return CompletableFuture.completedFuture(Optional.of(new ServerImpl(matching.getFirst())));
+    }
+
+    private CompletableFuture<Optional<Server>> findServerByNumericalIdOverHttp(String groupName, int numericalId) {
         QueryKey key = QueryKey.of("server", "numerical", groupName, numericalId);
 
         return cache.fetchWithTransientMissRecovery(
@@ -106,6 +151,17 @@ public class ServerApiImpl implements ServerApi {
 
     @Override
     public CompletableFuture<List<Server>> getServersByGroup(String groupName) {
+        NetworkContents network = networkCopy.contents();
+        if (network == null) {
+            return getServersByGroupOverHttp(groupName);
+        }
+        ServerQuery query = ServerQuery.create()
+                .filterByServerGroupName(groupName);
+        List<ModelsServerSummary> matching = network.servers(query);
+        return CompletableFuture.completedFuture(toServers(matching));
+    }
+
+    private CompletableFuture<List<Server>> getServersByGroupOverHttp(String groupName) {
         QueryKey key = QueryKey.of("servers", "group", groupName);
 
         return cache.fetch(key, () -> CompletableFuture.supplyAsync(() -> {
@@ -130,6 +186,27 @@ public class ServerApiImpl implements ServerApi {
 
     @Override
     public CompletableFuture<List<Server>> getAllServers(@Nullable ServerQuery query) {
+        NetworkContents network = networkCopy.contents();
+        if (network == null) {
+            return getAllServersOverHttp(query);
+        }
+        try {
+            List<ModelsServerSummary> matching = network.servers(query);
+            return CompletableFuture.completedFuture(toServers(matching));
+        } catch (CloudApiException invalidQuery) {
+            return CompletableFuture.failedFuture(invalidQuery);
+        }
+    }
+
+    private static List<Server> toServers(List<ModelsServerSummary> summaries) {
+        List<Server> servers = new ArrayList<>(summaries.size());
+        for (ModelsServerSummary summary : summaries) {
+            servers.add(new ServerImpl(summary));
+        }
+        return servers;
+    }
+
+    private CompletableFuture<List<Server>> getAllServersOverHttp(@Nullable ServerQuery query) {
         QueryKey key = buildQueryKey(query);
 
         CompletableFuture<List<Server>> future;
@@ -380,7 +457,7 @@ public class ServerApiImpl implements ServerApi {
     public CompletableFuture<Void> stopServer(String id) {
         return CompletableFuture.runAsync(() -> {
             try {
-                serversApi.stopServer(
+                ApiResponse<ModelsStopServerResponse> httpResponse = serversApi.stopServerWithHttpInfo(
                         this.options.getNetworkId(),
                         id
                 );
@@ -389,6 +466,8 @@ public class ServerApiImpl implements ServerApi {
                 cache.invalidate(QueryKey.of("server", id));
                 cache.invalidateAll(QueryKey.of("servers"));
                 cache.invalidateAll(QueryKey.of("server", "numerical"));
+
+                networkCopy.waitForOwnWrite(httpResponse.getHeaders());
             } catch (ApiException e) {
                 throw ApiErrors.from(e);
             }
@@ -401,11 +480,12 @@ public class ServerApiImpl implements ServerApi {
             try {
                 ModelsPatchServerRequest patchRequest = getModelsPatchServerRequest(request);
 
-                ModelsPatchServerResponse response = serversApi.patchServer(
+                ApiResponse<ModelsPatchServerResponse> httpResponse = serversApi.patchServerWithHttpInfo(
                         this.options.getNetworkId(),
                         id,
                         patchRequest
                 );
+                ModelsPatchServerResponse response = httpResponse.getData();
 
                 if (response.getServer() == null) {
                     throw new CloudApiException(
@@ -421,6 +501,7 @@ public class ServerApiImpl implements ServerApi {
                 cache.invalidateAll(QueryKey.of("servers"));
                 cache.invalidateAll(QueryKey.of("server", "numerical"));
 
+                networkCopy.waitForOwnWrite(httpResponse.getHeaders());
                 return server;
             } catch (ApiException e) {
                 throw ApiErrors.from(e);
@@ -459,17 +540,19 @@ public class ServerApiImpl implements ServerApi {
                 ModelsPatchPropertiesRequest request = new ModelsPatchPropertiesRequest();
                 request.setProperties(properties);
 
-                ModelsPatchPropertiesResponse response = serversApi.patchServerProperties(
+                ApiResponse<ModelsPatchPropertiesResponse> httpResponse = serversApi.patchServerPropertiesWithHttpInfo(
                         this.options.getNetworkId(),
                         id,
                         request
                 );
+                ModelsPatchPropertiesResponse response = httpResponse.getData();
 
                 // Invalidate server cache (properties changed)
                 cache.invalidate(QueryKey.of("server", id));
                 cache.invalidateAll(QueryKey.of("servers"));
                 cache.invalidateAll(QueryKey.of("server", "numerical"));
 
+                networkCopy.waitForOwnWrite(httpResponse.getHeaders());
                 Map<String, Object> result = response.getProperties();
                 return result != null ? result : new HashMap<>();
             } catch (ApiException e) {
@@ -485,17 +568,19 @@ public class ServerApiImpl implements ServerApi {
                 ModelsDeletePropertiesRequest request = new ModelsDeletePropertiesRequest();
                 request.setKeys(keys);
 
-                ModelsDeletePropertiesResponse response = serversApi.deleteServerProperties(
+                ApiResponse<ModelsDeletePropertiesResponse> httpResponse = serversApi.deleteServerPropertiesWithHttpInfo(
                         this.options.getNetworkId(),
                         id,
                         request
                 );
+                ModelsDeletePropertiesResponse response = httpResponse.getData();
 
                 // Invalidate server cache (properties changed)
                 cache.invalidate(QueryKey.of("server", id));
                 cache.invalidateAll(QueryKey.of("servers"));
                 cache.invalidateAll(QueryKey.of("server", "numerical"));
 
+                networkCopy.waitForOwnWrite(httpResponse.getHeaders());
                 Map<String, Object> result = response.getProperties();
                 return result != null ? result : new HashMap<>();
             } catch (ApiException e) {

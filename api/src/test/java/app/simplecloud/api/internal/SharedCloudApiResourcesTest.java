@@ -21,6 +21,7 @@ import java.net.InetSocketAddress;
 import java.nio.charset.StandardCharsets;
 import java.time.Duration;
 import java.util.List;
+import java.util.UUID;
 import java.util.concurrent.ArrayBlockingQueue;
 import java.util.concurrent.BlockingQueue;
 import java.util.concurrent.CopyOnWriteArrayList;
@@ -180,6 +181,21 @@ class SharedCloudApiResourcesTest {
         try (CloudApiImpl next = (CloudApiImpl) CloudApi.create(options(UnaryOperator.identity()))) {
             assertNotSame(natsManager, natsConnectionManager(next));
         }
+    }
+
+    @Test
+    void theSharedRuntimeStartsItsNetworkCopyAndClosesItOnRelease() throws Exception {
+        CloudApiOptions uuidNetworkOptions = options(builder -> builder.networkId(UUID.randomUUID().toString()));
+        SharedRuntime runtime = SharedRuntime.acquire(uuidNetworkOptions);
+        NatsFailoverConnectionManager natsManager = runtime.natsConnectionManager();
+
+        // No CloudApi instance was created, so the only dispatcher is the network copy's.
+        int dispatchersWhileOpen = dispatcherCount(natsManager);
+        runtime.release();
+        int dispatchersAfterRelease = dispatcherCount(natsManager);
+
+        assertEquals(1, dispatchersWhileOpen);
+        assertEquals(0, dispatchersAfterRelease);
     }
 
     // Run the tests below against an isolated broker with NATS_TEST_URL=nats://127.0.0.1:4222.
