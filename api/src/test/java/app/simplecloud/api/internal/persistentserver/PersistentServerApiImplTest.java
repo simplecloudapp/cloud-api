@@ -8,6 +8,7 @@ import app.simplecloud.api.persistentserver.CreatePersistentServerRequest;
 import app.simplecloud.api.persistentserver.PersistentServer;
 import app.simplecloud.api.persistentserver.UpdatePersistentServerRequest;
 import app.simplecloud.api.web.ApiException;
+import app.simplecloud.api.web.ApiResponse;
 import app.simplecloud.api.web.apis.BlueprintsApi;
 import app.simplecloud.api.web.apis.PersistentServersApi;
 import app.simplecloud.api.web.models.ModelsCreateBlueprintRequest;
@@ -349,17 +350,20 @@ class PersistentServerApiImplTest {
             this.order = order;
         }
 
+        // Writes read the response headers, so this fake overrides the forms that return them.
         @Override
-        public app.simplecloud.api.web.models.ModelsDeletePersistentServerResponse deletePersistentServer(String xNetworkID,
-                                                                                                               String persistentServerId) {
+        public ApiResponse<app.simplecloud.api.web.models.ModelsDeletePersistentServerResponse> deletePersistentServerWithHttpInfo(
+                String xNetworkID,
+                String persistentServerId) {
             deleteCalls++;
             deleteOrder = order.incrementAndGet();
-            return new app.simplecloud.api.web.models.ModelsDeletePersistentServerResponse();
+            return new ApiResponse<>(200, Map.of(), new app.simplecloud.api.web.models.ModelsDeletePersistentServerResponse());
         }
 
         @Override
-        public ModelsCreatePersistentServerResponse createPersistentServer(String xNetworkID,
-                                                                            ModelsCreatePersistentServerRequest request) throws ApiException {
+        public ApiResponse<ModelsCreatePersistentServerResponse> createPersistentServerWithHttpInfo(
+                String xNetworkID,
+                ModelsCreatePersistentServerRequest request) throws ApiException {
             postCalls++;
             postOrder = order.incrementAndGet();
             lastCreateRequest = request;
@@ -384,16 +388,17 @@ class PersistentServerApiImplTest {
             response.setTags(lastCreateRequest.getTags());
             response.setCreatedAt("2026-04-22T00:00:00Z");
             response.setUpdatedAt("2026-04-22T00:00:00Z");
-            return response;
+            return new ApiResponse<>(200, Map.of(), response);
         }
 
         @Override
-        public ModelsUpdatePersistentServerResponse patchPersistentServer(String xNetworkID,
-                                                                              String persistentServerId,
-                                                                              ModelsPatchPersistentServerRequest request) {
+        public ApiResponse<ModelsUpdatePersistentServerResponse> patchPersistentServerWithHttpInfo(
+                String xNetworkID,
+                String persistentServerId,
+                ModelsPatchPersistentServerRequest request) {
             patchCalls++;
             lastPatchRequest = request;
-            return new ModelsUpdatePersistentServerResponse();
+            return new ApiResponse<>(200, Map.of(), new ModelsUpdatePersistentServerResponse());
         }
 
         @Override

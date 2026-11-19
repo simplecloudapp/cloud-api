@@ -1,5 +1,6 @@
 package app.simplecloud.api.internal.persistentserver;
 
+import app.simplecloud.api.CloudApiException;
 import app.simplecloud.api.CloudApiOptions;
 import app.simplecloud.api.blueprint.CreateBlueprintRequest;
 import app.simplecloud.api.cache.QueryCache;
@@ -9,18 +10,22 @@ import app.simplecloud.api.group.SourceConfig;
 import app.simplecloud.api.group.WorkflowsConfig;
 import app.simplecloud.api.internal.blueprint.InlineBlueprintSupport;
 import app.simplecloud.api.internal.create.CreateRequestDefaults;
+import app.simplecloud.api.internal.networkcopy.NetworkContents;
+import app.simplecloud.api.internal.networkcopy.NetworkCopy;
 import app.simplecloud.api.internal.web.ApiClients;
 import app.simplecloud.api.internal.web.ApiErrors;
 import app.simplecloud.api.internal.web.Identifiers;
 import app.simplecloud.api.persistentserver.*;
 import app.simplecloud.api.web.ApiException;
 import app.simplecloud.api.web.ApiClient;
+import app.simplecloud.api.web.ApiResponse;
 import app.simplecloud.api.web.apis.BlueprintsApi;
 import app.simplecloud.api.web.apis.PersistentServersApi;
 import app.simplecloud.api.web.models.*;
 import org.jetbrains.annotations.Nullable;
 
 import java.time.Duration;
+import java.util.ArrayList;
 import java.util.HashMap;
 import java.util.List;
 import java.util.Map;
@@ -40,6 +45,7 @@ public class PersistentServerApiImpl implements PersistentServerApi {
     private final CreateRequestDefaults createRequestDefaults;
     private final QueryCache cache;
     private final Executor executor;
+    private final NetworkCopy networkCopy;
 
     public PersistentServerApiImpl(CloudApiOptions options, QueryCache cache) {
         this(options, cache, ApiClients.create(options));
@@ -50,12 +56,21 @@ public class PersistentServerApiImpl implements PersistentServerApi {
     }
 
     public PersistentServerApiImpl(CloudApiOptions options, QueryCache cache, ApiClient httpClient, Executor executor) {
+        this(options, cache, httpClient, executor, NetworkCopy.absent());
+    }
+
+    public PersistentServerApiImpl(CloudApiOptions options,
+                                   QueryCache cache,
+                                   ApiClient httpClient,
+                                   Executor executor,
+                                   NetworkCopy networkCopy) {
         this(
                 options,
                 cache,
                 createPersistentServersApi(options, httpClient),
                 new InlineBlueprintSupport(options, createBlueprintsApi(options, httpClient)),
-                executor
+                executor,
+                networkCopy
         );
     }
 
@@ -63,7 +78,14 @@ public class PersistentServerApiImpl implements PersistentServerApi {
                             QueryCache cache,
                             PersistentServersApi persistentServersApi,
                             BlueprintsApi blueprintsApi) {
-        this(options, cache, persistentServersApi, new InlineBlueprintSupport(options, blueprintsApi), ForkJoinPool.commonPool());
+        this(
+                options,
+                cache,
+                persistentServersApi,
+                new InlineBlueprintSupport(options, blueprintsApi),
+                ForkJoinPool.commonPool(),
+                NetworkCopy.absent()
+        );
     }
 
     PersistentServerApiImpl(CloudApiOptions options,
@@ -76,7 +98,8 @@ public class PersistentServerApiImpl implements PersistentServerApi {
                 cache,
                 persistentServersApi,
                 new InlineBlueprintSupport(options, blueprintsApi, serverUrlResolver),
-                ForkJoinPool.commonPool()
+                ForkJoinPool.commonPool(),
+                NetworkCopy.absent()
         );
     }
 
@@ -84,13 +107,15 @@ public class PersistentServerApiImpl implements PersistentServerApi {
                                     QueryCache cache,
                                     PersistentServersApi persistentServersApi,
                                     InlineBlueprintSupport inlineBlueprintSupport,
-                                    Executor executor) {
+                                    Executor executor,
+                                    NetworkCopy networkCopy) {
         this.options = options;
         this.cache = cache;
         this.persistentServersApi = persistentServersApi;
         this.inlineBlueprintSupport = inlineBlueprintSupport;
         this.createRequestDefaults = new CreateRequestDefaults();
         this.executor = executor;
+        this.networkCopy = networkCopy;
     }
 
     @Override
@@ -105,6 +130,18 @@ public class PersistentServerApiImpl implements PersistentServerApi {
         if (!Identifiers.isUuid(id)) {
             return CompletableFuture.completedFuture(Optional.empty());
         }
+        NetworkContents network = networkCopy.contents();
+        if (network == null) {
+            return findPersistentServerByIdOverHttp(id);
+        }
+        ModelsPersistentServerSummary persistentServer = network.persistentServerById(id);
+        if (persistentServer == null) {
+            return CompletableFuture.completedFuture(Optional.empty());
+        }
+        return CompletableFuture.completedFuture(Optional.of(new PersistentServerImpl(persistentServer)));
+    }
+
+    private CompletableFuture<Optional<PersistentServer>> findPersistentServerByIdOverHttp(String id) {
         QueryKey key = QueryKey.of("persistentServer", id);
 
         return cache.fetchWithTransientMissRecovery(
@@ -125,6 +162,18 @@ public class PersistentServerApiImpl implements PersistentServerApi {
 
     @Override
     public CompletableFuture<Optional<PersistentServer>> findPersistentServerByName(String name) {
+        NetworkContents network = networkCopy.contents();
+        if (network == null) {
+            return findPersistentServerByNameOverHttp(name);
+        }
+        ModelsPersistentServerSummary persistentServer = network.persistentServerByName(name);
+        if (persistentServer == null) {
+            return CompletableFuture.completedFuture(Optional.empty());
+        }
+        return CompletableFuture.completedFuture(Optional.of(new PersistentServerImpl(persistentServer)));
+    }
+
+    private CompletableFuture<Optional<PersistentServer>> findPersistentServerByNameOverHttp(String name) {
         QueryKey key = QueryKey.of("persistentServer", "name", name);
 
         return cache.fetchWithTransientMissRecovery(
@@ -138,6 +187,27 @@ public class PersistentServerApiImpl implements PersistentServerApi {
 
     @Override
     public CompletableFuture<List<PersistentServer>> getAllPersistentServers(@Nullable PersistentServerQuery query) {
+        NetworkContents network = networkCopy.contents();
+        if (network == null) {
+            return getAllPersistentServersOverHttp(query);
+        }
+        try {
+            List<ModelsPersistentServerSummary> matching = network.persistentServers(query);
+            return CompletableFuture.completedFuture(toPersistentServers(matching));
+        } catch (CloudApiException invalidQuery) {
+            return CompletableFuture.failedFuture(invalidQuery);
+        }
+    }
+
+    private static List<PersistentServer> toPersistentServers(List<ModelsPersistentServerSummary> summaries) {
+        List<PersistentServer> persistentServers = new ArrayList<>(summaries.size());
+        for (ModelsPersistentServerSummary summary : summaries) {
+            persistentServers.add(new PersistentServerImpl(summary));
+        }
+        return persistentServers;
+    }
+
+    private CompletableFuture<List<PersistentServer>> getAllPersistentServersOverHttp(@Nullable PersistentServerQuery query) {
         QueryKey key = buildQueryKey(query);
 
         return cache.fetch(key, () -> CompletableFuture.supplyAsync(() -> {
@@ -288,9 +358,9 @@ public class PersistentServerApiImpl implements PersistentServerApi {
                     apiRequest.setSource(convertSourceConfig(effectiveSource));
                 }
 
-                ModelsCreatePersistentServerResponse response;
+                ApiResponse<ModelsCreatePersistentServerResponse> httpResponse;
                 try {
-                    response = persistentServersApi.createPersistentServer(
+                    httpResponse = persistentServersApi.createPersistentServerWithHttpInfo(
                             options.getNetworkId(),
                             apiRequest
                     );
@@ -303,11 +373,13 @@ public class PersistentServerApiImpl implements PersistentServerApi {
                             () -> persistentServerExistsWithBlueprint(request.getName(), blueprintId)
                     );
                 }
+                ModelsCreatePersistentServerResponse response = httpResponse.getData();
 
                 // Invalidate list caches (new persistent server created)
                 cache.invalidateAll(QueryKey.of("persistentServers"));
                 cache.invalidateAll(QueryKey.of("persistentServer", "name"));
 
+                networkCopy.waitForOwnWrite(httpResponse.getHeaders());
                 return new PersistentServerImpl(toSummary(response));
             } catch (ApiException e) {
                 throw ApiErrors.from(e);
@@ -340,7 +412,7 @@ public class PersistentServerApiImpl implements PersistentServerApi {
                     apiRequest.setWorkflows(convertWorkflowsConfig(request.getWorkflows()));
                 }
 
-                persistentServersApi.patchPersistentServer(
+                ApiResponse<ModelsUpdatePersistentServerResponse> httpResponse = persistentServersApi.patchPersistentServerWithHttpInfo(
                         options.getNetworkId(),
                         id,
                         apiRequest
@@ -351,6 +423,7 @@ public class PersistentServerApiImpl implements PersistentServerApi {
                 cache.invalidateAll(QueryKey.of("persistentServers"));
                 cache.invalidateAll(QueryKey.of("persistentServer", "name"));
 
+                networkCopy.waitForOwnWrite(httpResponse.getHeaders());
                 // Re-fetch to get the updated object
                 return getPersistentServerById(id).join();
             } catch (ApiException e) {
@@ -365,7 +438,7 @@ public class PersistentServerApiImpl implements PersistentServerApi {
             try {
                 String blueprintId = findAttachedBlueprintId(id);
 
-                persistentServersApi.deletePersistentServer(
+                ApiResponse<ModelsDeletePersistentServerResponse> httpResponse = persistentServersApi.deletePersistentServerWithHttpInfo(
                         options.getNetworkId(),
                         id
                 );
@@ -376,6 +449,7 @@ public class PersistentServerApiImpl implements PersistentServerApi {
                 cache.invalidateAll(QueryKey.of("persistentServer", "name"));
 
                 inlineBlueprintSupport.deleteBlueprint(blueprintId);
+                networkCopy.waitForOwnWrite(httpResponse.getHeaders());
             } catch (ApiException e) {
                 throw ApiErrors.from(e);
             }
@@ -389,17 +463,19 @@ public class PersistentServerApiImpl implements PersistentServerApi {
                 ModelsPatchPropertiesRequest request = new ModelsPatchPropertiesRequest();
                 request.setProperties(properties);
 
-                ModelsPatchPropertiesResponse response = persistentServersApi.patchPersistentServerProperties(
+                ApiResponse<ModelsPatchPropertiesResponse> httpResponse = persistentServersApi.patchPersistentServerPropertiesWithHttpInfo(
                         options.getNetworkId(),
                         id,
                         request
                 );
+                ModelsPatchPropertiesResponse response = httpResponse.getData();
 
                 // Invalidate persistent server cache (properties changed)
                 cache.invalidate(QueryKey.of("persistentServer", id));
                 cache.invalidateAll(QueryKey.of("persistentServers"));
                 cache.invalidateAll(QueryKey.of("persistentServer", "name"));
 
+                networkCopy.waitForOwnWrite(httpResponse.getHeaders());
                 Map<String, Object> result = response.getProperties();
                 return result != null ? result : new HashMap<>();
             } catch (ApiException e) {
@@ -415,17 +491,19 @@ public class PersistentServerApiImpl implements PersistentServerApi {
                 ModelsDeletePropertiesRequest request = new ModelsDeletePropertiesRequest();
                 request.setKeys(keys);
 
-                ModelsDeletePropertiesResponse response = persistentServersApi.deletePersistentServerProperties(
+                ApiResponse<ModelsDeletePropertiesResponse> httpResponse = persistentServersApi.deletePersistentServerPropertiesWithHttpInfo(
                         options.getNetworkId(),
                         id,
                         request
                 );
+                ModelsDeletePropertiesResponse response = httpResponse.getData();
 
                 // Invalidate persistent server cache (properties changed)
                 cache.invalidate(QueryKey.of("persistentServer", id));
                 cache.invalidateAll(QueryKey.of("persistentServers"));
                 cache.invalidateAll(QueryKey.of("persistentServer", "name"));
 
+                networkCopy.waitForOwnWrite(httpResponse.getHeaders());
                 Map<String, Object> result = response.getProperties();
                 return result != null ? result : new HashMap<>();
             } catch (ApiException e) {
