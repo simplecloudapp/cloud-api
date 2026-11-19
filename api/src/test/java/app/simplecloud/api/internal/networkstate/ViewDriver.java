@@ -16,8 +16,9 @@ import static org.junit.jupiter.api.Assertions.fail;
  * over and remembers the effects of the last step.
  *
  * <p>Its set-up steps ({@link #liveAt}, {@link #waitForLoad}, {@link #waitForLoadKeepingLive},
- * {@link #requireLoadRequested}) throw {@link SetUpFailed} when the view does not get where they bring it.
- * Its other methods that fail throw an {@link AssertionError}, because they check a rule.
+ * {@link #requireLoadRequested}) throw {@link SetUpFailed} when the view does not get where they bring it, and
+ * so does {@link #loadWithinKeepingLive} when the view holds no copy to pulse at. Its other methods that fail
+ * throw an {@link AssertionError}, because they check a rule.
  */
 final class ViewDriver {
 
@@ -169,7 +170,7 @@ final class ViewDriver {
                 return OptionalLong.of(now);
             }
             if (now >= nextPulseAt) {
-                sendPulseAtCopy();
+                sendPulseAtCopyToKeepLive();
                 nextPulseAt += ModelOwner.PULSE_INTERVAL_MILLIS;
             }
             if (requestedLoad()) {
@@ -216,6 +217,15 @@ final class ViewDriver {
     void sendPulseAtCopy() {
         NetworkCopy current = copy();
         pulse(StateItems.pulse(current.epoch(), current.revision()));
+    }
+
+    private void sendPulseAtCopyToKeepLive() {
+        Optional<NetworkCopy> current = copyIfAny();
+        if (current.isEmpty()) {
+            throw new SetUpFailed("the view holds no copy to keep live at " + now + " ms");
+        }
+        NetworkCopy copy = current.get();
+        pulse(StateItems.pulse(copy.epoch(), copy.revision()));
     }
 
     boolean requestedLoad() {
