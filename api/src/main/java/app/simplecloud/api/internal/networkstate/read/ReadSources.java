@@ -11,7 +11,6 @@ import java.util.concurrent.CompletionException;
 import java.util.concurrent.Executor;
 import java.util.concurrent.TimeUnit;
 import java.util.concurrent.atomic.AtomicLong;
-import java.util.function.Function;
 import java.util.function.LongSupplier;
 import java.util.logging.Level;
 import java.util.logging.Logger;
@@ -131,9 +130,11 @@ public final class ReadSources<S> {
 
     private <T> CompletableFuture<Answer<T>> lookUpAfterMissDelay(Read<S, T> read, int retriesLeft) {
         Executor afterMissDelay = CompletableFuture.delayedExecutor(MISS_RETRY_DELAY_MILLIS, TimeUnit.MILLISECONDS);
-        CompletableFuture<CompletableFuture<Answer<T>>> askedLater = CompletableFuture.supplyAsync(
-                () -> lookUpWithRetries(read, retriesLeft), afterMissDelay);
-        return askedLater.thenCompose(Function.identity());
+        CompletableFuture<Void> missDelay = CompletableFuture.runAsync(ReadSources::waitOnly, afterMissDelay);
+        return missDelay.thenCompose(delayEnded -> lookUpWithRetries(read, retriesLeft));
+    }
+
+    private static void waitOnly() {
     }
 
     private static boolean holdsNothing(@Nullable Object answer) {
