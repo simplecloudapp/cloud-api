@@ -10,6 +10,7 @@ import java.lang.reflect.Proxy;
 import java.time.Duration;
 import java.util.List;
 import java.util.Map;
+import java.util.Set;
 import java.util.concurrent.ConcurrentHashMap;
 import java.util.concurrent.CopyOnWriteArrayList;
 
@@ -68,6 +69,10 @@ public final class FakeNatsConnection {
 
     public List<Message> published() {
         return published;
+    }
+
+    public Set<String> subscribedSubjects() {
+        return Set.copyOf(subscriptions.keySet());
     }
 
     private Object handleConnectionCall(String methodName, Object[] args) throws Exception {

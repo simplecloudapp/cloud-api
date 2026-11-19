@@ -1,10 +1,12 @@
 package app.simplecloud.api.internal.networkcopy;
 
 import app.simplecloud.api.web.JSON;
+import app.simplecloud.api.web.models.ModelsBlueprintInfo;
 import app.simplecloud.api.web.models.ModelsListPersistentServersResponse;
 import app.simplecloud.api.web.models.ModelsListServerGroupsResponse;
 import app.simplecloud.api.web.models.ModelsListServersResponse;
 import app.simplecloud.api.web.models.ModelsPersistentServerSummary;
+import app.simplecloud.api.web.models.ModelsServerGroupInfo;
 import app.simplecloud.api.web.models.ModelsServerGroupSummary;
 import app.simplecloud.api.web.models.ModelsServerSummary;
 import build.buf.gen.simplecloud.controller.v2.NetworkState;
@@ -57,12 +59,35 @@ class NetworkItemsTest {
         assertEquals(expectedPersistentServers.getPersistentServers(), contents.persistentServers(null));
     }
 
-    // These fixtures hold groups with an empty scaling mode, which the generated group class refuses.
     @ParameterizedTest
     @ValueSource(strings = {"blueprint-sources", "nulls-and-images", "properties", "several-groups", "timestamps"})
-    void snapshotAndControllerGroupListAreBothRefused(String fixtureCase) throws IOException {
-        NetworkState snapshot = NetworkState.parseFrom(fixture(fixtureCase, "network-state.pb"));
-        String groupList = fixtureText(fixtureCase, "server-groups.json");
+    void snapshotListsEqualTheControllerListsWithoutTheExpectedDifferences(String fixtureCase) throws IOException {
+        NetworkState recordedSnapshot = NetworkState.parseFrom(fixture(fixtureCase, "network-state.pb"));
+        NetworkState snapshot = withSlotsScalingMode(recordedSnapshot);
+        String serverList = fixtureText(fixtureCase, "servers.json");
+        String groupList = withSlotsScalingMode(fixtureText(fixtureCase, "server-groups.json"));
+        String persistentServerList = fixtureText(fixtureCase, "persistent-servers.json");
+        ModelsListServersResponse recordedServers = JSON.deserialize(serverList, ModelsListServersResponse.class);
+        ModelsListServerGroupsResponse recordedGroups = JSON.deserialize(groupList, ModelsListServerGroupsResponse.class);
+        ModelsListPersistentServersResponse recordedPersistentServers =
+                JSON.deserialize(persistentServerList, ModelsListPersistentServersResponse.class);
+        List<ModelsServerSummary> expectedServers = recordedServers.getServers();
+        List<ModelsServerGroupSummary> expectedGroups = recordedGroups.getServerGroups();
+        List<ModelsPersistentServerSummary> expectedPersistentServers = recordedPersistentServers.getPersistentServers();
+        keepOnlyBlueprintIds(expectedServers);
+        removeGroupStatistics(expectedGroups);
+
+        NetworkContents contents = NetworkItems.fromSnapshot(snapshot, NETWORK_ID).toContents();
+
+        assertEquals(expectedServers, contents.servers(null));
+        assertEquals(expectedGroups, contents.groups(null));
+        assertEquals(expectedPersistentServers, contents.persistentServers(null));
+    }
+
+    @Test
+    void emptyScalingModeIsRefusedOnBothSides() throws IOException {
+        NetworkState snapshot = NetworkState.parseFrom(fixture("several-groups", "network-state.pb"));
+        String groupList = fixtureText("several-groups", "server-groups.json");
 
         assertThrows(RuntimeException.class, () -> JSON.deserialize(groupList, ModelsListServerGroupsResponse.class));
         assertThrows(RuntimeException.class, () -> NetworkItems.fromSnapshot(snapshot, NETWORK_ID));
@@ -286,6 +311,40 @@ class NetworkItemsTest {
                 .setServerId(serverId)
                 .setPlayerCount(playerCount)
                 .build();
+    }
+
+    // The copy has no group statistics: the public Group has no method that reads them.
+    private static void removeGroupStatistics(List<ModelsServerGroupSummary> groups) {
+        for (ModelsServerGroupSummary group : groups) {
+            group.setStats(null);
+        }
+    }
+
+    // The copy knows a group's blueprint only by its id: the public API reads nothing else of it.
+    private static void keepOnlyBlueprintIds(List<ModelsServerSummary> servers) {
+        for (ModelsServerSummary server : servers) {
+            ModelsServerGroupInfo group = server.getServerGroup();
+            boolean showsBlueprint = group != null && group.getSource() != null && group.getSource().getBlueprint() != null;
+            if (showsBlueprint) {
+                String blueprintId = group.getSource().getBlueprint().getId();
+                group.getSource().setBlueprint(new ModelsBlueprintInfo().id(blueprintId));
+            }
+        }
+    }
+
+    // The controller's test groups have an empty scaling mode, which the generated group class refuses.
+    private static String withSlotsScalingMode(String groupJson) {
+        return groupJson.replace("\"scaling_mode\":\"\"", "\"scaling_mode\":\"SLOTS\"");
+    }
+
+    private static NetworkState withSlotsScalingMode(NetworkState snapshot) {
+        NetworkState.Builder changed = snapshot.toBuilder().clearServerGroups();
+        for (StateServerGroup group : snapshot.getServerGroupsList()) {
+            String summaryJson = withSlotsScalingMode(group.getSummaryJson().toStringUtf8());
+            StateServerGroup changedGroup = group.toBuilder().setSummaryJson(ByteString.copyFromUtf8(summaryJson)).build();
+            changed.addServerGroups(changedGroup);
+        }
+        return changed.build();
     }
 
     private static List<String> serverIds(NetworkContents contents) {

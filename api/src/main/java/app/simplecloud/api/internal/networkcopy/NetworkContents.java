@@ -91,7 +91,7 @@ public final class NetworkContents {
             }
         }
         sortAsAsked(matching, query);
-        return matching;
+        return List.copyOf(matching);
     }
 
     public @Nullable ModelsServerGroupSummary groupById(String id) {
@@ -126,7 +126,8 @@ public final class NetworkContents {
             }
         }
         int keptCount = countUpToLimit(matching.size(), query.getLimit());
-        return matching.subList(0, keptCount);
+        List<ModelsServerGroupSummary> kept = matching.subList(0, keptCount);
+        return List.copyOf(kept);
     }
 
     public @Nullable ModelsPersistentServerSummary persistentServerById(String id) {
@@ -161,7 +162,8 @@ public final class NetworkContents {
             }
         }
         int keptCount = countUpToLimit(matching.size(), query.getLimit());
-        return matching.subList(0, keptCount);
+        List<ModelsPersistentServerSummary> kept = matching.subList(0, keptCount);
+        return List.copyOf(kept);
     }
 
     // A name, type or tag filter matches the group or the persistent server the server was started from.
@@ -213,13 +215,13 @@ public final class NetworkContents {
         servers.sort(asked);
     }
 
-    // Only the four sort fields reach this switch, so the last case is "state".
     private static int compareByField(String field, ModelsServerSummary first, ModelsServerSummary second) {
         return switch (field) {
             case "created_at" -> compareTimes(first.getCreatedAt(), second.getCreatedAt());
             case "updated_at" -> compareTimes(first.getUpdatedAt(), second.getUpdatedAt());
             case "numerical_id" -> Integer.compare(first.getNumericalId(), second.getNumericalId());
-            default -> stateName(first).compareTo(stateName(second));
+            case "state" -> stateName(first).compareTo(stateName(second));
+            default -> throw new IllegalStateException("unchecked sort field " + field);
         };
     }
 

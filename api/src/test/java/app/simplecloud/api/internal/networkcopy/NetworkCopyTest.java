@@ -28,12 +28,13 @@ import java.time.ZoneId;
 import java.time.ZoneOffset;
 import java.util.List;
 import java.util.Map;
+import java.util.Set;
 import java.util.UUID;
 
 import static org.junit.jupiter.api.Assertions.assertEquals;
 import static org.junit.jupiter.api.Assertions.assertNotNull;
 import static org.junit.jupiter.api.Assertions.assertNull;
-import static org.junit.jupiter.api.Assertions.assertThrows;
+import static org.junit.jupiter.api.Assertions.assertTimeout;
 
 class NetworkCopyTest {
 
@@ -229,8 +230,7 @@ class NetworkCopyTest {
 
         copyOfOtherId.start(nats.connection());
 
-        NatsMessage message = NatsMessage.builder().subject("lobby-network.state.v1.pulse").data(new byte[0]).build();
-        assertThrows(AssertionError.class, () -> nats.deliver("lobby-network.state.v1.pulse", message));
+        assertEquals(Set.of(), nats.subscribedSubjects());
     }
 
     @Test
@@ -258,6 +258,24 @@ class NetworkCopyTest {
         copy.waitForOwnWrite(headers);
 
         assertEquals(6, copy.contents().revision());
+    }
+
+    @Test
+    void ownWriteWithoutRevisionHeadersDoesNotWait() {
+        copy.onPulse(pulse(1, 5));
+        Map<String, List<String>> noHeaders = Map.of();
+
+        assertTimeout(Duration.ofSeconds(1), () -> copy.waitForOwnWrite(noHeaders));
+    }
+
+    @Test
+    void ownWriteDoesNotWaitWhileReadsGoToTheController() {
+        Map<String, List<String>> headers = Map.of(
+                "x-sc-state-epoch", List.of("1"),
+                "x-sc-state-revision", List.of("6")
+        );
+
+        assertTimeout(Duration.ofSeconds(1), () -> copy.waitForOwnWrite(headers));
     }
 
     @Test

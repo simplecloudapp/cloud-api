@@ -209,17 +209,19 @@ public final class NetworkCopy {
         if (items == null) {
             return true;
         }
-        if (items.epoch() != pulse.getEpoch()) {
+        boolean otherEpoch = items.epoch() != pulse.getEpoch();
+        if (otherEpoch) {
+            return true;
+        }
+        int pulseComparedToCopy = Long.compareUnsigned(pulse.getRevision(), items.revision());
+        boolean pulseIsAheadOfCopy = pulseComparedToCopy > 0;
+        if (pulseIsAheadOfCopy) {
             return true;
         }
         // A fresh load limits how long an item the relay missed can stay wrong.
         long millisSinceLoad = clock.millis() - lastLoadMillis;
         boolean lastLoadIsOld = millisSinceLoad >= FRESH_LOAD_INTERVAL.toMillis();
-        if (lastLoadIsOld) {
-            return true;
-        }
-        int pulseComparedToCopy = Long.compareUnsigned(pulse.getRevision(), items.revision());
-        return pulseComparedToCopy > 0;
+        return lastLoadIsOld;
     }
 
     private void forgetCopy(String reason) {

@@ -153,6 +153,23 @@ class NetworkContentsTest {
     }
 
     @Test
+    void listsCannotBeChangedWithOrWithoutAQuery() {
+        List<ModelsServerSummary> allServers = CONTENTS.servers(null);
+        List<ModelsServerSummary> queriedServers = CONTENTS.servers(ServerQuery.create());
+        List<ModelsServerGroupSummary> allGroups = CONTENTS.groups(null);
+        List<ModelsServerGroupSummary> queriedGroups = CONTENTS.groups(GroupQuery.create());
+        List<ModelsPersistentServerSummary> allPersistentServers = CONTENTS.persistentServers(null);
+        List<ModelsPersistentServerSummary> queriedPersistentServers = CONTENTS.persistentServers(PersistentServerQuery.create());
+
+        assertThrows(UnsupportedOperationException.class, allServers::clear);
+        assertThrows(UnsupportedOperationException.class, queriedServers::clear);
+        assertThrows(UnsupportedOperationException.class, allGroups::clear);
+        assertThrows(UnsupportedOperationException.class, queriedGroups::clear);
+        assertThrows(UnsupportedOperationException.class, allPersistentServers::clear);
+        assertThrows(UnsupportedOperationException.class, queriedPersistentServers::clear);
+    }
+
+    @Test
     void serverByIdMatchesOnlyTheExactIdText() {
         String id = IDS_BY_KEY.get("s1");
         String upperCaseId = id.toUpperCase();
