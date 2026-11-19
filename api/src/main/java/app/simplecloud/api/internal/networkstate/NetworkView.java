@@ -119,7 +119,10 @@ import java.util.Optional;
  * never takes, therefore costs reads at most 3 s after the write, once.
  * <p>A read waits because the controller's list cache can answer it from before the write for up to 2 s, while the
  * copy gets the write with its batch. The 3 s count from the write and not from the read, so that a write the copy
- * never reaches does not slow down every later read.
+ * never reaches does not slow down every later read. Every own write holds every read, whatever the write and
+ * the read are about: a server write changes the server, group and persistent server lists anyway, and a rule per
+ * kind would miss a read whenever a route writes another kind than its path names, such as
+ * {@code /v0/server-groups/convert-to-persistent}.
  * <p>In a synced view, a {@link ViewInput.WriteReturned} whose epoch differs from the copy's means reload (rule 6):
  * the history was cut. In any other phase it only replaces the kept write.
  */
