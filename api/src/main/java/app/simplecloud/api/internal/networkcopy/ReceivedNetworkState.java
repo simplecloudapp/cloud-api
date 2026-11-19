@@ -140,29 +140,29 @@ final class ReceivedNetworkState {
      * Builds the three lists from this state, in the controller's default order.
      */
     NetworkContents toContents() {
-        List<ModelsServerSummary> serverList = new ArrayList<>(serversById.size());
-        for (ServerItem server : serversById.values()) {
-            serverList.add(serverSummary(server));
+        List<ModelsServerSummary> serverSummaries = new ArrayList<>(serversById.size());
+        for (ServerItem serverItem : serversById.values()) {
+            serverSummaries.add(serverSummary(serverItem));
         }
-        serverList.sort(ReceivedNetworkState::compareServers);
+        serverSummaries.sort(ReceivedNetworkState::compareServers);
 
         List<GroupItem> groupItems = new ArrayList<>(groupsById.values());
         groupItems.sort(ReceivedNetworkState::compareGroups);
-        List<ModelsServerGroupSummary> groupList = new ArrayList<>(groupItems.size());
-        for (GroupItem group : groupItems) {
-            groupList.add(group.summary());
+        List<ModelsServerGroupSummary> groupSummaries = new ArrayList<>(groupItems.size());
+        for (GroupItem groupItem : groupItems) {
+            groupSummaries.add(groupItem.summary());
         }
 
-        Map<String, Integer> playerCounts = playerCountsByPersistentServerId(serverList);
+        Map<String, Integer> playerCounts = playerCountsByPersistentServerId(serverSummaries);
         List<PersistentServerItem> persistentServerItems = new ArrayList<>(persistentServersById.values());
         persistentServerItems.sort(ReceivedNetworkState::comparePersistentServers);
-        List<ModelsPersistentServerSummary> persistentServerList = new ArrayList<>(persistentServerItems.size());
-        for (PersistentServerItem persistentServer : persistentServerItems) {
-            int playerCount = playerCounts.getOrDefault(persistentServer.summary().getPersistentServerId(), 0);
-            persistentServerList.add(persistentServerSummary(persistentServer, playerCount));
+        List<ModelsPersistentServerSummary> persistentServerSummaries = new ArrayList<>(persistentServerItems.size());
+        for (PersistentServerItem persistentServerItem : persistentServerItems) {
+            int playerCount = playerCounts.getOrDefault(persistentServerItem.summary().getPersistentServerId(), 0);
+            persistentServerSummaries.add(persistentServerSummary(persistentServerItem, playerCount));
         }
 
-        return new NetworkContents(epoch, revision, serverList, groupList, persistentServerList);
+        return new NetworkContents(epoch, revision, serverSummaries, groupSummaries, persistentServerSummaries);
     }
 
     private void putServer(StateServer server) {
@@ -195,8 +195,8 @@ final class ReceivedNetworkState {
         persistentServersById.put(uuidText(persistentServer.getId()), new PersistentServerItem(summary, info, createdAt));
     }
 
-    private ModelsServerSummary serverSummary(ServerItem item) {
-        StateServer stateServer = item.stateServer();
+    private ModelsServerSummary serverSummary(ServerItem serverItem) {
+        StateServer stateServer = serverItem.stateServer();
         String id = uuidText(stateServer.getId());
         ModelsServerSummary summary = new ModelsServerSummary();
         summary.setServerId(id);
@@ -204,17 +204,17 @@ final class ReceivedNetworkState {
         if (stateServer.hasServerGroupId()) {
             String groupId = uuidText(stateServer.getServerGroupId());
             summary.setServerGroupId(groupId);
-            GroupItem group = groupsById.get(groupId);
-            if (group != null) {
-                summary.setServerGroup(group.infoInsideServers());
+            GroupItem groupItem = groupsById.get(groupId);
+            if (groupItem != null) {
+                summary.setServerGroup(groupItem.infoInsideServers());
             }
         }
         if (stateServer.hasPersistentServerId()) {
             String persistentServerId = uuidText(stateServer.getPersistentServerId());
             summary.setPersistentServerId(persistentServerId);
-            PersistentServerItem persistentServer = persistentServersById.get(persistentServerId);
-            if (persistentServer != null) {
-                summary.setPersistentServer(persistentServer.infoInsideServers());
+            PersistentServerItem persistentServerItem = persistentServersById.get(persistentServerId);
+            if (persistentServerItem != null) {
+                summary.setPersistentServer(persistentServerItem.infoInsideServers());
             }
         }
         if (stateServer.hasServerhostId()) {
@@ -231,7 +231,7 @@ final class ReceivedNetworkState {
         summary.setMaxMemory(Math.toIntExact(stateServer.getMaxMemory()));
         summary.setMaxPlayers(Math.toIntExact(stateServer.getMaxPlayers()));
         summary.setState(ModelsServerSummary.StateEnum.fromValue(stateServer.getState()));
-        summary.setProperties(item.properties());
+        summary.setProperties(serverItem.properties());
         Instant createdAt = instantOfMicros(stateServer.getCreatedAtMicros());
         summary.setCreatedAt(formatTimestamp(createdAt));
         Instant updatedAt = instantOfMicros(stateServer.getUpdatedAtMicros());

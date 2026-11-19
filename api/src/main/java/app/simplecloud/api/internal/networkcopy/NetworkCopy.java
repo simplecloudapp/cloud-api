@@ -256,13 +256,13 @@ public final class NetworkCopy {
     }
 
     private boolean lacksWrite(long epoch, long revision) {
-        NetworkContents network = contents();
-        if (network == null) {
+        NetworkContents current = contents();
+        if (current == null) {
             // Reads go to the controller then, so there is nothing to wait for.
             return false;
         }
-        int copyComparedToWrite = Long.compareUnsigned(network.revision(), revision);
-        return network.epoch() != epoch || copyComparedToWrite < 0;
+        int copyComparedToWrite = Long.compareUnsigned(current.revision(), revision);
+        return current.epoch() != epoch || copyComparedToWrite < 0;
     }
 
     // A header that is missing or not a number counts as no header: the write itself already succeeded.

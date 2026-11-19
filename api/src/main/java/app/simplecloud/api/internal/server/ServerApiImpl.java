@@ -91,15 +91,15 @@ public class ServerApiImpl implements ServerApi {
         if (!Identifiers.isUuid(id)) {
             return CompletableFuture.completedFuture(Optional.empty());
         }
-        NetworkContents network = networkCopy.contents();
-        if (network == null) {
+        NetworkContents contents = networkCopy.contents();
+        if (contents == null) {
             return findServerByIdOverHttp(id);
         }
-        ModelsServerSummary server = network.serverById(id);
-        if (server == null) {
+        ModelsServerSummary summary = contents.serverById(id);
+        if (summary == null) {
             return CompletableFuture.completedFuture(Optional.empty());
         }
-        return CompletableFuture.completedFuture(Optional.of(new ServerImpl(server)));
+        return CompletableFuture.completedFuture(Optional.of(new ServerImpl(summary)));
     }
 
     private CompletableFuture<Optional<Server>> findServerByIdOverHttp(String id) {
@@ -123,14 +123,14 @@ public class ServerApiImpl implements ServerApi {
 
     @Override
     public CompletableFuture<Optional<Server>> findServerByNumericalId(String groupName, int numericalId) {
-        NetworkContents network = networkCopy.contents();
-        if (network == null) {
+        NetworkContents contents = networkCopy.contents();
+        if (contents == null) {
             return findServerByNumericalIdOverHttp(groupName, numericalId);
         }
         ServerQuery query = ServerQuery.create()
                 .filterByServerGroupName(groupName)
                 .filterByNumericalId(numericalId);
-        List<ModelsServerSummary> matching = network.servers(query);
+        List<ModelsServerSummary> matching = contents.servers(query);
         if (matching.isEmpty()) {
             return CompletableFuture.completedFuture(Optional.empty());
         }
@@ -151,13 +151,13 @@ public class ServerApiImpl implements ServerApi {
 
     @Override
     public CompletableFuture<List<Server>> getServersByGroup(String groupName) {
-        NetworkContents network = networkCopy.contents();
-        if (network == null) {
+        NetworkContents contents = networkCopy.contents();
+        if (contents == null) {
             return getServersByGroupOverHttp(groupName);
         }
         ServerQuery query = ServerQuery.create()
                 .filterByServerGroupName(groupName);
-        List<ModelsServerSummary> matching = network.servers(query);
+        List<ModelsServerSummary> matching = contents.servers(query);
         return CompletableFuture.completedFuture(toServers(matching));
     }
 
@@ -186,12 +186,12 @@ public class ServerApiImpl implements ServerApi {
 
     @Override
     public CompletableFuture<List<Server>> getAllServers(@Nullable ServerQuery query) {
-        NetworkContents network = networkCopy.contents();
-        if (network == null) {
+        NetworkContents contents = networkCopy.contents();
+        if (contents == null) {
             return getAllServersOverHttp(query);
         }
         try {
-            List<ModelsServerSummary> matching = network.servers(query);
+            List<ModelsServerSummary> matching = contents.servers(query);
             return CompletableFuture.completedFuture(toServers(matching));
         } catch (CloudApiException invalidQuery) {
             return CompletableFuture.failedFuture(invalidQuery);

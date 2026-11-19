@@ -193,15 +193,15 @@ public class GroupApiImpl implements GroupApi {
 
     @Override
     public CompletableFuture<Optional<Group>> findGroupByName(String name) {
-        NetworkContents network = networkCopy.contents();
-        if (network == null) {
+        NetworkContents contents = networkCopy.contents();
+        if (contents == null) {
             return findGroupByNameOverHttp(name);
         }
-        ModelsServerGroupSummary group = network.groupByName(name);
-        if (group == null) {
+        ModelsServerGroupSummary summary = contents.groupByName(name);
+        if (summary == null) {
             return CompletableFuture.completedFuture(Optional.empty());
         }
-        return CompletableFuture.completedFuture(Optional.of(new GroupImpl(group)));
+        return CompletableFuture.completedFuture(Optional.of(new GroupImpl(summary)));
     }
 
     private CompletableFuture<Optional<Group>> findGroupByNameOverHttp(String name) {
@@ -228,15 +228,15 @@ public class GroupApiImpl implements GroupApi {
         if (!Identifiers.isUuid(id)) {
             return CompletableFuture.completedFuture(Optional.empty());
         }
-        NetworkContents network = networkCopy.contents();
-        if (network == null) {
+        NetworkContents contents = networkCopy.contents();
+        if (contents == null) {
             return findGroupByIdOverHttp(id);
         }
-        ModelsServerGroupSummary group = network.groupById(id);
-        if (group == null) {
+        ModelsServerGroupSummary summary = contents.groupById(id);
+        if (summary == null) {
             return CompletableFuture.completedFuture(Optional.empty());
         }
-        return CompletableFuture.completedFuture(Optional.of(new GroupImpl(group)));
+        return CompletableFuture.completedFuture(Optional.of(new GroupImpl(summary)));
     }
 
     private CompletableFuture<Optional<Group>> findGroupByIdOverHttp(String id) {
@@ -253,12 +253,12 @@ public class GroupApiImpl implements GroupApi {
 
     @Override
     public CompletableFuture<List<Group>> getAllGroups(@org.jetbrains.annotations.Nullable GroupQuery query) {
-        NetworkContents network = networkCopy.contents();
-        if (network == null) {
+        NetworkContents contents = networkCopy.contents();
+        if (contents == null) {
             return getAllGroupsOverHttp(query);
         }
         try {
-            List<ModelsServerGroupSummary> matching = network.groups(query);
+            List<ModelsServerGroupSummary> matching = contents.groups(query);
             return CompletableFuture.completedFuture(toGroups(matching));
         } catch (CloudApiException invalidQuery) {
             return CompletableFuture.failedFuture(invalidQuery);

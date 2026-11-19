@@ -131,15 +131,15 @@ public class PersistentServerApiImpl implements PersistentServerApi {
         if (!Identifiers.isUuid(id)) {
             return CompletableFuture.completedFuture(Optional.empty());
         }
-        NetworkContents network = networkCopy.contents();
-        if (network == null) {
+        NetworkContents contents = networkCopy.contents();
+        if (contents == null) {
             return findPersistentServerByIdOverHttp(id);
         }
-        ModelsPersistentServerSummary persistentServer = network.persistentServerById(id);
-        if (persistentServer == null) {
+        ModelsPersistentServerSummary summary = contents.persistentServerById(id);
+        if (summary == null) {
             return CompletableFuture.completedFuture(Optional.empty());
         }
-        return CompletableFuture.completedFuture(Optional.of(new PersistentServerImpl(persistentServer)));
+        return CompletableFuture.completedFuture(Optional.of(new PersistentServerImpl(summary)));
     }
 
     private CompletableFuture<Optional<PersistentServer>> findPersistentServerByIdOverHttp(String id) {
@@ -163,15 +163,15 @@ public class PersistentServerApiImpl implements PersistentServerApi {
 
     @Override
     public CompletableFuture<Optional<PersistentServer>> findPersistentServerByName(String name) {
-        NetworkContents network = networkCopy.contents();
-        if (network == null) {
+        NetworkContents contents = networkCopy.contents();
+        if (contents == null) {
             return findPersistentServerByNameOverHttp(name);
         }
-        ModelsPersistentServerSummary persistentServer = network.persistentServerByName(name);
-        if (persistentServer == null) {
+        ModelsPersistentServerSummary summary = contents.persistentServerByName(name);
+        if (summary == null) {
             return CompletableFuture.completedFuture(Optional.empty());
         }
-        return CompletableFuture.completedFuture(Optional.of(new PersistentServerImpl(persistentServer)));
+        return CompletableFuture.completedFuture(Optional.of(new PersistentServerImpl(summary)));
     }
 
     private CompletableFuture<Optional<PersistentServer>> findPersistentServerByNameOverHttp(String name) {
@@ -188,12 +188,12 @@ public class PersistentServerApiImpl implements PersistentServerApi {
 
     @Override
     public CompletableFuture<List<PersistentServer>> getAllPersistentServers(@Nullable PersistentServerQuery query) {
-        NetworkContents network = networkCopy.contents();
-        if (network == null) {
+        NetworkContents contents = networkCopy.contents();
+        if (contents == null) {
             return getAllPersistentServersOverHttp(query);
         }
         try {
-            List<ModelsPersistentServerSummary> matching = network.persistentServers(query);
+            List<ModelsPersistentServerSummary> matching = contents.persistentServers(query);
             return CompletableFuture.completedFuture(toPersistentServers(matching));
         } catch (CloudApiException invalidQuery) {
             return CompletableFuture.failedFuture(invalidQuery);

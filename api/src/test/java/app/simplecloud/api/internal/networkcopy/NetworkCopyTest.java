@@ -253,9 +253,9 @@ class NetworkCopyTest {
 
         upperCaseCopy.onPulse(pulse(1, 5));
 
-        NetworkContents network = upperCaseCopy.contents();
-        ModelsServerSummary server = network.serverById(FIRST_SERVER_ID);
-        assertEquals(NETWORK_ID, server.getNetworkId());
+        NetworkContents contents = upperCaseCopy.contents();
+        ModelsServerSummary summary = contents.serverById(FIRST_SERVER_ID);
+        assertEquals(NETWORK_ID, summary.getNetworkId());
     }
 
     @Test
