@@ -12,15 +12,30 @@ import java.util.Optional;
  * It is an interface so that the same checks run against {@link NetworkViewMachine} and against the
  * reference machine in the tests.
  *
- * <p>Times are milliseconds of a monotonic clock. Each call passes a time at or after the time of the step
- * that made this view. A deadline acts in the first step at or after it. In a step, the input acts first
- * and the deadlines after it, so an input that arrives exactly at a deadline is on time: a missing batch
- * that arrives exactly 3 s after a batch was held closes the gap, and a copy that reaches the audit's
- * revision exactly 3 s after the audit snapshot arrived is compared. When the audit's deadline and a 3 s
- * deadline of rule 2 or 3 fall in one step, the audit's acts first. Revisions are uint64 values held in a
- * {@code long}, so they compare unsigned; epochs compare only for equality. A random delay is cut to whole
- * milliseconds, and each one draws the next number from the sequence. "Local" is the revision of the copy. A
- * view is "synced" while it holds a copy, its connection is up, and it neither wants nor runs a reload.
+ * <h2>Terms</h2>
+ *
+ * <ul>
+ *   <li>"Local" is the revision of the copy. Revisions are uint64 values held in a {@code long}, so they
+ *   compare unsigned; epochs compare only for equality.</li>
+ *   <li>A view is "synced" while it holds a copy, its connection is up, and it neither wants nor runs a
+ *   reload.</li>
+ *   <li>A view must be "live" to answer from its copy (Answers). Rule 5 says exactly when it is live.</li>
+ * </ul>
+ *
+ * <h2>Time</h2>
+ *
+ * <ul>
+ *   <li>Times are milliseconds of a monotonic clock.</li>
+ *   <li>Each call passes a time at or after the time of the step that made this view.</li>
+ *   <li>A deadline acts in the first step at or after it.</li>
+ *   <li>In a step, the input acts first and the deadlines after it, so an input that arrives exactly at a
+ *   deadline is on time: a missing batch that arrives exactly 3 s after a batch was held closes the gap, and a
+ *   copy that reaches the audit's revision exactly 3 s after the audit snapshot arrived is compared.</li>
+ *   <li>When the audit's deadline and a 3 s deadline of rule 2 or 3 fall in one step, the audit's acts
+ *   first.</li>
+ *   <li>A random delay is cut to whole milliseconds, and each one draws the next number from the
+ *   sequence.</li>
+ * </ul>
  *
  * <h2>Rules</h2>
  *
@@ -49,8 +64,8 @@ import java.util.Optional;
  *   missing item is not applied: the copy stays as it was, and the view reloads. The check runs on the whole
  *   batch, because a new group and its first server can come in one batch.</li>
  *
- *   <li><b>Pulse.</b> Every pulse, in every state, sets the "views may answer" flag and replaces the
- *   copy's metrics. In a synced view, the first of these that holds decides:
+ *   <li><b>Pulse.</b> Every pulse, in every state, replaces the copy's metrics. The "views may answer" flag
+ *   is the last pulse's. In a synced view, the first of these that holds decides:
  *   <ul>
  *     <li>the last good pulse is 15 s old or older, or there was none since the last snapshot was taken and
  *     that is 15 s old or older: reload, whatever the pulse says;</li>
@@ -108,7 +123,7 @@ import java.util.Optional;
  * goes over HTTP. The first of these that holds decides:
  * <ol>
  *   <li>the view is not live (rule 5; time alone ends it, when the last good pulse turns 15 s old), or the last
- *   pulse did not allow answers ({@code views_may_answer}; false before the first pulse): over HTTP;</li>
+ *   pulse did not allow answers ({@code views_may_answer}): over HTTP;</li>
  *   <li>the view waits for its own write: wait;</li>
  *   <li>otherwise: from the copy.</li>
  * </ol>
