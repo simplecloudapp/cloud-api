@@ -1,6 +1,7 @@
 package app.simplecloud.api.internal.networkcopy;
 
 import app.simplecloud.api.internal.nats.FakeNatsConnection;
+import app.simplecloud.api.web.models.ModelsServerSummary;
 import build.buf.gen.simplecloud.controller.v2.NetworkState;
 import build.buf.gen.simplecloud.controller.v2.StateBatch;
 import build.buf.gen.simplecloud.controller.v2.StatePulse;
@@ -244,6 +245,17 @@ class NetworkCopyTest {
         nats.deliver(subject, NatsMessage.builder().subject(subject).data(pulse(1, 5).toByteArray()).build());
 
         assertNotNull(upperCaseCopy.contents());
+    }
+
+    @Test
+    void serversOfACopyOfAnUpperCaseNetworkIdShowTheLowerCaseId() {
+        NetworkCopy upperCaseCopy = new NetworkCopy(new OkHttpClient(), controllerUrl(), NETWORK_ID.toUpperCase(), "", nanoTime::get);
+
+        upperCaseCopy.onPulse(pulse(1, 5));
+
+        NetworkContents network = upperCaseCopy.contents();
+        ModelsServerSummary server = network.serverById(FIRST_SERVER);
+        assertEquals(NETWORK_ID, server.getNetworkId());
     }
 
     @Test

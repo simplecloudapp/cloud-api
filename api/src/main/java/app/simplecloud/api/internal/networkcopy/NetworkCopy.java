@@ -64,7 +64,8 @@ public final class NetworkCopy {
                 .header("X-Network-Credential", networkSecret)
                 .header("Accept", "application/x-protobuf")
                 .build();
-        this.networkId = networkId;
+        // Lower case, as the controller writes it in its subjects and lists.
+        this.networkId = networkId.toLowerCase(Locale.ROOT);
         this.nanoTime = nanoTime;
     }
 
@@ -84,7 +85,7 @@ public final class NetworkCopy {
             // The controller publishes under the network's UUID. An instance set up with another id gets no messages.
             return;
         }
-        String subjectRoot = networkId.toLowerCase(Locale.ROOT) + ".state.v1.";
+        String subjectRoot = networkId + ".state.v1.";
         // One dispatcher for both subjects, so batches and pulses arrive in the order the controller sent them.
         dispatcher = natsConnection.createDispatcher();
         dispatcher.subscribe(subjectRoot + "batch", this::onBatchMessage);
