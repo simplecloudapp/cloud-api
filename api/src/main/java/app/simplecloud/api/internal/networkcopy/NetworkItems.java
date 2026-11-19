@@ -171,8 +171,10 @@ final class NetworkItems {
 
     // The group part comes without its blueprint. The public API reads only the blueprint's id.
     private void putGroup(StateServerGroup group) {
-        ModelsServerGroupSummary summary = JSON.deserialize(group.getSummaryJson().toStringUtf8(), ModelsServerGroupSummary.class);
-        ModelsServerGroupInfo info = JSON.deserialize(group.getInfoJson().toStringUtf8(), ModelsServerGroupInfo.class);
+        String summaryJson = group.getSummaryJson().toStringUtf8();
+        ModelsServerGroupSummary summary = JSON.deserialize(summaryJson, ModelsServerGroupSummary.class);
+        String infoJson = group.getInfoJson().toStringUtf8();
+        ModelsServerGroupInfo info = JSON.deserialize(infoJson, ModelsServerGroupInfo.class);
         boolean showsBlueprint = group.hasBlueprintId() && info.getSource() != null;
         if (showsBlueprint) {
             ModelsBlueprintInfo blueprint = new ModelsBlueprintInfo().id(uuidText(group.getBlueprintId()));
@@ -228,8 +230,10 @@ final class NetworkItems {
         summary.setMaxPlayers(Math.toIntExact(row.getMaxPlayers()));
         summary.setState(ModelsServerSummary.StateEnum.fromValue(row.getState()));
         summary.setProperties(item.properties());
-        summary.setCreatedAt(formatTimestamp(instantOfMicros(row.getCreatedAtMicros())));
-        summary.setUpdatedAt(formatTimestamp(instantOfMicros(row.getUpdatedAtMicros())));
+        Instant createdAt = instantOfMicros(row.getCreatedAtMicros());
+        summary.setCreatedAt(formatTimestamp(createdAt));
+        Instant updatedAt = instantOfMicros(row.getUpdatedAtMicros());
+        summary.setUpdatedAt(formatTimestamp(updatedAt));
         setMetricsOf(summary, metricsByServerId.get(id));
         return summary;
     }
@@ -247,7 +251,8 @@ final class NetworkItems {
         summary.setCpuUsage(BigDecimal.valueOf(metrics.getCpuUsage()));
         summary.setMemoryUsage(BigDecimal.valueOf(metrics.getMemoryUsage()));
         if (metrics.hasLastActivityNanos()) {
-            summary.setLastActivity(formatTimestamp(instantOfNanos(metrics.getLastActivityNanos())));
+            Instant lastActivity = instantOfNanos(metrics.getLastActivityNanos());
+            summary.setLastActivity(formatTimestamp(lastActivity));
         } else {
             summary.setLastActivity("");
         }
