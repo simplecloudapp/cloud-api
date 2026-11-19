@@ -21,15 +21,12 @@ import org.junit.jupiter.api.Test;
 
 import java.io.IOException;
 import java.nio.ByteBuffer;
-import java.time.Clock;
 import java.time.Duration;
-import java.time.Instant;
-import java.time.ZoneId;
-import java.time.ZoneOffset;
 import java.util.List;
 import java.util.Map;
 import java.util.Set;
 import java.util.UUID;
+import java.util.concurrent.atomic.AtomicLong;
 
 import static org.junit.jupiter.api.Assertions.assertEquals;
 import static org.junit.jupiter.api.Assertions.assertNotNull;
@@ -42,7 +39,8 @@ class NetworkCopyTest {
     private static final String FIRST_SERVER = "00000000-0000-4000-8000-000000000201";
     private static final String SECOND_SERVER = "00000000-0000-4000-8000-000000000202";
 
-    private final TestClock clock = new TestClock();
+    // Close to the end of the long range, so the test that advances 30 minutes crosses the wrap, as System.nanoTime may.
+    private final AtomicLong nanoTime = new AtomicLong(Long.MAX_VALUE - Duration.ofMinutes(1).toNanos());
     private MockWebServer controller;
     private volatile NetworkState servedState = state(1, 5, FIRST_SERVER);
     private volatile int answerCode = 200;
@@ -59,7 +57,7 @@ class NetworkCopyTest {
             }
         });
         controller.start();
-        copy = new NetworkCopy(new OkHttpClient(), controllerUrl(), NETWORK_ID, "network-password", clock);
+        copy = new NetworkCopy(new OkHttpClient(), controllerUrl(), NETWORK_ID, "network-password", nanoTime::get);
     }
 
     @AfterEach
@@ -121,11 +119,11 @@ class NetworkCopyTest {
     void pulseAtTheCopysRevisionLoadsAgainOnceTheLastLoadIsThirtyMinutesOld() {
         copy.onPulse(pulse(1, 5));
 
-        clock.advance(Duration.ofMinutes(30).minusMillis(1));
+        advanceTime(Duration.ofMinutes(30).minusMillis(1));
         copy.onPulse(pulse(1, 5));
         assertEquals(1, controller.getRequestCount());
 
-        clock.advance(Duration.ofMillis(1));
+        advanceTime(Duration.ofMillis(1));
         copy.onPulse(pulse(1, 5));
         assertEquals(2, controller.getRequestCount());
     }
@@ -174,10 +172,10 @@ class NetworkCopyTest {
     void readsGoToTheControllerOnceNoPulseCameFor15Seconds() {
         copy.onPulse(pulse(1, 5));
 
-        clock.advance(Duration.ofSeconds(15));
+        advanceTime(Duration.ofSeconds(15));
         assertNotNull(copy.contents());
 
-        clock.advance(Duration.ofMillis(1));
+        advanceTime(Duration.ofMillis(1));
         assertNull(copy.contents());
 
         copy.onPulse(pulse(1, 5));
@@ -226,7 +224,7 @@ class NetworkCopyTest {
     @Test
     void networkIdThatIsNoUuidNeverSubscribes() {
         FakeNatsConnection nats = FakeNatsConnection.withoutRequests();
-        NetworkCopy copyOfOtherId = new NetworkCopy(new OkHttpClient(), controllerUrl(), "lobby-network", "", clock);
+        NetworkCopy copyOfOtherId = new NetworkCopy(new OkHttpClient(), controllerUrl(), "lobby-network", "", nanoTime::get);
 
         copyOfOtherId.start(nats.connection());
 
@@ -236,7 +234,7 @@ class NetworkCopyTest {
     @Test
     void pulseOnTheLowerCaseSubjectReachesACopyOfAnUpperCaseNetworkId() throws InterruptedException {
         FakeNatsConnection nats = FakeNatsConnection.withoutRequests();
-        NetworkCopy upperCaseCopy = new NetworkCopy(new OkHttpClient(), controllerUrl(), NETWORK_ID.toUpperCase(), "", clock);
+        NetworkCopy upperCaseCopy = new NetworkCopy(new OkHttpClient(), controllerUrl(), NETWORK_ID.toUpperCase(), "", nanoTime::get);
         upperCaseCopy.start(nats.connection());
         String subject = NETWORK_ID + ".state.v1.pulse";
 
@@ -329,26 +327,7 @@ class NetworkCopyTest {
         return ByteString.copyFrom(bytes.array());
     }
 
-    private static final class TestClock extends Clock {
-        private volatile Instant now = Instant.parse("2026-11-19T10:00:00Z");
-
-        void advance(Duration duration) {
-            now = now.plus(duration);
-        }
-
-        @Override
-        public Instant instant() {
-            return now;
-        }
-
-        @Override
-        public ZoneId getZone() {
-            return ZoneOffset.UTC;
-        }
-
-        @Override
-        public Clock withZone(ZoneId zone) {
-            return this;
-        }
+    private void advanceTime(Duration duration) {
+        nanoTime.addAndGet(duration.toNanos());
     }
 }

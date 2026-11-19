@@ -15,11 +15,11 @@ import org.jetbrains.annotations.Nullable;
 
 import java.io.IOException;
 import java.net.HttpURLConnection;
-import java.time.Clock;
 import java.time.Duration;
 import java.util.List;
 import java.util.Locale;
 import java.util.Map;
+import java.util.function.LongSupplier;
 import java.util.logging.Logger;
 
 /**
@@ -36,27 +36,27 @@ public final class NetworkCopy {
     private final OkHttpClient httpClient;
     private final Request networkStateRequest;
     private final String networkId;
-    private final Clock clock;
+    private final LongSupplier nanoTime;
     private @Nullable Connection natsConnection;
     private @Nullable Dispatcher dispatcher;
 
     // Changed only inside onPulse and onBatch.
     private @Nullable NetworkItems items;
     private boolean refused;
-    private long lastLoadMillis;
+    private long lastLoadNanos;
 
     // Read by any thread.
     private volatile @Nullable NetworkContents contents;
-    private volatile long lastPulseMillis;
+    private volatile long lastPulseNanos;
 
     /**
      * A copy that is not started yet.
      */
     public NetworkCopy(OkHttpClient httpClient, String controllerUrl, String networkId, String networkSecret) {
-        this(httpClient, controllerUrl, networkId, networkSecret, Clock.systemUTC());
+        this(httpClient, controllerUrl, networkId, networkSecret, System::nanoTime);
     }
 
-    NetworkCopy(OkHttpClient httpClient, String controllerUrl, String networkId, String networkSecret, Clock clock) {
+    NetworkCopy(OkHttpClient httpClient, String controllerUrl, String networkId, String networkSecret, LongSupplier nanoTime) {
         this.httpClient = httpClient.newBuilder().callTimeout(LOAD_TIME_LIMIT).build();
         this.networkStateRequest = new Request.Builder()
                 .url(controllerUrl + "/v0/network-state")
@@ -65,7 +65,7 @@ public final class NetworkCopy {
                 .header("Accept", "application/x-protobuf")
                 .build();
         this.networkId = networkId;
-        this.clock = clock;
+        this.nanoTime = nanoTime;
     }
 
     /**
@@ -110,8 +110,8 @@ public final class NetworkCopy {
         if (current == null) {
             return null;
         }
-        long millisSincePulse = clock.millis() - lastPulseMillis;
-        if (millisSincePulse > PULSE_SILENCE_LIMIT.toMillis()) {
+        long nanosSincePulse = nanoTime.getAsLong() - lastPulseNanos;
+        if (nanosSincePulse > PULSE_SILENCE_LIMIT.toNanos()) {
             return null;
         }
         return current;
@@ -148,12 +148,14 @@ public final class NetworkCopy {
         try {
             if (mustLoad(pulse)) {
                 items = loadItems();
-                lastLoadMillis = clock.millis();
+                lastLoadNanos = nanoTime.getAsLong();
             } else {
                 items.setMetrics(pulse.getMetricsList());
             }
-            contents = items.toContents();
-            lastPulseMillis = clock.millis();
+            NetworkContents newContents = items.toContents();
+            // Before the contents, so a reader that sees these contents also sees the time of their pulse.
+            lastPulseNanos = nanoTime.getAsLong();
+            contents = newContents;
         } catch (IOException | RuntimeException e) {
             forgetCopy("the network state could not be loaded or read: " + e);
         }
@@ -219,8 +221,8 @@ public final class NetworkCopy {
             return true;
         }
         // A fresh load limits how long an item the relay missed can stay wrong.
-        long millisSinceLoad = clock.millis() - lastLoadMillis;
-        boolean lastLoadIsOld = millisSinceLoad >= FRESH_LOAD_INTERVAL.toMillis();
+        long nanosSinceLoad = nanoTime.getAsLong() - lastLoadNanos;
+        boolean lastLoadIsOld = nanosSinceLoad >= FRESH_LOAD_INTERVAL.toNanos();
         return lastLoadIsOld;
     }
 

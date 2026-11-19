@@ -21,15 +21,13 @@ import org.junit.jupiter.params.provider.ValueSource;
 
 import java.io.IOException;
 import java.nio.ByteBuffer;
-import java.time.Clock;
-import java.time.Instant;
-import java.time.ZoneOffset;
 import java.util.ArrayList;
 import java.util.LinkedHashMap;
 import java.util.List;
 import java.util.Map;
 import java.util.Random;
 import java.util.UUID;
+import java.util.function.LongSupplier;
 
 import static org.junit.jupiter.api.Assertions.assertEquals;
 import static org.junit.jupiter.api.Assertions.assertNotNull;
@@ -69,8 +67,8 @@ class NetworkCopyRandomTest {
         Random random = new Random(seed);
         Network network = new Network(random);
         String controllerUrl = "http://" + controller.getHostName() + ":" + controller.getPort();
-        Clock clock = Clock.fixed(Instant.parse("2026-11-19T10:00:00Z"), ZoneOffset.UTC);
-        NetworkCopy copy = new NetworkCopy(new OkHttpClient(), controllerUrl, NETWORK_ID, "", clock);
+        LongSupplier stoppedNanoTime = () -> 0L;
+        NetworkCopy copy = new NetworkCopy(new OkHttpClient(), controllerUrl, NETWORK_ID, "", stoppedNanoTime);
         List<StateBatch> heldBatches = new ArrayList<>();
 
         for (int step = 0; step < STEPS; step++) {
