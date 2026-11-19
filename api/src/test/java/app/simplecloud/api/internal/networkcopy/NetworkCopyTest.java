@@ -18,6 +18,7 @@ import okio.Buffer;
 import org.junit.jupiter.api.AfterEach;
 import org.junit.jupiter.api.BeforeEach;
 import org.junit.jupiter.api.Test;
+import org.junit.jupiter.api.Timeout;
 
 import java.io.IOException;
 import java.nio.ByteBuffer;
@@ -33,6 +34,7 @@ import static org.junit.jupiter.api.Assertions.assertEquals;
 import static org.junit.jupiter.api.Assertions.assertNotNull;
 import static org.junit.jupiter.api.Assertions.assertNull;
 import static org.junit.jupiter.api.Assertions.assertTimeout;
+import static org.junit.jupiter.api.Assertions.assertTrue;
 
 class NetworkCopyTest {
 
@@ -275,6 +277,25 @@ class NetworkCopyTest {
         );
 
         assertTimeout(Duration.ofSeconds(1), () -> copy.waitForOwnWrite(headers));
+    }
+
+    @Test
+    @Timeout(10)
+    void ownWriteGivesUpAfterThreeSecondsWhenTheCopyNeverGetsTheWrite() {
+        copy.onPulse(pulse(1, 5));
+        Map<String, List<String>> headers = Map.of(
+                "x-sc-state-epoch", List.of("1"),
+                "x-sc-state-revision", List.of("6")
+        );
+        Duration shortestWait = Duration.ofSeconds(3);
+        Duration longestWait = Duration.ofSeconds(5);
+        long startNanos = System.nanoTime();
+
+        copy.waitForOwnWrite(headers);
+
+        Duration waited = Duration.ofNanos(System.nanoTime() - startNanos);
+        assertTrue(waited.compareTo(shortestWait) >= 0, "waited " + waited);
+        assertTrue(waited.compareTo(longestWait) <= 0, "waited " + waited);
     }
 
     @Test
