@@ -32,7 +32,7 @@ import java.util.UUID;
 
 /**
  * What the controller sent about one network, by id, at one revision.
- * Changed only by the thread that runs {@code NetworkCopy.onPulse} and {@code NetworkCopy.onBatch}.
+ * Changed only inside {@code NetworkCopy.onPulse} and {@code NetworkCopy.onBatch}, under the copy's lock.
  * Parts that the generated HTTP classes refuse make the methods throw a {@link RuntimeException}.
  */
 final class NetworkItems {

@@ -133,7 +133,7 @@ public final class NetworkCopy {
         }
         long giveUpAt = System.nanoTime() + OWN_WRITE_WAIT.toNanos();
         while (lacksWrite(epoch, revision) && System.nanoTime() < giveUpAt) {
-            boolean interrupted = !sleep(OWN_WRITE_POLL);
+            boolean interrupted = sleepWasInterrupted(OWN_WRITE_POLL);
             if (interrupted) {
                 return;
             }
@@ -256,6 +256,7 @@ public final class NetworkCopy {
     private boolean lacksWrite(long epoch, long revision) {
         NetworkContents network = contents();
         if (network == null) {
+            // Reads go to the controller then, so there is nothing to wait for.
             return false;
         }
         int copyComparedToWrite = Long.compareUnsigned(network.revision(), revision);
@@ -275,14 +276,14 @@ public final class NetworkCopy {
         }
     }
 
-    // Returns false when the thread was interrupted; the interrupt stays set for the caller.
-    private static boolean sleep(Duration duration) {
+    // The interrupt stays set for the caller.
+    private static boolean sleepWasInterrupted(Duration duration) {
         try {
             Thread.sleep(duration);
-            return true;
+            return false;
         } catch (InterruptedException e) {
             Thread.currentThread().interrupt();
-            return false;
+            return true;
         }
     }
 }
