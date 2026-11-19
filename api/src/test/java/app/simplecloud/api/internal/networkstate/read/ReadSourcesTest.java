@@ -2,6 +2,7 @@ package app.simplecloud.api.internal.networkstate.read;
 
 import app.simplecloud.api.CloudApiException;
 import app.simplecloud.api.internal.networkstate.AnsweringView;
+import app.simplecloud.api.internal.networkstate.MonotonicClock;
 import app.simplecloud.api.internal.networkstate.NetworkCopy;
 import app.simplecloud.api.internal.server.ServerSource;
 import build.buf.gen.simplecloud.controller.v2.StateServer;
@@ -153,14 +154,14 @@ class ReadSourcesTest {
     @Test
     void aFaultOfTheCopyLeavesTheReadToTheControllerAndWarnsOnceInTenMinutes() {
         ItemSource brokenCopy = ItemSource.throwing(new IllegalStateException("a group the models refuse"));
-        AtomicLong nanos = new AtomicLong();
-        ReadSources<ItemSource> sources = new ReadSources<>(copiesOf(view), copy -> brokenCopy, controller,
-                nanos::get);
+        AtomicLong clockMillis = new AtomicLong();
+        MonotonicClock clock = clockMillis::get;
+        ReadSources<ItemSource> sources = new ReadSources<>(copiesOf(view), copy -> brokenCopy, controller, clock);
 
         String first = sources.ask(ITEM).join();
-        nanos.addAndGet(Duration.ofMinutes(9).toNanos());
+        clockMillis.addAndGet(Duration.ofMinutes(9).toMillis());
         String withinTenMinutes = sources.ask(ITEM).join();
-        nanos.addAndGet(Duration.ofMinutes(1).toNanos());
+        clockMillis.addAndGet(Duration.ofMinutes(1).toMillis());
         String afterTenMinutes = sources.ask(ITEM).join();
 
         assertEquals(FROM_CONTROLLER, first);

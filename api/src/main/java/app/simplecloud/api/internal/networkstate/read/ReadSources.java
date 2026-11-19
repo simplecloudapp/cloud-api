@@ -1,6 +1,7 @@
 package app.simplecloud.api.internal.networkstate.read;
 
 import app.simplecloud.api.CloudApiException;
+import app.simplecloud.api.internal.networkstate.MonotonicClock;
 import org.jetbrains.annotations.Nullable;
 
 import java.time.Duration;
@@ -11,7 +12,6 @@ import java.util.concurrent.CompletionException;
 import java.util.concurrent.Executor;
 import java.util.concurrent.TimeUnit;
 import java.util.concurrent.atomic.AtomicLong;
-import java.util.function.LongSupplier;
 import java.util.logging.Level;
 import java.util.logging.Logger;
 
@@ -77,22 +77,19 @@ public final class ReadSources<S> {
     private final ReadableCopies copies;
     private final SourceInCopy<S> sourceInCopy;
     private final S controller;
-    private final LongSupplier nanoClock;
-    private final AtomicLong nextWarningNanos;
+    private final MonotonicClock clock;
+    private final AtomicLong nextWarningAtMillis;
 
     public ReadSources(ReadableCopies copies, SourceInCopy<S> sourceInCopy, S controller) {
-        this(copies, sourceInCopy, controller, System::nanoTime);
+        this(copies, sourceInCopy, controller, MonotonicClock.SYSTEM);
     }
 
-    /**
-     * @param nanoClock reads {@link System#nanoTime} or a test's time, for the interval between warnings
-     */
-    ReadSources(ReadableCopies copies, SourceInCopy<S> sourceInCopy, S controller, LongSupplier nanoClock) {
+    ReadSources(ReadableCopies copies, SourceInCopy<S> sourceInCopy, S controller, MonotonicClock clock) {
         this.copies = copies;
         this.sourceInCopy = sourceInCopy;
         this.controller = controller;
-        this.nanoClock = nanoClock;
-        this.nextWarningNanos = new AtomicLong(nanoClock.getAsLong());
+        this.clock = clock;
+        this.nextWarningAtMillis = new AtomicLong(clock.nowMillis());
     }
 
     /**
@@ -129,12 +126,11 @@ public final class ReadSources<S> {
     }
 
     private <T> CompletableFuture<Answer<T>> lookUpAfterMissDelay(Read<S, T> read, int retriesLeft) {
+        // Not completeOnTimeout or orTimeout: their stages run on the JVM's one shared delay thread, while the
+        // delayed executor hands the retry to the common pool.
         Executor afterMissDelay = CompletableFuture.delayedExecutor(MISS_RETRY_DELAY_MILLIS, TimeUnit.MILLISECONDS);
-        CompletableFuture<Void> missDelay = CompletableFuture.runAsync(ReadSources::waitOnly, afterMissDelay);
-        return missDelay.thenCompose(delayEnded -> lookUpWithRetries(read, retriesLeft));
-    }
-
-    private static void waitOnly() {
+        CompletableFuture<Read<S, T>> readAfterDelay = CompletableFuture.supplyAsync(() -> read, afterMissDelay);
+        return readAfterDelay.thenCompose(delayedRead -> lookUpWithRetries(delayedRead, retriesLeft));
     }
 
     private static boolean holdsNothing(@Nullable Object answer) {
@@ -153,7 +149,7 @@ public final class ReadSources<S> {
         }
         CompletableFuture<T> copyAnswer = askCopy(copy.get(), read);
         CompletableFuture<Answer<T>> answer = copyAnswer.thenApply(Answer::ofCopy);
-        return answer.exceptionallyCompose(failure -> controllerAfterCopyFailure(failure, read));
+        return answer.exceptionallyCompose(failure -> answerAfterCopyFailure(failure, read));
     }
 
     /**
@@ -178,7 +174,7 @@ public final class ReadSources<S> {
      * comes from building or selecting its objects, for example on a JSON value the generated models refuse;
      * the controller then answers, as it would without a view.
      */
-    private <T> CompletableFuture<Answer<T>> controllerAfterCopyFailure(Throwable failure, Read<S, T> read) {
+    private <T> CompletableFuture<Answer<T>> answerAfterCopyFailure(Throwable failure, Read<S, T> read) {
         Throwable cause = causeOf(failure);
         if (cause instanceof CloudApiException) {
             return CompletableFuture.failedFuture(cause);
@@ -197,14 +193,11 @@ public final class ReadSources<S> {
         LOGGER.log(level, "Answering a read from the network view failed; the controller answers it", failure);
     }
 
-    /**
-     * Compares by difference, because {@link System#nanoTime} may overflow.
-     */
     private boolean warningDue() {
-        long now = nanoClock.getAsLong();
-        long nextWarning = nextWarningNanos.get();
-        boolean intervalPassed = now - nextWarning >= 0;
-        long afterThisWarning = now + FAILURE_WARNING_INTERVAL.toNanos();
-        return intervalPassed && nextWarningNanos.compareAndSet(nextWarning, afterThisWarning);
+        long nowMillis = clock.nowMillis();
+        long nextWarningMillis = nextWarningAtMillis.get();
+        boolean intervalPassed = nowMillis >= nextWarningMillis;
+        long afterThisWarningMillis = nowMillis + FAILURE_WARNING_INTERVAL.toMillis();
+        return intervalPassed && nextWarningAtMillis.compareAndSet(nextWarningMillis, afterThisWarningMillis);
     }
 }
