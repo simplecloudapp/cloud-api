@@ -63,10 +63,12 @@ import java.util.Optional;
  *     the relay's last round.</li>
  *   </ul></li>
  *
- *   <li><b>Connection.</b> After {@link ViewInput.ConnectionLost} the view is not live at once. It drops
- *   held batches, a wanted reload, and a running audit, also one that waits for the copy to reach its
- *   revision. It starts no load and ignores batches until the next {@link ViewInput.SubscriptionsActive},
- *   which means reload.</li>
+ *   <li><b>Connection.</b> After {@link ViewInput.ConnectionLost} the view is not live at once. It wants no
+ *   reload and starts no load until the next {@link ViewInput.SubscriptionsActive}, which means reload (rule
+ *   6). So nothing from before or during the loss survives that reload: not the held batches, not the batches
+ *   that arrive meanwhile, and not a running audit, also one that waits for the copy to reach its revision.
+ *   No deadline acts while the connection is lost: no audit ends, and no reload is wanted. A load that runs
+ *   when the connection is lost is waited for and its answer ignored (rule 6).</li>
  *
  *   <li><b>Live.</b> A view is live only while it is synced, no batch is held, the copy is not behind a
  *   pulse, and a good pulse arrived after the last snapshot was taken and is under 15 s old.</li>

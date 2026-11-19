@@ -84,16 +84,23 @@ final class WrongMachines {
                 new WrongMachine("keeps the failed loads in a row after a taken snapshot",
                         new KeepsFailuresAfterSnapshot(),
                         List.of("reload: a taken snapshot ends the back-off")),
-                new WrongMachine("keeps a wanted reload when the connection is lost", new KeepsWantedReloadOnLoss(),
-                        List.of("connection: a loss drops a wanted reload")),
-                new WrongMachine("keeps an audit waiting to compare when the connection is lost",
-                        new KeepsComparingAuditOnLoss(),
-                        List.of("connection: a loss abandons an audit waiting to compare")),
+                new WrongMachine("starts a reload wanted before the loss while disconnected",
+                        new StartsWantedReloadWhileDisconnected(),
+                        List.of("connection: a reload wanted before the loss starts no load while disconnected")),
+                new WrongMachine("acts on a held batch's 3 s while disconnected",
+                        new GapDeadlineActsWhileDisconnected(),
+                        List.of("connection: a held batch's 3 s want no reload while disconnected")),
+                new WrongMachine("acts on the audit's 3 s while disconnected", new AuditDeadlineActsWhileDisconnected(),
+                        List.of("connection: no audit finishes while disconnected")),
+                new WrongMachine("takes up its copy again after a reconnect, without a reload",
+                        new ResumesWithoutReloadOnReconnect(),
+                        List.of("connection: reloads after a reconnect")),
+                new WrongMachine("keeps the held batches across a reload", new ReloadKeepsHeldBatches(),
+                        List.of("connection: a batch held before the loss is not applied after the reconnect's reload",
+                                "connection: a batch that arrives during the loss is not applied after the"
+                                        + " reconnect's reload")),
                 new WrongMachine("counts the failure of an abandoned load", new CountsFailureOfAbandonedLoad(),
                         List.of("connection: a failed answer of an abandoned load is no failed load")),
-                new WrongMachine("keeps the batches that arrive while disconnected",
-                        new KeepsBatchesWhileDisconnected(),
-                        List.of("connection: ignores batches until the subscriptions are active again")),
                 new WrongMachine("replaces metrics only while synced", new ReplacesMetricsOnlyWhileSynced(),
                         List.of("pulse: a pulse replaces the metrics also while disconnected")),
                 new WrongMachine("starts an audit while the view is not live", new AuditsWhileNotLive(),
@@ -125,8 +132,7 @@ final class WrongMachines {
                 new WrongMachine("ignores views_may_answer", new IgnoresViewsMayAnswer(),
                         List.of("pulse: views_may_answer false stops answers")),
                 new WrongMachine("stays live after the connection is lost", new IgnoresConnectionLoss(),
-                        List.of("connection: not live at once after the loss",
-                                "connection: ignores batches until the subscriptions are active again")),
+                        List.of("connection: not live at once after the loss")),
                 new WrongMachine("takes a load that ran across the connection loss",
                         new TakesLoadAcrossConnectionLoss(),
                         List.of("connection: ignores the answer of a load that ran across the loss")),
@@ -395,7 +401,7 @@ final class WrongMachines {
         }
     }
 
-    static final class KeepsWantedReloadOnLoss extends ReferenceMachine {
+    static final class StartsWantedReloadWhileDisconnected extends ReferenceMachine {
         @Override
         void loseConnection(Memory m) {
             boolean reloadWanted = m.mode == Mode.RELOAD_WANTED;
@@ -406,24 +412,44 @@ final class WrongMachines {
         }
     }
 
-    static final class KeepsComparingAuditOnLoss extends ReferenceMachine {
-        @Override
-        void loseConnection(Memory m) {
-            AuditPhase phase = m.auditPhase;
-            NetworkState snapshot = m.auditSnapshot;
-            super.loseConnection(m);
-            if (phase == AuditPhase.COMPARING) {
-                m.auditPhase = phase;
-                m.auditSnapshot = snapshot;
-            }
-        }
-
+    static final class GapDeadlineActsWhileDisconnected extends ReferenceMachine {
         @Override
         void actOnDeadlines(Memory m, long now, List<ViewEffect> effects) {
+            if (m.mode == Mode.DISCONNECTED && heldTooLong(m, now)) {
+                wantReload(m, now);
+            }
             super.actOnDeadlines(m, now, effects);
+        }
+    }
+
+    static final class AuditDeadlineActsWhileDisconnected extends ReferenceMachine {
+        @Override
+        void actOnDeadlines(Memory m, long now, List<ViewEffect> effects) {
             if (m.mode == Mode.DISCONNECTED) {
                 takeAuditSnapshotIfNotReached(m, now, effects);
             }
+            super.actOnDeadlines(m, now, effects);
+        }
+    }
+
+    static final class ResumesWithoutReloadOnReconnect extends ReferenceMachine {
+        @Override
+        void handle(Memory m, ViewInput input, long now, List<ViewEffect> effects) {
+            boolean reconnectWithCopy = input instanceof ViewInput.SubscriptionsActive && m.copy != null;
+            if (reconnectWithCopy) {
+                m.mode = Mode.SYNCED;
+                return;
+            }
+            super.handle(m, input, now, effects);
+        }
+    }
+
+    static final class ReloadKeepsHeldBatches extends ReferenceMachine {
+        @Override
+        void wantReload(Memory m, long now) {
+            List<HeldBatch> heldBefore = List.copyOf(m.heldBatches);
+            super.wantReload(m, now);
+            m.heldBatches = new ArrayList<>(heldBefore);
         }
     }
 
@@ -436,28 +462,6 @@ final class WrongMachines {
                 m.lastLoadFailedAt = now;
             }
             super.onSnapshotFailed(m, now);
-        }
-    }
-
-    static final class KeepsBatchesWhileDisconnected extends ReferenceMachine {
-        @Override
-        void onBatch(Memory m, StateBatch batch, long now, List<ViewEffect> effects) {
-            if (m.mode == Mode.DISCONNECTED) {
-                m.heldBatches.add(new HeldBatch(batch, now));
-                return;
-            }
-            super.onBatch(m, batch, now, effects);
-        }
-
-        /**
-         * Keeps them across the reconnect's reload, which drops held batches.
-         */
-        @Override
-        void wantReload(Memory m, long now) {
-            boolean reconnect = m.mode == Mode.DISCONNECTED;
-            List<HeldBatch> keptAcrossReconnect = reconnect ? List.copyOf(m.heldBatches) : List.of();
-            super.wantReload(m, now);
-            m.heldBatches.addAll(keptAcrossReconnect);
         }
     }
 

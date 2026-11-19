@@ -216,10 +216,13 @@ class ReferenceMachine {
         }
     }
 
+    /**
+     * Keeps the held batches and a running audit: no deadline acts while disconnected, and the reconnect's
+     * reload drops them (rule 4).
+     */
     void loseConnection(Memory m) {
         ignoreRunningLoad(m);
         m.mode = Mode.DISCONNECTED;
-        dropPendingWork(m);
     }
 
     void wantReload(Memory m, long now) {
@@ -343,11 +346,14 @@ class ReferenceMachine {
         settleHeldBatches(m, now, effects);
     }
 
+    /**
+     * Holds a batch that arrives while disconnected too, for the reconnect's reload to drop.
+     */
     void onBatch(Memory m, StateBatch batch, long now, List<ViewEffect> effects) {
         switch (m.mode) {
-            case DISCONNECTED, RELOAD_WANTED -> {
+            case RELOAD_WANTED -> {
             }
-            case RELOADING -> m.heldBatches.add(new HeldBatch(batch, now));
+            case DISCONNECTED, RELOADING -> m.heldBatches.add(new HeldBatch(batch, now));
             case SYNCED -> {
                 m.heldBatches.add(new HeldBatch(batch, now));
                 settleHeldBatches(m, now, effects);

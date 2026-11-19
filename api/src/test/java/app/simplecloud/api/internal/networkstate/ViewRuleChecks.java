@@ -148,13 +148,17 @@ final class ViewRuleChecks {
                 new ViewCheck("pulse: views_may_answer false stops answers", ViewRuleChecks::flagFalseStopsAnswers),
                 new ViewCheck("connection: not live at once after the loss",
                         ViewRuleChecks::notLiveAtOnceAfterConnectionLoss),
-                new ViewCheck("connection: ignores batches until the subscriptions are active again",
-                        ViewRuleChecks::ignoresBatchesWhileDisconnected),
                 new ViewCheck("connection: reloads after a reconnect", ViewRuleChecks::reloadsAfterReconnect),
-                new ViewCheck("connection: a loss drops a wanted reload",
-                        ViewRuleChecks::lossDropsWantedReload),
-                new ViewCheck("connection: a loss abandons an audit waiting to compare",
-                        ViewRuleChecks::lossAbandonsComparingAudit),
+                new ViewCheck("connection: a batch held before the loss is not applied after the reconnect's reload",
+                        ViewRuleChecks::batchHeldBeforeLossDoesNotSurviveReload),
+                new ViewCheck("connection: a batch that arrives during the loss is not applied after the reconnect's"
+                        + " reload", ViewRuleChecks::batchDuringLossDoesNotSurviveReload),
+                new ViewCheck("connection: a reload wanted before the loss starts no load while disconnected",
+                        ViewRuleChecks::reloadWantedBeforeLossStartsNoLoad),
+                new ViewCheck("connection: a held batch's 3 s want no reload while disconnected",
+                        ViewRuleChecks::heldBatchWantsNoReloadWhileDisconnected),
+                new ViewCheck("connection: no audit finishes while disconnected",
+                        ViewRuleChecks::noAuditFinishesWhileDisconnected),
                 new ViewCheck("connection: a failed answer of an abandoned load is no failed load",
                         ViewRuleChecks::failedAbandonedLoadIsNoFailedLoad),
                 new ViewCheck("connection: ignores the answer of a load that ran across the loss",
@@ -810,19 +814,33 @@ final class ViewRuleChecks {
         assertFalse(view.readsStayOffHttp(), "a lost connection ends live at once");
     }
 
-    static void ignoresBatchesWhileDisconnected(ViewStarter starter) {
+    static void batchHeldBeforeLossDoesNotSurviveReload(ViewStarter starter) {
+        ViewDriver view = ViewDriver.liveAt(starter, network(10));
+        view.advance(100);
+        view.batch(serverStateBatch(11, 12, "STOPPING"));
+        view.loseConnection();
+        view.advance(100);
+        view.subscribe();
+        view.waitForLoad(RELOAD_WAIT_LIMIT);
+        // At the held batch's base, so a batch the view kept would apply on it.
+        view.loadSnapshot(network(11));
+
+        assertEquals(11, view.copy().revision(), "the reconnect's reload drops the held batch");
+        assertEquals("AVAILABLE", serverState(view, 1));
+    }
+
+    static void batchDuringLossDoesNotSurviveReload(ViewStarter starter) {
         ViewDriver view = ViewDriver.liveAt(starter, network(10));
         view.loseConnection();
         view.advance(100);
         view.batch(serverStateBatch(10, 11, "STOPPING"));
-        long revisionWhileDisconnected = view.copy().revision();
+        view.advance(100);
         view.subscribe();
         view.waitForLoad(RELOAD_WAIT_LIMIT);
         // From before the batch, so a batch the view kept would apply on it.
         view.loadSnapshot(network(10));
 
-        assertEquals(10, revisionWhileDisconnected, "a batch while disconnected is not applied");
-        assertEquals(10, view.copy().revision(), "nor kept for the snapshot after the reconnect");
+        assertEquals(10, view.copy().revision(), "the reconnect's reload drops a batch from the loss");
         assertEquals("AVAILABLE", serverState(view, 1));
     }
 
@@ -844,7 +862,7 @@ final class ViewRuleChecks {
         assertEquals(12, view.copy().revision());
     }
 
-    static void lossDropsWantedReload(ViewStarter starter) {
+    static void reloadWantedBeforeLossStartsNoLoad(ViewStarter starter) {
         ViewDriver view = ViewDriver.liveAt(starter, network(10));
         view.advance(300);
         view.batch(batch(EPOCH + 1, 2, 3).build());
@@ -857,7 +875,17 @@ final class ViewRuleChecks {
         view.assertLoadRequested("the reconnect reloads");
     }
 
-    static void lossAbandonsComparingAudit(ViewStarter starter) {
+    static void heldBatchWantsNoReloadWhileDisconnected(ViewStarter starter) {
+        ViewDriver view = ViewDriver.liveAt(starter, network(10));
+        view.advance(100);
+        view.batch(serverStateBatch(11, 12, "STOPPING"));
+        long heldAt = view.now();
+        view.loseConnection();
+
+        view.advanceWithoutLoadTo(heldAt + GAP_WAIT + RELOAD_WAIT_LIMIT, "a view starts no load while disconnected");
+    }
+
+    static void noAuditFinishesWhileDisconnected(ViewStarter starter) {
         ViewDriver view = auditLoading(starter);
         view.loadSnapshot(network(12));
         int auditsBeforeLoss = view.auditsFinished();
@@ -865,8 +893,8 @@ final class ViewRuleChecks {
         long lostAt = view.now();
         view.advanceWithoutLoadTo(lostAt + 2 * AUDIT_REACH_WAIT, "a view starts no load while disconnected");
 
-        assertEquals(auditsBeforeLoss, view.auditsFinished(), "a lost connection abandons the audit");
-        assertEquals(10, view.copy().revision(), "the abandoned audit's snapshot is not taken");
+        assertEquals(auditsBeforeLoss, view.auditsFinished(), "the audit's 3 s end no audit while disconnected");
+        assertEquals(10, view.copy().revision(), "the audit's snapshot is not taken while disconnected");
         assertFalse(view.readsStayOffHttp());
     }
 
