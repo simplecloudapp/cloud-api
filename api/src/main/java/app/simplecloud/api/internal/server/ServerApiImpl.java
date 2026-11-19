@@ -55,6 +55,16 @@ public class ServerApiImpl implements ServerApi {
         this(options, cache, httpClient, ForkJoinPool.commonPool(), ReadableCopies.none());
     }
 
+    /**
+     * Reads from the controller only, never from a copy.
+     *
+     * @deprecated kept because released versions have it; pass the runtime's {@link ReadableCopies}.
+     */
+    @Deprecated
+    public ServerApiImpl(CloudApiOptions options, QueryCache cache, ApiClient httpClient, Executor executor) {
+        this(options, cache, httpClient, executor, ReadableCopies.none());
+    }
+
     public ServerApiImpl(CloudApiOptions options, QueryCache cache, ApiClient httpClient, Executor executor,
                          ReadableCopies copies) {
         this(options, cache, createServersApi(options, httpClient), executor, copies);
