@@ -6,7 +6,8 @@ package app.simplecloud.api.internal.networkstate;
 public enum ReadRoute {
     FROM_COPY,
     /**
-     * The copy lacks an own write that can change the read; the shell asks again after every step.
+     * The copy has not reached the view's own write, and that write returned under 3 s ago; the shell asks again
+     * after every step.
      */
     WAIT,
     OVER_HTTP

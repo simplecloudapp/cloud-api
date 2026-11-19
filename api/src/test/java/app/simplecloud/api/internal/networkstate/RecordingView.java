@@ -64,7 +64,7 @@ public final class RecordingView implements NetworkView {
     }
 
     @Override
-    public ReadRoute routeRead(long readStartedAtMillis, long nowMillis) {
+    public ReadRoute routeRead(long nowMillis) {
         if (mayAnswer) {
             return ReadRoute.FROM_COPY;
         }

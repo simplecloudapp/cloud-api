@@ -43,8 +43,9 @@ import static org.junit.jupiter.api.Assertions.fail;
  *   <li>a live view's copy equals the database at the copy's epoch and revision, a state that existed;</li>
  *   <li>a live view lacks no batch of its epoch published 30 s before, and is in the database's epoch from
  *   30 s after a failover;</li>
- *   <li>a read the view may answer sees every own write;</li>
- *   <li>a read waits for 3 s at most, and its start time changes nothing else about where it goes;</li>
+ *   <li>a read answered from the copy under 3 s after an own write returned holds that write, unless the
+ *   database failed over after the write's commit;</li>
+ *   <li>a read waits only while the last own write returned under 3 s ago;</li>
  *   <li>the view never runs two loads at once, or starts them less than 2 s apart.</li>
  * </ul>
  * Liveness: from 50 s after the faults stop, the view is live and has every batch published 1 s before,
@@ -194,27 +195,9 @@ final class ViewSimulation {
     }
 
     /**
-     * The simulator's own, not the reference machine's, so a bug there cannot hide here.
+     * An own write whose response reached the view, with the number of failovers before its commit.
      */
-    private record Position(long epoch, long revision) {
-
-        boolean isAtOrAfter(Position other) {
-            int epochOrder = Long.compareUnsigned(epoch, other.epoch);
-            if (epochOrder != 0) {
-                return epochOrder > 0;
-            }
-            return Long.compareUnsigned(revision, other.revision) >= 0;
-        }
-
-        /**
-         * {@code highest} may be null, for no write.
-         */
-        static Position later(Position highest, Position written) {
-            if (highest == null) {
-                return written;
-            }
-            return highest.isAtOrAfter(written) ? highest : written;
-        }
+    private record ReturnedWrite(ModelDatabase.Commit commit, int failoversBeforeCommit, long returnedAt) {
     }
 
     private final RunPlan plan;
@@ -225,7 +208,8 @@ final class ViewSimulation {
     private final List<OwnerSlot> owners = new ArrayList<>();
     private final AgedRevisions batchesOlderThanLag = new AgedRevisions(LIVE_VIEW_LAGS_AT_MOST_MILLIS);
     private final AgedRevisions batchesOlderThanReach = new AgedRevisions(CHANGE_REACHES_VIEW_MILLIS);
-    private Position highestOwnWrite;
+    private final Deque<ReturnedWrite> writesReturnedUnderThreeSecondsAgo = new ArrayDeque<>();
+    private Long lastOwnWriteReturnedAt;
     private final long endAt;
     private final long faultGapMillis;
     private final double lossChance;
@@ -380,11 +364,12 @@ final class ViewSimulation {
 
     private void write() {
         if (now < endAt - WRITES_STOP_BEFORE_END_MILLIS) {
+            int failoversBeforeCommit = failovers;
             ModelDatabase.Commit commit = database.commitRandomWrite();
             notifyOwners();
             boolean ownWrite = random.nextInt(10) < 3;
             if (ownWrite) {
-                schedule(random.nextInt(20), () -> readRevisionHeaders(commit));
+                schedule(random.nextInt(20), () -> readRevisionHeaders(commit, failoversBeforeCommit));
             }
         }
         schedule(nextWriteDelay(), this::write);
@@ -404,20 +389,22 @@ final class ViewSimulation {
     /**
      * The controller reads the headers after the commit; the response then takes its own time, so the
      * responses of two writes can arrive in the other order. In dense faults, one read in ten fails, and
-     * the response comes without the headers.
+     * the response comes without the headers, so the view gets nothing.
      */
-    private void readRevisionHeaders(ModelDatabase.Commit commit) {
+    private void readRevisionHeaders(ModelDatabase.Commit commit, int failoversBeforeCommit) {
         ModelDatabase.State afterCommit = database.current();
         boolean readFailed = faultsAllowed() && random.nextDouble() < revisionReadFailureChance;
-        ViewInput response = readFailed
-                ? new ViewInput.WriteRevisionUnknown()
-                : new ViewInput.WriteReturned(afterCommit.epoch(), afterCommit.counter());
-        schedule(5 + random.nextInt(300), () -> returnOwnWrite(commit, response));
+        if (readFailed) {
+            return;
+        }
+        ViewInput.WriteReturned response = new ViewInput.WriteReturned(afterCommit.epoch(), afterCommit.counter());
+        schedule(5 + random.nextInt(300), () -> returnOwnWrite(commit, failoversBeforeCommit, response));
     }
 
-    private void returnOwnWrite(ModelDatabase.Commit commit, ViewInput response) {
-        Position committed = new Position(commit.epoch(), commit.revision());
-        highestOwnWrite = Position.later(highestOwnWrite, committed);
+    private void returnOwnWrite(ModelDatabase.Commit commit, int failoversBeforeCommit,
+                                ViewInput.WriteReturned response) {
+        writesReturnedUnderThreeSecondsAgo.addLast(new ReturnedWrite(commit, failoversBeforeCommit, now));
+        lastOwnWriteReturnedAt = now;
         step(response);
     }
 
@@ -680,8 +667,9 @@ final class ViewSimulation {
             checkCopyIsRealState();
             checkLiveCopyIsRecent();
         }
+        forgetWritesReturnedThreeSecondsAgo();
         checkOwnWritesAreSeen();
-        checkWaitEndsAfterThreeSeconds();
+        checkWaitEndsThreeSecondsAfterLastWrite();
     }
 
     /**
@@ -689,7 +677,7 @@ final class ViewSimulation {
      * pulse here allows answers.
      */
     private boolean isLive() {
-        return view.routeRead(now, now) != ReadRoute.OVER_HTTP;
+        return view.routeRead(now) != ReadRoute.OVER_HTTP;
     }
 
     private void checkLiveCopyIsRecent() {
@@ -719,29 +707,50 @@ final class ViewSimulation {
         }
     }
 
-    private void checkOwnWritesAreSeen() {
-        boolean answeredFromCopy = view.routeRead(now, now) == ReadRoute.FROM_COPY;
-        if (highestOwnWrite == null || !answeredFromCopy) {
-            return;
-        }
-        NetworkCopy copy = copyOrFail("a view that may answer holds no copy");
-        Position copyPosition = new Position(copy.epoch(), copy.revision());
-        if (!copyPosition.isAtOrAfter(highestOwnWrite)) {
-            failRun("the view may answer reads at " + copyPosition + " before its own write at " + highestOwnWrite);
+    private void forgetWritesReturnedThreeSecondsAgo() {
+        while (!writesReturnedUnderThreeSecondsAgo.isEmpty()
+                && now - writesReturnedUnderThreeSecondsAgo.peekFirst().returnedAt() >= OWN_WRITE_WAIT_MILLIS) {
+            writesReturnedUnderThreeSecondsAgo.removeFirst();
         }
     }
 
-    private void checkWaitEndsAfterThreeSeconds() {
-        ReadRoute startingNow = view.routeRead(now, now);
-        ReadRoute startedJustUnderThreeSecondsAgo = view.routeRead(now - OWN_WRITE_WAIT_MILLIS + 1, now);
-        ReadRoute startedThreeSecondsAgo = view.routeRead(now - OWN_WRITE_WAIT_MILLIS, now);
-        ReadRoute afterTheWait = startingNow == ReadRoute.WAIT ? ReadRoute.OVER_HTTP : startingNow;
-        if (startedJustUnderThreeSecondsAgo != startingNow) {
-            failRun("a read started under 3 s ago goes " + startedJustUnderThreeSecondsAgo
-                    + ", one that starts now " + startingNow);
+    private void checkOwnWritesAreSeen() {
+        boolean answeredFromCopy = view.routeRead(now) == ReadRoute.FROM_COPY;
+        if (!answeredFromCopy) {
+            return;
         }
-        if (startedThreeSecondsAgo != afterTheWait) {
-            failRun("a read started 3 s ago goes " + startedThreeSecondsAgo + ", one that starts now " + startingNow);
+        NetworkCopy copy = copyOrFail("a view that may answer holds no copy");
+        for (ReturnedWrite write : writesReturnedUnderThreeSecondsAgo) {
+            checkCopyHoldsWrite(copy, write);
+        }
+    }
+
+    /**
+     * Without a failover since the commit, the commit's epoch is the only one with revisions after it.
+     */
+    private void checkCopyHoldsWrite(NetworkCopy copy, ReturnedWrite write) {
+        boolean historyCutSinceCommit = failovers != write.failoversBeforeCommit();
+        if (historyCutSinceCommit) {
+            return;
+        }
+        ModelDatabase.Commit commit = write.commit();
+        boolean holdsWrite = copy.epoch() == commit.epoch() && copy.revision() >= commit.revision();
+        if (!holdsWrite) {
+            failRun("the copy at revision " + copy.revision() + " of epoch " + copy.epoch() + " answers a read "
+                    + (now - write.returnedAt()) + " ms after an own write at revision " + commit.revision()
+                    + " of epoch " + commit.epoch() + " returned");
+        }
+    }
+
+    private void checkWaitEndsThreeSecondsAfterLastWrite() {
+        boolean waits = view.routeRead(now) == ReadRoute.WAIT;
+        if (!waits) {
+            return;
+        }
+        boolean underThreeSecondsAfterWrite = lastOwnWriteReturnedAt != null
+                && now - lastOwnWriteReturnedAt < OWN_WRITE_WAIT_MILLIS;
+        if (!underThreeSecondsAfterWrite) {
+            failRun("a read waits, but the last own write returned at " + lastOwnWriteReturnedAt + " ms");
         }
     }
 

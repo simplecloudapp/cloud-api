@@ -17,11 +17,10 @@ import java.util.Optional;
  * and the deadlines after it, so an input that arrives exactly at a deadline is on time: a missing batch
  * that arrives exactly 3 s after a batch was held closes the gap, and a copy that reaches the audit's
  * revision exactly 3 s after the audit snapshot arrived is compared. When the audit's deadline and a 3 s
- * deadline of rule 2 or 3 fall in one step, the audit's acts first. Revisions, and epochs where an own
- * write orders them, are uint64 values held in a {@code long}, so they compare unsigned; everywhere else
- * epochs compare only for equality. A random delay is cut to whole milliseconds, and each one draws the
- * next number from the sequence. "Local" is the revision of the copy. A view is "synced" while it holds a
- * copy, its connection is up, and it neither wants nor runs a reload.
+ * deadline of rule 2 or 3 fall in one step, the audit's acts first. Revisions are uint64 values held in a
+ * {@code long}, so they compare unsigned; epochs compare only for equality. A random delay is cut to whole
+ * milliseconds, and each one draws the next number from the sequence. "Local" is the revision of the copy. A
+ * view is "synced" while it holds a copy, its connection is up, and it neither wants nor runs a reload.
  *
  * <h2>Rules</h2>
  *
@@ -103,39 +102,26 @@ import java.util.Optional;
  *
  * <h2>Answers</h2>
  *
- * {@link #routeRead} says where a read goes: it is answered from the copy, it waits for the copy, or it goes
- * over HTTP. At time T, for a read that started at S, the first of these that holds decides:
- * <ul>
- *   <li>the view is not live (rule 5; time alone ends it, when the last good pulse turns 15 s old), or the
- *   last pulse did not allow answers ({@code views_may_answer}; false before the first pulse): over HTTP;</li>
- *   <li>the copy has reached every own write: from the copy;</li>
- *   <li>T is under 3 s after S: wait;</li>
- *   <li>otherwise: over HTTP.</li>
- * </ul>
- * So a read that the copy may answer is answered from it, also exactly 3 s after it started. A read waits
- * instead of going over HTTP because the controller's list cache can answer it from before the write for up to
- * 2 s, while the copy gets the write with its batch. Every own write counts for every read: a server write, the
- * common one, changes the server, group and persistent server lists anyway, and a bar per kind of write would
- * spare only a few milliseconds of wait after the rare others, but miss a read whenever a route writes another
- * kind than its path names, such as {@code /v0/server-groups/convert-to-persistent}.
- * <p>A {@link ViewInput.WriteReturned} at epoch E and revision R is reached while the copy's epoch is above E,
- * or equal to E with local at or above R. It is also reached for good once the view takes a snapshot whose
- * load started in the step that handed over the write or in a later step. That is a reload's snapshot (rule
- * 6), or an audit's snapshot that the view takes because it differed or was not reached (rule 7); for the
- * audit, its own load counts. The controller reads that snapshot after the write's request arrived, so it
- * holds the write whatever its epoch, also when a restore made the epoch lower (rule 2). In a step, the input
- * acts before a load starts, so a load that starts in the step that hands over the write counts as after it.
- * A load that already runs when the write is handed over does not reach it, also when it started at the same
- * millisecond in an earlier step. A snapshot that is not taken reaches nothing: one in which a reference does
- * not resolve, the answer of an abandoned load, and an audit snapshot that matched or that the copy went past.
- * Each write is reached on its own, so a write after the snapshot makes reads wait again until it is reached.
- * <p>A {@link ViewInput.WriteRevisionUnknown} means reload in a synced view, and in a view whose
- * reload's load runs, because that copy or that load may be from before the write. The controller reads a
- * snapshot after the request arrived, so a load that starts after a successful response holds the write, and
- * the view answers nothing until it is live again (rule 5). After a 5xx or a call that threw, the controller
- * may still be handling the write, so a load can miss it; the copy then gets the write from its batch. In a
- * view that wants a reload or is disconnected, the input does nothing: its next load starts after the write
- * anyway.
+ * {@link #routeRead} says where a read goes at time T: it is answered from the copy, it waits for the copy, or it
+ * goes over HTTP. The first of these that holds decides:
+ * <ol>
+ *   <li>the view is not live (rule 5; time alone ends it, when the last good pulse turns 15 s old), or the last
+ *   pulse did not allow answers ({@code views_may_answer}; false before the first pulse): over HTTP;</li>
+ *   <li>the view waits for its own write: wait;</li>
+ *   <li>otherwise: from the copy.</li>
+ * </ol>
+ * <p>The view keeps one own write: its epoch, its revision, and the time its {@link ViewInput.WriteReturned} was
+ * handed over. A {@link ViewInput.WriteReturned} at epoch E and revision R, handed over at time W, replaces it. If
+ * the kept write has the same epoch E, the higher revision stays; the time is W in every case. The copy has
+ * reached the own write when the copy's epoch is E and local is at or above R. The view waits for its own write
+ * while it keeps one, the copy has not reached it, and T is under 3 s after W. So exactly 3 s after W the read is
+ * answered from the copy, reached or not. A write that is lost, as in a database restore, or whose epoch the copy
+ * never takes, therefore costs reads at most 3 s after the write, once.
+ * <p>A read waits because the controller's list cache can answer it from before the write for up to 2 s, while the
+ * copy gets the write with its batch. The 3 s count from the write and not from the read, so that a write the copy
+ * never reaches does not slow down every later read.
+ * <p>In a synced view, a {@link ViewInput.WriteReturned} whose epoch differs from the copy's means reload (rule 6):
+ * the history was cut. In any other phase it only replaces the kept write.
  */
 public interface NetworkView {
 
@@ -145,10 +131,9 @@ public interface NetworkView {
     ViewStep step(ViewInput input, long nowMillis);
 
     /**
-     * Returns where a read that started at {@code readStartedAtMillis} goes at {@code nowMillis} (Answers). The
-     * start is at or before {@code nowMillis}.
+     * Returns where a read goes at {@code nowMillis} (Answers).
      */
-    ReadRoute routeRead(long readStartedAtMillis, long nowMillis);
+    ReadRoute routeRead(long nowMillis);
 
     /**
      * Returns the copy, or empty before the first snapshot is taken. A view keeps its copy while it is not

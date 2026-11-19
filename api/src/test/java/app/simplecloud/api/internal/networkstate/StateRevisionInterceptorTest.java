@@ -58,45 +58,45 @@ class StateRevisionInterceptorTest {
 
         send("PATCH", "/v0/server-groups/lobby");
 
-        ViewInput expected = new ViewInput.WriteReturned(1L << 32, -1L);
+        ViewInput.WriteReturned expected = new ViewInput.WriteReturned(1L << 32, -1L);
         assertEquals(List.of(expected), writesTheViewTook());
     }
 
     @Test
-    void aWriteWithoutRevisionHeadersHandsTheViewAWriteOfUnknownRevision() throws IOException {
+    void aWriteWithoutRevisionHeadersHandsTheViewNothing() throws IOException {
         controller.enqueue(new MockResponse().setHeader("X-SC-State-Epoch", EPOCH));
 
         send("POST", "/v0/servers/abc/stop");
 
-        assertEquals(List.of(new ViewInput.WriteRevisionUnknown()), writesTheViewTook());
+        assertEquals(List.of(), writesTheViewTook());
     }
 
     @Test
-    void revisionHeadersThatAreNoNumbersCountAsMissing() throws IOException {
+    void aWriteWithRevisionHeadersThatAreNoUnsignedNumbersHandsTheViewNothing() throws IOException {
         controller.enqueue(new MockResponse()
                 .setHeader("X-SC-State-Epoch", EPOCH)
                 .setHeader("X-SC-State-Revision", "-1"));
 
         send("DELETE", "/v0/persistent-servers/abc");
 
-        assertEquals(List.of(new ViewInput.WriteRevisionUnknown()), writesTheViewTook());
+        assertEquals(List.of(), writesTheViewTook());
     }
 
     @Test
-    void aWriteThatThrowsHandsTheViewAWriteOfUnknownRevisionAndTheCallerTheException() {
+    void aWriteThatThrowsHandsTheViewNothingAndTheCallerTheException() {
         controller.enqueue(new MockResponse().setSocketPolicy(SocketPolicy.DISCONNECT_AFTER_REQUEST));
 
         assertThrows(IOException.class, () -> send("PATCH", "/v0/server-groups/lobby"));
-        assertEquals(List.of(new ViewInput.WriteRevisionUnknown()), writesTheViewTook());
+        assertEquals(List.of(), writesTheViewTook());
     }
 
     @Test
-    void aWriteWithAServerErrorHandsTheViewAWriteOfUnknownRevision() throws IOException {
+    void aWriteWithAServerErrorHandsTheViewNothing() throws IOException {
         controller.enqueue(withRevisionHeaders(new MockResponse().setResponseCode(502)));
 
         send("PUT", "/v0/blueprints/abc");
 
-        assertEquals(List.of(new ViewInput.WriteRevisionUnknown()), writesTheViewTook());
+        assertEquals(List.of(), writesTheViewTook());
     }
 
     @Test
@@ -140,14 +140,8 @@ class StateRevisionInterceptorTest {
         }
     }
 
-    private List<ViewInput> writesTheViewTook() {
-        return view.received().stream()
-                .filter(StateRevisionInterceptorTest::isWrite)
-                .toList();
-    }
-
-    private static boolean isWrite(ViewInput input) {
-        return input instanceof ViewInput.WriteReturned || input instanceof ViewInput.WriteRevisionUnknown;
+    private List<ViewInput.WriteReturned> writesTheViewTook() {
+        return view.received(ViewInput.WriteReturned.class);
     }
 
     private boolean writesNetworkState(String method, String path) {

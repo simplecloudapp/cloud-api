@@ -148,15 +148,10 @@ class NetworkViewShellTest {
         RecordingView view = RecordingView.withoutCopy();
         shell = startShell(view, unusedSnapshots());
         ViewInput withRevision = new ViewInput.WriteReturned(3, 7);
-        ViewInput revisionUnknown = new ViewInput.WriteRevisionUnknown();
 
         shell.writeReturned(3, 7);
-        boolean revisionTaken = view.received().contains(withRevision);
-        shell.writeRevisionUnknown();
-        boolean writeRevisionUnknownTaken = view.received().contains(revisionUnknown);
 
-        assertTrue(revisionTaken);
-        assertTrue(writeRevisionUnknownTaken);
+        assertTrue(view.received().contains(withRevision));
     }
 
     @Test
@@ -207,9 +202,10 @@ class NetworkViewShellTest {
     }
 
     @Test
-    void aReadThatWaitsForAnOwnWriteGoesOverHttpAfterThreeSeconds() throws Exception {
+    void aReadThatWaitsForAnOwnWriteIsAnsweredFromTheCopyThreeSecondsAfterTheWrite() throws Exception {
         startLiveShellAtRevision10();
         shell.writeReturned(StateItems.EPOCH, 11);
+        clockMillis.set(2_000);
         CompletableFuture<Optional<NetworkCopy>> read = shell.copyToAnswer();
         clockMillis.set(2_999);
         sleepQuietly();
@@ -217,8 +213,8 @@ class NetworkViewShellTest {
         clockMillis.set(3_000);
         Optional<NetworkCopy> answer = answerOf(read);
 
-        assertTrue(waitingJustBefore, "the read waits for up to 3 s");
-        assertTrue(answer.isEmpty(), "after 3 s the read goes over HTTP");
+        assertTrue(waitingJustBefore, "a read 2 s after the write waits until 3 s after the write");
+        assertEquals(10, answer.orElseThrow().revision(), "then the copy answers, though it lacks the write");
     }
 
     @Test
@@ -229,7 +225,7 @@ class NetworkViewShellTest {
         shell.connectionLost();
         Optional<NetworkCopy> answer = answerOf(read);
 
-        assertTrue(answer.isEmpty(), "a view that is not live sends the read over HTTP, before its 3 s end");
+        assertTrue(answer.isEmpty(), "a view that is not live sends the read over HTTP, before 3 s after the write");
     }
 
     @Test
@@ -273,7 +269,7 @@ class NetworkViewShellTest {
     }
 
     @Test
-    void aReadThatATickSendsOverHttpContinuesOnNeitherTheTimerNorUnderTheLock() throws Exception {
+    void aReadThatATickAnswersContinuesOnNeitherTheTimerNorUnderTheLock() throws Exception {
         startLiveShellAtRevision10();
         Object stepLock = stepLockOf(shell);
         Thread timerThread = timerThreadOf(shell);
@@ -321,7 +317,7 @@ class NetworkViewShellTest {
         }
 
         @Override
-        public ReadRoute routeRead(long readStartedAtMillis, long nowMillis) {
+        public ReadRoute routeRead(long nowMillis) {
             if (!looked) {
                 looked = true;
                 shell.close();

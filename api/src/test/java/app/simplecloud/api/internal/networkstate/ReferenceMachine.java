@@ -79,13 +79,6 @@ class ReferenceMachine {
     record BehindPulse(long revision, long since) {
     }
 
-    record Position(long epoch, long revision) {
-
-        static Position of(NetworkCopy copy) {
-            return new Position(copy.epoch(), copy.revision());
-        }
-    }
-
     /**
      * Every place where the machine orders two uint64 values, so a wrong machine can compare one of them
      * signed.
@@ -96,8 +89,8 @@ class ReferenceMachine {
         PULSE_REVISION,
         FURTHER_PULSE,
         REACHED_PULSE,
-        OWN_WRITE_EPOCH,
-        OWN_WRITE_REVISION,
+        OWN_WRITE_REACHED,
+        OWN_WRITE_KEPT,
         AUDIT_REVISION
     }
 
@@ -126,10 +119,11 @@ class ReferenceMachine {
         NetworkState auditSnapshot;
         long auditComparingSince;
         /**
-         * Only from own writes that no taken snapshot holds, so only the copy's epoch and revision can reach it.
+         * The kept own write's epoch, null before the first one.
          */
-        Position highestOwnWrite;
-        Position highestOwnWriteSinceLoadStarted;
+        Long ownWriteEpoch;
+        long ownWriteRevision;
+        long ownWriteHandedOverAt;
 
         Memory(RandomSequence random) {
             this.random = random;
@@ -155,8 +149,9 @@ class ReferenceMachine {
             auditDueAt = source.auditDueAt;
             auditSnapshot = source.auditSnapshot;
             auditComparingSince = source.auditComparingSince;
-            highestOwnWrite = source.highestOwnWrite;
-            highestOwnWriteSinceLoadStarted = source.highestOwnWriteSinceLoadStarted;
+            ownWriteEpoch = source.ownWriteEpoch;
+            ownWriteRevision = source.ownWriteRevision;
+            ownWriteHandedOverAt = source.ownWriteHandedOverAt;
         }
 
     }
@@ -179,8 +174,8 @@ class ReferenceMachine {
         }
 
         @Override
-        public ReadRoute routeRead(long readStartedAtMillis, long nowMillis) {
-            return machine.routeRead(memory, readStartedAtMillis, nowMillis);
+        public ReadRoute routeRead(long nowMillis) {
+            return machine.routeRead(memory, nowMillis);
         }
 
         @Override
@@ -216,8 +211,7 @@ class ReferenceMachine {
             case ViewInput.SnapshotFailed failed -> onSnapshotFailed(m, now);
             case ViewInput.BatchReceived received -> onBatch(m, received.batch(), now, effects);
             case ViewInput.PulseReceived received -> onPulse(m, received.pulse(), now);
-            case ViewInput.WriteReturned write -> onWriteReturned(m, write);
-            case ViewInput.WriteRevisionUnknown write -> onWriteRevisionUnknown(m, now);
+            case ViewInput.WriteReturned write -> onWriteReturned(m, write, now);
             case ViewInput.TimePassed passed -> {
             }
         }
@@ -325,7 +319,6 @@ class ReferenceMachine {
             return;
         }
         m.copy = taken;
-        reachOwnWritesBeforeLoad(m);
         m.mode = Mode.SYNCED;
         m.snapshotTakenAt = now;
         m.goodPulseAt = null;
@@ -484,30 +477,26 @@ class ReferenceMachine {
         }
     }
 
-    void onWriteReturned(Memory m, ViewInput.WriteReturned write) {
-        Position written = new Position(write.epoch(), write.revision());
-        m.highestOwnWrite = later(m.highestOwnWrite, written);
-        m.highestOwnWriteSinceLoadStarted = later(m.highestOwnWriteSinceLoadStarted, written);
-    }
-
-    /**
-     * The snapshot comes from the last load that started, also an audit's, since no load starts while an audit
-     * compares. The controller read it after that start, so it holds every own write handed over before, and
-     * only those handed over since are left to reach.
-     */
-    void reachOwnWritesBeforeLoad(Memory m) {
-        m.highestOwnWrite = m.highestOwnWriteSinceLoadStarted;
-    }
-
-    /**
-     * A snapshot is read after the write's request arrived, so it holds the write.
-     */
-    void onWriteRevisionUnknown(Memory m, long now) {
-        switch (m.mode) {
-            case SYNCED, RELOADING -> wantReload(m, now);
-            case RELOAD_WANTED, DISCONNECTED -> {
-            }
+    void onWriteReturned(Memory m, ViewInput.WriteReturned write, long now) {
+        if (writeCutsHistory(m, write)) {
+            wantReload(m, now);
         }
+        keepOwnWrite(m, write, now);
+    }
+
+    boolean writeCutsHistory(Memory m, ViewInput.WriteReturned write) {
+        return m.mode == Mode.SYNCED && write.epoch() != m.copy.epoch();
+    }
+
+    void keepOwnWrite(Memory m, ViewInput.WriteReturned write, long now) {
+        boolean keptInSameEpoch = m.ownWriteEpoch != null && m.ownWriteEpoch == write.epoch();
+        boolean keptIsHigher = keptInSameEpoch
+                && compare(Comparison.OWN_WRITE_KEPT, m.ownWriteRevision, write.revision()) > 0;
+        if (!keptIsHigher) {
+            m.ownWriteRevision = write.revision();
+        }
+        m.ownWriteEpoch = write.epoch();
+        m.ownWriteHandedOverAt = now;
     }
 
     void actOnDeadlines(Memory m, long now, List<ViewEffect> effects) {
@@ -582,7 +571,6 @@ class ReferenceMachine {
         m.loadRunning = true;
         m.loadAnswerIgnored = false;
         m.lastLoadStartedAt = now;
-        m.highestOwnWriteSinceLoadStarted = null;
     }
 
     void onAuditSnapshot(Memory m, NetworkState snapshot, long now, List<ViewEffect> effects) {
@@ -638,49 +626,34 @@ class ReferenceMachine {
                 && now - m.goodPulseAt < GOOD_PULSE_MAX_AGE_MILLIS;
     }
 
-    boolean mayAnswer(Memory m, long now) {
-        return isLive(m, now) && m.viewsMayAnswer && reachedOwnWrites(m);
+    boolean answersAllowed(Memory m, long now) {
+        return isLive(m, now) && m.viewsMayAnswer;
     }
 
-    ReadRoute routeRead(Memory m, long startedAt, long now) {
-        if (mayAnswer(m, now)) {
-            return ReadRoute.FROM_COPY;
+    ReadRoute routeRead(Memory m, long now) {
+        if (!answersAllowed(m, now)) {
+            return ReadRoute.OVER_HTTP;
         }
-        if (awaitsOwnWrite(m, now) && !waitedTooLong(startedAt, now)) {
+        if (awaitsOwnWrite(m, now)) {
             return ReadRoute.WAIT;
         }
-        return ReadRoute.OVER_HTTP;
-    }
-
-    boolean waitedTooLong(long startedAt, long now) {
-        return now - startedAt >= OWN_WRITE_WAIT_MILLIS;
+        return ReadRoute.FROM_COPY;
     }
 
     boolean awaitsOwnWrite(Memory m, long now) {
-        boolean answersAllowed = isLive(m, now) && m.viewsMayAnswer;
-        return answersAllowed && !reachedOwnWrites(m);
+        return !copyHasOwnWrite(m) && !ownWriteWaitIsOver(m, now);
     }
 
-    boolean reachedOwnWrites(Memory m) {
-        return m.highestOwnWrite == null || isAtOrAfter(Position.of(m.copy), m.highestOwnWrite);
-    }
-
-    boolean isAtOrAfter(Position position, Position other) {
-        int epochOrder = compare(Comparison.OWN_WRITE_EPOCH, position.epoch(), other.epoch());
-        if (epochOrder != 0) {
-            return epochOrder > 0;
+    boolean copyHasOwnWrite(Memory m) {
+        if (m.ownWriteEpoch == null) {
+            return true;
         }
-        return compare(Comparison.OWN_WRITE_REVISION, position.revision(), other.revision()) >= 0;
+        boolean sameEpoch = m.copy.epoch() == m.ownWriteEpoch;
+        return sameEpoch && compare(Comparison.OWN_WRITE_REACHED, m.copy.revision(), m.ownWriteRevision) >= 0;
     }
 
-    /**
-     * {@code highest} may be null, for no write.
-     */
-    Position later(Position highest, Position written) {
-        if (highest == null) {
-            return written;
-        }
-        return isAtOrAfter(highest, written) ? highest : written;
+    boolean ownWriteWaitIsOver(Memory m, long now) {
+        return now - m.ownWriteHandedOverAt >= OWN_WRITE_WAIT_MILLIS;
     }
 
     static NetworkCopy copyOf(NetworkState snapshot) {

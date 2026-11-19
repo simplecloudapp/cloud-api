@@ -40,9 +40,10 @@ final class WrongMachines {
                         "pulse: a pulse past 2^63 is further ahead than one below it"),
                 signedAt(ReferenceMachine.Comparison.REACHED_PULSE,
                         "pulse: a copy past 2^63 has reached a pulse below it"),
-                signedAt(ReferenceMachine.Comparison.OWN_WRITE_EPOCH, "own write: compares epochs past 2^63 unsigned"),
-                signedAt(ReferenceMachine.Comparison.OWN_WRITE_REVISION,
+                signedAt(ReferenceMachine.Comparison.OWN_WRITE_REACHED,
                         "own write: compares revisions past 2^63 unsigned"),
+                signedAt(ReferenceMachine.Comparison.OWN_WRITE_KEPT,
+                        "own write: keeps the higher revision past 2^63 unsigned"),
                 signedAt(ReferenceMachine.Comparison.AUDIT_REVISION, "audit: compares revisions past 2^63 unsigned"),
                 new WrongMachine("acts on deadlines before the step's input",
                         random -> new DeadlinesBeforeInput().start(random),
@@ -124,8 +125,7 @@ final class WrongMachines {
                                 "pulse: a lower revision neither reloads nor counts as good")),
                 new WrongMachine("ignores the epoch of a pulse",
                         random -> new IgnoresPulseEpoch().start(random),
-                        List.of("pulse: reloads on a pulse from another epoch",
-                                "own write: a write in a later epoch holds reads until the copy is in it")),
+                        List.of("pulse: reloads on a pulse from another epoch")),
                 new WrongMachine("stays live without a good pulse",
                         random -> new StaysLiveWithoutGoodPulse().start(random),
                         List.of("pulse: a lower revision neither reloads nor counts as good",
@@ -173,34 +173,66 @@ final class WrongMachines {
                 new WrongMachine("compares an audit snapshot from another epoch",
                         random -> new ComparesAuditOfAnotherEpoch().start(random),
                         List.of("audit: an audit snapshot from another epoch reloads")),
-                new WrongMachine("keeps only the last own write",
-                        random -> new KeepsLastOwnWrite().start(random),
-                        List.of("own write: the highest write holds, also when responses come out of order")),
-                new WrongMachine("never counts a taken snapshot as reaching an own write",
-                        random -> new SnapshotReachesNoOwnWrite().start(random),
-                        List.of("own write: a snapshot in a lower epoch reaches a write handed over before its load",
-                                "own write: a load that starts in the write's step reaches it",
-                                "own write: a differing audit reaches a write handed over before its load",
-                                "own write: an audit not reached in 3 s reaches a write handed over before its load",
-                                "own write: a write after the snapshot makes reads wait again")),
-                new WrongMachine("counts a taken snapshot as reaching the own writes handed over while its load ran",
-                        random -> new SnapshotReachesWritesDuringLoad().start(random),
-                        List.of("own write: a snapshot misses a write handed over after its load started, "
-                                        + "also in the same millisecond",
-                                "own write: an audit misses a write handed over after its load started")),
-                new WrongMachine("counts an audit snapshot that is not taken as reaching own writes",
-                        random -> new UntakenAuditReachesOwnWrites().start(random),
-                        List.of("own write: an audit that takes no snapshot reaches no write")),
-                new WrongMachine("starts a load before it handles the own write of the same step",
-                        random -> new LoadStartsBeforeOwnWriteOfStep().start(random),
-                        List.of("own write: a load that starts in the write's step reaches it")),
                 new WrongMachine("answers before the copy has the own write",
                         random -> new AnswersBeforeOwnWrite().start(random),
-                        List.of("own write: a write holds every read until the copy reaches it",
+                        List.of("own write: a read waits while the copy is below the write's revision in its epoch",
                                 ViewSimulation.SHORT_RUNS_CHECK)),
                 new WrongMachine("never lets a read wait for an own write",
                         random -> new NeverWaitsForOwnWrite().start(random),
-                        List.of("own write wait: a write makes every read wait until the copy reaches it")),
+                        List.of("own write: a read waits while the copy is below the write's revision in its epoch")),
+                new WrongMachine("counts an own write reached only once the copy is above its revision",
+                        random -> new ReachedOnlyAboveRevision().start(random),
+                        List.of("own write: the copy answers once it reaches the write's revision, at it or above")),
+                new WrongMachine("counts an own write reached only while the copy is at exactly its revision",
+                        random -> new ReachedOnlyAtRevision().start(random),
+                        List.of("own write: the copy answers once it reaches the write's revision, at it or above")),
+                new WrongMachine("lets a read wait that the copy may answer",
+                        random -> new WaitsWhenCopyMayAnswer().start(random),
+                        List.of("own write: the copy answers once it reaches the write's revision, at it or above")),
+                new WrongMachine("lets a read wait for an own write for ever",
+                        random -> new WaitsForOwnWriteForEver().start(random),
+                        List.of("own write: exactly 3 s after the write the copy answers, though it lacks the write",
+                                ViewSimulation.SHORT_RUNS_CHECK)),
+                new WrongMachine("still lets a read wait exactly 3 s after the own write",
+                        random -> new WaitsAtThreeSeconds().start(random),
+                        List.of("own write: exactly 3 s after the write the copy answers, though it lacks the write")),
+                new WrongMachine("counts the 3 s of an own write from the view's last step",
+                        random -> new WaitCountsFromLastStep().start(random),
+                        List.of("own write: a read that starts 2.9 s after the write waits at most 0.1 s")),
+                new WrongMachine("keeps the last own write's revision, also when it is lower in the same epoch",
+                        random -> new KeepsLastRevision().start(random),
+                        List.of("own write: a later write restarts the 3 s, and in one epoch the higher revision"
+                                + " stays")),
+                new WrongMachine("keeps the first own write's time when a later one returns",
+                        random -> new KeepsFirstWriteTime().start(random),
+                        List.of("own write: a later write restarts the 3 s, and in one epoch the higher revision"
+                                + " stays")),
+                new WrongMachine("orders the epochs of own writes and keeps the write of the higher one",
+                        random -> new KeepsOwnWriteOfHigherEpoch().start(random),
+                        List.of("own write: a write from another epoch replaces the kept write, whatever the"
+                                + " revisions")),
+                new WrongMachine("keeps the higher revision of own writes also across epochs",
+                        random -> new KeepsHigherRevisionAcrossEpochs().start(random),
+                        List.of("own write: a write from another epoch replaces the kept write, whatever the"
+                                + " revisions")),
+                new WrongMachine("does not reload on an own write from another epoch than the copy's",
+                        random -> new NoReloadOnOwnWriteOfOtherEpoch().start(random),
+                        List.of("own write: in a synced view, a write from another epoch than the copy's reloads")),
+                new WrongMachine("reloads only on an own write from a higher epoch than the copy's",
+                        random -> new ReloadsOnlyOnOwnWriteOfHigherEpoch().start(random),
+                        List.of("own write: in a synced view, a write from another epoch than the copy's reloads")),
+                new WrongMachine("counts an own write reached at its revision in any epoch",
+                        random -> new ReachedInAnyEpoch().start(random),
+                        List.of("own write: a copy in another epoch than the write waits only until 3 s after the"
+                                + " write")),
+                new WrongMachine("lets a read wait beyond 3 s for an own write from another epoch than the copy's",
+                        random -> new WaitsForOwnWriteOfOtherEpochForEver().start(random),
+                        List.of("own write: a copy in another epoch than the write waits only until 3 s after the"
+                                + " write")),
+                new WrongMachine("reloads on an own write from another epoch in every phase",
+                        random -> new ReloadsOnOwnWriteOfOtherEpochInEveryPhase().start(random),
+                        List.of("own write: a write while disconnected, wanting a reload or reloading starts no"
+                                + " load")),
                 new WrongMachine("lets a read wait for an own write while the view is not live",
                         random -> new WaitsWhileNotLive().start(random),
                         List.of("own write wait: no read waits while a batch is held",
@@ -211,23 +243,7 @@ final class WrongMachines {
                                 ViewSimulation.SHORT_RUNS_CHECK)),
                 new WrongMachine("lets a read wait for an own write while views_may_answer is false",
                         random -> new WaitsWhileAnswersSwitchedOff().start(random),
-                        List.of("own write wait: no read waits while views_may_answer is false")),
-                new WrongMachine("lets a read wait that the copy may answer",
-                        random -> new WaitsWhenCopyMayAnswer().start(random),
-                        List.of("own write wait: a write makes every read wait until the copy reaches it",
-                                "own write: a write holds every read until the copy reaches it")),
-                new WrongMachine("lets a read wait for an own write for ever",
-                        random -> new IgnoresWaitDeadline().start(random),
-                        List.of("own write wait: a read waits until just before 3 s, then goes over HTTP",
-                                ViewSimulation.SHORT_RUNS_CHECK)),
-                new WrongMachine("sends a read over HTTP at its deadline that the copy may answer",
-                        random -> new DeadlineBeatsAnswer().start(random),
-                        List.of("own write wait: at exactly 3 s, a copy that has the write answers the read")),
-                new WrongMachine("ignores an own write of unknown revision",
-                        random -> new IgnoresWriteOfUnknownRevision().start(random),
-                        List.of("own write of unknown revision: a synced view answers nothing until it reloaded",
-                                "own write of unknown revision: abandons the running reload's load",
-                                ViewSimulation.SHORT_RUNS_CHECK))
+                        List.of("own write wait: no read waits while views_may_answer is false"))
         );
     }
 
@@ -522,8 +538,8 @@ final class WrongMachines {
 
     static final class IgnoresViewsMayAnswer extends ReferenceMachine {
         @Override
-        boolean mayAnswer(Memory m, long now) {
-            return isLive(m, now) && reachedOwnWrites(m);
+        boolean answersAllowed(Memory m, long now) {
+            return isLive(m, now);
         }
     }
 
@@ -631,49 +647,9 @@ final class WrongMachines {
         }
     }
 
-    static final class KeepsLastOwnWrite extends ReferenceMachine {
-        @Override
-        void onWriteReturned(Memory m, ViewInput.WriteReturned write) {
-            m.highestOwnWrite = new Position(write.epoch(), write.revision());
-        }
-    }
-
-    static final class SnapshotReachesNoOwnWrite extends ReferenceMachine {
-        @Override
-        void reachOwnWritesBeforeLoad(Memory m) {
-        }
-    }
-
-    static final class SnapshotReachesWritesDuringLoad extends ReferenceMachine {
-        @Override
-        void reachOwnWritesBeforeLoad(Memory m) {
-            m.highestOwnWrite = null;
-        }
-    }
-
-    static final class UntakenAuditReachesOwnWrites extends ReferenceMachine {
-        @Override
-        void onAuditSnapshot(Memory m, NetworkState snapshot, long now, List<ViewEffect> effects) {
-            reachOwnWritesBeforeLoad(m);
-            super.onAuditSnapshot(m, snapshot, now, effects);
-        }
-    }
-
-    static final class LoadStartsBeforeOwnWriteOfStep extends ReferenceMachine {
-        @Override
-        void runStep(Memory m, ViewInput input, long now, List<ViewEffect> effects) {
-            if (input instanceof ViewInput.WriteReturned) {
-                actOnDeadlines(m, now, effects);
-                handle(m, input, now, effects);
-            } else {
-                super.runStep(m, input, now, effects);
-            }
-        }
-    }
-
     static final class AnswersBeforeOwnWrite extends ReferenceMachine {
         @Override
-        void onWriteReturned(Memory m, ViewInput.WriteReturned write) {
+        void onWriteReturned(Memory m, ViewInput.WriteReturned write, long now) {
         }
     }
 
@@ -684,51 +660,143 @@ final class WrongMachines {
         }
     }
 
-    static final class WaitsWhileNotLive extends ReferenceMachine {
+    static final class ReachedOnlyAboveRevision extends ReferenceMachine {
         @Override
-        boolean awaitsOwnWrite(Memory m, long now) {
-            return m.copy != null && m.viewsMayAnswer && !reachedOwnWrites(m);
+        boolean copyHasOwnWrite(Memory m) {
+            boolean atRevision = m.ownWriteEpoch != null && m.copy.revision() == m.ownWriteRevision;
+            return !atRevision && super.copyHasOwnWrite(m);
         }
     }
 
-    static final class WaitsWhileAnswersSwitchedOff extends ReferenceMachine {
+    static final class ReachedOnlyAtRevision extends ReferenceMachine {
         @Override
-        boolean awaitsOwnWrite(Memory m, long now) {
-            return isLive(m, now) && !reachedOwnWrites(m);
+        boolean copyHasOwnWrite(Memory m) {
+            boolean aboveRevision = m.ownWriteEpoch != null && m.copy.revision() != m.ownWriteRevision;
+            return !aboveRevision && super.copyHasOwnWrite(m);
         }
     }
 
     static final class WaitsWhenCopyMayAnswer extends ReferenceMachine {
         @Override
-        ReadRoute routeRead(Memory m, long startedAt, long now) {
-            boolean answersAllowed = isLive(m, now) && m.viewsMayAnswer;
-            if (answersAllowed && !waitedTooLong(startedAt, now)) {
-                return ReadRoute.WAIT;
-            }
-            return super.routeRead(m, startedAt, now);
+        boolean awaitsOwnWrite(Memory m, long now) {
+            return m.ownWriteEpoch != null && !ownWriteWaitIsOver(m, now);
         }
     }
 
-    static final class IgnoresWaitDeadline extends ReferenceMachine {
+    static final class WaitsForOwnWriteForEver extends ReferenceMachine {
         @Override
-        boolean waitedTooLong(long startedAt, long now) {
+        boolean ownWriteWaitIsOver(Memory m, long now) {
             return false;
         }
     }
 
-    static final class DeadlineBeatsAnswer extends ReferenceMachine {
+    static final class WaitsAtThreeSeconds extends ReferenceMachine {
         @Override
-        ReadRoute routeRead(Memory m, long startedAt, long now) {
-            if (waitedTooLong(startedAt, now)) {
-                return ReadRoute.OVER_HTTP;
-            }
-            return super.routeRead(m, startedAt, now);
+        boolean ownWriteWaitIsOver(Memory m, long now) {
+            return now - m.ownWriteHandedOverAt > OWN_WRITE_WAIT_MILLIS;
         }
     }
 
-    static final class IgnoresWriteOfUnknownRevision extends ReferenceMachine {
+    static final class WaitCountsFromLastStep extends ReferenceMachine {
         @Override
-        void onWriteRevisionUnknown(Memory m, long now) {
+        void runStep(Memory m, ViewInput input, long now, List<ViewEffect> effects) {
+            super.runStep(m, input, now, effects);
+            if (m.ownWriteEpoch != null) {
+                m.ownWriteHandedOverAt = now;
+            }
+        }
+    }
+
+    static final class KeepsLastRevision extends ReferenceMachine {
+        @Override
+        void keepOwnWrite(Memory m, ViewInput.WriteReturned write, long now) {
+            m.ownWriteEpoch = write.epoch();
+            m.ownWriteRevision = write.revision();
+            m.ownWriteHandedOverAt = now;
+        }
+    }
+
+    static final class KeepsFirstWriteTime extends ReferenceMachine {
+        @Override
+        void keepOwnWrite(Memory m, ViewInput.WriteReturned write, long now) {
+            long firstHandedOverAt = m.ownWriteEpoch == null ? now : m.ownWriteHandedOverAt;
+            super.keepOwnWrite(m, write, now);
+            m.ownWriteHandedOverAt = firstHandedOverAt;
+        }
+    }
+
+    static final class KeepsOwnWriteOfHigherEpoch extends ReferenceMachine {
+        @Override
+        void keepOwnWrite(Memory m, ViewInput.WriteReturned write, long now) {
+            boolean lowerEpoch = m.ownWriteEpoch != null && Long.compareUnsigned(write.epoch(), m.ownWriteEpoch) < 0;
+            if (!lowerEpoch) {
+                super.keepOwnWrite(m, write, now);
+            }
+        }
+    }
+
+    static final class KeepsHigherRevisionAcrossEpochs extends ReferenceMachine {
+        @Override
+        void keepOwnWrite(Memory m, ViewInput.WriteReturned write, long now) {
+            boolean keptIsHigher = m.ownWriteEpoch != null
+                    && Long.compareUnsigned(m.ownWriteRevision, write.revision()) > 0;
+            if (keptIsHigher) {
+                m.ownWriteHandedOverAt = now;
+                return;
+            }
+            super.keepOwnWrite(m, write, now);
+        }
+    }
+
+    static final class NoReloadOnOwnWriteOfOtherEpoch extends ReferenceMachine {
+        @Override
+        boolean writeCutsHistory(Memory m, ViewInput.WriteReturned write) {
+            return false;
+        }
+    }
+
+    static final class ReloadsOnlyOnOwnWriteOfHigherEpoch extends ReferenceMachine {
+        @Override
+        boolean writeCutsHistory(Memory m, ViewInput.WriteReturned write) {
+            return super.writeCutsHistory(m, write) && Long.compareUnsigned(write.epoch(), m.copy.epoch()) > 0;
+        }
+    }
+
+    static final class ReachedInAnyEpoch extends ReferenceMachine {
+        @Override
+        boolean copyHasOwnWrite(Memory m) {
+            return m.ownWriteEpoch == null || Long.compareUnsigned(m.copy.revision(), m.ownWriteRevision) >= 0;
+        }
+    }
+
+    static final class WaitsForOwnWriteOfOtherEpochForEver extends ReferenceMachine {
+        @Override
+        boolean ownWriteWaitIsOver(Memory m, long now) {
+            boolean otherEpoch = m.copy.epoch() != m.ownWriteEpoch;
+            return !otherEpoch && super.ownWriteWaitIsOver(m, now);
+        }
+    }
+
+    static final class ReloadsOnOwnWriteOfOtherEpochInEveryPhase extends ReferenceMachine {
+        @Override
+        boolean writeCutsHistory(Memory m, ViewInput.WriteReturned write) {
+            return m.copy == null || write.epoch() != m.copy.epoch();
+        }
+    }
+
+    static final class WaitsWhileNotLive extends ReferenceMachine {
+        @Override
+        ReadRoute routeRead(Memory m, long now) {
+            boolean waits = m.copy != null && m.viewsMayAnswer && awaitsOwnWrite(m, now);
+            return waits ? ReadRoute.WAIT : super.routeRead(m, now);
+        }
+    }
+
+    static final class WaitsWhileAnswersSwitchedOff extends ReferenceMachine {
+        @Override
+        ReadRoute routeRead(Memory m, long now) {
+            boolean waits = isLive(m, now) && awaitsOwnWrite(m, now);
+            return waits ? ReadRoute.WAIT : super.routeRead(m, now);
         }
     }
 }

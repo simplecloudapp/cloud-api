@@ -39,8 +39,8 @@ public final class NetworkViewMachine implements NetworkView {
     private static final long SHORTEST_AUDIT_RETRY_MILLIS = 2_000;
     private static final long RANDOM_AUDIT_RETRY_DELAY_BOUND_MILLIS = 8_000;
     /**
-     * Bounds the wait while nothing arrives. A copy that missed the write's batch ends the wait sooner: the next
-     * batch is held or the next pulse is ahead, and the view stops being live.
+     * Bounds the wait while nothing arrives. A copy that missed the write's batch can end the wait sooner: once
+     * the next batch is held or a pulse is ahead, the view is not live, and the read goes over HTTP.
      */
     private static final long OWN_WRITE_WAIT_MILLIS = 3_000;
 
@@ -86,33 +86,7 @@ public final class NetworkViewMachine implements NetworkView {
     private record PendingAudit(NetworkCopy snapshot, long receivedAt) {
     }
 
-    private record Position(long epoch, long revision) {
-
-        boolean isAfter(Position other) {
-            int epochOrder = Long.compareUnsigned(epoch, other.epoch);
-            if (epochOrder != 0) {
-                return epochOrder > 0;
-            }
-            return Long.compareUnsigned(revision, other.revision) > 0;
-        }
-
-        boolean isReachedBy(NetworkCopy copy) {
-            Position copyPosition = new Position(copy.epoch(), copy.revision());
-            return !isAfter(copyPosition);
-        }
-
-        /**
-         * Either may be null, for no write.
-         */
-        static Position later(Position first, Position second) {
-            if (first == null) {
-                return second;
-            }
-            if (second == null) {
-                return first;
-            }
-            return second.isAfter(first) ? second : first;
-        }
+    private record OwnWrite(long epoch, long revision, long returnedAt) {
     }
 
     private final RandomSequence random;
@@ -131,8 +105,7 @@ public final class NetworkViewMachine implements NetworkView {
     private PulseAhead pulseAhead;
     private long nextAuditAt;
     private PendingAudit pendingAudit;
-    private Position highestOwnWriteBeforeLoadStart;
-    private Position highestOwnWriteSinceLoadStart;
+    private OwnWrite ownWrite;
 
     private NetworkViewMachine(RandomSequence random) {
         this.random = random;
@@ -158,8 +131,7 @@ public final class NetworkViewMachine implements NetworkView {
         pulseAhead = previous.pulseAhead;
         nextAuditAt = previous.nextAuditAt;
         pendingAudit = previous.pendingAudit;
-        highestOwnWriteBeforeLoadStart = previous.highestOwnWriteBeforeLoadStart;
-        highestOwnWriteSinceLoadStart = previous.highestOwnWriteSinceLoadStart;
+        ownWrite = previous.ownWrite;
     }
 
     /**
@@ -174,7 +146,7 @@ public final class NetworkViewMachine implements NetworkView {
         NetworkViewMachine next = new NetworkViewMachine(this);
         List<ViewEffect> effects = new ArrayList<>();
         // The input goes first, so one that arrives exactly at a deadline is on time. Loads start last, because
-        // the input and the deadlines can each make one due, and so that a load holds this step's own write.
+        // the input and the deadlines can each make one due.
         next.handle(input, nowMillis, effects);
         next.actOnDeadlines(nowMillis, effects);
         next.startDueLoad(nowMillis, effects);
@@ -182,16 +154,15 @@ public final class NetworkViewMachine implements NetworkView {
     }
 
     @Override
-    public ReadRoute routeRead(long readStartedAtMillis, long nowMillis) {
+    public ReadRoute routeRead(long nowMillis) {
         boolean answersAllowed = isLive(nowMillis) && viewsMayAnswer;
         if (!answersAllowed) {
             return ReadRoute.OVER_HTTP;
         }
-        if (!copyLacksOwnWrite()) {
-            return ReadRoute.FROM_COPY;
+        if (waitsForOwnWrite(nowMillis)) {
+            return ReadRoute.WAIT;
         }
-        boolean waitEnded = nowMillis - readStartedAtMillis >= OWN_WRITE_WAIT_MILLIS;
-        return waitEnded ? ReadRoute.OVER_HTTP : ReadRoute.WAIT;
+        return ReadRoute.FROM_COPY;
     }
 
     @Override
@@ -203,19 +174,6 @@ public final class NetworkViewMachine implements NetworkView {
         boolean goodPulseIsRecent = lastGoodPulseAt != null
                 && nowMillis - lastGoodPulseAt < GOOD_PULSE_LIFETIME_MILLIS;
         return isSynced() && heldBatches.isEmpty() && pulseAhead == null && goodPulseIsRecent;
-    }
-
-    /**
-     * Call only while the view holds a copy.
-     */
-    private boolean copyLacksOwnWrite() {
-        boolean lacksWriteBeforeLoadStart = copyLacks(highestOwnWriteBeforeLoadStart);
-        boolean lacksWriteSinceLoadStart = copyLacks(highestOwnWriteSinceLoadStart);
-        return lacksWriteBeforeLoadStart || lacksWriteSinceLoadStart;
-    }
-
-    private boolean copyLacks(Position ownWrite) {
-        return ownWrite != null && !ownWrite.isReachedBy(copy);
     }
 
     private boolean isSynced() {
@@ -243,8 +201,7 @@ public final class NetworkViewMachine implements NetworkView {
             case ViewInput.SnapshotFailed failed -> receiveLoadFailure(now);
             case ViewInput.BatchReceived received -> receiveBatch(received.batch(), now, effects);
             case ViewInput.PulseReceived received -> receivePulse(received.pulse(), now);
-            case ViewInput.WriteReturned returned -> recordOwnWrite(returned);
-            case ViewInput.WriteRevisionUnknown returned -> reloadIfCopyMayLackWrite(now);
+            case ViewInput.WriteReturned returned -> receiveOwnWrite(returned, now);
             case ViewInput.TimePassed passed -> {
             }
         }
@@ -294,7 +251,6 @@ public final class NetworkViewMachine implements NetworkView {
     private void startLoad(RunningLoad load, long now, List<ViewEffect> effects) {
         runningLoad = load;
         nextLoadAllowedAt = now + LOAD_SPACING_MILLIS;
-        moveOwnWritesBeforeLoadStart();
         effects.add(new ViewEffect.LoadSnapshot());
     }
 
@@ -398,10 +354,6 @@ public final class NetworkViewMachine implements NetworkView {
             return;
         }
         copy = snapshot;
-        // The controller read this snapshot after its load started, so it holds every own write handed over
-        // before that start, in any epoch. That load is the last one that started: no load starts while an audit
-        // waits to compare.
-        highestOwnWriteBeforeLoadStart = null;
         failedLoadsInRow = 0;
         snapshotTakenAt = now;
         lastGoodPulseAt = null;
@@ -570,23 +522,33 @@ public final class NetworkViewMachine implements NetworkView {
 
     // Own writes (Answers).
 
-    private void recordOwnWrite(ViewInput.WriteReturned write) {
-        Position written = new Position(write.epoch(), write.revision());
-        highestOwnWriteSinceLoadStart = Position.later(highestOwnWriteSinceLoadStart, written);
-    }
-
-    private void moveOwnWritesBeforeLoadStart() {
-        highestOwnWriteBeforeLoadStart = Position.later(highestOwnWriteBeforeLoadStart, highestOwnWriteSinceLoadStart);
-        highestOwnWriteSinceLoadStart = null;
-    }
-
-    private void reloadIfCopyMayLackWrite(long now) {
-        switch (phase()) {
-            case SYNCED, RELOADING -> wantReload(now);
-            // Both load after the write: a wanted reload, and the reload after the next SubscriptionsActive.
-            case RELOAD_WANTED, DISCONNECTED -> {
-            }
+    private void receiveOwnWrite(ViewInput.WriteReturned write, long now) {
+        boolean historyCut = isSynced() && write.epoch() != copy.epoch();
+        if (historyCut) {
+            wantReload(now);
         }
+        recordOwnWrite(write, now);
+    }
+
+    private void recordOwnWrite(ViewInput.WriteReturned write, long now) {
+        boolean keptInSameEpoch = ownWrite != null && ownWrite.epoch() == write.epoch();
+        boolean keptRevisionIsHigher = keptInSameEpoch
+                && Long.compareUnsigned(ownWrite.revision(), write.revision()) > 0;
+        long revision = keptRevisionIsHigher ? ownWrite.revision() : write.revision();
+        ownWrite = new OwnWrite(write.epoch(), revision, now);
+    }
+
+    /**
+     * Call only while the view holds a copy.
+     */
+    private boolean waitsForOwnWrite(long now) {
+        if (ownWrite == null) {
+            return false;
+        }
+        boolean copyInWriteEpoch = copy.epoch() == ownWrite.epoch();
+        boolean reached = copyInWriteEpoch && Long.compareUnsigned(copy.revision(), ownWrite.revision()) >= 0;
+        boolean underWaitLimit = now - ownWrite.returnedAt() < OWN_WRITE_WAIT_MILLIS;
+        return !reached && underWaitLimit;
     }
 
     // The copy's items.

@@ -41,7 +41,7 @@ import static org.junit.jupiter.api.Assertions.assertTrue;
 
 /**
  * A write through a {@link CloudApiImpl} reaches the view it shares, so that the next read of what the write
- * changed waits for the copy to hold the write, and goes to the controller if it does not within 3 s.
+ * changed waits for the copy to hold the write, for up to 3 s after the write.
  */
 class ReadYourWritesWiringTest {
 
@@ -91,18 +91,19 @@ class ReadYourWritesWiringTest {
     }
 
     @Test
-    void aServerReadGoesToTheControllerWhenTheCopyLacksTheServerWriteForThreeSeconds() throws Exception {
+    void aServerReadIsAnsweredFromTheCopyThreeSecondsAfterTheServerWriteThoughTheCopyLacksIt() throws Exception {
         try (CloudApiImpl api = (CloudApiImpl) CloudApi.create(options())) {
             makeViewLive(shellOf(api));
 
-            resultOf(api.server().getAllServers());
-            int requestsBeforeTheWrite = serverListRequests.get();
+            long writeStartedAt = MonotonicClock.SYSTEM.nowMillis();
             resultOf(api.server().stopServer(STOPPED_SERVER_ID));
-            resultOf(api.server().getAllServers());
-            int requestsAfterTheWrite = serverListRequests.get();
+            List<Server> servers = resultOf(api.server().getAllServers());
+            long answeredAt = MonotonicClock.SYSTEM.nowMillis();
 
-            assertEquals(0, requestsBeforeTheWrite, "a live view answers the read before the write");
-            assertEquals(1, requestsAfterTheWrite, "the copy lacks the write, so the read goes to the controller");
+            assertTrue(answeredAt - writeStartedAt >= 3_000, "the read waits until 3 s after the write");
+            assertEquals(snapshot.getServersCount(), servers.size(),
+                    "then the copy answers, though it lacks the write");
+            assertEquals(0, serverListRequests.get(), "no read went to the controller");
         }
     }
 
@@ -132,7 +133,7 @@ class ReadYourWritesWiringTest {
         view = view.step(new ViewInput.SubscriptionsActive(), now).view();
         view = view.step(new ViewInput.SnapshotLoaded(snapshot), now).view();
         view = view.step(new ViewInput.PulseReceived(pulse), now).view();
-        assertEquals(ReadRoute.FROM_COPY, view.routeRead(now, now));
+        assertEquals(ReadRoute.FROM_COPY, view.routeRead(now));
 
         Object stepLock = readField(shell, "stepLock");
         Field viewField = NetworkViewShell.class.getDeclaredField("view");
@@ -143,7 +144,7 @@ class ReadYourWritesWiringTest {
     }
 
     /**
-     * Waits long enough for a read that waits its full 3 s, and fails instead of hanging the build.
+     * Waits long enough for a read that waits the full 3 s after a write, and fails instead of hanging the build.
      */
     private static <T> T resultOf(CompletableFuture<T> call)
             throws InterruptedException, ExecutionException, TimeoutException {

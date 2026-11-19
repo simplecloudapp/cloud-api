@@ -59,20 +59,6 @@ public sealed interface ViewInput {
     }
 
     /**
-     * A write of this process may have committed, but its revision is unknown, so the view cannot tell which
-     * revision holds the write. That is a write that:
-     * <ul>
-     *   <li>returned successfully without {@code X-SC-State-Epoch} or {@code X-SC-State-Revision}, because the
-     *   controller failed to read the revision after the commit, or is older than the headers;</li>
-     *   <li>returned a 5xx, from the controller or from a proxy in front of it;</li>
-     *   <li>threw, for example on a read timeout or a dropped connection.</li>
-     * </ul>
-     * A write that returned a 4xx committed nothing and is no input.
-     */
-    record WriteRevisionUnknown() implements ViewInput {
-    }
-
-    /**
      * Only time passed. A view acts on a deadline only during a step, so the shell sends this regularly:
      * every 100 ms keeps each deadline within 100 ms.
      */
