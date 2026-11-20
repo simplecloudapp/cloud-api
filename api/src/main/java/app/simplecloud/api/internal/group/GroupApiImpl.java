@@ -1,6 +1,5 @@
 package app.simplecloud.api.internal.group;
 
-import app.simplecloud.api.CloudApiException;
 import app.simplecloud.api.CloudApiOptions;
 import app.simplecloud.api.cache.QueryCache;
 import app.simplecloud.api.cache.QueryKey;
@@ -21,9 +20,6 @@ import app.simplecloud.api.web.apis.ServerGroupsApi;
 import app.simplecloud.api.web.models.*;
 import org.jetbrains.annotations.Nullable;
 
-import java.time.Duration;
-import java.util.ArrayList;
-import java.util.Collections;
 import java.util.HashMap;
 import java.util.List;
 import java.util.Map;
@@ -34,9 +30,6 @@ import java.util.concurrent.Executor;
 import java.util.concurrent.ForkJoinPool;
 
 public class GroupApiImpl implements GroupApi {
-    private static final Duration TRANSIENT_MISS_RETRY_DELAY = Duration.ofMillis(200);
-    private static final int TRANSIENT_MISS_MAX_RETRIES = 2;
-
     private final CloudApiOptions options;
     private final ServerGroupsApi serverGroupsApi;
     private final InlineBlueprintSupport inlineBlueprintSupport;
@@ -44,6 +37,7 @@ public class GroupApiImpl implements GroupApi {
     private final QueryCache cache;
     private final Executor executor;
     private final NetworkCopy networkCopy;
+    private final GroupReadsOverHttp readsOverHttp;
 
     public GroupApiImpl(CloudApiOptions options, QueryCache cache) {
         this(options, cache, ApiClients.create(options));
@@ -114,6 +108,7 @@ public class GroupApiImpl implements GroupApi {
         this.createRequestDefaults = new CreateRequestDefaults();
         this.executor = executor;
         this.networkCopy = networkCopy;
+        this.readsOverHttp = new GroupReadsOverHttp(options, serverGroupsApi, cache, executor);
     }
 
     @Override
@@ -193,27 +188,7 @@ public class GroupApiImpl implements GroupApi {
 
     @Override
     public CompletableFuture<Optional<Group>> findGroupByName(String name) {
-        NetworkContents contents = networkCopy.contents();
-        if (contents == null) {
-            return findGroupByNameOverHttp(name);
-        }
-        ModelsServerGroupSummary summary = contents.groupByName(name);
-        if (summary == null) {
-            return CompletableFuture.completedFuture(Optional.empty());
-        }
-        return CompletableFuture.completedFuture(Optional.of(new GroupImpl(summary)));
-    }
-
-    private CompletableFuture<Optional<Group>> findGroupByNameOverHttp(String name) {
-        QueryKey key = QueryKey.of("group", "name", name);
-
-        return cache.fetchWithTransientMissRecovery(
-                key,
-                () -> fetchGroupByNameFromController(name),
-                Objects::isNull,
-                TRANSIENT_MISS_RETRY_DELAY,
-                TRANSIENT_MISS_MAX_RETRIES
-        ).thenApply(Optional::ofNullable);
+        return reads().findGroupByName(name);
     }
 
     @Override
@@ -228,101 +203,20 @@ public class GroupApiImpl implements GroupApi {
         if (!Identifiers.isUuid(id)) {
             return CompletableFuture.completedFuture(Optional.empty());
         }
-        NetworkContents contents = networkCopy.contents();
-        if (contents == null) {
-            return findGroupByIdOverHttp(id);
-        }
-        ModelsServerGroupSummary summary = contents.groupById(id);
-        if (summary == null) {
-            return CompletableFuture.completedFuture(Optional.empty());
-        }
-        return CompletableFuture.completedFuture(Optional.of(new GroupImpl(summary)));
-    }
-
-    private CompletableFuture<Optional<Group>> findGroupByIdOverHttp(String id) {
-        QueryKey key = QueryKey.of("group", id);
-
-        return cache.fetchWithTransientMissRecovery(
-                key,
-                () -> fetchGroupByIdFromController(id),
-                Objects::isNull,
-                TRANSIENT_MISS_RETRY_DELAY,
-                TRANSIENT_MISS_MAX_RETRIES
-        ).thenApply(Optional::ofNullable);
+        return reads().findGroupById(id);
     }
 
     @Override
     public CompletableFuture<List<Group>> getAllGroups(@org.jetbrains.annotations.Nullable GroupQuery query) {
+        return reads().getAllGroups(query);
+    }
+
+    private GroupReads reads() {
         NetworkContents contents = networkCopy.contents();
         if (contents == null) {
-            return getAllGroupsOverHttp(query);
+            return readsOverHttp;
         }
-        try {
-            List<ModelsServerGroupSummary> matching = contents.groups(query);
-            return CompletableFuture.completedFuture(toGroups(matching));
-        } catch (CloudApiException invalidQuery) {
-            return CompletableFuture.failedFuture(invalidQuery);
-        }
-    }
-
-    private CompletableFuture<List<Group>> getAllGroupsOverHttp(@Nullable GroupQuery query) {
-        QueryKey key = buildQueryKey(query);
-
-        return cache.fetch(key, () -> CompletableFuture.supplyAsync(() -> {
-            try {
-                ModelsListServerGroupsResponse response = executeQuery(query);
-                List<ModelsServerGroupSummary> groups = response.getServerGroups();
-                if (groups == null) {
-                    return List.of();
-                }
-
-                return groups.stream()
-                        .<Group>map(GroupImpl::new)
-                        .toList();
-            } catch (ApiException e) {
-                throw ApiErrors.from(e);
-            }
-        }, executor));
-    }
-
-    private static List<Group> toGroups(List<ModelsServerGroupSummary> summaries) {
-        List<Group> groups = new ArrayList<>(summaries.size());
-        for (ModelsServerGroupSummary summary : summaries) {
-            groups.add(new GroupImpl(summary));
-        }
-        return Collections.unmodifiableList(groups);
-    }
-
-    private QueryKey buildQueryKey(@org.jetbrains.annotations.Nullable GroupQuery query) {
-        if (query == null) {
-            return QueryKey.of("groups");
-        }
-        return QueryKey.of("groups", "query",
-                query.getType(),
-                query.getTag(),
-                query.getLimit()
-        );
-    }
-
-    private ModelsListServerGroupsResponse executeQuery(@org.jetbrains.annotations.Nullable GroupQuery query) throws ApiException {
-        return executeQuery(query, null, null);
-    }
-
-    private ModelsListServerGroupsResponse executeQuery(@Nullable GroupQuery query,
-                                                         @Nullable String serverGroupId,
-                                                         @Nullable String name) throws ApiException {
-        return serverGroupsApi.listServerGroups(
-                this.options.getNetworkId(),
-                serverGroupId,
-                name,
-                query != null && query.getType() != null ? query.getType().name() : null,
-                query != null ? query.getTag() : null,
-                null,
-                null,
-                null,
-                query != null ? query.getLimit() : null,
-                null
-        );
+        return new GroupReadsFromCopy(contents);
     }
 
     private boolean groupExistsWithBlueprint(String name, @Nullable String blueprintId) {
@@ -331,7 +225,7 @@ public class GroupApiImpl implements GroupApi {
         }
 
         try {
-            ModelsListServerGroupsResponse response = executeQuery(null, null, name);
+            ModelsListServerGroupsResponse response = readsOverHttp.executeQuery(null, null, name);
             List<ModelsServerGroupSummary> groups = response.getServerGroups();
             if (groups == null) {
                 return false;
@@ -342,46 +236,6 @@ public class GroupApiImpl implements GroupApi {
         } catch (ApiException e) {
             throw ApiErrors.from(e);
         }
-    }
-
-    private CompletableFuture<Group> fetchGroupByNameFromController(String name) {
-        return CompletableFuture.supplyAsync(() -> {
-            try {
-                ModelsListServerGroupsResponse response = executeQuery(null, null, name);
-                List<ModelsServerGroupSummary> groups = response.getServerGroups();
-                if (groups == null) {
-                    return null;
-                }
-
-                return groups.stream()
-                        .filter(summary -> name.equals(summary.getName()))
-                        .findFirst()
-                        .<Group>map(GroupImpl::new)
-                        .orElse(null);
-            } catch (ApiException e) {
-                throw ApiErrors.from(e);
-            }
-        }, executor);
-    }
-
-    private CompletableFuture<Group> fetchGroupByIdFromController(String id) {
-        return CompletableFuture.supplyAsync(() -> {
-            try {
-                ModelsListServerGroupsResponse response = executeQuery(null, id, null);
-                List<ModelsServerGroupSummary> groups = response.getServerGroups();
-                if (groups == null) {
-                    return null;
-                }
-
-                return groups.stream()
-                        .filter(summary -> id.equals(summary.getServerGroupId()))
-                        .findFirst()
-                        .<Group>map(GroupImpl::new)
-                        .orElse(null);
-            } catch (ApiException e) {
-                throw ApiErrors.from(e);
-            }
-        }, executor);
     }
 
     @Override
@@ -631,7 +485,7 @@ public class GroupApiImpl implements GroupApi {
 
     @Nullable
     private String findAttachedBlueprintId(String groupId) throws ApiException {
-        ModelsListServerGroupsResponse response = executeQuery(null, groupId, null);
+        ModelsListServerGroupsResponse response = readsOverHttp.executeQuery(null, groupId, null);
         List<ModelsServerGroupSummary> groups = response.getServerGroups();
         if (groups == null) {
             return null;
