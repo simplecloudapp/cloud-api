@@ -154,7 +154,7 @@ class ServerApiImplCopyTest {
 
         api.stopServer(FIRST_SERVER_ID).join();
 
-        assertEquals(6, copy.contents().revision());
+        assertEquals(6, copy.currentContents().revision());
     }
 
     @Test
@@ -164,7 +164,7 @@ class ServerApiImplCopyTest {
 
         api.updateServer(FIRST_SERVER_ID, UpdateServerRequest.builder().maxPlayers(30).build()).join();
 
-        assertEquals(6, copy.contents().revision());
+        assertEquals(6, copy.currentContents().revision());
     }
 
     @Test
@@ -174,7 +174,7 @@ class ServerApiImplCopyTest {
 
         api.updateServerProperties(FIRST_SERVER_ID, Map.of("motd", "hello")).join();
 
-        assertEquals(6, copy.contents().revision());
+        assertEquals(6, copy.currentContents().revision());
     }
 
     @Test
@@ -184,7 +184,7 @@ class ServerApiImplCopyTest {
 
         api.deleteServerProperties(FIRST_SERVER_ID, List.of("motd")).join();
 
-        assertEquals(6, copy.contents().revision());
+        assertEquals(6, copy.currentContents().revision());
     }
 
     @Test
@@ -194,7 +194,7 @@ class ServerApiImplCopyTest {
 
         assertTimeout(Duration.ofSeconds(2), this::runEachWrite);
 
-        assertEquals(5, copy.contents().revision());
+        assertEquals(5, copy.currentContents().revision());
     }
 
     private void runEachWrite() {

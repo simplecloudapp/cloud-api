@@ -19,7 +19,7 @@ import java.util.Optional;
 import java.util.concurrent.CompletableFuture;
 import java.util.concurrent.Executor;
 
-final class GroupReadsOverHttp implements GroupReads {
+final class HttpGroupReadApi implements InternalGroupReadApi {
     private static final Duration TRANSIENT_MISS_RETRY_DELAY = Duration.ofMillis(200);
     private static final int TRANSIENT_MISS_MAX_RETRIES = 2;
 
@@ -28,7 +28,7 @@ final class GroupReadsOverHttp implements GroupReads {
     private final QueryCache cache;
     private final Executor executor;
 
-    GroupReadsOverHttp(CloudApiOptions options, ServerGroupsApi serverGroupsApi, QueryCache cache, Executor executor) {
+    HttpGroupReadApi(CloudApiOptions options, ServerGroupsApi serverGroupsApi, QueryCache cache, Executor executor) {
         this.options = options;
         this.serverGroupsApi = serverGroupsApi;
         this.cache = cache;

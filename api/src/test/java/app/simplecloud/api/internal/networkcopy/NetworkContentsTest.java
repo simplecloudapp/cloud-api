@@ -104,11 +104,11 @@ class NetworkContentsTest {
         ServerQuery query = serverQuery(parameters);
 
         if (isRejected(expected)) {
-            assertInvalidRequest(() -> CONTENTS.servers(query));
+            assertInvalidRequest(() -> CONTENTS.listServerSummaries(query));
             return;
         }
         List<String> ids = new ArrayList<>();
-        for (ModelsServerSummary server : CONTENTS.servers(query)) {
+        for (ModelsServerSummary server : CONTENTS.listServerSummaries(query)) {
             ids.add(server.getServerId());
         }
         assertEquals(expectedIds(expected), ids);
@@ -120,7 +120,7 @@ class NetworkContentsTest {
         GroupQuery query = groupQuery(parameters);
 
         List<String> ids = new ArrayList<>();
-        for (ModelsServerGroupSummary group : CONTENTS.groups(query)) {
+        for (ModelsServerGroupSummary group : CONTENTS.listGroupSummaries(query)) {
             ids.add(group.getServerGroupId());
         }
         assertEquals(expectedIds(expected), ids);
@@ -132,7 +132,7 @@ class NetworkContentsTest {
         PersistentServerQuery query = persistentServerQuery(parameters);
 
         List<String> ids = new ArrayList<>();
-        for (ModelsPersistentServerSummary persistentServer : CONTENTS.persistentServers(query)) {
+        for (ModelsPersistentServerSummary persistentServer : CONTENTS.listPersistentServerSummaries(query)) {
             ids.add(persistentServer.getPersistentServerId());
         }
         assertEquals(expectedIds(expected), ids);
@@ -142,24 +142,24 @@ class NetworkContentsTest {
     void groupLimitBelowOneIsRefused() {
         GroupQuery query = GroupQuery.create().limit(0);
 
-        assertInvalidRequest(() -> CONTENTS.groups(query));
+        assertInvalidRequest(() -> CONTENTS.listGroupSummaries(query));
     }
 
     @Test
     void persistentServerLimitBelowOneIsRefused() {
         PersistentServerQuery query = PersistentServerQuery.create().limit(0);
 
-        assertInvalidRequest(() -> CONTENTS.persistentServers(query));
+        assertInvalidRequest(() -> CONTENTS.listPersistentServerSummaries(query));
     }
 
     @Test
     void listsCannotBeChangedWithOrWithoutAQuery() {
-        List<ModelsServerSummary> allServers = CONTENTS.servers(null);
-        List<ModelsServerSummary> queriedServers = CONTENTS.servers(ServerQuery.create());
-        List<ModelsServerGroupSummary> allGroups = CONTENTS.groups(null);
-        List<ModelsServerGroupSummary> queriedGroups = CONTENTS.groups(GroupQuery.create());
-        List<ModelsPersistentServerSummary> allPersistentServers = CONTENTS.persistentServers(null);
-        List<ModelsPersistentServerSummary> queriedPersistentServers = CONTENTS.persistentServers(PersistentServerQuery.create());
+        List<ModelsServerSummary> allServers = CONTENTS.listServerSummaries(null);
+        List<ModelsServerSummary> queriedServers = CONTENTS.listServerSummaries(ServerQuery.create());
+        List<ModelsServerGroupSummary> allGroups = CONTENTS.listGroupSummaries(null);
+        List<ModelsServerGroupSummary> queriedGroups = CONTENTS.listGroupSummaries(GroupQuery.create());
+        List<ModelsPersistentServerSummary> allPersistentServers = CONTENTS.listPersistentServerSummaries(null);
+        List<ModelsPersistentServerSummary> queriedPersistentServers = CONTENTS.listPersistentServerSummaries(PersistentServerQuery.create());
 
         assertThrows(UnsupportedOperationException.class, allServers::clear);
         assertThrows(UnsupportedOperationException.class, queriedServers::clear);
@@ -174,26 +174,26 @@ class NetworkContentsTest {
         String id = IDS_BY_KEY.get("s1");
         String upperCaseId = id.toUpperCase();
 
-        assertEquals(id, CONTENTS.serverById(id).getServerId());
-        assertNull(CONTENTS.serverById(upperCaseId));
+        assertEquals(id, CONTENTS.findServerSummaryById(id).getServerId());
+        assertNull(CONTENTS.findServerSummaryById(upperCaseId));
     }
 
     @Test
     void groupLookupsByIdAndExactName() {
         String id = IDS_BY_KEY.get("game");
 
-        assertEquals(id, CONTENTS.groupById(id).getServerGroupId());
-        assertEquals(id, CONTENTS.groupByName("game").getServerGroupId());
-        assertNull(CONTENTS.groupByName("Game"));
+        assertEquals(id, CONTENTS.findGroupSummaryById(id).getServerGroupId());
+        assertEquals(id, CONTENTS.findGroupSummaryByName("game").getServerGroupId());
+        assertNull(CONTENTS.findGroupSummaryByName("Game"));
     }
 
     @Test
     void persistentServerLookupsByIdAndExactName() {
         String id = IDS_BY_KEY.get("survival");
 
-        assertEquals(id, CONTENTS.persistentServerById(id).getPersistentServerId());
-        assertEquals(id, CONTENTS.persistentServerByName("survival").getPersistentServerId());
-        assertNull(CONTENTS.persistentServerByName("Survival"));
+        assertEquals(id, CONTENTS.findPersistentServerSummaryById(id).getPersistentServerId());
+        assertEquals(id, CONTENTS.findPersistentServerSummaryByName("survival").getPersistentServerId());
+        assertNull(CONTENTS.findPersistentServerSummaryByName("Survival"));
     }
 
     static List<Arguments> serverCases() {

@@ -37,7 +37,7 @@ public class GroupApiImpl implements GroupApi {
     private final QueryCache cache;
     private final Executor executor;
     private final NetworkCopy networkCopy;
-    private final GroupReadsOverHttp readsOverHttp;
+    private final HttpGroupReadApi httpReadApi;
 
     public GroupApiImpl(CloudApiOptions options, QueryCache cache) {
         this(options, cache, ApiClients.create(options));
@@ -108,7 +108,7 @@ public class GroupApiImpl implements GroupApi {
         this.createRequestDefaults = new CreateRequestDefaults();
         this.executor = executor;
         this.networkCopy = networkCopy;
-        this.readsOverHttp = new GroupReadsOverHttp(options, serverGroupsApi, cache, executor);
+        this.httpReadApi = new HttpGroupReadApi(options, serverGroupsApi, cache, executor);
     }
 
     @Override
@@ -188,7 +188,7 @@ public class GroupApiImpl implements GroupApi {
 
     @Override
     public CompletableFuture<Optional<Group>> findGroupByName(String name) {
-        return reads().findGroupByName(name);
+        return selectGroupReadApi().findGroupByName(name);
     }
 
     @Override
@@ -203,20 +203,20 @@ public class GroupApiImpl implements GroupApi {
         if (!Identifiers.isUuid(id)) {
             return CompletableFuture.completedFuture(Optional.empty());
         }
-        return reads().findGroupById(id);
+        return selectGroupReadApi().findGroupById(id);
     }
 
     @Override
     public CompletableFuture<List<Group>> getAllGroups(@org.jetbrains.annotations.Nullable GroupQuery query) {
-        return reads().getAllGroups(query);
+        return selectGroupReadApi().getAllGroups(query);
     }
 
-    private GroupReads reads() {
-        NetworkContents contents = networkCopy.contents();
+    private InternalGroupReadApi selectGroupReadApi() {
+        NetworkContents contents = networkCopy.currentContents();
         if (contents == null) {
-            return readsOverHttp;
+            return httpReadApi;
         }
-        return new GroupReadsFromCopy(contents);
+        return new NetworkCopyGroupReadApi(contents);
     }
 
     private boolean groupExistsWithBlueprint(String name, @Nullable String blueprintId) {
@@ -225,7 +225,7 @@ public class GroupApiImpl implements GroupApi {
         }
 
         try {
-            ModelsListServerGroupsResponse response = readsOverHttp.executeQuery(null, null, name);
+            ModelsListServerGroupsResponse response = httpReadApi.executeQuery(null, null, name);
             List<ModelsServerGroupSummary> groups = response.getServerGroups();
             if (groups == null) {
                 return false;
@@ -485,7 +485,7 @@ public class GroupApiImpl implements GroupApi {
 
     @Nullable
     private String findAttachedBlueprintId(String groupId) throws ApiException {
-        ModelsListServerGroupsResponse response = readsOverHttp.executeQuery(null, groupId, null);
+        ModelsListServerGroupsResponse response = httpReadApi.executeQuery(null, groupId, null);
         List<ModelsServerGroupSummary> groups = response.getServerGroups();
         if (groups == null) {
             return null;

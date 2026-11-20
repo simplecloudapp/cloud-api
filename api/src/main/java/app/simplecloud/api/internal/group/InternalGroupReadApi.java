@@ -9,7 +9,7 @@ import java.util.Optional;
 import java.util.concurrent.CompletableFuture;
 
 /** The group reads, answered either from the network copy or by the controller. */
-interface GroupReads {
+interface InternalGroupReadApi {
     CompletableFuture<Optional<Group>> findGroupByName(String name);
 
     CompletableFuture<Optional<Group>> findGroupById(String id);

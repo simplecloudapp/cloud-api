@@ -13,16 +13,16 @@ import java.util.List;
 import java.util.Optional;
 import java.util.concurrent.CompletableFuture;
 
-final class ServerReadsFromCopy implements ServerReads {
+final class NetworkCopyServerReadApi implements InternalServerReadApi {
     private final NetworkContents contents;
 
-    ServerReadsFromCopy(NetworkContents contents) {
+    NetworkCopyServerReadApi(NetworkContents contents) {
         this.contents = contents;
     }
 
     @Override
     public CompletableFuture<Optional<Server>> findServerById(String id) {
-        ModelsServerSummary summary = contents.serverById(id);
+        ModelsServerSummary summary = contents.findServerSummaryById(id);
         if (summary == null) {
             return CompletableFuture.completedFuture(Optional.empty());
         }
@@ -34,7 +34,7 @@ final class ServerReadsFromCopy implements ServerReads {
         ServerQuery query = ServerQuery.create()
                 .filterByServerGroupName(groupName)
                 .filterByNumericalId(numericalId);
-        List<ModelsServerSummary> matching = contents.servers(query);
+        List<ModelsServerSummary> matching = contents.listServerSummaries(query);
         if (matching.isEmpty()) {
             return CompletableFuture.completedFuture(Optional.empty());
         }
@@ -45,14 +45,14 @@ final class ServerReadsFromCopy implements ServerReads {
     public CompletableFuture<List<Server>> getServersByGroup(String groupName) {
         ServerQuery query = ServerQuery.create()
                 .filterByServerGroupName(groupName);
-        List<ModelsServerSummary> matching = contents.servers(query);
+        List<ModelsServerSummary> matching = contents.listServerSummaries(query);
         return CompletableFuture.completedFuture(toServers(matching));
     }
 
     @Override
     public CompletableFuture<List<Server>> getAllServers(@Nullable ServerQuery query) {
         try {
-            List<ModelsServerSummary> matching = contents.servers(query);
+            List<ModelsServerSummary> matching = contents.listServerSummaries(query);
             return CompletableFuture.completedFuture(toServers(matching));
         } catch (CloudApiException invalidQuery) {
             return CompletableFuture.failedFuture(invalidQuery);

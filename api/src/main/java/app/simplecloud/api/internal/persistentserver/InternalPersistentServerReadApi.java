@@ -9,7 +9,7 @@ import java.util.Optional;
 import java.util.concurrent.CompletableFuture;
 
 /** The persistent server reads, answered either from the network copy or by the controller. */
-interface PersistentServerReads {
+interface InternalPersistentServerReadApi {
     CompletableFuture<Optional<PersistentServer>> findPersistentServerById(String id);
 
     CompletableFuture<Optional<PersistentServer>> findPersistentServerByName(String name);

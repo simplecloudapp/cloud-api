@@ -109,7 +109,7 @@ public final class NetworkCopy {
     /**
      * The current contents, or null while reads must go to the controller.
      */
-    public @Nullable NetworkContents contents() {
+    public @Nullable NetworkContents currentContents() {
         // The time first: a pulse writes its contents before its time, so a fresh time means contents at least as new.
         long pulseNanos = lastPulseNanos;
         NetworkContents current = contents;
@@ -181,7 +181,7 @@ public final class NetworkCopy {
             } else {
                 received.setMetrics(pulse.getMetricsList());
             }
-            contents = received.toContents();
+            contents = received.buildContents();
             lastPulseNanos = nanoTime.getAsLong();
         } catch (IOException | RuntimeException e) {
             forgetCopy("the network state could not be loaded or read: " + e);
@@ -206,7 +206,7 @@ public final class NetworkCopy {
         }
         try {
             received.apply(batch);
-            contents = received.toContents();
+            contents = received.buildContents();
         } catch (RuntimeException e) {
             forgetCopy("a change message could not be read: " + e);
         }
@@ -256,7 +256,7 @@ public final class NetworkCopy {
     }
 
     private boolean lacksWrite(long epoch, long revision) {
-        NetworkContents current = contents();
+        NetworkContents current = currentContents();
         if (current == null) {
             // Reads go to the controller then, so there is nothing to wait for.
             return false;

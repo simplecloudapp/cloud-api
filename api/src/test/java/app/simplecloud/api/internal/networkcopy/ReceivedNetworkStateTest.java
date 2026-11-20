@@ -51,12 +51,12 @@ class ReceivedNetworkStateTest {
         ModelsListPersistentServersResponse expectedPersistentServers =
                 JSON.deserialize(persistentServerList, ModelsListPersistentServersResponse.class);
 
-        NetworkContents contents = ReceivedNetworkState.fromSnapshot(snapshot, NETWORK_ID).toContents();
+        NetworkContents contents = ReceivedNetworkState.fromSnapshot(snapshot, NETWORK_ID).buildContents();
 
-        assertEquals(expectedServers.getServers(), contents.servers(null));
+        assertEquals(expectedServers.getServers(), contents.listServerSummaries(null));
         assertNull(expectedGroups.getServerGroups());
-        assertEquals(List.of(), contents.groups(null));
-        assertEquals(expectedPersistentServers.getPersistentServers(), contents.persistentServers(null));
+        assertEquals(List.of(), contents.listGroupSummaries(null));
+        assertEquals(expectedPersistentServers.getPersistentServers(), contents.listPersistentServerSummaries(null));
     }
 
     @ParameterizedTest
@@ -77,11 +77,11 @@ class ReceivedNetworkStateTest {
         keepOnlyBlueprintIds(expectedServers);
         removeGroupStatistics(expectedGroups);
 
-        NetworkContents contents = ReceivedNetworkState.fromSnapshot(snapshot, NETWORK_ID).toContents();
+        NetworkContents contents = ReceivedNetworkState.fromSnapshot(snapshot, NETWORK_ID).buildContents();
 
-        assertEquals(expectedServers, contents.servers(null));
-        assertEquals(expectedGroups, contents.groups(null));
-        assertEquals(expectedPersistentServers, contents.persistentServers(null));
+        assertEquals(expectedServers, contents.listServerSummaries(null));
+        assertEquals(expectedGroups, contents.listGroupSummaries(null));
+        assertEquals(expectedPersistentServers, contents.listPersistentServerSummaries(null));
     }
 
     @Test
@@ -103,7 +103,7 @@ class ReceivedNetworkStateTest {
                 .addServers(groupServer("00000000-0000-4000-8000-000000000203", GROUP_A_ID, 1))
                 .build();
 
-        NetworkContents contents = ReceivedNetworkState.fromSnapshot(snapshot, NETWORK_ID).toContents();
+        NetworkContents contents = ReceivedNetworkState.fromSnapshot(snapshot, NETWORK_ID).buildContents();
 
         List<String> expected = List.of(
                 "00000000-0000-4000-8000-000000000203",
@@ -123,10 +123,10 @@ class ReceivedNetworkStateTest {
                 .addServerGroups(group("0a000000-0000-4000-8000-000000000300", "newer too", "2026-11-17T09:00:00.5Z"))
                 .build();
 
-        NetworkContents contents = ReceivedNetworkState.fromSnapshot(snapshot, NETWORK_ID).toContents();
+        NetworkContents contents = ReceivedNetworkState.fromSnapshot(snapshot, NETWORK_ID).buildContents();
 
         List<String> names = new ArrayList<>();
-        for (ModelsServerGroupSummary group : contents.groups(null)) {
+        for (ModelsServerGroupSummary group : contents.listGroupSummaries(null)) {
             names.add(group.getName());
         }
         assertEquals(List.of("newer too", "newer", "older"), names);
@@ -143,7 +143,7 @@ class ReceivedNetworkStateTest {
                 .build();
         NetworkState snapshot = NetworkState.newBuilder().addServers(server).addMetrics(metrics).build();
 
-        ModelsServerSummary summary = ReceivedNetworkState.fromSnapshot(snapshot, NETWORK_ID).toContents().servers(null).getFirst();
+        ModelsServerSummary summary = ReceivedNetworkState.fromSnapshot(snapshot, NETWORK_ID).buildContents().listServerSummaries(null).getFirst();
 
         assertEquals("2026-11-17T10:00:00Z", summary.getCreatedAt());
         assertEquals("2026-11-17T10:00:00.000001Z", summary.getUpdatedAt());
@@ -163,7 +163,7 @@ class ReceivedNetworkStateTest {
                 .addServerGroups(group)
                 .build();
 
-        ModelsServerSummary server = ReceivedNetworkState.fromSnapshot(snapshot, NETWORK_ID).toContents().servers(null).getFirst();
+        ModelsServerSummary server = ReceivedNetworkState.fromSnapshot(snapshot, NETWORK_ID).buildContents().listServerSummaries(null).getFirst();
 
         assertEquals(blueprintId, server.getServerGroup().getSource().getBlueprint().getId());
     }
@@ -202,18 +202,18 @@ class ReceivedNetworkStateTest {
         ReceivedNetworkState received = ReceivedNetworkState.fromSnapshot(snapshot, NETWORK_ID);
 
         received.apply(batch);
-        NetworkContents contents = received.toContents();
+        NetworkContents contents = received.buildContents();
 
         assertEquals(12, received.revision());
         assertEquals(List.of(newServer, changedServer), serverIds(contents));
-        assertEquals(7, contents.serverById(changedServer).getNumericalId());
-        assertEquals("lobby renamed", contents.serverById(changedServer).getServerGroup().getName());
-        assertEquals("lobby renamed", contents.groupById(GROUP_A_ID).getName());
-        assertEquals("new group", contents.groupByName("new group").getName());
-        assertNull(contents.groupById(GROUP_B_ID));
-        assertEquals("survival renamed", contents.persistentServerById(PERSISTENT_SERVER_ID).getName());
-        assertEquals("creative", contents.persistentServerById(newPersistentServer).getName());
-        assertNull(contents.persistentServerById(deletedPersistentServer));
+        assertEquals(7, contents.findServerSummaryById(changedServer).getNumericalId());
+        assertEquals("lobby renamed", contents.findServerSummaryById(changedServer).getServerGroup().getName());
+        assertEquals("lobby renamed", contents.findGroupSummaryById(GROUP_A_ID).getName());
+        assertEquals("new group", contents.findGroupSummaryByName("new group").getName());
+        assertNull(contents.findGroupSummaryById(GROUP_B_ID));
+        assertEquals("survival renamed", contents.findPersistentServerSummaryById(PERSISTENT_SERVER_ID).getName());
+        assertEquals("creative", contents.findPersistentServerSummaryById(newPersistentServer).getName());
+        assertNull(contents.findPersistentServerSummaryById(deletedPersistentServer));
     }
 
     @Test
@@ -228,7 +228,7 @@ class ReceivedNetworkStateTest {
         ReceivedNetworkState received = ReceivedNetworkState.fromSnapshot(snapshot, NETWORK_ID);
 
         received.setMetrics(List.of(metrics(second.getId(), 8)));
-        List<ModelsServerSummary> servers = received.toContents().servers(null);
+        List<ModelsServerSummary> servers = received.buildContents().listServerSummaries(null);
 
         assertEquals(0, servers.get(0).getPlayerCount());
         assertEquals("", servers.get(0).getLastActivity());
@@ -250,9 +250,9 @@ class ReceivedNetworkStateTest {
                 .addMetrics(metrics(starting.getId(), 5))
                 .build();
 
-        NetworkContents contents = ReceivedNetworkState.fromSnapshot(snapshot, NETWORK_ID).toContents();
+        NetworkContents contents = ReceivedNetworkState.fromSnapshot(snapshot, NETWORK_ID).buildContents();
 
-        ModelsPersistentServerSummary summary = contents.persistentServerById(PERSISTENT_SERVER_ID);
+        ModelsPersistentServerSummary summary = contents.findPersistentServerSummaryById(PERSISTENT_SERVER_ID);
         assertEquals(7, summary.getPlayerCount());
     }
 
@@ -349,7 +349,7 @@ class ReceivedNetworkStateTest {
 
     private static List<String> serverIds(NetworkContents contents) {
         List<String> ids = new ArrayList<>();
-        for (ModelsServerSummary server : contents.servers(null)) {
+        for (ModelsServerSummary server : contents.listServerSummaries(null)) {
             ids.add(server.getServerId());
         }
         return ids;

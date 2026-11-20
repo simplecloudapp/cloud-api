@@ -142,7 +142,7 @@ class GroupApiImplCopyTest {
 
         api.createGroup(createRequest()).join();
 
-        assertEquals(6, copy.contents().revision());
+        assertEquals(6, copy.currentContents().revision());
     }
 
     @Test
@@ -152,7 +152,7 @@ class GroupApiImplCopyTest {
 
         api.updateGroup(LOBBY_GROUP_ID, updateRequest()).join();
 
-        assertEquals(6, copy.contents().revision());
+        assertEquals(6, copy.currentContents().revision());
     }
 
     @Test
@@ -162,7 +162,7 @@ class GroupApiImplCopyTest {
 
         api.deleteGroup(LOBBY_GROUP_ID).join();
 
-        assertEquals(6, copy.contents().revision());
+        assertEquals(6, copy.currentContents().revision());
     }
 
     @Test
@@ -172,7 +172,7 @@ class GroupApiImplCopyTest {
 
         api.updateGroupProperties(LOBBY_GROUP_ID, Map.of("motd", "hello")).join();
 
-        assertEquals(6, copy.contents().revision());
+        assertEquals(6, copy.currentContents().revision());
     }
 
     @Test
@@ -182,7 +182,7 @@ class GroupApiImplCopyTest {
 
         api.deleteGroupProperties(LOBBY_GROUP_ID, List.of("motd")).join();
 
-        assertEquals(6, copy.contents().revision());
+        assertEquals(6, copy.currentContents().revision());
     }
 
     @Test
@@ -192,7 +192,7 @@ class GroupApiImplCopyTest {
 
         assertTimeout(Duration.ofSeconds(2), this::runEachWrite);
 
-        assertEquals(5, copy.contents().revision());
+        assertEquals(5, copy.currentContents().revision());
     }
 
     private void runEachWrite() {

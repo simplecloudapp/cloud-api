@@ -145,7 +145,7 @@ class PersistentServerApiImplCopyTest {
 
         api.createPersistentServer(createRequest()).join();
 
-        assertEquals(6, copy.contents().revision());
+        assertEquals(6, copy.currentContents().revision());
     }
 
     @Test
@@ -155,7 +155,7 @@ class PersistentServerApiImplCopyTest {
 
         api.updatePersistentServer(SURVIVAL_ID, updateRequest()).join();
 
-        assertEquals(6, copy.contents().revision());
+        assertEquals(6, copy.currentContents().revision());
     }
 
     @Test
@@ -181,7 +181,7 @@ class PersistentServerApiImplCopyTest {
 
         api.deletePersistentServer(SURVIVAL_ID).join();
 
-        assertEquals(6, copy.contents().revision());
+        assertEquals(6, copy.currentContents().revision());
     }
 
     @Test
@@ -191,7 +191,7 @@ class PersistentServerApiImplCopyTest {
 
         api.updatePersistentServerProperties(SURVIVAL_ID, Map.of("motd", "hello")).join();
 
-        assertEquals(6, copy.contents().revision());
+        assertEquals(6, copy.currentContents().revision());
     }
 
     @Test
@@ -201,7 +201,7 @@ class PersistentServerApiImplCopyTest {
 
         api.deletePersistentServerProperties(SURVIVAL_ID, List.of("motd")).join();
 
-        assertEquals(6, copy.contents().revision());
+        assertEquals(6, copy.currentContents().revision());
     }
 
     @Test
@@ -211,7 +211,7 @@ class PersistentServerApiImplCopyTest {
 
         assertTimeout(Duration.ofSeconds(2), this::runEachWrite);
 
-        assertEquals(5, copy.contents().revision());
+        assertEquals(5, copy.currentContents().revision());
     }
 
     private void runEachWrite() {

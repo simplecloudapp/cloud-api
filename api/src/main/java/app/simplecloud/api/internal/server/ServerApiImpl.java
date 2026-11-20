@@ -38,7 +38,7 @@ public class ServerApiImpl implements ServerApi {
     private final QueryCache cache;
     private final Executor executor;
     private final NetworkCopy networkCopy;
-    private final ServerReadsOverHttp readsOverHttp;
+    private final HttpServerReadApi httpReadApi;
 
     public ServerApiImpl(CloudApiOptions options, QueryCache cache) {
         this(options, cache, ApiClients.create(options));
@@ -70,7 +70,7 @@ public class ServerApiImpl implements ServerApi {
         this.serversApi = serversApi;
         this.executor = executor;
         this.networkCopy = networkCopy;
-        this.readsOverHttp = new ServerReadsOverHttp(options, serversApi, cache, executor);
+        this.httpReadApi = new HttpServerReadApi(options, serversApi, cache, executor);
     }
 
     @Override
@@ -85,7 +85,7 @@ public class ServerApiImpl implements ServerApi {
         if (!Identifiers.isUuid(id)) {
             return CompletableFuture.completedFuture(Optional.empty());
         }
-        return reads().findServerById(id);
+        return selectServerReadApi().findServerById(id);
     }
 
     @Override
@@ -97,25 +97,25 @@ public class ServerApiImpl implements ServerApi {
 
     @Override
     public CompletableFuture<Optional<Server>> findServerByNumericalId(String groupName, int numericalId) {
-        return reads().findServerByNumericalId(groupName, numericalId);
+        return selectServerReadApi().findServerByNumericalId(groupName, numericalId);
     }
 
     @Override
     public CompletableFuture<List<Server>> getServersByGroup(String groupName) {
-        return reads().getServersByGroup(groupName);
+        return selectServerReadApi().getServersByGroup(groupName);
     }
 
     @Override
     public CompletableFuture<List<Server>> getAllServers(@Nullable ServerQuery query) {
-        return reads().getAllServers(query);
+        return selectServerReadApi().getAllServers(query);
     }
 
-    private ServerReads reads() {
-        NetworkContents contents = networkCopy.contents();
+    private InternalServerReadApi selectServerReadApi() {
+        NetworkContents contents = networkCopy.currentContents();
         if (contents == null) {
-            return readsOverHttp;
+            return httpReadApi;
         }
-        return new ServerReadsFromCopy(contents);
+        return new NetworkCopyServerReadApi(contents);
     }
 
     private static ServersApi createServersApi(CloudApiOptions options, ApiClient httpClient) {

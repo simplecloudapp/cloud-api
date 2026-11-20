@@ -21,7 +21,7 @@ import java.util.concurrent.CompletableFuture;
 import java.util.concurrent.Executor;
 import java.util.logging.Logger;
 
-final class ServerReadsOverHttp implements ServerReads {
+final class HttpServerReadApi implements InternalServerReadApi {
     // Logs under ServerApiImpl's name, so existing log filters keep matching.
     private static final Logger LOGGER = Logger.getLogger(ServerApiImpl.class.getName());
     private static final Duration TRANSIENT_MISS_RETRY_DELAY = Duration.ofMillis(200);
@@ -32,7 +32,7 @@ final class ServerReadsOverHttp implements ServerReads {
     private final QueryCache cache;
     private final Executor executor;
 
-    ServerReadsOverHttp(CloudApiOptions options, ServersApi serversApi, QueryCache cache, Executor executor) {
+    HttpServerReadApi(CloudApiOptions options, ServersApi serversApi, QueryCache cache, Executor executor) {
         this.options = options;
         this.serversApi = serversApi;
         this.cache = cache;

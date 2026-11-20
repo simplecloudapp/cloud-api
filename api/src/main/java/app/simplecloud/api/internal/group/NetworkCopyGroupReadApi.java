@@ -13,16 +13,16 @@ import java.util.List;
 import java.util.Optional;
 import java.util.concurrent.CompletableFuture;
 
-final class GroupReadsFromCopy implements GroupReads {
+final class NetworkCopyGroupReadApi implements InternalGroupReadApi {
     private final NetworkContents contents;
 
-    GroupReadsFromCopy(NetworkContents contents) {
+    NetworkCopyGroupReadApi(NetworkContents contents) {
         this.contents = contents;
     }
 
     @Override
     public CompletableFuture<Optional<Group>> findGroupByName(String name) {
-        ModelsServerGroupSummary summary = contents.groupByName(name);
+        ModelsServerGroupSummary summary = contents.findGroupSummaryByName(name);
         if (summary == null) {
             return CompletableFuture.completedFuture(Optional.empty());
         }
@@ -31,7 +31,7 @@ final class GroupReadsFromCopy implements GroupReads {
 
     @Override
     public CompletableFuture<Optional<Group>> findGroupById(String id) {
-        ModelsServerGroupSummary summary = contents.groupById(id);
+        ModelsServerGroupSummary summary = contents.findGroupSummaryById(id);
         if (summary == null) {
             return CompletableFuture.completedFuture(Optional.empty());
         }
@@ -41,7 +41,7 @@ final class GroupReadsFromCopy implements GroupReads {
     @Override
     public CompletableFuture<List<Group>> getAllGroups(@Nullable GroupQuery query) {
         try {
-            List<ModelsServerGroupSummary> matching = contents.groups(query);
+            List<ModelsServerGroupSummary> matching = contents.listGroupSummaries(query);
             return CompletableFuture.completedFuture(toGroups(matching));
         } catch (CloudApiException invalidQuery) {
             return CompletableFuture.failedFuture(invalidQuery);

@@ -87,12 +87,12 @@ class NetworkCopyRandomTest {
         }
         sendPulse(copy, controller);
 
-        NetworkContents fresh = ReceivedNetworkState.fromSnapshot(controller.snapshot(), NETWORK_ID).toContents();
-        NetworkContents copied = copy.contents();
+        NetworkContents fresh = ReceivedNetworkState.fromSnapshot(controller.snapshot(), NETWORK_ID).buildContents();
+        NetworkContents copied = copy.currentContents();
         assertNotNull(copied);
-        assertEquals(fresh.servers(null), copied.servers(null));
-        assertEquals(fresh.groups(null), copied.groups(null));
-        assertEquals(fresh.persistentServers(null), copied.persistentServers(null));
+        assertEquals(fresh.listServerSummaries(null), copied.listServerSummaries(null));
+        assertEquals(fresh.listGroupSummaries(null), copied.listGroupSummaries(null));
+        assertEquals(fresh.listPersistentServerSummaries(null), copied.listPersistentServerSummaries(null));
     }
 
     // The pulse first, so a load on this pulse gets the pulse's metrics.

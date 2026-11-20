@@ -13,16 +13,16 @@ import java.util.List;
 import java.util.Optional;
 import java.util.concurrent.CompletableFuture;
 
-final class PersistentServerReadsFromCopy implements PersistentServerReads {
+final class NetworkCopyPersistentServerReadApi implements InternalPersistentServerReadApi {
     private final NetworkContents contents;
 
-    PersistentServerReadsFromCopy(NetworkContents contents) {
+    NetworkCopyPersistentServerReadApi(NetworkContents contents) {
         this.contents = contents;
     }
 
     @Override
     public CompletableFuture<Optional<PersistentServer>> findPersistentServerById(String id) {
-        ModelsPersistentServerSummary summary = contents.persistentServerById(id);
+        ModelsPersistentServerSummary summary = contents.findPersistentServerSummaryById(id);
         if (summary == null) {
             return CompletableFuture.completedFuture(Optional.empty());
         }
@@ -31,7 +31,7 @@ final class PersistentServerReadsFromCopy implements PersistentServerReads {
 
     @Override
     public CompletableFuture<Optional<PersistentServer>> findPersistentServerByName(String name) {
-        ModelsPersistentServerSummary summary = contents.persistentServerByName(name);
+        ModelsPersistentServerSummary summary = contents.findPersistentServerSummaryByName(name);
         if (summary == null) {
             return CompletableFuture.completedFuture(Optional.empty());
         }
@@ -41,7 +41,7 @@ final class PersistentServerReadsFromCopy implements PersistentServerReads {
     @Override
     public CompletableFuture<List<PersistentServer>> getAllPersistentServers(@Nullable PersistentServerQuery query) {
         try {
-            List<ModelsPersistentServerSummary> matching = contents.persistentServers(query);
+            List<ModelsPersistentServerSummary> matching = contents.listPersistentServerSummaries(query);
             return CompletableFuture.completedFuture(toPersistentServers(matching));
         } catch (CloudApiException invalidQuery) {
             return CompletableFuture.failedFuture(invalidQuery);

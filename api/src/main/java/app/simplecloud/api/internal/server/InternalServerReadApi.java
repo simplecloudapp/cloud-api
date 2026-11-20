@@ -9,7 +9,7 @@ import java.util.Optional;
 import java.util.concurrent.CompletableFuture;
 
 /** The server reads, answered either from the network copy or by the controller. */
-interface ServerReads {
+interface InternalServerReadApi {
     CompletableFuture<Optional<Server>> findServerById(String id);
 
     CompletableFuture<Optional<Server>> findServerByNumericalId(String groupName, int numericalId);

@@ -19,7 +19,7 @@ import java.util.Optional;
 import java.util.concurrent.CompletableFuture;
 import java.util.concurrent.Executor;
 
-final class PersistentServerReadsOverHttp implements PersistentServerReads {
+final class HttpPersistentServerReadApi implements InternalPersistentServerReadApi {
     private static final Duration TRANSIENT_MISS_RETRY_DELAY = Duration.ofMillis(200);
     private static final int TRANSIENT_MISS_MAX_RETRIES = 2;
 
@@ -28,7 +28,7 @@ final class PersistentServerReadsOverHttp implements PersistentServerReads {
     private final QueryCache cache;
     private final Executor executor;
 
-    PersistentServerReadsOverHttp(CloudApiOptions options,
+    HttpPersistentServerReadApi(CloudApiOptions options,
                                   PersistentServersApi persistentServersApi,
                                   QueryCache cache,
                                   Executor executor) {

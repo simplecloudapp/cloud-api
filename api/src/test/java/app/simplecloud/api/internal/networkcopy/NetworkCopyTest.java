@@ -71,11 +71,11 @@ class NetworkCopyTest {
 
     @Test
     void readsGoToTheControllerUntilTheFirstPulseLoads() throws InterruptedException {
-        assertNull(copy.contents());
+        assertNull(copy.currentContents());
 
         copy.onPulse(pulse(1, 5));
 
-        assertNotNull(copy.contents().serverById(FIRST_SERVER_ID));
+        assertNotNull(copy.currentContents().findServerSummaryById(FIRST_SERVER_ID));
         RecordedRequest load = controller.takeRequest();
         assertEquals("/v0/network-state", load.getPath());
         assertEquals(NETWORK_ID, load.getHeader("X-Network-ID"));
@@ -94,7 +94,7 @@ class NetworkCopyTest {
         copy.onPulse(pulse(1, 5).toBuilder().addMetrics(metrics).build());
 
         assertEquals(1, controller.getRequestCount());
-        assertEquals(6, copy.contents().serverById(FIRST_SERVER_ID).getPlayerCount());
+        assertEquals(6, copy.currentContents().findServerSummaryById(FIRST_SERVER_ID).getPlayerCount());
     }
 
     @Test
@@ -105,7 +105,7 @@ class NetworkCopyTest {
         copy.onPulse(pulse(1, 6));
 
         assertEquals(2, controller.getRequestCount());
-        assertNotNull(copy.contents().serverById(SECOND_SERVER_ID));
+        assertNotNull(copy.currentContents().findServerSummaryById(SECOND_SERVER_ID));
     }
 
     @Test
@@ -116,7 +116,7 @@ class NetworkCopyTest {
         copy.onPulse(pulse(2, 5));
 
         assertEquals(2, controller.getRequestCount());
-        assertEquals(2, copy.contents().epoch());
+        assertEquals(2, copy.currentContents().epoch());
     }
 
     @Test
@@ -138,8 +138,8 @@ class NetworkCopyTest {
 
         copy.onBatch(batch(1, 5, 6).addServers(server(SECOND_SERVER_ID)).build());
 
-        assertEquals(6, copy.contents().revision());
-        assertNotNull(copy.contents().serverById(SECOND_SERVER_ID));
+        assertEquals(6, copy.currentContents().revision());
+        assertNotNull(copy.currentContents().findServerSummaryById(SECOND_SERVER_ID));
     }
 
     @Test
@@ -147,11 +147,11 @@ class NetworkCopyTest {
         copy.onPulse(pulse(1, 5));
 
         copy.onBatch(batch(1, 6, 7).build());
-        assertNull(copy.contents());
+        assertNull(copy.currentContents());
 
         copy.onPulse(pulse(1, 5));
         assertEquals(2, controller.getRequestCount());
-        assertNotNull(copy.contents());
+        assertNotNull(copy.currentContents());
     }
 
     @Test
@@ -160,7 +160,7 @@ class NetworkCopyTest {
 
         copy.onBatch(batch(2, 5, 6).build());
 
-        assertNull(copy.contents());
+        assertNull(copy.currentContents());
     }
 
     @Test
@@ -169,7 +169,7 @@ class NetworkCopyTest {
 
         copy.onBatch(batch(1, 3, 5).addDeletedServerIds(uuidBytes(FIRST_SERVER_ID)).build());
 
-        assertNotNull(copy.contents().serverById(FIRST_SERVER_ID));
+        assertNotNull(copy.currentContents().findServerSummaryById(FIRST_SERVER_ID));
     }
 
     @Test
@@ -177,13 +177,13 @@ class NetworkCopyTest {
         copy.onPulse(pulse(1, 5));
 
         advanceTime(Duration.ofSeconds(15));
-        assertNotNull(copy.contents());
+        assertNotNull(copy.currentContents());
 
         advanceTime(Duration.ofMillis(1));
-        assertNull(copy.contents());
+        assertNull(copy.currentContents());
 
         copy.onPulse(pulse(1, 5));
-        assertNotNull(copy.contents());
+        assertNotNull(copy.currentContents());
     }
 
     @Test
@@ -194,7 +194,7 @@ class NetworkCopyTest {
         copy.onPulse(answersOff);
         copy.onPulse(answersOff);
 
-        assertNull(copy.contents());
+        assertNull(copy.currentContents());
         assertEquals(1, controller.getRequestCount());
     }
 
@@ -207,11 +207,11 @@ class NetworkCopyTest {
         servedState = state(1, 5, FIRST_SERVER_ID).toBuilder().addServerGroups(unreadableGroup).build();
 
         copy.onPulse(pulse(1, 5));
-        assertNull(copy.contents());
+        assertNull(copy.currentContents());
 
         servedState = state(1, 5, FIRST_SERVER_ID);
         copy.onPulse(pulse(1, 5));
-        assertNotNull(copy.contents());
+        assertNotNull(copy.currentContents());
     }
 
     @Test
@@ -221,7 +221,7 @@ class NetworkCopyTest {
         copy.onPulse(pulse(1, 5));
         copy.onPulse(pulse(1, 5));
 
-        assertNull(copy.contents());
+        assertNull(copy.currentContents());
         assertEquals(1, controller.getRequestCount());
     }
 
@@ -244,7 +244,7 @@ class NetworkCopyTest {
 
         nats.deliver(subject, NatsMessage.builder().subject(subject).data(pulse(1, 5).toByteArray()).build());
 
-        assertNotNull(upperCaseCopy.contents());
+        assertNotNull(upperCaseCopy.currentContents());
     }
 
     @Test
@@ -253,8 +253,8 @@ class NetworkCopyTest {
 
         upperCaseCopy.onPulse(pulse(1, 5));
 
-        NetworkContents contents = upperCaseCopy.contents();
-        ModelsServerSummary summary = contents.serverById(FIRST_SERVER_ID);
+        NetworkContents contents = upperCaseCopy.currentContents();
+        ModelsServerSummary summary = contents.findServerSummaryById(FIRST_SERVER_ID);
         assertEquals(NETWORK_ID, summary.getNetworkId());
     }
 
@@ -270,7 +270,7 @@ class NetworkCopyTest {
 
         copy.waitForOwnWrite(headers);
 
-        assertEquals(6, copy.contents().revision());
+        assertEquals(6, copy.currentContents().revision());
     }
 
     @Test
@@ -321,7 +321,7 @@ class NetworkCopyTest {
 
     @Test
     void neverStartedCopyNeverHasContents() {
-        assertNull(NetworkCopy.neverStarted().contents());
+        assertNull(NetworkCopy.neverStarted().currentContents());
     }
 
     private void applyLater(StateBatch batch) {

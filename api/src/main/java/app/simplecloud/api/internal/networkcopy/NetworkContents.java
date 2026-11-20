@@ -70,7 +70,7 @@ public final class NetworkContents {
     /**
      * Exact match on the id text, as the HTTP path does.
      */
-    public @Nullable ModelsServerSummary serverById(String id) {
+    public @Nullable ModelsServerSummary findServerSummaryById(String id) {
         return serversById.get(id);
     }
 
@@ -80,7 +80,7 @@ public final class NetworkContents {
      * @throws app.simplecloud.api.CloudApiException with reason {@code INVALID_REQUEST}
      *                                               for an unknown sort field or a sort order other than asc or desc
      */
-    public List<ModelsServerSummary> servers(@Nullable ServerQuery query) {
+    public List<ModelsServerSummary> listServerSummaries(@Nullable ServerQuery query) {
         if (query == null) {
             return servers;
         }
@@ -94,14 +94,14 @@ public final class NetworkContents {
         return List.copyOf(matching);
     }
 
-    public @Nullable ModelsServerGroupSummary groupById(String id) {
+    public @Nullable ModelsServerGroupSummary findGroupSummaryById(String id) {
         return groupsById.get(id);
     }
 
     /**
      * The first group with this name in list order.
      */
-    public @Nullable ModelsServerGroupSummary groupByName(String name) {
+    public @Nullable ModelsServerGroupSummary findGroupSummaryByName(String name) {
         for (ModelsServerGroupSummary group : groups) {
             if (name.equals(group.getName())) {
                 return group;
@@ -115,7 +115,7 @@ public final class NetworkContents {
      *
      * @throws app.simplecloud.api.CloudApiException with reason {@code INVALID_REQUEST} for a limit below 1
      */
-    public List<ModelsServerGroupSummary> groups(@Nullable GroupQuery query) {
+    public List<ModelsServerGroupSummary> listGroupSummaries(@Nullable GroupQuery query) {
         if (query == null) {
             return groups;
         }
@@ -130,14 +130,14 @@ public final class NetworkContents {
         return List.copyOf(kept);
     }
 
-    public @Nullable ModelsPersistentServerSummary persistentServerById(String id) {
+    public @Nullable ModelsPersistentServerSummary findPersistentServerSummaryById(String id) {
         return persistentServersById.get(id);
     }
 
     /**
      * The first persistent server with this name in list order.
      */
-    public @Nullable ModelsPersistentServerSummary persistentServerByName(String name) {
+    public @Nullable ModelsPersistentServerSummary findPersistentServerSummaryByName(String name) {
         for (ModelsPersistentServerSummary persistentServer : persistentServers) {
             if (name.equals(persistentServer.getName())) {
                 return persistentServer;
@@ -151,7 +151,7 @@ public final class NetworkContents {
      *
      * @throws app.simplecloud.api.CloudApiException with reason {@code INVALID_REQUEST} for a limit below 1
      */
-    public List<ModelsPersistentServerSummary> persistentServers(@Nullable PersistentServerQuery query) {
+    public List<ModelsPersistentServerSummary> listPersistentServerSummaries(@Nullable PersistentServerQuery query) {
         if (query == null) {
             return persistentServers;
         }

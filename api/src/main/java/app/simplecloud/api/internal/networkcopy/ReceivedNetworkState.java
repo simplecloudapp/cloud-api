@@ -139,7 +139,7 @@ final class ReceivedNetworkState {
     /**
      * Builds the three lists from this state, in the controller's default order.
      */
-    NetworkContents toContents() {
+    NetworkContents buildContents() {
         List<ModelsServerSummary> serverSummaries = new ArrayList<>(serversById.size());
         for (ServerItem serverItem : serversById.values()) {
             serverSummaries.add(serverSummary(serverItem));

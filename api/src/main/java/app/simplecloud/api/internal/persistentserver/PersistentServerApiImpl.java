@@ -40,7 +40,7 @@ public class PersistentServerApiImpl implements PersistentServerApi {
     private final QueryCache cache;
     private final Executor executor;
     private final NetworkCopy networkCopy;
-    private final PersistentServerReadsOverHttp readsOverHttp;
+    private final HttpPersistentServerReadApi httpReadApi;
 
     public PersistentServerApiImpl(CloudApiOptions options, QueryCache cache) {
         this(options, cache, ApiClients.create(options));
@@ -111,7 +111,7 @@ public class PersistentServerApiImpl implements PersistentServerApi {
         this.createRequestDefaults = new CreateRequestDefaults();
         this.executor = executor;
         this.networkCopy = networkCopy;
-        this.readsOverHttp = new PersistentServerReadsOverHttp(options, persistentServersApi, cache, executor);
+        this.httpReadApi = new HttpPersistentServerReadApi(options, persistentServersApi, cache, executor);
     }
 
     @Override
@@ -126,7 +126,7 @@ public class PersistentServerApiImpl implements PersistentServerApi {
         if (!Identifiers.isUuid(id)) {
             return CompletableFuture.completedFuture(Optional.empty());
         }
-        return reads().findPersistentServerById(id);
+        return selectPersistentServerReadApi().findPersistentServerById(id);
     }
 
     @Override
@@ -138,20 +138,20 @@ public class PersistentServerApiImpl implements PersistentServerApi {
 
     @Override
     public CompletableFuture<Optional<PersistentServer>> findPersistentServerByName(String name) {
-        return reads().findPersistentServerByName(name);
+        return selectPersistentServerReadApi().findPersistentServerByName(name);
     }
 
     @Override
     public CompletableFuture<List<PersistentServer>> getAllPersistentServers(@Nullable PersistentServerQuery query) {
-        return reads().getAllPersistentServers(query);
+        return selectPersistentServerReadApi().getAllPersistentServers(query);
     }
 
-    private PersistentServerReads reads() {
-        NetworkContents contents = networkCopy.contents();
+    private InternalPersistentServerReadApi selectPersistentServerReadApi() {
+        NetworkContents contents = networkCopy.currentContents();
         if (contents == null) {
-            return readsOverHttp;
+            return httpReadApi;
         }
-        return new PersistentServerReadsFromCopy(contents);
+        return new NetworkCopyPersistentServerReadApi(contents);
     }
 
     private boolean persistentServerExistsWithBlueprint(String name, @Nullable String blueprintId) {
@@ -160,7 +160,7 @@ public class PersistentServerApiImpl implements PersistentServerApi {
         }
 
         try {
-            ModelsListPersistentServersResponse response = readsOverHttp.executeQuery(null, null, name);
+            ModelsListPersistentServersResponse response = httpReadApi.executeQuery(null, null, name);
             List<ModelsPersistentServerSummary> servers = response.getPersistentServers();
             if (servers == null) {
                 return false;
@@ -423,7 +423,7 @@ public class PersistentServerApiImpl implements PersistentServerApi {
 
     @Nullable
     private String findAttachedBlueprintId(String persistentServerId) throws ApiException {
-        ModelsListPersistentServersResponse response = readsOverHttp.executeQuery(null, persistentServerId, null);
+        ModelsListPersistentServersResponse response = httpReadApi.executeQuery(null, persistentServerId, null);
         List<ModelsPersistentServerSummary> servers = response.getPersistentServers();
         if (servers == null) {
             return null;
