@@ -84,6 +84,7 @@ public final class NetworkContents {
         if (query == null) {
             return serverSummaries;
         }
+        refuseUnknownSort(query);
         List<ModelsServerSummary> matching = new ArrayList<>();
         for (ModelsServerSummary serverSummary : serverSummaries) {
             if (matches(serverSummary, query)) {
@@ -119,6 +120,7 @@ public final class NetworkContents {
         if (query == null) {
             return groupSummaries;
         }
+        refuseLimitBelowOne(query.getLimit());
         List<ModelsServerGroupSummary> matching = new ArrayList<>();
         for (ModelsServerGroupSummary groupSummary : groupSummaries) {
             if (matches(groupSummary, query)) {
@@ -155,6 +157,7 @@ public final class NetworkContents {
         if (query == null) {
             return persistentServerSummaries;
         }
+        refuseLimitBelowOne(query.getLimit());
         List<ModelsPersistentServerSummary> matching = new ArrayList<>();
         for (ModelsPersistentServerSummary persistentServerSummary : persistentServerSummaries) {
             if (matches(persistentServerSummary, query)) {
@@ -168,14 +171,14 @@ public final class NetworkContents {
 
     // A name, type or tag filter matches the group or the persistent server the server was started from.
     private static boolean matches(ModelsServerSummary serverSummary, ServerQuery query) {
-        return isOneOfIds(serverSummary.getServerGroupId(), query.getServerGroupIds())
-                && isOneOf(getStateName(serverSummary), toStateNames(query.getStates()))
-                && isAskedId(serverSummary.getServerhostId(), query.getServerhostId())
-                && isAskedId(serverSummary.getPersistentServerId(), query.getPersistentServerId())
-                && isOneOf(findBaseType(serverSummary), toTypeNames(query.getServerGroupTypes()))
-                && isOneOf(findBaseName(serverSummary), query.getServerGroupNames())
-                && sharesOneTag(findBaseTags(serverSummary), query.getServerGroupTags())
-                && isOneOf(serverSummary.getNumericalId(), query.getNumericalIds());
+        return passesIdListFilter(serverSummary.getServerGroupId(), query.getServerGroupIds())
+                && passesValueFilter(getStateName(serverSummary), toStateNames(query.getStates()))
+                && passesIdFilter(serverSummary.getServerhostId(), query.getServerhostId())
+                && passesIdFilter(serverSummary.getPersistentServerId(), query.getPersistentServerId())
+                && passesValueFilter(findGroupOrPersistentServerType(serverSummary), toTypeNames(query.getServerGroupTypes()))
+                && passesValueFilter(findGroupOrPersistentServerName(serverSummary), query.getServerGroupNames())
+                && passesTagFilter(findGroupOrPersistentServerTags(serverSummary), query.getServerGroupTags())
+                && passesValueFilter(serverSummary.getNumericalId(), query.getNumericalIds());
     }
 
     private static boolean matches(ModelsServerGroupSummary groupSummary, GroupQuery query) {
@@ -190,29 +193,40 @@ public final class NetworkContents {
         Boolean askedActive = query.getActive();
         boolean activeMatches = askedActive == null || askedActive.equals(persistentServerSummary.getActive());
         return activeMatches
-                && sharesOneTag(persistentServerSummary.getTags(), query.getTags())
-                && isAskedId(persistentServerSummary.getServerhostId(), query.getServerhostId());
+                && passesTagFilter(persistentServerSummary.getTags(), query.getTags())
+                && passesIdFilter(persistentServerSummary.getServerhostId(), query.getServerhostId());
+    }
+
+    private static void refuseUnknownSort(ServerQuery query) {
+        String field = trimOrEmpty(query.getSortBy());
+        boolean knownField = field.isEmpty() || SERVER_SORT_FIELDS.contains(field);
+        if (!knownField) {
+            throw ApiErrors.invalidRequest("invalid sort_by field; valid options: created_at, updated_at, numerical_id, state");
+        }
+        String order = trimOrEmpty(query.getSortOrder());
+        boolean knownOrder = order.isEmpty() || order.equals("asc") || order.equals("desc");
+        if (!knownOrder) {
+            throw ApiErrors.invalidRequest("sort_order must be asc or desc");
+        }
+    }
+
+    private static void refuseLimitBelowOne(@Nullable Integer limit) {
+        if (limit != null && limit < 1) {
+            throw ApiErrors.invalidRequest("limit must be at least 1");
+        }
     }
 
     // A stable sort, so servers that compare equal keep the default order, also when descending.
     private static void sortAsAsked(List<ModelsServerSummary> serverSummaries, ServerQuery query) {
         String field = trimOrEmpty(query.getSortBy());
-        String order = trimOrEmpty(query.getSortOrder());
-        boolean knownField = field.isEmpty() || SERVER_SORT_FIELDS.contains(field);
-        if (!knownField) {
-            throw ApiErrors.invalidRequest("invalid sort_by field; valid options: created_at, updated_at, numerical_id, state");
-        }
-        boolean descending = order.equals("desc");
-        boolean knownOrder = order.isEmpty() || order.equals("asc") || descending;
-        if (!knownOrder) {
-            throw ApiErrors.invalidRequest("sort_order must be asc or desc");
-        }
         if (field.isEmpty()) {
             return;
         }
-        Comparator<ModelsServerSummary> ascending = (first, second) -> compareByField(field, first, second);
-        Comparator<ModelsServerSummary> asked = descending ? ascending.reversed() : ascending;
-        serverSummaries.sort(asked);
+        String order = trimOrEmpty(query.getSortOrder());
+        boolean descending = order.equals("desc");
+        Comparator<ModelsServerSummary> ascendingComparator = (first, second) -> compareByField(field, first, second);
+        Comparator<ModelsServerSummary> askedComparator = descending ? ascendingComparator.reversed() : ascendingComparator;
+        serverSummaries.sort(askedComparator);
     }
 
     private static int compareByField(String field, ModelsServerSummary first, ModelsServerSummary second) {
@@ -235,9 +249,6 @@ public final class NetworkContents {
     private static int countUpToLimit(int matchingCount, @Nullable Integer limit) {
         if (limit == null) {
             return matchingCount;
-        }
-        if (limit < 1) {
-            throw ApiErrors.invalidRequest("limit must be at least 1");
         }
         return Math.min(limit, matchingCount);
     }
@@ -275,7 +286,7 @@ public final class NetworkContents {
         return names;
     }
 
-    private static @Nullable String findBaseName(ModelsServerSummary serverSummary) {
+    private static @Nullable String findGroupOrPersistentServerName(ModelsServerSummary serverSummary) {
         if (serverSummary.getServerGroup() != null) {
             return serverSummary.getServerGroup().getName();
         }
@@ -285,7 +296,7 @@ public final class NetworkContents {
         return null;
     }
 
-    private static @Nullable String findBaseType(ModelsServerSummary serverSummary) {
+    private static @Nullable String findGroupOrPersistentServerType(ModelsServerSummary serverSummary) {
         if (serverSummary.getServerGroup() != null) {
             return serverSummary.getServerGroup().getType();
         }
@@ -295,7 +306,7 @@ public final class NetworkContents {
         return null;
     }
 
-    private static @Nullable List<String> findBaseTags(ModelsServerSummary serverSummary) {
+    private static @Nullable List<String> findGroupOrPersistentServerTags(ModelsServerSummary serverSummary) {
         if (serverSummary.getServerGroup() != null) {
             return serverSummary.getServerGroup().getTags();
         }
@@ -305,15 +316,16 @@ public final class NetworkContents {
         return null;
     }
 
-    private static boolean isOneOf(@Nullable Object value, @Nullable List<?> asked) {
+    // In each filter check below, a filter with nothing asked passes everything.
+    private static boolean passesValueFilter(@Nullable Object value, @Nullable List<?> asked) {
         if (asked == null || asked.isEmpty()) {
             return true;
         }
         return asked.contains(value);
     }
 
-    // Case does not count, as the controller's list route parses asked ids as UUIDs. Lookups by id compare text, as their HTTP path does.
-    private static boolean isOneOfIds(@Nullable String id, @Nullable List<String> askedIds) {
+    // Id filters ignore case, as the controller's list route parses asked ids as UUIDs. Lookups by id compare text, as their HTTP path does.
+    private static boolean passesIdListFilter(@Nullable String id, @Nullable List<String> askedIds) {
         if (askedIds == null || askedIds.isEmpty()) {
             return true;
         }
@@ -325,14 +337,14 @@ public final class NetworkContents {
         return false;
     }
 
-    private static boolean isAskedId(@Nullable String id, @Nullable String askedId) {
+    private static boolean passesIdFilter(@Nullable String id, @Nullable String askedId) {
         if (askedId == null || askedId.isBlank()) {
             return true;
         }
         return askedId.equalsIgnoreCase(id);
     }
 
-    private static boolean sharesOneTag(@Nullable List<String> tags, @Nullable List<String> askedTags) {
+    private static boolean passesTagFilter(@Nullable List<String> tags, @Nullable List<String> askedTags) {
         if (askedTags == null || askedTags.isEmpty()) {
             return true;
         }

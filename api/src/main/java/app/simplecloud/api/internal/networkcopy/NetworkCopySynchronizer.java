@@ -135,8 +135,13 @@ public final class NetworkCopySynchronizer {
             return;
         }
         // The real time, not the synchronizer's clock: the loop sleeps in real time.
-        long waitStart = System.nanoTime();
-        while (lacksWrite(epoch, revision) && System.nanoTime() - waitStart < OWN_WRITE_WAIT_LIMIT.toNanos()) {
+        long waitStartNanos = System.nanoTime();
+        while (usableCopyLacksWrite(epoch, revision)) {
+            long waitedNanos = System.nanoTime() - waitStartNanos;
+            boolean waitedLongEnough = waitedNanos >= OWN_WRITE_WAIT_LIMIT.toNanos();
+            if (waitedLongEnough) {
+                return;
+            }
             boolean interrupted = sleepAndCheckInterrupted(OWN_WRITE_POLL_INTERVAL);
             if (interrupted) {
                 return;
@@ -184,6 +189,12 @@ public final class NetworkCopySynchronizer {
             }
             latestContents = networkCopy.buildContents();
             lastPulseNanos = nanoClock.getAsLong();
+        } catch (SnapshotRefusedException e) {
+            // The controller gives the full state only to the network password. A JWT never gets it.
+            loadRefused = true;
+            networkCopy = null;
+            latestContents = null;
+            LOGGER.warning("Network copy is off for this connection: the controller refuses the network state to this credential");
         } catch (IOException | RuntimeException e) {
             forgetCopy("the network state could not be loaded or read: " + e);
         }
@@ -235,10 +246,7 @@ public final class NetworkCopySynchronizer {
     private NetworkCopy loadNetworkCopy() throws IOException {
         try (Response response = httpClient.newCall(snapshotRequest).execute()) {
             if (response.code() == HttpURLConnection.HTTP_FORBIDDEN) {
-                // The controller gives the full state only to the network password. A JWT never gets it.
-                loadRefused = true;
-                LOGGER.warning("Network copy is off for this connection: the controller refuses the network state to this credential");
-                throw new IOException("the controller refuses the network state to this credential");
+                throw new SnapshotRefusedException();
             }
             if (!response.isSuccessful()) {
                 throw new IOException("GET /v0/network-state answered " + response.code());
@@ -246,6 +254,9 @@ public final class NetworkCopySynchronizer {
             NetworkState snapshot = NetworkState.parseFrom(response.body().bytes());
             return NetworkCopy.createFromSnapshot(snapshot, networkId);
         }
+    }
+
+    private static final class SnapshotRefusedException extends IOException {
     }
 
     private void forgetCopy(String reason) {
@@ -256,7 +267,7 @@ public final class NetworkCopySynchronizer {
         latestContents = null;
     }
 
-    private boolean lacksWrite(long epoch, long revision) {
+    private boolean usableCopyLacksWrite(long epoch, long revision) {
         NetworkContents contents = currentContents();
         if (contents == null) {
             // Reads go to the controller then, so there is nothing to wait for.

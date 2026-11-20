@@ -57,7 +57,9 @@ class NetworkCopySynchronizerTest {
             @Override
             public MockResponse dispatch(RecordedRequest request) {
                 Buffer snapshotBody = new Buffer().write(servedSnapshot.toByteArray());
-                return new MockResponse().setResponseCode(responseCode).setBody(snapshotBody);
+                return new MockResponse()
+                        .setResponseCode(responseCode)
+                        .setBody(snapshotBody);
             }
         });
         controllerHttp.start();
@@ -90,11 +92,15 @@ class NetworkCopySynchronizerTest {
                 .setServerId(toUuidBytes(FIRST_SERVER_ID))
                 .setPlayerCount(6)
                 .build();
+        StatePulse pulseWithMetrics = buildPulse(1, 5).toBuilder()
+                .addMetrics(metrics)
+                .build();
 
-        synchronizer.handlePulse(buildPulse(1, 5).toBuilder().addMetrics(metrics).build());
+        synchronizer.handlePulse(pulseWithMetrics);
 
         assertEquals(1, controllerHttp.getRequestCount());
-        assertEquals(6, synchronizer.currentContents().findServerSummaryById(FIRST_SERVER_ID).getPlayerCount());
+        ModelsServerSummary serverSummary = synchronizer.currentContents().findServerSummaryById(FIRST_SERVER_ID);
+        assertEquals(6, serverSummary.getPlayerCount());
     }
 
     @Test
@@ -135,8 +141,11 @@ class NetworkCopySynchronizerTest {
     @Test
     void batchThatFitsIsApplied() {
         synchronizer.handlePulse(buildPulse(1, 5));
+        StateBatch fittingBatch = createBatchBuilder(1, 5, 6)
+                .addServers(buildStateServer(SECOND_SERVER_ID))
+                .build();
 
-        synchronizer.handleBatch(createBatchBuilder(1, 5, 6).addServers(buildStateServer(SECOND_SERVER_ID)).build());
+        synchronizer.handleBatch(fittingBatch);
 
         assertEquals(6, synchronizer.currentContents().revision());
         assertNotNull(synchronizer.currentContents().findServerSummaryById(SECOND_SERVER_ID));
@@ -147,6 +156,21 @@ class NetworkCopySynchronizerTest {
         synchronizer.handlePulse(buildPulse(1, 5));
 
         synchronizer.handleBatch(createBatchBuilder(1, 6, 7).build());
+        assertNull(synchronizer.currentContents());
+
+        synchronizer.handlePulse(buildPulse(1, 5));
+        assertEquals(2, controllerHttp.getRequestCount());
+        assertNotNull(synchronizer.currentContents());
+    }
+
+    @Test
+    void batchThatCannotBeReadMakesTheCopyForgetItselfUntilTheNextPulseLoads() {
+        synchronizer.handlePulse(buildPulse(1, 5));
+        StateBatch unreadableBatch = createBatchBuilder(1, 5, 6)
+                .addServerGroups(buildUnreadableStateServerGroup())
+                .build();
+
+        synchronizer.handleBatch(unreadableBatch);
         assertNull(synchronizer.currentContents());
 
         synchronizer.handlePulse(buildPulse(1, 5));
@@ -166,8 +190,11 @@ class NetworkCopySynchronizerTest {
     @Test
     void batchTheCopyAlreadyHoldsIsIgnored() {
         synchronizer.handlePulse(buildPulse(1, 5));
+        StateBatch alreadyAppliedBatch = createBatchBuilder(1, 3, 5)
+                .addDeletedServerIds(toUuidBytes(FIRST_SERVER_ID))
+                .build();
 
-        synchronizer.handleBatch(createBatchBuilder(1, 3, 5).addDeletedServerIds(toUuidBytes(FIRST_SERVER_ID)).build());
+        synchronizer.handleBatch(alreadyAppliedBatch);
 
         assertNotNull(synchronizer.currentContents().findServerSummaryById(FIRST_SERVER_ID));
     }
@@ -189,7 +216,9 @@ class NetworkCopySynchronizerTest {
     @Test
     void pulseThatTurnsAnswersOffForgetsTheCopyAndNeverLoads() {
         synchronizer.handlePulse(buildPulse(1, 5));
-        StatePulse answersOffPulse = buildPulse(1, 5).toBuilder().setViewsMayAnswer(false).build();
+        StatePulse answersOffPulse = buildPulse(1, 5).toBuilder()
+                .setViewsMayAnswer(false)
+                .build();
 
         synchronizer.handlePulse(answersOffPulse);
         synchronizer.handlePulse(answersOffPulse);
@@ -200,11 +229,9 @@ class NetworkCopySynchronizerTest {
 
     @Test
     void snapshotThatCannotBeReadIsForgottenAndLoadedAgainOnTheNextPulse() {
-        StateServerGroup unreadableStateServerGroup = StateServerGroup.newBuilder()
-                .setId(toUuidBytes("0a000000-0000-4000-8000-000000000301"))
-                .setSummaryJson(ByteString.copyFromUtf8("{not json"))
+        servedSnapshot = buildSnapshot(1, 5, FIRST_SERVER_ID).toBuilder()
+                .addServerGroups(buildUnreadableStateServerGroup())
                 .build();
-        servedSnapshot = buildSnapshot(1, 5, FIRST_SERVER_ID).toBuilder().addServerGroups(unreadableStateServerGroup).build();
 
         synchronizer.handlePulse(buildPulse(1, 5));
         assertNull(synchronizer.currentContents());
@@ -241,8 +268,13 @@ class NetworkCopySynchronizerTest {
         NetworkCopySynchronizer upperCaseSynchronizer = new NetworkCopySynchronizer(new OkHttpClient(), getControllerUrl(), NETWORK_ID.toUpperCase(), "", nanoTime::get);
         upperCaseSynchronizer.start(natsConnection.connection());
         String subject = NETWORK_ID + ".state.v1.pulse";
+        byte[] pulseBytes = buildPulse(1, 5).toByteArray();
+        NatsMessage pulseMessage = NatsMessage.builder()
+                .subject(subject)
+                .data(pulseBytes)
+                .build();
 
-        natsConnection.deliver(subject, NatsMessage.builder().subject(subject).data(buildPulse(1, 5).toByteArray()).build());
+        natsConnection.deliver(subject, pulseMessage);
 
         assertNotNull(upperCaseSynchronizer.currentContents());
     }
@@ -261,7 +293,9 @@ class NetworkCopySynchronizerTest {
     @Test
     void ownWriteWaitsUntilABatchBringsTheWrite() {
         synchronizer.handlePulse(buildPulse(1, 5));
-        StateBatch writeBatch = createBatchBuilder(1, 5, 6).addServers(buildStateServer(SECOND_SERVER_ID)).build();
+        StateBatch writeBatch = createBatchBuilder(1, 5, 6)
+                .addServers(buildStateServer(SECOND_SERVER_ID))
+                .build();
         Thread.ofVirtual().start(() -> applyLater(writeBatch));
         Map<String, List<String>> headers = Map.of(
                 "x-sc-state-epoch", List.of("1"),
@@ -338,19 +372,35 @@ class NetworkCopySynchronizerTest {
     }
 
     private static StatePulse buildPulse(long epoch, long revision) {
-        return StatePulse.newBuilder().setEpoch(epoch).setRevision(revision).setViewsMayAnswer(true).build();
+        return StatePulse.newBuilder()
+                .setEpoch(epoch)
+                .setRevision(revision)
+                .setViewsMayAnswer(true)
+                .build();
     }
 
     private static StateBatch.Builder createBatchBuilder(long epoch, long baseRevision, long revision) {
-        return StateBatch.newBuilder().setEpoch(epoch).setBaseRevision(baseRevision).setRevision(revision);
+        return StateBatch.newBuilder()
+                .setEpoch(epoch)
+                .setBaseRevision(baseRevision)
+                .setRevision(revision);
     }
 
     private static NetworkState buildSnapshot(long epoch, long revision, String... serverIds) {
-        NetworkState.Builder snapshot = NetworkState.newBuilder().setEpoch(epoch).setRevision(revision);
+        NetworkState.Builder snapshot = NetworkState.newBuilder()
+                .setEpoch(epoch)
+                .setRevision(revision);
         for (String serverId : serverIds) {
             snapshot.addServers(buildStateServer(serverId));
         }
         return snapshot.build();
+    }
+
+    private static StateServerGroup buildUnreadableStateServerGroup() {
+        return StateServerGroup.newBuilder()
+                .setId(toUuidBytes("0a000000-0000-4000-8000-000000000301"))
+                .setSummaryJson(ByteString.copyFromUtf8("{not json"))
+                .build();
     }
 
     private static StateServer buildStateServer(String id) {

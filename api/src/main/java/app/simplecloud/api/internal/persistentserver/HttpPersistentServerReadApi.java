@@ -70,7 +70,7 @@ final class HttpPersistentServerReadApi implements InternalPersistentServerReadA
 
         return cache.fetch(key, () -> CompletableFuture.supplyAsync(() -> {
             try {
-                ModelsListPersistentServersResponse response = executeQuery(query, null, null);
+                ModelsListPersistentServersResponse response = listPersistentServersOverHttp(query, null, null);
                 List<ModelsPersistentServerSummary> servers = response.getPersistentServers();
                 if (servers == null) {
                     return List.of();
@@ -88,7 +88,7 @@ final class HttpPersistentServerReadApi implements InternalPersistentServerReadA
     private CompletableFuture<PersistentServer> fetchPersistentServerByIdFromController(String id) {
         return CompletableFuture.supplyAsync(() -> {
             try {
-                ModelsListPersistentServersResponse response = executeQuery(null, id, null);
+                ModelsListPersistentServersResponse response = listPersistentServersOverHttp(null, id, null);
                 List<ModelsPersistentServerSummary> servers = response.getPersistentServers();
                 if (servers == null) {
                     return null;
@@ -105,7 +105,7 @@ final class HttpPersistentServerReadApi implements InternalPersistentServerReadA
         }, executor);
     }
 
-    ModelsListPersistentServersResponse executeQuery(@Nullable PersistentServerQuery query,
+    ModelsListPersistentServersResponse listPersistentServersOverHttp(@Nullable PersistentServerQuery query,
                                                      @Nullable String persistentServerId,
                                                      @Nullable String name) throws ApiException {
         String tags = query == null || query.getTags() == null || query.getTags().isEmpty()
@@ -129,7 +129,7 @@ final class HttpPersistentServerReadApi implements InternalPersistentServerReadA
     private CompletableFuture<PersistentServer> fetchPersistentServerByNameFromController(String name) {
         return CompletableFuture.supplyAsync(() -> {
             try {
-                ModelsListPersistentServersResponse response = executeQuery(null, null, name);
+                ModelsListPersistentServersResponse response = listPersistentServersOverHttp(null, null, name);
                 List<ModelsPersistentServerSummary> servers = response.getPersistentServers();
                 if (servers == null) {
                     return null;

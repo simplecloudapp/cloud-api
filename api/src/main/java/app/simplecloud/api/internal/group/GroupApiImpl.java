@@ -225,7 +225,7 @@ public class GroupApiImpl implements GroupApi {
         }
 
         try {
-            ModelsListServerGroupsResponse response = httpReadApi.executeQuery(null, null, name);
+            ModelsListServerGroupsResponse response = httpReadApi.listServerGroupsOverHttp(null, null, name);
             List<ModelsServerGroupSummary> groups = response.getServerGroups();
             if (groups == null) {
                 return false;
@@ -485,7 +485,7 @@ public class GroupApiImpl implements GroupApi {
 
     @Nullable
     private String findAttachedBlueprintId(String groupId) throws ApiException {
-        ModelsListServerGroupsResponse response = httpReadApi.executeQuery(null, groupId, null);
+        ModelsListServerGroupsResponse response = httpReadApi.listServerGroupsOverHttp(null, groupId, null);
         List<ModelsServerGroupSummary> groups = response.getServerGroups();
         if (groups == null) {
             return null;

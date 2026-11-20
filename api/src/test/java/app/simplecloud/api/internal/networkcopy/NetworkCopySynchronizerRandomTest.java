@@ -50,7 +50,8 @@ class NetworkCopySynchronizerRandomTest {
         controllerHttp.setDispatcher(new Dispatcher() {
             @Override
             public MockResponse dispatch(RecordedRequest request) {
-                return new MockResponse().setBody(new Buffer().write(servedSnapshot.toByteArray()));
+                Buffer snapshotBody = new Buffer().write(servedSnapshot.toByteArray());
+                return new MockResponse().setBody(snapshotBody);
             }
         });
         controllerHttp.start();
@@ -140,7 +141,10 @@ class NetworkCopySynchronizerRandomTest {
 
         StateBatch changeAtRandom() {
             revision++;
-            StateBatch.Builder batch = StateBatch.newBuilder().setEpoch(epoch).setBaseRevision(revision - 1).setRevision(revision);
+            StateBatch.Builder batch = StateBatch.newBuilder()
+                    .setEpoch(epoch)
+                    .setBaseRevision(revision - 1)
+                    .setRevision(revision);
             int kind = random.nextInt(6);
             switch (kind) {
                 case 0 -> batch.addServerGroups(putRandomGroup());
@@ -164,7 +168,11 @@ class NetworkCopySynchronizerRandomTest {
             for (String serverId : stateServersById.keySet()) {
                 int playerCount = random.nextInt(20);
                 playerCountsByServerId.put(serverId, playerCount);
-                metrics.add(StateServerMetrics.newBuilder().setServerId(toUuidBytes(serverId)).setPlayerCount(playerCount).build());
+                StateServerMetrics serverMetrics = StateServerMetrics.newBuilder()
+                        .setServerId(toUuidBytes(serverId))
+                        .setPlayerCount(playerCount)
+                        .build();
+                metrics.add(serverMetrics);
             }
             return StatePulse.newBuilder()
                     .setEpoch(epoch)
@@ -222,7 +230,7 @@ class NetworkCopySynchronizerRandomTest {
         private StateServer putRandomServer() {
             String id = pickId("00");
             boolean inGroup = random.nextBoolean();
-            String baseId = pickId(inGroup ? "0a" : "0c");
+            String groupOrPersistentServerId = pickId(inGroup ? "0a" : "0c");
             List<String> states = List.of("STARTING", "AVAILABLE", "INGAME", "STOPPING");
             StateServer.Builder stateServerBuilder = StateServer.newBuilder()
                     .setId(toUuidBytes(id))
@@ -230,9 +238,9 @@ class NetworkCopySynchronizerRandomTest {
                     .setState(states.get(random.nextInt(states.size())))
                     .setPropertiesJson(ByteString.copyFromUtf8("{\"n\":" + random.nextInt(100) + "}"));
             if (inGroup) {
-                stateServerBuilder.setServerGroupId(toUuidBytes(baseId));
+                stateServerBuilder.setServerGroupId(toUuidBytes(groupOrPersistentServerId));
             } else {
-                stateServerBuilder.setPersistentServerId(toUuidBytes(baseId));
+                stateServerBuilder.setPersistentServerId(toUuidBytes(groupOrPersistentServerId));
             }
             StateServer stateServer = stateServerBuilder.build();
             stateServersById.put(id, stateServer);

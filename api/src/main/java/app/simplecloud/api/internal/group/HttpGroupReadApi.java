@@ -67,7 +67,7 @@ final class HttpGroupReadApi implements InternalGroupReadApi {
 
         return cache.fetch(key, () -> CompletableFuture.supplyAsync(() -> {
             try {
-                ModelsListServerGroupsResponse response = executeQuery(query);
+                ModelsListServerGroupsResponse response = listServerGroupsOverHttp(query);
                 List<ModelsServerGroupSummary> groups = response.getServerGroups();
                 if (groups == null) {
                     return List.of();
@@ -85,7 +85,7 @@ final class HttpGroupReadApi implements InternalGroupReadApi {
     private CompletableFuture<Group> fetchGroupByNameFromController(String name) {
         return CompletableFuture.supplyAsync(() -> {
             try {
-                ModelsListServerGroupsResponse response = executeQuery(null, null, name);
+                ModelsListServerGroupsResponse response = listServerGroupsOverHttp(null, null, name);
                 List<ModelsServerGroupSummary> groups = response.getServerGroups();
                 if (groups == null) {
                     return null;
@@ -102,11 +102,11 @@ final class HttpGroupReadApi implements InternalGroupReadApi {
         }, executor);
     }
 
-    private ModelsListServerGroupsResponse executeQuery(@org.jetbrains.annotations.Nullable GroupQuery query) throws ApiException {
-        return executeQuery(query, null, null);
+    private ModelsListServerGroupsResponse listServerGroupsOverHttp(@org.jetbrains.annotations.Nullable GroupQuery query) throws ApiException {
+        return listServerGroupsOverHttp(query, null, null);
     }
 
-    ModelsListServerGroupsResponse executeQuery(@Nullable GroupQuery query,
+    ModelsListServerGroupsResponse listServerGroupsOverHttp(@Nullable GroupQuery query,
                                                 @Nullable String serverGroupId,
                                                 @Nullable String name) throws ApiException {
         return serverGroupsApi.listServerGroups(
@@ -126,7 +126,7 @@ final class HttpGroupReadApi implements InternalGroupReadApi {
     private CompletableFuture<Group> fetchGroupByIdFromController(String id) {
         return CompletableFuture.supplyAsync(() -> {
             try {
-                ModelsListServerGroupsResponse response = executeQuery(null, id, null);
+                ModelsListServerGroupsResponse response = listServerGroupsOverHttp(null, id, null);
                 List<ModelsServerGroupSummary> groups = response.getServerGroups();
                 if (groups == null) {
                     return null;

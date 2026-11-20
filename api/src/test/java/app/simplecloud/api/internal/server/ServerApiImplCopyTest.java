@@ -1,5 +1,6 @@
 package app.simplecloud.api.internal.server;
 
+import app.simplecloud.api.CloudApiException;
 import app.simplecloud.api.CloudApiOptions;
 import app.simplecloud.api.internal.cache.NoOpQueryCache;
 import app.simplecloud.api.internal.nats.FakeNatsConnection;
@@ -34,9 +35,14 @@ import java.util.List;
 import java.util.Map;
 import java.util.Optional;
 import java.util.UUID;
+import java.util.concurrent.CompletableFuture;
+import java.util.concurrent.CompletionException;
 import java.util.concurrent.CopyOnWriteArrayList;
 
+import static org.junit.jupiter.api.Assertions.assertDoesNotThrow;
 import static org.junit.jupiter.api.Assertions.assertEquals;
+import static org.junit.jupiter.api.Assertions.assertInstanceOf;
+import static org.junit.jupiter.api.Assertions.assertThrows;
 import static org.junit.jupiter.api.Assertions.assertTimeout;
 
 /**
@@ -126,6 +132,18 @@ class ServerApiImplCopyTest {
     }
 
     @Test
+    void getAllServersWithAnUnknownSortFieldFailsItsFuture() throws InterruptedException {
+        receive("pulse", buildPulse());
+        ServerQuery unknownSortQuery = ServerQuery.create().sortBy("player_count");
+
+        CompletableFuture<List<Server>> serversFuture = assertDoesNotThrow(() -> api.getAllServers(unknownSortQuery));
+
+        CompletionException failure = assertThrows(CompletionException.class, serversFuture::join);
+        CloudApiException refusal = assertInstanceOf(CloudApiException.class, failure.getCause());
+        assertEquals(CloudApiException.Reason.INVALID_REQUEST, refusal.getReason());
+    }
+
+    @Test
     void withoutACopyEachReadAsksTheController() {
         ServerApiImpl apiWithoutCopy = new ServerApiImpl(
                 buildOptions(),
@@ -162,7 +180,7 @@ class ServerApiImplCopyTest {
         receive("pulse", buildPulse());
         receiveLater(buildBatchToRevision6());
 
-        api.updateServer(FIRST_SERVER_ID, UpdateServerRequest.builder().maxPlayers(30).build()).join();
+        api.updateServer(FIRST_SERVER_ID, buildUpdateRequest()).join();
 
         assertEquals(6, synchronizer.currentContents().revision());
     }
@@ -199,7 +217,7 @@ class ServerApiImplCopyTest {
 
     private void runEachWrite() {
         api.stopServer(FIRST_SERVER_ID).join();
-        api.updateServer(FIRST_SERVER_ID, UpdateServerRequest.builder().maxPlayers(30).build()).join();
+        api.updateServer(FIRST_SERVER_ID, buildUpdateRequest()).join();
         api.updateServerProperties(FIRST_SERVER_ID, Map.of("motd", "hello")).join();
         api.deleteServerProperties(FIRST_SERVER_ID, List.of("motd")).join();
     }
@@ -208,7 +226,8 @@ class ServerApiImplCopyTest {
         String route = request.getMethod() + " " + request.getRequestUrl().encodedPath();
         controllerRequests.add(route);
         if (route.equals(SNAPSHOT_LOAD)) {
-            Buffer snapshotBody = new Buffer().write(buildSnapshot().toByteArray());
+            byte[] snapshotBytes = buildSnapshot().toByteArray();
+            Buffer snapshotBody = new Buffer().write(snapshotBytes);
             return new MockResponse().setBody(snapshotBody);
         }
         if (route.equals(SERVER_LIST_READ)) {
@@ -225,7 +244,10 @@ class ServerApiImplCopyTest {
 
     private void receive(String kind, MessageLite message) throws InterruptedException {
         String subject = NETWORK_ID + ".state.v1." + kind;
-        NatsMessage natsMessage = NatsMessage.builder().subject(subject).data(message.toByteArray()).build();
+        NatsMessage natsMessage = NatsMessage.builder()
+                .subject(subject)
+                .data(message.toByteArray())
+                .build();
         natsConnection.deliver(subject, natsMessage);
     }
 
@@ -242,16 +264,32 @@ class ServerApiImplCopyTest {
         }
     }
 
+    private static UpdateServerRequest buildUpdateRequest() {
+        return UpdateServerRequest.builder()
+                .maxPlayers(30)
+                .build();
+    }
+
     private static MockResponse buildJsonResponse(String body) {
-        return new MockResponse().setHeader("Content-Type", "application/json").setBody(body);
+        return new MockResponse()
+                .setHeader("Content-Type", "application/json")
+                .setBody(body);
     }
 
     private static StatePulse buildPulse() {
-        return StatePulse.newBuilder().setEpoch(1).setRevision(5).setViewsMayAnswer(true).build();
+        return StatePulse.newBuilder()
+                .setEpoch(1)
+                .setRevision(5)
+                .setViewsMayAnswer(true)
+                .build();
     }
 
     private static StateBatch buildBatchToRevision6() {
-        return StateBatch.newBuilder().setEpoch(1).setBaseRevision(5).setRevision(6).build();
+        return StateBatch.newBuilder()
+                .setEpoch(1)
+                .setBaseRevision(5)
+                .setRevision(6)
+                .build();
     }
 
     private static NetworkState buildSnapshot() {

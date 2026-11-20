@@ -160,7 +160,7 @@ public class PersistentServerApiImpl implements PersistentServerApi {
         }
 
         try {
-            ModelsListPersistentServersResponse response = httpReadApi.executeQuery(null, null, name);
+            ModelsListPersistentServersResponse response = httpReadApi.listPersistentServersOverHttp(null, null, name);
             List<ModelsPersistentServerSummary> servers = response.getPersistentServers();
             if (servers == null) {
                 return false;
@@ -423,7 +423,7 @@ public class PersistentServerApiImpl implements PersistentServerApi {
 
     @Nullable
     private String findAttachedBlueprintId(String persistentServerId) throws ApiException {
-        ModelsListPersistentServersResponse response = httpReadApi.executeQuery(null, persistentServerId, null);
+        ModelsListPersistentServersResponse response = httpReadApi.listPersistentServersOverHttp(null, persistentServerId, null);
         List<ModelsPersistentServerSummary> servers = response.getPersistentServers();
         if (servers == null) {
             return null;

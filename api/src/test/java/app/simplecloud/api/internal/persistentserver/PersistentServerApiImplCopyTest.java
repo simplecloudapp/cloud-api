@@ -1,5 +1,6 @@
 package app.simplecloud.api.internal.persistentserver;
 
+import app.simplecloud.api.CloudApiException;
 import app.simplecloud.api.CloudApiOptions;
 import app.simplecloud.api.group.GroupServerType;
 import app.simplecloud.api.internal.cache.NoOpQueryCache;
@@ -36,9 +37,14 @@ import java.util.List;
 import java.util.Map;
 import java.util.Optional;
 import java.util.UUID;
+import java.util.concurrent.CompletableFuture;
+import java.util.concurrent.CompletionException;
 import java.util.concurrent.CopyOnWriteArrayList;
 
+import static org.junit.jupiter.api.Assertions.assertDoesNotThrow;
 import static org.junit.jupiter.api.Assertions.assertEquals;
+import static org.junit.jupiter.api.Assertions.assertInstanceOf;
+import static org.junit.jupiter.api.Assertions.assertThrows;
 import static org.junit.jupiter.api.Assertions.assertTimeout;
 import static org.junit.jupiter.api.Assertions.assertTrue;
 
@@ -115,6 +121,19 @@ class PersistentServerApiImplCopyTest {
 
         assertEquals(List.of(CREATIVE_ID), listPersistentServerIds(persistentServers));
         assertEquals(List.of(SNAPSHOT_LOAD), controllerRequests);
+    }
+
+    @Test
+    void getAllPersistentServersWithALimitBelowOneFailsItsFuture() throws InterruptedException {
+        receive("pulse", buildPulse());
+        PersistentServerQuery zeroLimitQuery = PersistentServerQuery.create().limit(0);
+
+        CompletableFuture<List<PersistentServer>> persistentServersFuture =
+                assertDoesNotThrow(() -> api.getAllPersistentServers(zeroLimitQuery));
+
+        CompletionException failure = assertThrows(CompletionException.class, persistentServersFuture::join);
+        CloudApiException refusal = assertInstanceOf(CloudApiException.class, failure.getCause());
+        assertEquals(CloudApiException.Reason.INVALID_REQUEST, refusal.getReason());
     }
 
     @Test
@@ -226,7 +245,8 @@ class PersistentServerApiImplCopyTest {
         String route = request.getMethod() + " " + request.getRequestUrl().encodedPath();
         controllerRequests.add(route);
         if (route.equals(SNAPSHOT_LOAD)) {
-            Buffer snapshotBody = new Buffer().write(buildSnapshot().toByteArray());
+            byte[] snapshotBytes = buildSnapshot().toByteArray();
+            Buffer snapshotBody = new Buffer().write(snapshotBytes);
             return new MockResponse().setBody(snapshotBody);
         }
         if (route.equals(PERSISTENT_SERVER_LIST_READ)) {
@@ -243,7 +263,10 @@ class PersistentServerApiImplCopyTest {
 
     private void receive(String kind, MessageLite message) throws InterruptedException {
         String subject = NETWORK_ID + ".state.v1." + kind;
-        NatsMessage natsMessage = NatsMessage.builder().subject(subject).data(message.toByteArray()).build();
+        NatsMessage natsMessage = NatsMessage.builder()
+                .subject(subject)
+                .data(message.toByteArray())
+                .build();
         natsConnection.deliver(subject, natsMessage);
     }
 
@@ -274,15 +297,25 @@ class PersistentServerApiImplCopyTest {
     }
 
     private static MockResponse buildJsonResponse(String body) {
-        return new MockResponse().setHeader("Content-Type", "application/json").setBody(body);
+        return new MockResponse()
+                .setHeader("Content-Type", "application/json")
+                .setBody(body);
     }
 
     private static StatePulse buildPulse() {
-        return StatePulse.newBuilder().setEpoch(1).setRevision(5).setViewsMayAnswer(true).build();
+        return StatePulse.newBuilder()
+                .setEpoch(1)
+                .setRevision(5)
+                .setViewsMayAnswer(true)
+                .build();
     }
 
     private static StateBatch buildBatchToRevision6() {
-        return StateBatch.newBuilder().setEpoch(1).setBaseRevision(5).setRevision(6).build();
+        return StateBatch.newBuilder()
+                .setEpoch(1)
+                .setBaseRevision(5)
+                .setRevision(6)
+                .build();
     }
 
     private static NetworkState buildSnapshot() {

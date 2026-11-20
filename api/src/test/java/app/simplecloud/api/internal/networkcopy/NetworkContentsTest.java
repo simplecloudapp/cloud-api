@@ -212,11 +212,13 @@ class NetworkContentsTest {
         List<Arguments> cases = new ArrayList<>();
         for (JsonElement element : CASE_FILE.getAsJsonArray("cases")) {
             JsonObject listCase = element.getAsJsonObject();
-            String fullName = listCase.get("route").getAsString() + ": " + listCase.get("name").getAsString();
+            String caseRoute = listCase.get("route").getAsString();
+            String name = listCase.get("name").getAsString();
+            String fullName = caseRoute + ": " + name;
             boolean isLeftOut = DEFAULT_ORDER_CASES.contains(fullName)
                     || CASES_JAVA_QUERIES_CANNOT_ASK.contains(fullName)
                     || CASES_ONLY_HTTP_REFUSES.contains(fullName);
-            boolean isOfRoute = listCase.get("route").getAsString().equals(route);
+            boolean isOfRoute = caseRoute.equals(route);
             if (isOfRoute && !isLeftOut) {
                 cases.add(Arguments.of(fullName, listCase.getAsJsonObject("parameters"), listCase.get("expected")));
             }
@@ -356,7 +358,8 @@ class NetworkContentsTest {
                     .name(groupJson.get("name").getAsString())
                     .type(groupJson.get("type").getAsString())
                     .tags(listTexts(groupJson.getAsJsonArray("tags")));
-            summary.serverGroupId(groupJson.get("id").getAsString()).serverGroup(groupInfo);
+            summary.setServerGroupId(groupJson.get("id").getAsString());
+            summary.setServerGroup(groupInfo);
         }
         if (serverJson.has("persistent_server")) {
             JsonObject persistentServerJson = persistentServerJsonByKey.get(serverJson.get("persistent_server").getAsString());
@@ -364,7 +367,8 @@ class NetworkContentsTest {
                     .name(persistentServerJson.get("name").getAsString())
                     .type(persistentServerJson.get("type").getAsString())
                     .tags(listTexts(persistentServerJson.getAsJsonArray("tags")));
-            summary.persistentServerId(persistentServerJson.get("id").getAsString()).persistentServer(persistentServerInfo);
+            summary.setPersistentServerId(persistentServerJson.get("id").getAsString());
+            summary.setPersistentServer(persistentServerInfo);
         }
         return summary;
     }
@@ -392,8 +396,10 @@ class NetworkContentsTest {
     private static List<String> listDefaultOrderKeys(String route) {
         for (JsonElement element : CASE_FILE.getAsJsonArray("cases")) {
             JsonObject listCase = element.getAsJsonObject();
-            boolean isOfRoute = listCase.get("route").getAsString().equals(route);
-            boolean isDefaultOrderCase = listCase.get("name").getAsString().startsWith("default order");
+            String caseRoute = listCase.get("route").getAsString();
+            String name = listCase.get("name").getAsString();
+            boolean isOfRoute = caseRoute.equals(route);
+            boolean isDefaultOrderCase = name.startsWith("default order");
             if (isOfRoute && isDefaultOrderCase) {
                 return listTexts(listCase.getAsJsonArray("expected"));
             }

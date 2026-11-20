@@ -1,5 +1,6 @@
 package app.simplecloud.api.internal.group;
 
+import app.simplecloud.api.CloudApiException;
 import app.simplecloud.api.CloudApiOptions;
 import app.simplecloud.api.group.CreateGroupRequest;
 import app.simplecloud.api.group.Group;
@@ -35,9 +36,14 @@ import java.util.List;
 import java.util.Map;
 import java.util.Optional;
 import java.util.UUID;
+import java.util.concurrent.CompletableFuture;
+import java.util.concurrent.CompletionException;
 import java.util.concurrent.CopyOnWriteArrayList;
 
+import static org.junit.jupiter.api.Assertions.assertDoesNotThrow;
 import static org.junit.jupiter.api.Assertions.assertEquals;
+import static org.junit.jupiter.api.Assertions.assertInstanceOf;
+import static org.junit.jupiter.api.Assertions.assertThrows;
 import static org.junit.jupiter.api.Assertions.assertTimeout;
 
 /**
@@ -113,6 +119,18 @@ class GroupApiImplCopyTest {
 
         assertEquals(List.of(GAME_GROUP_ID), listGroupIds(groups));
         assertEquals(List.of(SNAPSHOT_LOAD), controllerRequests);
+    }
+
+    @Test
+    void getAllGroupsWithALimitBelowOneFailsItsFuture() throws InterruptedException {
+        receive("pulse", buildPulse());
+        GroupQuery zeroLimitQuery = GroupQuery.create().limit(0);
+
+        CompletableFuture<List<Group>> groupsFuture = assertDoesNotThrow(() -> api.getAllGroups(zeroLimitQuery));
+
+        CompletionException failure = assertThrows(CompletionException.class, groupsFuture::join);
+        CloudApiException refusal = assertInstanceOf(CloudApiException.class, failure.getCause());
+        assertEquals(CloudApiException.Reason.INVALID_REQUEST, refusal.getReason());
     }
 
     @Test
@@ -207,7 +225,8 @@ class GroupApiImplCopyTest {
         String route = request.getMethod() + " " + request.getRequestUrl().encodedPath();
         controllerRequests.add(route);
         if (route.equals(SNAPSHOT_LOAD)) {
-            Buffer snapshotBody = new Buffer().write(buildSnapshot().toByteArray());
+            byte[] snapshotBytes = buildSnapshot().toByteArray();
+            Buffer snapshotBody = new Buffer().write(snapshotBytes);
             return new MockResponse().setBody(snapshotBody);
         }
         if (route.equals(GROUP_LIST_READ)) {
@@ -224,7 +243,10 @@ class GroupApiImplCopyTest {
 
     private void receive(String kind, MessageLite message) throws InterruptedException {
         String subject = NETWORK_ID + ".state.v1." + kind;
-        NatsMessage natsMessage = NatsMessage.builder().subject(subject).data(message.toByteArray()).build();
+        NatsMessage natsMessage = NatsMessage.builder()
+                .subject(subject)
+                .data(message.toByteArray())
+                .build();
         natsConnection.deliver(subject, natsMessage);
     }
 
@@ -255,15 +277,25 @@ class GroupApiImplCopyTest {
     }
 
     private static MockResponse buildJsonResponse(String body) {
-        return new MockResponse().setHeader("Content-Type", "application/json").setBody(body);
+        return new MockResponse()
+                .setHeader("Content-Type", "application/json")
+                .setBody(body);
     }
 
     private static StatePulse buildPulse() {
-        return StatePulse.newBuilder().setEpoch(1).setRevision(5).setViewsMayAnswer(true).build();
+        return StatePulse.newBuilder()
+                .setEpoch(1)
+                .setRevision(5)
+                .setViewsMayAnswer(true)
+                .build();
     }
 
     private static StateBatch buildBatchToRevision6() {
-        return StateBatch.newBuilder().setEpoch(1).setBaseRevision(5).setRevision(6).build();
+        return StateBatch.newBuilder()
+                .setEpoch(1)
+                .setBaseRevision(5)
+                .setRevision(6)
+                .build();
     }
 
     private static NetworkState buildSnapshot() {

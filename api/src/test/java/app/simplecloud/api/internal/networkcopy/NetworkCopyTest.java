@@ -9,6 +9,7 @@ import app.simplecloud.api.web.models.ModelsPersistentServerSummary;
 import app.simplecloud.api.web.models.ModelsServerGroupInfo;
 import app.simplecloud.api.web.models.ModelsServerGroupSummary;
 import app.simplecloud.api.web.models.ModelsServerSummary;
+import app.simplecloud.api.web.models.ModelsSourceInfo;
 import build.buf.gen.simplecloud.controller.v2.NetworkState;
 import build.buf.gen.simplecloud.controller.v2.StateBatch;
 import build.buf.gen.simplecloud.controller.v2.StatePersistentServer;
@@ -141,10 +142,14 @@ class NetworkCopyTest {
         StateServerMetrics metrics = buildMetrics(stateServer.getId(), 0).toBuilder()
                 .setLastActivityNanos(1794916740500000000L)
                 .build();
-        NetworkState snapshot = NetworkState.newBuilder().addServers(stateServer).addMetrics(metrics).build();
+        NetworkState snapshot = NetworkState.newBuilder()
+                .addServers(stateServer)
+                .addMetrics(metrics)
+                .build();
 
-        ModelsServerSummary summary = NetworkCopy.createFromSnapshot(snapshot, NETWORK_ID).buildContents().listServerSummaries(null).getFirst();
+        NetworkContents contents = NetworkCopy.createFromSnapshot(snapshot, NETWORK_ID).buildContents();
 
+        ModelsServerSummary summary = contents.listServerSummaries(null).getFirst();
         assertEquals("2026-11-17T10:00:00Z", summary.getCreatedAt());
         assertEquals("2026-11-17T10:00:00.000001Z", summary.getUpdatedAt());
         assertEquals("2026-11-17T11:59:00.5Z", summary.getLastActivity());
@@ -163,9 +168,11 @@ class NetworkCopyTest {
                 .addServerGroups(stateServerGroup)
                 .build();
 
-        ModelsServerSummary serverSummary = NetworkCopy.createFromSnapshot(snapshot, NETWORK_ID).buildContents().listServerSummaries(null).getFirst();
+        NetworkContents contents = NetworkCopy.createFromSnapshot(snapshot, NETWORK_ID).buildContents();
 
-        assertEquals(blueprintId, serverSummary.getServerGroup().getSource().getBlueprint().getId());
+        ModelsServerSummary serverSummary = contents.listServerSummaries(null).getFirst();
+        ModelsSourceInfo source = serverSummary.getServerGroup().getSource();
+        assertEquals(blueprintId, source.getBlueprint().getId());
     }
 
     @Test
@@ -206,8 +213,9 @@ class NetworkCopyTest {
 
         assertEquals(12, networkCopy.revision());
         assertEquals(List.of(newServerId, changedServerId), listServerIds(contents));
-        assertEquals(7, contents.findServerSummaryById(changedServerId).getNumericalId());
-        assertEquals("lobby renamed", contents.findServerSummaryById(changedServerId).getServerGroup().getName());
+        ModelsServerSummary changedServerSummary = contents.findServerSummaryById(changedServerId);
+        assertEquals(7, changedServerSummary.getNumericalId());
+        assertEquals("lobby renamed", changedServerSummary.getServerGroup().getName());
         assertEquals("lobby renamed", contents.findGroupSummaryById(GROUP_A_ID).getName());
         assertEquals("new group", contents.findGroupSummaryByName("new group").getName());
         assertNull(contents.findGroupSummaryById(GROUP_B_ID));
@@ -238,8 +246,12 @@ class NetworkCopyTest {
     @Test
     void persistentServerCountsThePlayersOfItsAvailableAndIngameServers() {
         StateServer available = buildStateServerOfPersistentServer("00000000-0000-4000-8000-000000000201");
-        StateServer ingame = buildStateServerOfPersistentServer("00000000-0000-4000-8000-000000000202").toBuilder().setState("INGAME").build();
-        StateServer starting = buildStateServerOfPersistentServer("00000000-0000-4000-8000-000000000203").toBuilder().setState("STARTING").build();
+        StateServer ingame = buildStateServerOfPersistentServer("00000000-0000-4000-8000-000000000202").toBuilder()
+                .setState("INGAME")
+                .build();
+        StateServer starting = buildStateServerOfPersistentServer("00000000-0000-4000-8000-000000000203").toBuilder()
+                .setState("STARTING")
+                .build();
         NetworkState snapshot = NetworkState.newBuilder()
                 .addServers(available)
                 .addServers(ingame)
@@ -261,7 +273,9 @@ class NetworkCopyTest {
         StateServerGroup unreadableStateServerGroup = buildStateServerGroup(GROUP_A_ID, "lobby", "2026-11-17T09:00:00Z").toBuilder()
                 .setSummaryJson(ByteString.copyFromUtf8("{not json"))
                 .build();
-        NetworkState snapshot = NetworkState.newBuilder().addServerGroups(unreadableStateServerGroup).build();
+        NetworkState snapshot = NetworkState.newBuilder()
+                .addServerGroups(unreadableStateServerGroup)
+                .build();
 
         assertThrows(RuntimeException.class, () -> NetworkCopy.createFromSnapshot(snapshot, NETWORK_ID));
     }
@@ -324,10 +338,12 @@ class NetworkCopyTest {
     private static void keepOnlyBlueprintIds(List<ModelsServerSummary> serverSummaries) {
         for (ModelsServerSummary serverSummary : serverSummaries) {
             ModelsServerGroupInfo groupInfo = serverSummary.getServerGroup();
-            boolean showsBlueprint = groupInfo != null && groupInfo.getSource() != null && groupInfo.getSource().getBlueprint() != null;
+            ModelsSourceInfo source = groupInfo == null ? null : groupInfo.getSource();
+            boolean showsBlueprint = source != null && source.getBlueprint() != null;
             if (showsBlueprint) {
-                String blueprintId = groupInfo.getSource().getBlueprint().getId();
-                groupInfo.getSource().setBlueprint(new ModelsBlueprintInfo().id(blueprintId));
+                String blueprintId = source.getBlueprint().getId();
+                ModelsBlueprintInfo blueprintWithOnlyId = new ModelsBlueprintInfo().id(blueprintId);
+                source.setBlueprint(blueprintWithOnlyId);
             }
         }
     }
@@ -341,7 +357,9 @@ class NetworkCopyTest {
         NetworkState.Builder changedSnapshot = snapshot.toBuilder().clearServerGroups();
         for (StateServerGroup stateServerGroup : snapshot.getServerGroupsList()) {
             String summaryJson = replaceEmptyScalingModeWithSlots(stateServerGroup.getSummaryJson().toStringUtf8());
-            StateServerGroup changedStateServerGroup = stateServerGroup.toBuilder().setSummaryJson(ByteString.copyFromUtf8(summaryJson)).build();
+            StateServerGroup changedStateServerGroup = stateServerGroup.toBuilder()
+                    .setSummaryJson(ByteString.copyFromUtf8(summaryJson))
+                    .build();
             changedSnapshot.addServerGroups(changedStateServerGroup);
         }
         return changedSnapshot.build();

@@ -73,7 +73,7 @@ final class HttpServerReadApi implements InternalServerReadApi {
             try {
                 ServerQuery query = ServerQuery.create()
                         .filterByServerGroupName(groupName);
-                ModelsListServersResponse serversResponse = executeQuery(query);
+                ModelsListServersResponse serversResponse = listServersOverHttp(query);
 
                 List<ModelsServerSummary> servers = serversResponse.getServers();
                 if (servers == null) {
@@ -117,7 +117,7 @@ final class HttpServerReadApi implements InternalServerReadApi {
     private CompletableFuture<Server> fetchServerByIdFromController(String id) {
         return CompletableFuture.supplyAsync(() -> {
             try {
-                ModelsListServersResponse response = executeQuery(null, id);
+                ModelsListServersResponse response = listServersOverHttp(null, id);
                 List<ModelsServerSummary> servers = response.getServers();
                 if (servers == null || servers.isEmpty()) {
                     return null;
@@ -133,11 +133,11 @@ final class HttpServerReadApi implements InternalServerReadApi {
         }, executor);
     }
 
-    private ModelsListServersResponse executeQuery(@Nullable ServerQuery query) throws ApiException {
-        return executeQuery(query, null);
+    private ModelsListServersResponse listServersOverHttp(@Nullable ServerQuery query) throws ApiException {
+        return listServersOverHttp(query, null);
     }
 
-    private ModelsListServersResponse executeQuery(@Nullable ServerQuery query, @Nullable String serverId) throws ApiException {
+    private ModelsListServersResponse listServersOverHttp(@Nullable ServerQuery query, @Nullable String serverId) throws ApiException {
         String serverGroupId = null;
         if (query != null && query.getServerGroupIds() != null && !query.getServerGroupIds().isEmpty()) {
             serverGroupId = String.join(",", query.getServerGroupIds());
@@ -211,7 +211,7 @@ final class HttpServerReadApi implements InternalServerReadApi {
     private CompletableFuture<List<Server>> fetchServersFromController(@Nullable ServerQuery query) {
         return CompletableFuture.supplyAsync(() -> {
             try {
-                ModelsListServersResponse serversResponse = executeQuery(query);
+                ModelsListServersResponse serversResponse = listServersOverHttp(query);
 
                 List<ModelsServerSummary> servers = serversResponse.getServers();
                 if (servers == null) {

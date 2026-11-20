@@ -101,7 +101,7 @@ final class NetworkCopy {
     }
 
     /**
-     * Puts the batch's servers, groups and persistent servers in, removes its deleted ids, and moves to the batch's revision.
+     * A batch that cannot be read makes this throw with a part of it already applied; the caller must then drop the copy.
      */
     void applyBatch(StateBatch batch) {
         for (StateServer stateServer : batch.getServersList()) {
@@ -129,11 +129,11 @@ final class NetworkCopy {
      * Replaces all server metrics.
      */
     void setMetrics(List<StateServerMetrics> metrics) {
-        Map<String, StateServerMetrics> newMetrics = new HashMap<>();
+        Map<String, StateServerMetrics> newMetricsByServerId = new HashMap<>();
         for (StateServerMetrics serverMetrics : metrics) {
-            newMetrics.put(toUuidText(serverMetrics.getServerId()), serverMetrics);
+            newMetricsByServerId.put(toUuidText(serverMetrics.getServerId()), serverMetrics);
         }
-        metricsByServerId = newMetrics;
+        metricsByServerId = newMetricsByServerId;
     }
 
     /**
@@ -153,12 +153,13 @@ final class NetworkCopy {
             groupSummaries.add(groupItem.summary());
         }
 
-        Map<String, Integer> playerCounts = countPlayersByPersistentServerId(serverSummaries);
+        Map<String, Integer> playerCountsByPersistentServerId = countPlayersByPersistentServerId(serverSummaries);
         List<PersistentServerItem> persistentServerItems = new ArrayList<>(persistentServerItemsById.values());
         persistentServerItems.sort(NetworkCopy::comparePersistentServerItems);
         List<ModelsPersistentServerSummary> persistentServerSummaries = new ArrayList<>(persistentServerItems.size());
         for (PersistentServerItem persistentServerItem : persistentServerItems) {
-            int playerCount = playerCounts.getOrDefault(persistentServerItem.summary().getPersistentServerId(), 0);
+            String persistentServerId = persistentServerItem.summary().getPersistentServerId();
+            int playerCount = playerCountsByPersistentServerId.getOrDefault(persistentServerId, 0);
             persistentServerSummaries.add(buildPersistentServerSummary(persistentServerItem, playerCount));
         }
 
@@ -241,19 +242,19 @@ final class NetworkCopy {
     }
 
     // Without fresh metrics the controller shows zeros and an empty last activity.
-    private static void fillMetrics(ModelsServerSummary summary, @Nullable StateServerMetrics metrics) {
-        if (metrics == null) {
+    private static void fillMetrics(ModelsServerSummary summary, @Nullable StateServerMetrics serverMetrics) {
+        if (serverMetrics == null) {
             summary.setPlayerCount(0);
             summary.setCpuUsage(BigDecimal.ZERO);
             summary.setMemoryUsage(BigDecimal.ZERO);
             summary.setLastActivity("");
             return;
         }
-        summary.setPlayerCount(metrics.getPlayerCount());
-        summary.setCpuUsage(BigDecimal.valueOf(metrics.getCpuUsage()));
-        summary.setMemoryUsage(BigDecimal.valueOf(metrics.getMemoryUsage()));
-        if (metrics.hasLastActivityNanos()) {
-            Instant lastActivity = nanosToInstant(metrics.getLastActivityNanos());
+        summary.setPlayerCount(serverMetrics.getPlayerCount());
+        summary.setCpuUsage(BigDecimal.valueOf(serverMetrics.getCpuUsage()));
+        summary.setMemoryUsage(BigDecimal.valueOf(serverMetrics.getMemoryUsage()));
+        if (serverMetrics.hasLastActivityNanos()) {
+            Instant lastActivity = nanosToInstant(serverMetrics.getLastActivityNanos());
             summary.setLastActivity(formatTimestamp(lastActivity));
         } else {
             summary.setLastActivity("");
@@ -285,17 +286,17 @@ final class NetworkCopy {
 
     // The controller counts the players of servers that are AVAILABLE or INGAME.
     private static Map<String, Integer> countPlayersByPersistentServerId(List<ModelsServerSummary> serverSummaries) {
-        Map<String, Integer> playerCounts = new HashMap<>();
+        Map<String, Integer> playerCountsByPersistentServerId = new HashMap<>();
         for (ModelsServerSummary serverSummary : serverSummaries) {
             ModelsServerSummary.StateEnum state = serverSummary.getState();
             boolean isCounted = state == ModelsServerSummary.StateEnum.AVAILABLE || state == ModelsServerSummary.StateEnum.INGAME;
             String persistentServerId = serverSummary.getPersistentServerId();
             if (isCounted && persistentServerId != null) {
-                int countedSoFar = playerCounts.getOrDefault(persistentServerId, 0);
-                playerCounts.put(persistentServerId, countedSoFar + serverSummary.getPlayerCount());
+                int countedSoFar = playerCountsByPersistentServerId.getOrDefault(persistentServerId, 0);
+                playerCountsByPersistentServerId.put(persistentServerId, countedSoFar + serverSummary.getPlayerCount());
             }
         }
-        return playerCounts;
+        return playerCountsByPersistentServerId;
     }
 
     // Group id with servers without a group last, then numerical id, then id.
