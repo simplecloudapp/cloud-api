@@ -60,11 +60,11 @@ final class NetworkCopy {
     private record ServerItem(StateServer stateServer, Map<String, Object> properties) {
     }
 
-    private record GroupItem(ModelsServerGroupSummary summary, ModelsServerGroupInfo infoInsideServers, Instant createdAt) {
+    private record GroupItem(ModelsServerGroupSummary summary, ModelsServerGroupInfo infoForServerSummaries, Instant createdAt) {
     }
 
     private record PersistentServerItem(ModelsPersistentServerSummary summary,
-                                        ModelsPersistentServerInfo infoInsideServers,
+                                        ModelsPersistentServerInfo infoForServerSummaries,
                                         Instant createdAt) {
     }
 
@@ -207,7 +207,7 @@ final class NetworkCopy {
             summary.setServerGroupId(groupId);
             GroupItem groupItem = groupItemsById.get(groupId);
             if (groupItem != null) {
-                summary.setServerGroup(groupItem.infoInsideServers());
+                summary.setServerGroup(groupItem.infoForServerSummaries());
             }
         }
         if (stateServer.hasPersistentServerId()) {
@@ -215,7 +215,7 @@ final class NetworkCopy {
             summary.setPersistentServerId(persistentServerId);
             PersistentServerItem persistentServerItem = persistentServerItemsById.get(persistentServerId);
             if (persistentServerItem != null) {
-                summary.setPersistentServer(persistentServerItem.infoInsideServers());
+                summary.setPersistentServer(persistentServerItem.infoForServerSummaries());
             }
         }
         if (stateServer.hasServerhostId()) {

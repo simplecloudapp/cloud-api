@@ -84,14 +84,16 @@ public final class NetworkContents {
         if (query == null) {
             return serverSummaries;
         }
-        refuseUnknownSort(query);
+        String sortField = stripOrEmpty(query.getSortBy());
+        String sortOrder = stripOrEmpty(query.getSortOrder());
+        refuseUnknownSort(sortField, sortOrder);
         List<ModelsServerSummary> matching = new ArrayList<>();
         for (ModelsServerSummary serverSummary : serverSummaries) {
             if (matches(serverSummary, query)) {
                 matching.add(serverSummary);
             }
         }
-        sortAsAsked(matching, query);
+        sortAsAsked(matching, sortField, sortOrder);
         return List.copyOf(matching);
     }
 
@@ -197,14 +199,12 @@ public final class NetworkContents {
                 && passesIdFilter(persistentServerSummary.getServerhostId(), query.getServerhostId());
     }
 
-    private static void refuseUnknownSort(ServerQuery query) {
-        String field = trimOrEmpty(query.getSortBy());
-        boolean knownField = field.isEmpty() || SERVER_SORT_FIELDS.contains(field);
+    private static void refuseUnknownSort(String sortField, String sortOrder) {
+        boolean knownField = sortField.isEmpty() || SERVER_SORT_FIELDS.contains(sortField);
         if (!knownField) {
             throw ApiErrors.invalidRequest("invalid sort_by field; valid options: created_at, updated_at, numerical_id, state");
         }
-        String order = trimOrEmpty(query.getSortOrder());
-        boolean knownOrder = order.isEmpty() || order.equals("asc") || order.equals("desc");
+        boolean knownOrder = sortOrder.isEmpty() || sortOrder.equals("asc") || sortOrder.equals("desc");
         if (!knownOrder) {
             throw ApiErrors.invalidRequest("sort_order must be asc or desc");
         }
@@ -217,14 +217,12 @@ public final class NetworkContents {
     }
 
     // A stable sort, so servers that compare equal keep the default order, also when descending.
-    private static void sortAsAsked(List<ModelsServerSummary> serverSummaries, ServerQuery query) {
-        String field = trimOrEmpty(query.getSortBy());
-        if (field.isEmpty()) {
+    private static void sortAsAsked(List<ModelsServerSummary> serverSummaries, String sortField, String sortOrder) {
+        if (sortField.isEmpty()) {
             return;
         }
-        String order = trimOrEmpty(query.getSortOrder());
-        boolean descending = order.equals("desc");
-        Comparator<ModelsServerSummary> ascendingComparator = (first, second) -> compareByField(field, first, second);
+        boolean descending = sortOrder.equals("desc");
+        Comparator<ModelsServerSummary> ascendingComparator = (first, second) -> compareByField(sortField, first, second);
         Comparator<ModelsServerSummary> askedComparator = descending ? ascendingComparator.reversed() : ascendingComparator;
         serverSummaries.sort(askedComparator);
     }
@@ -253,7 +251,7 @@ public final class NetworkContents {
         return Math.min(limit, matchingCount);
     }
 
-    private static String trimOrEmpty(@Nullable String value) {
+    private static String stripOrEmpty(@Nullable String value) {
         if (value == null) {
             return "";
         }
