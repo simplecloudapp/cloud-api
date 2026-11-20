@@ -5,7 +5,7 @@ import app.simplecloud.api.CloudApiOptions;
 import app.simplecloud.api.cache.QueryCache;
 import app.simplecloud.api.cache.QueryKey;
 import app.simplecloud.api.internal.networkcopy.NetworkContents;
-import app.simplecloud.api.internal.networkcopy.NetworkCopy;
+import app.simplecloud.api.internal.networkcopy.NetworkCopySynchronizer;
 import app.simplecloud.api.internal.web.ApiClients;
 import app.simplecloud.api.internal.web.ApiErrors;
 import app.simplecloud.api.internal.web.Identifiers;
@@ -37,7 +37,7 @@ public class ServerApiImpl implements ServerApi {
     private final ServersApi serversApi;
     private final QueryCache cache;
     private final Executor executor;
-    private final NetworkCopy networkCopy;
+    private final NetworkCopySynchronizer networkCopySynchronizer;
     private final HttpServerReadApi httpReadApi;
 
     public ServerApiImpl(CloudApiOptions options, QueryCache cache) {
@@ -49,27 +49,27 @@ public class ServerApiImpl implements ServerApi {
     }
 
     public ServerApiImpl(CloudApiOptions options, QueryCache cache, ApiClient httpClient, Executor executor) {
-        this(options, cache, httpClient, executor, NetworkCopy.neverStarted());
+        this(options, cache, httpClient, executor, NetworkCopySynchronizer.createNeverStarted());
     }
 
     public ServerApiImpl(CloudApiOptions options,
                          QueryCache cache,
                          ApiClient httpClient,
                          Executor executor,
-                         NetworkCopy networkCopy) {
-        this(options, cache, createServersApi(options, httpClient), executor, networkCopy);
+                         NetworkCopySynchronizer networkCopySynchronizer) {
+        this(options, cache, createServersApi(options, httpClient), executor, networkCopySynchronizer);
     }
 
     private ServerApiImpl(CloudApiOptions options,
                           QueryCache cache,
                           ServersApi serversApi,
                           Executor executor,
-                          NetworkCopy networkCopy) {
+                          NetworkCopySynchronizer networkCopySynchronizer) {
         this.options = options;
         this.cache = cache;
         this.serversApi = serversApi;
         this.executor = executor;
-        this.networkCopy = networkCopy;
+        this.networkCopySynchronizer = networkCopySynchronizer;
         this.httpReadApi = new HttpServerReadApi(options, serversApi, cache, executor);
     }
 
@@ -111,7 +111,7 @@ public class ServerApiImpl implements ServerApi {
     }
 
     private InternalServerReadApi selectServerReadApi() {
-        NetworkContents contents = networkCopy.currentContents();
+        NetworkContents contents = networkCopySynchronizer.currentContents();
         if (contents == null) {
             return httpReadApi;
         }
@@ -138,7 +138,7 @@ public class ServerApiImpl implements ServerApi {
                 cache.invalidateAll(QueryKey.of("servers"));
                 cache.invalidateAll(QueryKey.of("server", "numerical"));
 
-                networkCopy.waitForOwnWrite(httpResponse.getHeaders());
+                networkCopySynchronizer.waitForOwnWrite(httpResponse.getHeaders());
             } catch (ApiException e) {
                 throw ApiErrors.from(e);
             }
@@ -172,7 +172,7 @@ public class ServerApiImpl implements ServerApi {
                 cache.invalidateAll(QueryKey.of("servers"));
                 cache.invalidateAll(QueryKey.of("server", "numerical"));
 
-                networkCopy.waitForOwnWrite(httpResponse.getHeaders());
+                networkCopySynchronizer.waitForOwnWrite(httpResponse.getHeaders());
                 return server;
             } catch (ApiException e) {
                 throw ApiErrors.from(e);
@@ -223,7 +223,7 @@ public class ServerApiImpl implements ServerApi {
                 cache.invalidateAll(QueryKey.of("servers"));
                 cache.invalidateAll(QueryKey.of("server", "numerical"));
 
-                networkCopy.waitForOwnWrite(httpResponse.getHeaders());
+                networkCopySynchronizer.waitForOwnWrite(httpResponse.getHeaders());
                 Map<String, Object> result = response.getProperties();
                 return result != null ? result : new HashMap<>();
             } catch (ApiException e) {
@@ -251,7 +251,7 @@ public class ServerApiImpl implements ServerApi {
                 cache.invalidateAll(QueryKey.of("servers"));
                 cache.invalidateAll(QueryKey.of("server", "numerical"));
 
-                networkCopy.waitForOwnWrite(httpResponse.getHeaders());
+                networkCopySynchronizer.waitForOwnWrite(httpResponse.getHeaders());
                 Map<String, Object> result = response.getProperties();
                 return result != null ? result : new HashMap<>();
             } catch (ApiException e) {

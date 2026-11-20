@@ -8,7 +8,7 @@ import app.simplecloud.api.group.*;
 import app.simplecloud.api.internal.blueprint.InlineBlueprintSupport;
 import app.simplecloud.api.internal.create.CreateRequestDefaults;
 import app.simplecloud.api.internal.networkcopy.NetworkContents;
-import app.simplecloud.api.internal.networkcopy.NetworkCopy;
+import app.simplecloud.api.internal.networkcopy.NetworkCopySynchronizer;
 import app.simplecloud.api.internal.web.ApiClients;
 import app.simplecloud.api.internal.web.ApiErrors;
 import app.simplecloud.api.internal.web.Identifiers;
@@ -36,7 +36,7 @@ public class GroupApiImpl implements GroupApi {
     private final CreateRequestDefaults createRequestDefaults;
     private final QueryCache cache;
     private final Executor executor;
-    private final NetworkCopy networkCopy;
+    private final NetworkCopySynchronizer networkCopySynchronizer;
     private final HttpGroupReadApi httpReadApi;
 
     public GroupApiImpl(CloudApiOptions options, QueryCache cache) {
@@ -48,21 +48,21 @@ public class GroupApiImpl implements GroupApi {
     }
 
     public GroupApiImpl(CloudApiOptions options, QueryCache cache, ApiClient httpClient, Executor executor) {
-        this(options, cache, httpClient, executor, NetworkCopy.neverStarted());
+        this(options, cache, httpClient, executor, NetworkCopySynchronizer.createNeverStarted());
     }
 
     public GroupApiImpl(CloudApiOptions options,
                         QueryCache cache,
                         ApiClient httpClient,
                         Executor executor,
-                        NetworkCopy networkCopy) {
+                        NetworkCopySynchronizer networkCopySynchronizer) {
         this(
                 options,
                 cache,
                 createServerGroupsApi(options, httpClient),
                 new InlineBlueprintSupport(options, createBlueprintsApi(options, httpClient)),
                 executor,
-                networkCopy
+                networkCopySynchronizer
         );
     }
 
@@ -76,7 +76,7 @@ public class GroupApiImpl implements GroupApi {
                 serverGroupsApi,
                 new InlineBlueprintSupport(options, blueprintsApi),
                 ForkJoinPool.commonPool(),
-                NetworkCopy.neverStarted()
+                NetworkCopySynchronizer.createNeverStarted()
         );
     }
 
@@ -91,7 +91,7 @@ public class GroupApiImpl implements GroupApi {
                 serverGroupsApi,
                 new InlineBlueprintSupport(options, blueprintsApi, serverUrlResolver),
                 ForkJoinPool.commonPool(),
-                NetworkCopy.neverStarted()
+                NetworkCopySynchronizer.createNeverStarted()
         );
     }
 
@@ -100,14 +100,14 @@ public class GroupApiImpl implements GroupApi {
                          ServerGroupsApi serverGroupsApi,
                          InlineBlueprintSupport inlineBlueprintSupport,
                          Executor executor,
-                         NetworkCopy networkCopy) {
+                         NetworkCopySynchronizer networkCopySynchronizer) {
         this.options = options;
         this.cache = cache;
         this.serverGroupsApi = serverGroupsApi;
         this.inlineBlueprintSupport = inlineBlueprintSupport;
         this.createRequestDefaults = new CreateRequestDefaults();
         this.executor = executor;
-        this.networkCopy = networkCopy;
+        this.networkCopySynchronizer = networkCopySynchronizer;
         this.httpReadApi = new HttpGroupReadApi(options, serverGroupsApi, cache, executor);
     }
 
@@ -212,7 +212,7 @@ public class GroupApiImpl implements GroupApi {
     }
 
     private InternalGroupReadApi selectGroupReadApi() {
-        NetworkContents contents = networkCopy.currentContents();
+        NetworkContents contents = networkCopySynchronizer.currentContents();
         if (contents == null) {
             return httpReadApi;
         }
@@ -319,7 +319,7 @@ public class GroupApiImpl implements GroupApi {
                 summary.setCreatedAt(response.getCreatedAt());
                 summary.setUpdatedAt(response.getUpdatedAt());
 
-                networkCopy.waitForOwnWrite(httpResponse.getHeaders());
+                networkCopySynchronizer.waitForOwnWrite(httpResponse.getHeaders());
                 return new GroupImpl(summary);
             } catch (ApiException e) {
                 throw ApiErrors.from(e);
@@ -389,7 +389,7 @@ public class GroupApiImpl implements GroupApi {
                 cache.invalidateAll(QueryKey.of("groups"));
                 cache.invalidateAll(QueryKey.of("group", "name"));
 
-                networkCopy.waitForOwnWrite(httpResponse.getHeaders());
+                networkCopySynchronizer.waitForOwnWrite(httpResponse.getHeaders());
                 return group;
             } catch (ApiException e) {
                 throw ApiErrors.from(e);
@@ -517,7 +517,7 @@ public class GroupApiImpl implements GroupApi {
                 cache.invalidateAll(QueryKey.of("group", "name"));
 
                 inlineBlueprintSupport.deleteBlueprint(blueprintId);
-                networkCopy.waitForOwnWrite(httpResponse.getHeaders());
+                networkCopySynchronizer.waitForOwnWrite(httpResponse.getHeaders());
             } catch (ApiException e) {
                 throw ApiErrors.from(e);
             }
@@ -543,7 +543,7 @@ public class GroupApiImpl implements GroupApi {
                 cache.invalidateAll(QueryKey.of("groups"));
                 cache.invalidateAll(QueryKey.of("group", "name"));
 
-                networkCopy.waitForOwnWrite(httpResponse.getHeaders());
+                networkCopySynchronizer.waitForOwnWrite(httpResponse.getHeaders());
                 Map<String, Object> result = response.getProperties();
                 return result != null ? result : new HashMap<>();
             } catch (ApiException e) {
@@ -571,7 +571,7 @@ public class GroupApiImpl implements GroupApi {
                 cache.invalidateAll(QueryKey.of("groups"));
                 cache.invalidateAll(QueryKey.of("group", "name"));
 
-                networkCopy.waitForOwnWrite(httpResponse.getHeaders());
+                networkCopySynchronizer.waitForOwnWrite(httpResponse.getHeaders());
                 Map<String, Object> result = response.getProperties();
                 return result != null ? result : new HashMap<>();
             } catch (ApiException e) {

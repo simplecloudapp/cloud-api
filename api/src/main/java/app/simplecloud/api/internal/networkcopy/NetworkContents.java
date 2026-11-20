@@ -28,34 +28,34 @@ public final class NetworkContents {
 
     private final long epoch;
     private final long revision;
-    private final List<ModelsServerSummary> servers;
-    private final List<ModelsServerGroupSummary> groups;
-    private final List<ModelsPersistentServerSummary> persistentServers;
-    private final Map<String, ModelsServerSummary> serversById = new HashMap<>();
-    private final Map<String, ModelsServerGroupSummary> groupsById = new HashMap<>();
-    private final Map<String, ModelsPersistentServerSummary> persistentServersById = new HashMap<>();
+    private final List<ModelsServerSummary> serverSummaries;
+    private final List<ModelsServerGroupSummary> groupSummaries;
+    private final List<ModelsPersistentServerSummary> persistentServerSummaries;
+    private final Map<String, ModelsServerSummary> serverSummariesById = new HashMap<>();
+    private final Map<String, ModelsServerGroupSummary> groupSummariesById = new HashMap<>();
+    private final Map<String, ModelsPersistentServerSummary> persistentServerSummariesById = new HashMap<>();
 
     /**
      * The lists must be in the controller's default order.
      */
     NetworkContents(long epoch,
                     long revision,
-                    List<ModelsServerSummary> servers,
-                    List<ModelsServerGroupSummary> groups,
-                    List<ModelsPersistentServerSummary> persistentServers) {
+                    List<ModelsServerSummary> serverSummaries,
+                    List<ModelsServerGroupSummary> groupSummaries,
+                    List<ModelsPersistentServerSummary> persistentServerSummaries) {
         this.epoch = epoch;
         this.revision = revision;
-        this.servers = List.copyOf(servers);
-        this.groups = List.copyOf(groups);
-        this.persistentServers = List.copyOf(persistentServers);
-        for (ModelsServerSummary server : servers) {
-            serversById.put(server.getServerId(), server);
+        this.serverSummaries = List.copyOf(serverSummaries);
+        this.groupSummaries = List.copyOf(groupSummaries);
+        this.persistentServerSummaries = List.copyOf(persistentServerSummaries);
+        for (ModelsServerSummary serverSummary : serverSummaries) {
+            serverSummariesById.put(serverSummary.getServerId(), serverSummary);
         }
-        for (ModelsServerGroupSummary group : groups) {
-            groupsById.put(group.getServerGroupId(), group);
+        for (ModelsServerGroupSummary groupSummary : groupSummaries) {
+            groupSummariesById.put(groupSummary.getServerGroupId(), groupSummary);
         }
-        for (ModelsPersistentServerSummary persistentServer : persistentServers) {
-            persistentServersById.put(persistentServer.getPersistentServerId(), persistentServer);
+        for (ModelsPersistentServerSummary persistentServerSummary : persistentServerSummaries) {
+            persistentServerSummariesById.put(persistentServerSummary.getPersistentServerId(), persistentServerSummary);
         }
     }
 
@@ -71,7 +71,7 @@ public final class NetworkContents {
      * Exact match on the id text, as the HTTP path does.
      */
     public @Nullable ModelsServerSummary findServerSummaryById(String id) {
-        return serversById.get(id);
+        return serverSummariesById.get(id);
     }
 
     /**
@@ -82,12 +82,12 @@ public final class NetworkContents {
      */
     public List<ModelsServerSummary> listServerSummaries(@Nullable ServerQuery query) {
         if (query == null) {
-            return servers;
+            return serverSummaries;
         }
         List<ModelsServerSummary> matching = new ArrayList<>();
-        for (ModelsServerSummary server : servers) {
-            if (matches(server, query)) {
-                matching.add(server);
+        for (ModelsServerSummary serverSummary : serverSummaries) {
+            if (matches(serverSummary, query)) {
+                matching.add(serverSummary);
             }
         }
         sortAsAsked(matching, query);
@@ -95,16 +95,16 @@ public final class NetworkContents {
     }
 
     public @Nullable ModelsServerGroupSummary findGroupSummaryById(String id) {
-        return groupsById.get(id);
+        return groupSummariesById.get(id);
     }
 
     /**
      * The first group with this name in list order.
      */
     public @Nullable ModelsServerGroupSummary findGroupSummaryByName(String name) {
-        for (ModelsServerGroupSummary group : groups) {
-            if (name.equals(group.getName())) {
-                return group;
+        for (ModelsServerGroupSummary groupSummary : groupSummaries) {
+            if (name.equals(groupSummary.getName())) {
+                return groupSummary;
             }
         }
         return null;
@@ -117,12 +117,12 @@ public final class NetworkContents {
      */
     public List<ModelsServerGroupSummary> listGroupSummaries(@Nullable GroupQuery query) {
         if (query == null) {
-            return groups;
+            return groupSummaries;
         }
         List<ModelsServerGroupSummary> matching = new ArrayList<>();
-        for (ModelsServerGroupSummary group : groups) {
-            if (matches(group, query)) {
-                matching.add(group);
+        for (ModelsServerGroupSummary groupSummary : groupSummaries) {
+            if (matches(groupSummary, query)) {
+                matching.add(groupSummary);
             }
         }
         int keptCount = countUpToLimit(matching.size(), query.getLimit());
@@ -131,16 +131,16 @@ public final class NetworkContents {
     }
 
     public @Nullable ModelsPersistentServerSummary findPersistentServerSummaryById(String id) {
-        return persistentServersById.get(id);
+        return persistentServerSummariesById.get(id);
     }
 
     /**
      * The first persistent server with this name in list order.
      */
     public @Nullable ModelsPersistentServerSummary findPersistentServerSummaryByName(String name) {
-        for (ModelsPersistentServerSummary persistentServer : persistentServers) {
-            if (name.equals(persistentServer.getName())) {
-                return persistentServer;
+        for (ModelsPersistentServerSummary persistentServerSummary : persistentServerSummaries) {
+            if (name.equals(persistentServerSummary.getName())) {
+                return persistentServerSummary;
             }
         }
         return null;
@@ -153,12 +153,12 @@ public final class NetworkContents {
      */
     public List<ModelsPersistentServerSummary> listPersistentServerSummaries(@Nullable PersistentServerQuery query) {
         if (query == null) {
-            return persistentServers;
+            return persistentServerSummaries;
         }
         List<ModelsPersistentServerSummary> matching = new ArrayList<>();
-        for (ModelsPersistentServerSummary persistentServer : persistentServers) {
-            if (matches(persistentServer, query)) {
-                matching.add(persistentServer);
+        for (ModelsPersistentServerSummary persistentServerSummary : persistentServerSummaries) {
+            if (matches(persistentServerSummary, query)) {
+                matching.add(persistentServerSummary);
             }
         }
         int keptCount = countUpToLimit(matching.size(), query.getLimit());
@@ -167,37 +167,37 @@ public final class NetworkContents {
     }
 
     // A name, type or tag filter matches the group or the persistent server the server was started from.
-    private static boolean matches(ModelsServerSummary server, ServerQuery query) {
-        return isOneOfIds(server.getServerGroupId(), query.getServerGroupIds())
-                && isOneOf(stateName(server), stateNames(query.getStates()))
-                && isAskedId(server.getServerhostId(), query.getServerhostId())
-                && isAskedId(server.getPersistentServerId(), query.getPersistentServerId())
-                && isOneOf(baseType(server), typeNames(query.getServerGroupTypes()))
-                && isOneOf(baseName(server), query.getServerGroupNames())
-                && sharesOne(baseTags(server), query.getServerGroupTags())
-                && isOneOf(server.getNumericalId(), query.getNumericalIds());
+    private static boolean matches(ModelsServerSummary serverSummary, ServerQuery query) {
+        return isOneOfIds(serverSummary.getServerGroupId(), query.getServerGroupIds())
+                && isOneOf(getStateName(serverSummary), toStateNames(query.getStates()))
+                && isAskedId(serverSummary.getServerhostId(), query.getServerhostId())
+                && isAskedId(serverSummary.getPersistentServerId(), query.getPersistentServerId())
+                && isOneOf(findBaseType(serverSummary), toTypeNames(query.getServerGroupTypes()))
+                && isOneOf(findBaseName(serverSummary), query.getServerGroupNames())
+                && sharesOneTag(findBaseTags(serverSummary), query.getServerGroupTags())
+                && isOneOf(serverSummary.getNumericalId(), query.getNumericalIds());
     }
 
-    private static boolean matches(ModelsServerGroupSummary group, GroupQuery query) {
+    private static boolean matches(ModelsServerGroupSummary groupSummary, GroupQuery query) {
         GroupServerType askedType = query.getType();
-        boolean typeMatches = askedType == null || askedType.name().equals(group.getType());
+        boolean typeMatches = askedType == null || askedType.name().equals(groupSummary.getType());
         String askedTag = query.getTag();
-        boolean tagMatches = askedTag == null || askedTag.isBlank() || hasTag(group.getTags(), askedTag);
+        boolean tagMatches = askedTag == null || askedTag.isBlank() || hasTag(groupSummary.getTags(), askedTag);
         return typeMatches && tagMatches;
     }
 
-    private static boolean matches(ModelsPersistentServerSummary persistentServer, PersistentServerQuery query) {
+    private static boolean matches(ModelsPersistentServerSummary persistentServerSummary, PersistentServerQuery query) {
         Boolean askedActive = query.getActive();
-        boolean activeMatches = askedActive == null || askedActive.equals(persistentServer.getActive());
+        boolean activeMatches = askedActive == null || askedActive.equals(persistentServerSummary.getActive());
         return activeMatches
-                && sharesOne(persistentServer.getTags(), query.getTags())
-                && isAskedId(persistentServer.getServerhostId(), query.getServerhostId());
+                && sharesOneTag(persistentServerSummary.getTags(), query.getTags())
+                && isAskedId(persistentServerSummary.getServerhostId(), query.getServerhostId());
     }
 
     // A stable sort, so servers that compare equal keep the default order, also when descending.
-    private static void sortAsAsked(List<ModelsServerSummary> servers, ServerQuery query) {
-        String field = trimmed(query.getSortBy());
-        String order = trimmed(query.getSortOrder());
+    private static void sortAsAsked(List<ModelsServerSummary> serverSummaries, ServerQuery query) {
+        String field = trimOrEmpty(query.getSortBy());
+        String order = trimOrEmpty(query.getSortOrder());
         boolean knownField = field.isEmpty() || SERVER_SORT_FIELDS.contains(field);
         if (!knownField) {
             throw ApiErrors.invalidRequest("invalid sort_by field; valid options: created_at, updated_at, numerical_id, state");
@@ -212,7 +212,7 @@ public final class NetworkContents {
         }
         Comparator<ModelsServerSummary> ascending = (first, second) -> compareByField(field, first, second);
         Comparator<ModelsServerSummary> asked = descending ? ascending.reversed() : ascending;
-        servers.sort(asked);
+        serverSummaries.sort(asked);
     }
 
     private static int compareByField(String field, ModelsServerSummary first, ModelsServerSummary second) {
@@ -220,7 +220,7 @@ public final class NetworkContents {
             case "created_at" -> compareTimes(first.getCreatedAt(), second.getCreatedAt());
             case "updated_at" -> compareTimes(first.getUpdatedAt(), second.getUpdatedAt());
             case "numerical_id" -> Integer.compare(first.getNumericalId(), second.getNumericalId());
-            case "state" -> stateName(first).compareTo(stateName(second));
+            case "state" -> getStateName(first).compareTo(getStateName(second));
             default -> throw new IllegalStateException("unchecked sort field " + field);
         };
     }
@@ -242,18 +242,18 @@ public final class NetworkContents {
         return Math.min(limit, matchingCount);
     }
 
-    private static String trimmed(@Nullable String value) {
+    private static String trimOrEmpty(@Nullable String value) {
         if (value == null) {
             return "";
         }
         return value.strip();
     }
 
-    private static String stateName(ModelsServerSummary server) {
-        return server.getState().getValue();
+    private static String getStateName(ModelsServerSummary serverSummary) {
+        return serverSummary.getState().getValue();
     }
 
-    private static @Nullable List<String> stateNames(@Nullable List<ServerState> states) {
+    private static @Nullable List<String> toStateNames(@Nullable List<ServerState> states) {
         if (states == null) {
             return null;
         }
@@ -264,7 +264,7 @@ public final class NetworkContents {
         return names;
     }
 
-    private static @Nullable List<String> typeNames(@Nullable List<GroupServerType> types) {
+    private static @Nullable List<String> toTypeNames(@Nullable List<GroupServerType> types) {
         if (types == null) {
             return null;
         }
@@ -275,32 +275,32 @@ public final class NetworkContents {
         return names;
     }
 
-    private static @Nullable String baseName(ModelsServerSummary server) {
-        if (server.getServerGroup() != null) {
-            return server.getServerGroup().getName();
+    private static @Nullable String findBaseName(ModelsServerSummary serverSummary) {
+        if (serverSummary.getServerGroup() != null) {
+            return serverSummary.getServerGroup().getName();
         }
-        if (server.getPersistentServer() != null) {
-            return server.getPersistentServer().getName();
-        }
-        return null;
-    }
-
-    private static @Nullable String baseType(ModelsServerSummary server) {
-        if (server.getServerGroup() != null) {
-            return server.getServerGroup().getType();
-        }
-        if (server.getPersistentServer() != null) {
-            return server.getPersistentServer().getType();
+        if (serverSummary.getPersistentServer() != null) {
+            return serverSummary.getPersistentServer().getName();
         }
         return null;
     }
 
-    private static @Nullable List<String> baseTags(ModelsServerSummary server) {
-        if (server.getServerGroup() != null) {
-            return server.getServerGroup().getTags();
+    private static @Nullable String findBaseType(ModelsServerSummary serverSummary) {
+        if (serverSummary.getServerGroup() != null) {
+            return serverSummary.getServerGroup().getType();
         }
-        if (server.getPersistentServer() != null) {
-            return server.getPersistentServer().getTags();
+        if (serverSummary.getPersistentServer() != null) {
+            return serverSummary.getPersistentServer().getType();
+        }
+        return null;
+    }
+
+    private static @Nullable List<String> findBaseTags(ModelsServerSummary serverSummary) {
+        if (serverSummary.getServerGroup() != null) {
+            return serverSummary.getServerGroup().getTags();
+        }
+        if (serverSummary.getPersistentServer() != null) {
+            return serverSummary.getPersistentServer().getTags();
         }
         return null;
     }
@@ -332,7 +332,7 @@ public final class NetworkContents {
         return askedId.equalsIgnoreCase(id);
     }
 
-    private static boolean sharesOne(@Nullable List<String> tags, @Nullable List<String> askedTags) {
+    private static boolean sharesOneTag(@Nullable List<String> tags, @Nullable List<String> askedTags) {
         if (askedTags == null || askedTags.isEmpty()) {
             return true;
         }

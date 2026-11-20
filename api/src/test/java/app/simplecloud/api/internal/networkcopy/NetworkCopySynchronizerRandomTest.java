@@ -33,16 +33,16 @@ import static org.junit.jupiter.api.Assertions.assertEquals;
 import static org.junit.jupiter.api.Assertions.assertNotNull;
 
 /**
- * A network changes at random. Its batches reach the copy dropped, doubled or swapped.
- * After a last pulse, the copy must equal a copy built from a fresh snapshot.
+ * A network changes at random. Its batches reach the synchronizer dropped, doubled or swapped.
+ * After a last pulse, the synchronizer's contents must equal contents built from a fresh snapshot.
  */
-class NetworkCopyRandomTest {
+class NetworkCopySynchronizerRandomTest {
 
     private static final String NETWORK_ID = "0d000000-0000-4000-8000-000000000001";
     private static final int STEPS = 300;
 
     private MockWebServer controllerHttp;
-    private volatile NetworkState servedState = NetworkState.getDefaultInstance();
+    private volatile NetworkState servedSnapshot = NetworkState.getDefaultInstance();
 
     @BeforeEach
     void startController() throws IOException {
@@ -50,7 +50,7 @@ class NetworkCopyRandomTest {
         controllerHttp.setDispatcher(new Dispatcher() {
             @Override
             public MockResponse dispatch(RecordedRequest request) {
-                return new MockResponse().setBody(new Buffer().write(servedState.toByteArray()));
+                return new MockResponse().setBody(new Buffer().write(servedSnapshot.toByteArray()));
             }
         });
         controllerHttp.start();
@@ -67,43 +67,43 @@ class NetworkCopyRandomTest {
         Random random = new Random(seed);
         FakeController controller = new FakeController(random);
         String controllerUrl = "http://" + controllerHttp.getHostName() + ":" + controllerHttp.getPort();
-        LongSupplier stoppedNanoTime = () -> 0L;
-        NetworkCopy copy = new NetworkCopy(new OkHttpClient(), controllerUrl, NETWORK_ID, "", stoppedNanoTime);
+        LongSupplier stoppedNanoClock = () -> 0L;
+        NetworkCopySynchronizer synchronizer = new NetworkCopySynchronizer(new OkHttpClient(), controllerUrl, NETWORK_ID, "", stoppedNanoClock);
         List<StateBatch> heldBatches = new ArrayList<>();
 
         for (int step = 0; step < STEPS; step++) {
             int roll = random.nextInt(100);
             if (roll < 5) {
-                sendPulse(copy, controller);
+                sendPulse(synchronizer, controller);
             } else if (roll < 6) {
                 controller.startNewEpoch();
             } else {
-                StateBatch batch = controller.change();
-                deliverUnreliably(copy, batch, heldBatches, random);
+                StateBatch batch = controller.changeAtRandom();
+                deliverUnreliably(synchronizer, batch, heldBatches, random);
             }
         }
         for (StateBatch held : heldBatches) {
-            copy.onBatch(held);
+            synchronizer.handleBatch(held);
         }
-        sendPulse(copy, controller);
+        sendPulse(synchronizer, controller);
 
-        NetworkContents fresh = ReceivedNetworkState.fromSnapshot(controller.snapshot(), NETWORK_ID).buildContents();
-        NetworkContents copied = copy.currentContents();
-        assertNotNull(copied);
-        assertEquals(fresh.listServerSummaries(null), copied.listServerSummaries(null));
-        assertEquals(fresh.listGroupSummaries(null), copied.listGroupSummaries(null));
-        assertEquals(fresh.listPersistentServerSummaries(null), copied.listPersistentServerSummaries(null));
+        NetworkContents freshContents = NetworkCopy.createFromSnapshot(controller.buildSnapshot(), NETWORK_ID).buildContents();
+        NetworkContents copiedContents = synchronizer.currentContents();
+        assertNotNull(copiedContents);
+        assertEquals(freshContents.listServerSummaries(null), copiedContents.listServerSummaries(null));
+        assertEquals(freshContents.listGroupSummaries(null), copiedContents.listGroupSummaries(null));
+        assertEquals(freshContents.listPersistentServerSummaries(null), copiedContents.listPersistentServerSummaries(null));
     }
 
     // The pulse first, so a load on this pulse gets the pulse's metrics.
-    private void sendPulse(NetworkCopy copy, FakeController controller) {
-        StatePulse pulse = controller.pulse();
-        servedState = controller.snapshot();
-        copy.onPulse(pulse);
+    private void sendPulse(NetworkCopySynchronizer synchronizer, FakeController controller) {
+        StatePulse pulse = controller.buildPulse();
+        servedSnapshot = controller.buildSnapshot();
+        synchronizer.handlePulse(pulse);
     }
 
     // A held batch arrives after the next one, so the two are swapped.
-    private static void deliverUnreliably(NetworkCopy copy, StateBatch batch, List<StateBatch> heldBatches, Random random) {
+    private static void deliverUnreliably(NetworkCopySynchronizer synchronizer, StateBatch batch, List<StateBatch> heldBatches, Random random) {
         int roll = random.nextInt(10);
         if (roll == 0) {
             return;
@@ -112,12 +112,12 @@ class NetworkCopyRandomTest {
             heldBatches.add(batch);
             return;
         }
-        copy.onBatch(batch);
+        synchronizer.handleBatch(batch);
         if (roll == 2) {
-            copy.onBatch(batch);
+            synchronizer.handleBatch(batch);
         }
         for (StateBatch held : heldBatches) {
-            copy.onBatch(held);
+            synchronizer.handleBatch(held);
         }
         heldBatches.clear();
     }
@@ -127,10 +127,10 @@ class NetworkCopyRandomTest {
      */
     private static final class FakeController {
         private final Random random;
-        private final Map<String, StateServer> servers = new LinkedHashMap<>();
-        private final Map<String, StateServerGroup> groups = new LinkedHashMap<>();
-        private final Map<String, StatePersistentServer> persistentServers = new LinkedHashMap<>();
-        private final Map<String, Integer> playerCounts = new LinkedHashMap<>();
+        private final Map<String, StateServer> stateServersById = new LinkedHashMap<>();
+        private final Map<String, StateServerGroup> stateServerGroupsById = new LinkedHashMap<>();
+        private final Map<String, StatePersistentServer> statePersistentServersById = new LinkedHashMap<>();
+        private final Map<String, Integer> playerCountsByServerId = new LinkedHashMap<>();
         private long epoch = 1;
         private long revision = 1;
 
@@ -138,17 +138,17 @@ class NetworkCopyRandomTest {
             this.random = random;
         }
 
-        StateBatch change() {
+        StateBatch changeAtRandom() {
             revision++;
             StateBatch.Builder batch = StateBatch.newBuilder().setEpoch(epoch).setBaseRevision(revision - 1).setRevision(revision);
             int kind = random.nextInt(6);
             switch (kind) {
-                case 0 -> batch.addServerGroups(putGroup());
-                case 1 -> batch.addPersistentServers(putPersistentServer());
-                case 2 -> batch.addDeletedServerGroupIds(uuidBytes(removeOneOf(groups, "0a")));
-                case 3 -> batch.addDeletedPersistentServerIds(uuidBytes(removeOneOf(persistentServers, "0c")));
-                case 4 -> batch.addDeletedServerIds(uuidBytes(removeOneOf(servers, "00")));
-                default -> batch.addServers(putServer());
+                case 0 -> batch.addServerGroups(putRandomGroup());
+                case 1 -> batch.addPersistentServers(putRandomPersistentServer());
+                case 2 -> batch.addDeletedServerGroupIds(toUuidBytes(removeOneOf(stateServerGroupsById, "0a")));
+                case 3 -> batch.addDeletedPersistentServerIds(toUuidBytes(removeOneOf(statePersistentServersById, "0c")));
+                case 4 -> batch.addDeletedServerIds(toUuidBytes(removeOneOf(stateServersById, "00")));
+                default -> batch.addServers(putRandomServer());
             }
             return batch.build();
         }
@@ -159,12 +159,12 @@ class NetworkCopyRandomTest {
             revision = random.nextInt(5);
         }
 
-        StatePulse pulse() {
+        StatePulse buildPulse() {
             List<StateServerMetrics> metrics = new ArrayList<>();
-            for (String serverId : servers.keySet()) {
+            for (String serverId : stateServersById.keySet()) {
                 int playerCount = random.nextInt(20);
-                playerCounts.put(serverId, playerCount);
-                metrics.add(StateServerMetrics.newBuilder().setServerId(uuidBytes(serverId)).setPlayerCount(playerCount).build());
+                playerCountsByServerId.put(serverId, playerCount);
+                metrics.add(StateServerMetrics.newBuilder().setServerId(toUuidBytes(serverId)).setPlayerCount(playerCount).build());
             }
             return StatePulse.newBuilder()
                     .setEpoch(epoch)
@@ -174,69 +174,69 @@ class NetworkCopyRandomTest {
                     .build();
         }
 
-        NetworkState snapshot() {
+        NetworkState buildSnapshot() {
             NetworkState.Builder snapshot = NetworkState.newBuilder()
                     .setEpoch(epoch)
                     .setRevision(revision)
-                    .addAllServers(servers.values())
-                    .addAllServerGroups(groups.values())
-                    .addAllPersistentServers(persistentServers.values());
-            for (Map.Entry<String, Integer> playerCount : playerCounts.entrySet()) {
+                    .addAllServers(stateServersById.values())
+                    .addAllServerGroups(stateServerGroupsById.values())
+                    .addAllPersistentServers(statePersistentServersById.values());
+            for (Map.Entry<String, Integer> playerCountEntry : playerCountsByServerId.entrySet()) {
                 StateServerMetrics metrics = StateServerMetrics.newBuilder()
-                        .setServerId(uuidBytes(playerCount.getKey()))
-                        .setPlayerCount(playerCount.getValue())
+                        .setServerId(toUuidBytes(playerCountEntry.getKey()))
+                        .setPlayerCount(playerCountEntry.getValue())
                         .build();
                 snapshot.addMetrics(metrics);
             }
             return snapshot.build();
         }
 
-        private StateServerGroup putGroup() {
+        private StateServerGroup putRandomGroup() {
             String id = pickId("0a");
             String name = "group-" + random.nextInt(100);
-            String summary = "{\"server_group_id\":\"" + id + "\",\"name\":\"" + name + "\",\"created_at\":\"2026-11-17T09:00:00Z\"}";
-            String info = "{\"id\":\"" + id + "\",\"name\":\"" + name + "\"}";
-            StateServerGroup group = StateServerGroup.newBuilder()
-                    .setId(uuidBytes(id))
-                    .setSummaryJson(ByteString.copyFromUtf8(summary))
-                    .setInfoJson(ByteString.copyFromUtf8(info))
+            String summaryJson = "{\"server_group_id\":\"" + id + "\",\"name\":\"" + name + "\",\"created_at\":\"2026-11-17T09:00:00Z\"}";
+            String infoJson = "{\"id\":\"" + id + "\",\"name\":\"" + name + "\"}";
+            StateServerGroup stateServerGroup = StateServerGroup.newBuilder()
+                    .setId(toUuidBytes(id))
+                    .setSummaryJson(ByteString.copyFromUtf8(summaryJson))
+                    .setInfoJson(ByteString.copyFromUtf8(infoJson))
                     .build();
-            groups.put(id, group);
-            return group;
+            stateServerGroupsById.put(id, stateServerGroup);
+            return stateServerGroup;
         }
 
-        private StatePersistentServer putPersistentServer() {
+        private StatePersistentServer putRandomPersistentServer() {
             String id = pickId("0c");
             String name = "persistent-" + random.nextInt(100);
-            String summary = "{\"persistent_server_id\":\"" + id + "\",\"name\":\"" + name + "\",\"created_at\":\"2026-11-17T09:00:00Z\"}";
-            String info = "{\"id\":\"" + id + "\",\"name\":\"" + name + "\"}";
-            StatePersistentServer persistentServer = StatePersistentServer.newBuilder()
-                    .setId(uuidBytes(id))
-                    .setSummaryJson(ByteString.copyFromUtf8(summary))
-                    .setInfoJson(ByteString.copyFromUtf8(info))
+            String summaryJson = "{\"persistent_server_id\":\"" + id + "\",\"name\":\"" + name + "\",\"created_at\":\"2026-11-17T09:00:00Z\"}";
+            String infoJson = "{\"id\":\"" + id + "\",\"name\":\"" + name + "\"}";
+            StatePersistentServer statePersistentServer = StatePersistentServer.newBuilder()
+                    .setId(toUuidBytes(id))
+                    .setSummaryJson(ByteString.copyFromUtf8(summaryJson))
+                    .setInfoJson(ByteString.copyFromUtf8(infoJson))
                     .build();
-            persistentServers.put(id, persistentServer);
-            return persistentServer;
+            statePersistentServersById.put(id, statePersistentServer);
+            return statePersistentServer;
         }
 
-        private StateServer putServer() {
+        private StateServer putRandomServer() {
             String id = pickId("00");
             boolean inGroup = random.nextBoolean();
             String baseId = pickId(inGroup ? "0a" : "0c");
             List<String> states = List.of("STARTING", "AVAILABLE", "INGAME", "STOPPING");
-            StateServer.Builder server = StateServer.newBuilder()
-                    .setId(uuidBytes(id))
+            StateServer.Builder stateServerBuilder = StateServer.newBuilder()
+                    .setId(toUuidBytes(id))
                     .setNumericalId(1 + random.nextInt(5))
                     .setState(states.get(random.nextInt(states.size())))
                     .setPropertiesJson(ByteString.copyFromUtf8("{\"n\":" + random.nextInt(100) + "}"));
             if (inGroup) {
-                server.setServerGroupId(uuidBytes(baseId));
+                stateServerBuilder.setServerGroupId(toUuidBytes(baseId));
             } else {
-                server.setPersistentServerId(uuidBytes(baseId));
+                stateServerBuilder.setPersistentServerId(toUuidBytes(baseId));
             }
-            StateServer built = server.build();
-            servers.put(id, built);
-            return built;
+            StateServer stateServer = stateServerBuilder.build();
+            stateServersById.put(id, stateServer);
+            return stateServer;
         }
 
         // Few ids, so changes often hit an item that exists.
@@ -245,15 +245,15 @@ class NetworkCopyRandomTest {
             return prefix + "000000-0000-4000-8000-00000000000" + number;
         }
 
-        private String removeOneOf(Map<String, ?> items, String prefix) {
+        private String removeOneOf(Map<String, ?> itemsById, String prefix) {
             String id = pickId(prefix);
-            items.remove(id);
-            playerCounts.remove(id);
+            itemsById.remove(id);
+            playerCountsByServerId.remove(id);
             return id;
         }
     }
 
-    private static ByteString uuidBytes(String id) {
+    private static ByteString toUuidBytes(String id) {
         UUID uuid = UUID.fromString(id);
         ByteBuffer bytes = ByteBuffer.allocate(16);
         bytes.putLong(uuid.getMostSignificantBits());

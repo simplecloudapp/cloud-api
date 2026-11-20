@@ -86,8 +86,8 @@ class NetworkContentsTest {
             "persistent-servers: a limit and an offset"
     );
 
-    // The copy checks only the sort field, the sort order and a limit below 1. HTTP refuses these.
-    private static final Set<String> VALUES_THE_COPY_DOES_NOT_CHECK = Set.of(
+    // NetworkContents checks only the sort field, the sort order and a limit below 1. HTTP refuses these.
+    private static final Set<String> CASES_ONLY_HTTP_REFUSES = Set.of(
             "servers: a state cloud-api knows but the controller does not is refused",
             "servers: a name with a NUL character fails in Postgres",
             "persistent-servers: a serverhost id that does not parse is refused",
@@ -95,47 +95,47 @@ class NetworkContentsTest {
     );
 
     private static final JsonObject CASE_FILE = readCaseFile();
-    private static final Map<String, String> IDS_BY_KEY = idsByKey();
-    private static final NetworkContents CONTENTS = contentsFromCaseFile();
+    private static final Map<String, String> IDS_BY_KEY = readIdsByKey();
+    private static final NetworkContents CONTENTS = buildContentsFromCaseFile();
 
     @ParameterizedTest(name = "{0}")
-    @MethodSource("serverCases")
-    void serverListCase(String name, JsonObject parameters, JsonElement expected) {
-        ServerQuery query = serverQuery(parameters);
+    @MethodSource("listServerCases")
+    void serverListCase(String caseName, JsonObject parameters, JsonElement expected) {
+        ServerQuery query = buildServerQuery(parameters);
 
         if (isRejected(expected)) {
             assertInvalidRequest(() -> CONTENTS.listServerSummaries(query));
             return;
         }
         List<String> ids = new ArrayList<>();
-        for (ModelsServerSummary server : CONTENTS.listServerSummaries(query)) {
-            ids.add(server.getServerId());
+        for (ModelsServerSummary serverSummary : CONTENTS.listServerSummaries(query)) {
+            ids.add(serverSummary.getServerId());
         }
-        assertEquals(expectedIds(expected), ids);
+        assertEquals(listExpectedIds(expected), ids);
     }
 
     @ParameterizedTest(name = "{0}")
-    @MethodSource("groupCases")
-    void groupListCase(String name, JsonObject parameters, JsonElement expected) {
-        GroupQuery query = groupQuery(parameters);
+    @MethodSource("listGroupCases")
+    void groupListCase(String caseName, JsonObject parameters, JsonElement expected) {
+        GroupQuery query = buildGroupQuery(parameters);
 
         List<String> ids = new ArrayList<>();
-        for (ModelsServerGroupSummary group : CONTENTS.listGroupSummaries(query)) {
-            ids.add(group.getServerGroupId());
+        for (ModelsServerGroupSummary groupSummary : CONTENTS.listGroupSummaries(query)) {
+            ids.add(groupSummary.getServerGroupId());
         }
-        assertEquals(expectedIds(expected), ids);
+        assertEquals(listExpectedIds(expected), ids);
     }
 
     @ParameterizedTest(name = "{0}")
-    @MethodSource("persistentServerCases")
-    void persistentServerListCase(String name, JsonObject parameters, JsonElement expected) {
-        PersistentServerQuery query = persistentServerQuery(parameters);
+    @MethodSource("listPersistentServerCases")
+    void persistentServerListCase(String caseName, JsonObject parameters, JsonElement expected) {
+        PersistentServerQuery query = buildPersistentServerQuery(parameters);
 
         List<String> ids = new ArrayList<>();
-        for (ModelsPersistentServerSummary persistentServer : CONTENTS.listPersistentServerSummaries(query)) {
-            ids.add(persistentServer.getPersistentServerId());
+        for (ModelsPersistentServerSummary persistentServerSummary : CONTENTS.listPersistentServerSummaries(query)) {
+            ids.add(persistentServerSummary.getPersistentServerId());
         }
-        assertEquals(expectedIds(expected), ids);
+        assertEquals(listExpectedIds(expected), ids);
     }
 
     @Test
@@ -154,19 +154,19 @@ class NetworkContentsTest {
 
     @Test
     void listsCannotBeChangedWithOrWithoutAQuery() {
-        List<ModelsServerSummary> allServers = CONTENTS.listServerSummaries(null);
-        List<ModelsServerSummary> queriedServers = CONTENTS.listServerSummaries(ServerQuery.create());
-        List<ModelsServerGroupSummary> allGroups = CONTENTS.listGroupSummaries(null);
-        List<ModelsServerGroupSummary> queriedGroups = CONTENTS.listGroupSummaries(GroupQuery.create());
-        List<ModelsPersistentServerSummary> allPersistentServers = CONTENTS.listPersistentServerSummaries(null);
-        List<ModelsPersistentServerSummary> queriedPersistentServers = CONTENTS.listPersistentServerSummaries(PersistentServerQuery.create());
+        List<ModelsServerSummary> allServerSummaries = CONTENTS.listServerSummaries(null);
+        List<ModelsServerSummary> queriedServerSummaries = CONTENTS.listServerSummaries(ServerQuery.create());
+        List<ModelsServerGroupSummary> allGroupSummaries = CONTENTS.listGroupSummaries(null);
+        List<ModelsServerGroupSummary> queriedGroupSummaries = CONTENTS.listGroupSummaries(GroupQuery.create());
+        List<ModelsPersistentServerSummary> allPersistentServerSummaries = CONTENTS.listPersistentServerSummaries(null);
+        List<ModelsPersistentServerSummary> queriedPersistentServerSummaries = CONTENTS.listPersistentServerSummaries(PersistentServerQuery.create());
 
-        assertThrows(UnsupportedOperationException.class, allServers::clear);
-        assertThrows(UnsupportedOperationException.class, queriedServers::clear);
-        assertThrows(UnsupportedOperationException.class, allGroups::clear);
-        assertThrows(UnsupportedOperationException.class, queriedGroups::clear);
-        assertThrows(UnsupportedOperationException.class, allPersistentServers::clear);
-        assertThrows(UnsupportedOperationException.class, queriedPersistentServers::clear);
+        assertThrows(UnsupportedOperationException.class, allServerSummaries::clear);
+        assertThrows(UnsupportedOperationException.class, queriedServerSummaries::clear);
+        assertThrows(UnsupportedOperationException.class, allGroupSummaries::clear);
+        assertThrows(UnsupportedOperationException.class, queriedGroupSummaries::clear);
+        assertThrows(UnsupportedOperationException.class, allPersistentServerSummaries::clear);
+        assertThrows(UnsupportedOperationException.class, queriedPersistentServerSummaries::clear);
     }
 
     @Test
@@ -179,7 +179,7 @@ class NetworkContentsTest {
     }
 
     @Test
-    void groupLookupsByIdAndExactName() {
+    void groupIsFoundByIdAndOnlyByTheExactName() {
         String id = IDS_BY_KEY.get("game");
 
         assertEquals(id, CONTENTS.findGroupSummaryById(id).getServerGroupId());
@@ -188,7 +188,7 @@ class NetworkContentsTest {
     }
 
     @Test
-    void persistentServerLookupsByIdAndExactName() {
+    void persistentServerIsFoundByIdAndOnlyByTheExactName() {
         String id = IDS_BY_KEY.get("survival");
 
         assertEquals(id, CONTENTS.findPersistentServerSummaryById(id).getPersistentServerId());
@@ -196,48 +196,48 @@ class NetworkContentsTest {
         assertNull(CONTENTS.findPersistentServerSummaryByName("Survival"));
     }
 
-    static List<Arguments> serverCases() {
-        return casesOfRoute("servers");
+    static List<Arguments> listServerCases() {
+        return listCasesOfRoute("servers");
     }
 
-    static List<Arguments> groupCases() {
-        return casesOfRoute("server-groups");
+    static List<Arguments> listGroupCases() {
+        return listCasesOfRoute("server-groups");
     }
 
-    static List<Arguments> persistentServerCases() {
-        return casesOfRoute("persistent-servers");
+    static List<Arguments> listPersistentServerCases() {
+        return listCasesOfRoute("persistent-servers");
     }
 
-    private static List<Arguments> casesOfRoute(String route) {
+    private static List<Arguments> listCasesOfRoute(String route) {
         List<Arguments> cases = new ArrayList<>();
         for (JsonElement element : CASE_FILE.getAsJsonArray("cases")) {
             JsonObject listCase = element.getAsJsonObject();
             String fullName = listCase.get("route").getAsString() + ": " + listCase.get("name").getAsString();
-            boolean leftOut = DEFAULT_ORDER_CASES.contains(fullName)
+            boolean isLeftOut = DEFAULT_ORDER_CASES.contains(fullName)
                     || CASES_JAVA_QUERIES_CANNOT_ASK.contains(fullName)
-                    || VALUES_THE_COPY_DOES_NOT_CHECK.contains(fullName);
-            boolean ofRoute = listCase.get("route").getAsString().equals(route);
-            if (ofRoute && !leftOut) {
+                    || CASES_ONLY_HTTP_REFUSES.contains(fullName);
+            boolean isOfRoute = listCase.get("route").getAsString().equals(route);
+            if (isOfRoute && !isLeftOut) {
                 cases.add(Arguments.of(fullName, listCase.getAsJsonObject("parameters"), listCase.get("expected")));
             }
         }
         return cases;
     }
 
-    private static ServerQuery serverQuery(JsonObject parameters) {
+    private static ServerQuery buildServerQuery(JsonObject parameters) {
         ServerQuery query = ServerQuery.create();
         for (String parameter : parameters.keySet()) {
             String value = parameters.get(parameter).getAsString();
             String[] values = value.split(",");
             switch (parameter) {
                 case "server_group_id" -> query.filterByServerGroupId(values);
-                case "state" -> query.filterByState(states(values));
+                case "state" -> query.filterByState(parseStates(values));
                 case "serverhost_id" -> query.filterByServerhostId(value);
                 case "persistent_server_id" -> query.filterByPersistentServerId(value);
-                case "type" -> query.filterByServerGroupType(types(values));
+                case "type" -> query.filterByServerGroupType(parseTypes(values));
                 case "name" -> query.filterByServerGroupName(values);
                 case "tags" -> query.filterByServerGroupTags(values);
-                case "numerical_id" -> query.filterByNumericalId(numbers(values));
+                case "numerical_id" -> query.filterByNumericalId(parseNumbers(values));
                 case "sort_by" -> query.sortBy(value);
                 case "sort_order" -> query.sortOrder(value);
                 default -> throw new IllegalArgumentException("ServerQuery has no " + parameter);
@@ -246,7 +246,7 @@ class NetworkContentsTest {
         return query;
     }
 
-    private static GroupQuery groupQuery(JsonObject parameters) {
+    private static GroupQuery buildGroupQuery(JsonObject parameters) {
         GroupQuery query = GroupQuery.create();
         for (String parameter : parameters.keySet()) {
             String value = parameters.get(parameter).getAsString();
@@ -260,7 +260,7 @@ class NetworkContentsTest {
         return query;
     }
 
-    private static PersistentServerQuery persistentServerQuery(JsonObject parameters) {
+    private static PersistentServerQuery buildPersistentServerQuery(JsonObject parameters) {
         PersistentServerQuery query = PersistentServerQuery.create();
         for (String parameter : parameters.keySet()) {
             String value = parameters.get(parameter).getAsString();
@@ -275,7 +275,7 @@ class NetworkContentsTest {
         return query;
     }
 
-    private static ServerState[] states(String[] names) {
+    private static ServerState[] parseStates(String[] names) {
         ServerState[] states = new ServerState[names.length];
         for (int i = 0; i < names.length; i++) {
             states[i] = ServerState.valueOf(names[i]);
@@ -283,7 +283,7 @@ class NetworkContentsTest {
         return states;
     }
 
-    private static GroupServerType[] types(String[] names) {
+    private static GroupServerType[] parseTypes(String[] names) {
         GroupServerType[] types = new GroupServerType[names.length];
         for (int i = 0; i < names.length; i++) {
             types[i] = GroupServerType.valueOf(names[i]);
@@ -291,7 +291,7 @@ class NetworkContentsTest {
         return types;
     }
 
-    private static Integer[] numbers(String[] texts) {
+    private static Integer[] parseNumbers(String[] texts) {
         Integer[] numbers = new Integer[texts.length];
         for (int i = 0; i < texts.length; i++) {
             numbers[i] = Integer.valueOf(texts[i]);
@@ -304,7 +304,7 @@ class NetworkContentsTest {
     }
 
     // A missed lookup is an empty list here; the controller only counts it differently.
-    private static List<String> expectedIds(JsonElement expected) {
+    private static List<String> listExpectedIds(JsonElement expected) {
         List<String> ids = new ArrayList<>();
         if (!expected.isJsonArray()) {
             return ids;
@@ -320,116 +320,116 @@ class NetworkContentsTest {
         assertEquals(CloudApiException.Reason.INVALID_REQUEST, refusal.getReason());
     }
 
-    private static NetworkContents contentsFromCaseFile() {
-        Map<String, JsonObject> groupsByKey = byKey(CASE_FILE.getAsJsonArray("server_groups"));
-        Map<String, JsonObject> persistentServersByKey = byKey(CASE_FILE.getAsJsonArray("persistent_servers"));
-        Map<String, JsonObject> serversByKey = byKey(CASE_FILE.getAsJsonArray("servers"));
+    private static NetworkContents buildContentsFromCaseFile() {
+        Map<String, JsonObject> groupJsonByKey = mapByKey(CASE_FILE.getAsJsonArray("server_groups"));
+        Map<String, JsonObject> persistentServerJsonByKey = mapByKey(CASE_FILE.getAsJsonArray("persistent_servers"));
+        Map<String, JsonObject> serverJsonByKey = mapByKey(CASE_FILE.getAsJsonArray("servers"));
 
-        List<ModelsServerSummary> servers = new ArrayList<>();
-        for (String key : defaultOrder("servers")) {
-            servers.add(serverSummary(serversByKey.get(key), groupsByKey, persistentServersByKey));
+        List<ModelsServerSummary> serverSummaries = new ArrayList<>();
+        for (String key : listDefaultOrderKeys("servers")) {
+            serverSummaries.add(buildServerSummary(serverJsonByKey.get(key), groupJsonByKey, persistentServerJsonByKey));
         }
-        List<ModelsServerGroupSummary> groups = new ArrayList<>();
-        for (String key : defaultOrder("server-groups")) {
-            groups.add(groupSummary(groupsByKey.get(key)));
+        List<ModelsServerGroupSummary> groupSummaries = new ArrayList<>();
+        for (String key : listDefaultOrderKeys("server-groups")) {
+            groupSummaries.add(buildGroupSummary(groupJsonByKey.get(key)));
         }
-        List<ModelsPersistentServerSummary> persistentServers = new ArrayList<>();
-        for (String key : defaultOrder("persistent-servers")) {
-            persistentServers.add(persistentServerSummary(persistentServersByKey.get(key)));
+        List<ModelsPersistentServerSummary> persistentServerSummaries = new ArrayList<>();
+        for (String key : listDefaultOrderKeys("persistent-servers")) {
+            persistentServerSummaries.add(buildPersistentServerSummary(persistentServerJsonByKey.get(key)));
         }
-        return new NetworkContents(1, 1, servers, groups, persistentServers);
+        return new NetworkContents(1, 1, serverSummaries, groupSummaries, persistentServerSummaries);
     }
 
-    private static ModelsServerSummary serverSummary(JsonObject server,
-                                                     Map<String, JsonObject> groupsByKey,
-                                                     Map<String, JsonObject> persistentServersByKey) {
+    private static ModelsServerSummary buildServerSummary(JsonObject serverJson,
+                                                          Map<String, JsonObject> groupJsonByKey,
+                                                          Map<String, JsonObject> persistentServerJsonByKey) {
         ModelsServerSummary summary = new ModelsServerSummary()
-                .serverId(server.get("id").getAsString())
-                .numericalId(server.get("numerical_id").getAsInt())
-                .state(ModelsServerSummary.StateEnum.fromValue(server.get("state").getAsString()))
-                .serverhostId(IDS_BY_KEY.get(textOrNull(server, "serverhost")))
-                .createdAt(server.get("created_at").getAsString())
-                .updatedAt(server.get("updated_at").getAsString());
-        if (server.has("group")) {
-            JsonObject group = groupsByKey.get(server.get("group").getAsString());
-            ModelsServerGroupInfo info = new ModelsServerGroupInfo()
-                    .name(group.get("name").getAsString())
-                    .type(group.get("type").getAsString())
-                    .tags(texts(group.getAsJsonArray("tags")));
-            summary.serverGroupId(group.get("id").getAsString()).serverGroup(info);
+                .serverId(serverJson.get("id").getAsString())
+                .numericalId(serverJson.get("numerical_id").getAsInt())
+                .state(ModelsServerSummary.StateEnum.fromValue(serverJson.get("state").getAsString()))
+                .serverhostId(IDS_BY_KEY.get(getTextOrNull(serverJson, "serverhost")))
+                .createdAt(serverJson.get("created_at").getAsString())
+                .updatedAt(serverJson.get("updated_at").getAsString());
+        if (serverJson.has("group")) {
+            JsonObject groupJson = groupJsonByKey.get(serverJson.get("group").getAsString());
+            ModelsServerGroupInfo groupInfo = new ModelsServerGroupInfo()
+                    .name(groupJson.get("name").getAsString())
+                    .type(groupJson.get("type").getAsString())
+                    .tags(listTexts(groupJson.getAsJsonArray("tags")));
+            summary.serverGroupId(groupJson.get("id").getAsString()).serverGroup(groupInfo);
         }
-        if (server.has("persistent_server")) {
-            JsonObject persistentServer = persistentServersByKey.get(server.get("persistent_server").getAsString());
-            ModelsPersistentServerInfo info = new ModelsPersistentServerInfo()
-                    .name(persistentServer.get("name").getAsString())
-                    .type(persistentServer.get("type").getAsString())
-                    .tags(texts(persistentServer.getAsJsonArray("tags")));
-            summary.persistentServerId(persistentServer.get("id").getAsString()).persistentServer(info);
+        if (serverJson.has("persistent_server")) {
+            JsonObject persistentServerJson = persistentServerJsonByKey.get(serverJson.get("persistent_server").getAsString());
+            ModelsPersistentServerInfo persistentServerInfo = new ModelsPersistentServerInfo()
+                    .name(persistentServerJson.get("name").getAsString())
+                    .type(persistentServerJson.get("type").getAsString())
+                    .tags(listTexts(persistentServerJson.getAsJsonArray("tags")));
+            summary.persistentServerId(persistentServerJson.get("id").getAsString()).persistentServer(persistentServerInfo);
         }
         return summary;
     }
 
-    private static ModelsServerGroupSummary groupSummary(JsonObject group) {
+    private static ModelsServerGroupSummary buildGroupSummary(JsonObject groupJson) {
         return new ModelsServerGroupSummary()
-                .serverGroupId(group.get("id").getAsString())
-                .name(group.get("name").getAsString())
-                .type(group.get("type").getAsString())
-                .tags(texts(group.getAsJsonArray("tags")))
-                .createdAt(group.get("created_at").getAsString());
+                .serverGroupId(groupJson.get("id").getAsString())
+                .name(groupJson.get("name").getAsString())
+                .type(groupJson.get("type").getAsString())
+                .tags(listTexts(groupJson.getAsJsonArray("tags")))
+                .createdAt(groupJson.get("created_at").getAsString());
     }
 
-    private static ModelsPersistentServerSummary persistentServerSummary(JsonObject persistentServer) {
+    private static ModelsPersistentServerSummary buildPersistentServerSummary(JsonObject persistentServerJson) {
         return new ModelsPersistentServerSummary()
-                .persistentServerId(persistentServer.get("id").getAsString())
-                .name(persistentServer.get("name").getAsString())
-                .type(persistentServer.get("type").getAsString())
-                .tags(texts(persistentServer.getAsJsonArray("tags")))
-                .active(persistentServer.get("active").getAsBoolean())
-                .serverhostId(IDS_BY_KEY.get(textOrNull(persistentServer, "serverhost")))
-                .createdAt(persistentServer.get("created_at").getAsString());
+                .persistentServerId(persistentServerJson.get("id").getAsString())
+                .name(persistentServerJson.get("name").getAsString())
+                .type(persistentServerJson.get("type").getAsString())
+                .tags(listTexts(persistentServerJson.getAsJsonArray("tags")))
+                .active(persistentServerJson.get("active").getAsBoolean())
+                .serverhostId(IDS_BY_KEY.get(getTextOrNull(persistentServerJson, "serverhost")))
+                .createdAt(persistentServerJson.get("created_at").getAsString());
     }
 
-    private static List<String> defaultOrder(String route) {
+    private static List<String> listDefaultOrderKeys(String route) {
         for (JsonElement element : CASE_FILE.getAsJsonArray("cases")) {
             JsonObject listCase = element.getAsJsonObject();
-            boolean ofRoute = listCase.get("route").getAsString().equals(route);
-            boolean defaultOrder = listCase.get("name").getAsString().startsWith("default order");
-            if (ofRoute && defaultOrder) {
-                return texts(listCase.getAsJsonArray("expected"));
+            boolean isOfRoute = listCase.get("route").getAsString().equals(route);
+            boolean isDefaultOrderCase = listCase.get("name").getAsString().startsWith("default order");
+            if (isOfRoute && isDefaultOrderCase) {
+                return listTexts(listCase.getAsJsonArray("expected"));
             }
         }
         throw new IllegalStateException("the case file has no default order for " + route);
     }
 
-    private static Map<String, String> idsByKey() {
-        Map<String, String> ids = new HashMap<>();
+    private static Map<String, String> readIdsByKey() {
+        Map<String, String> idsByKey = new HashMap<>();
         for (String kind : List.of("serverhosts", "server_groups", "persistent_servers", "servers")) {
             for (JsonElement element : CASE_FILE.getAsJsonArray(kind)) {
-                JsonObject item = element.getAsJsonObject();
-                ids.put(item.get("key").getAsString(), item.get("id").getAsString());
+                JsonObject jsonObject = element.getAsJsonObject();
+                idsByKey.put(jsonObject.get("key").getAsString(), jsonObject.get("id").getAsString());
             }
         }
-        return ids;
+        return idsByKey;
     }
 
-    private static Map<String, JsonObject> byKey(JsonArray items) {
-        Map<String, JsonObject> itemsByKey = new HashMap<>();
-        for (JsonElement element : items) {
-            JsonObject item = element.getAsJsonObject();
-            itemsByKey.put(item.get("key").getAsString(), item);
+    private static Map<String, JsonObject> mapByKey(JsonArray jsonObjects) {
+        Map<String, JsonObject> jsonObjectsByKey = new HashMap<>();
+        for (JsonElement element : jsonObjects) {
+            JsonObject jsonObject = element.getAsJsonObject();
+            jsonObjectsByKey.put(jsonObject.get("key").getAsString(), jsonObject);
         }
-        return itemsByKey;
+        return jsonObjectsByKey;
     }
 
-    private static String textOrNull(JsonObject item, String field) {
-        JsonElement value = item.get(field);
+    private static String getTextOrNull(JsonObject jsonObject, String field) {
+        JsonElement value = jsonObject.get(field);
         if (value == null || value.isJsonNull()) {
             return null;
         }
         return value.getAsString();
     }
 
-    private static List<String> texts(JsonArray array) {
+    private static List<String> listTexts(JsonArray array) {
         List<String> texts = new ArrayList<>();
         for (JsonElement element : array) {
             texts.add(element.getAsString());

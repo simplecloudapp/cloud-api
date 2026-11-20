@@ -2,7 +2,7 @@ package app.simplecloud.api.internal;
 
 import app.simplecloud.api.CloudApiOptions;
 import app.simplecloud.api.internal.nats.NatsFailoverConnectionManager;
-import app.simplecloud.api.internal.networkcopy.NetworkCopy;
+import app.simplecloud.api.internal.networkcopy.NetworkCopySynchronizer;
 import app.simplecloud.api.web.ApiClient;
 import okhttp3.OkHttpClient;
 
@@ -23,7 +23,7 @@ final class SharedRuntime {
     private final Settings settings;
     private final NatsFailoverConnectionManager natsConnectionManager;
     private final OkHttpClient httpClient;
-    private final NetworkCopy networkCopy;
+    private final NetworkCopySynchronizer networkCopySynchronizer;
     private int users;
 
     private SharedRuntime(Settings settings) {
@@ -37,13 +37,13 @@ final class SharedRuntime {
                 settings.networkSecret(),
                 settings.natsFailoverReconnectAfter()
         );
-        this.networkCopy = new NetworkCopy(
+        this.networkCopySynchronizer = new NetworkCopySynchronizer(
                 httpClient,
                 settings.controllerUrl(),
                 settings.networkId(),
                 settings.networkSecret()
         );
-        networkCopy.start(natsConnectionManager.getConnection());
+        networkCopySynchronizer.start(natsConnectionManager.getConnection());
     }
 
     static SharedRuntime acquire(CloudApiOptions options) {
@@ -62,8 +62,8 @@ final class SharedRuntime {
         return httpClient;
     }
 
-    NetworkCopy networkCopy() {
-        return networkCopy;
+    NetworkCopySynchronizer networkCopySynchronizer() {
+        return networkCopySynchronizer;
     }
 
     /**
@@ -79,7 +79,7 @@ final class SharedRuntime {
         }
         // Outside the lock, because the NATS close can block for about a second while it flushes.
         try {
-            networkCopy.close();
+            networkCopySynchronizer.close();
             natsConnectionManager.shutdown();
         } finally {
             httpClient.dispatcher().executorService().shutdown();

@@ -10,7 +10,7 @@ import app.simplecloud.api.group.WorkflowsConfig;
 import app.simplecloud.api.internal.blueprint.InlineBlueprintSupport;
 import app.simplecloud.api.internal.create.CreateRequestDefaults;
 import app.simplecloud.api.internal.networkcopy.NetworkContents;
-import app.simplecloud.api.internal.networkcopy.NetworkCopy;
+import app.simplecloud.api.internal.networkcopy.NetworkCopySynchronizer;
 import app.simplecloud.api.internal.web.ApiClients;
 import app.simplecloud.api.internal.web.ApiErrors;
 import app.simplecloud.api.internal.web.Identifiers;
@@ -39,7 +39,7 @@ public class PersistentServerApiImpl implements PersistentServerApi {
     private final CreateRequestDefaults createRequestDefaults;
     private final QueryCache cache;
     private final Executor executor;
-    private final NetworkCopy networkCopy;
+    private final NetworkCopySynchronizer networkCopySynchronizer;
     private final HttpPersistentServerReadApi httpReadApi;
 
     public PersistentServerApiImpl(CloudApiOptions options, QueryCache cache) {
@@ -51,21 +51,21 @@ public class PersistentServerApiImpl implements PersistentServerApi {
     }
 
     public PersistentServerApiImpl(CloudApiOptions options, QueryCache cache, ApiClient httpClient, Executor executor) {
-        this(options, cache, httpClient, executor, NetworkCopy.neverStarted());
+        this(options, cache, httpClient, executor, NetworkCopySynchronizer.createNeverStarted());
     }
 
     public PersistentServerApiImpl(CloudApiOptions options,
                                    QueryCache cache,
                                    ApiClient httpClient,
                                    Executor executor,
-                                   NetworkCopy networkCopy) {
+                                   NetworkCopySynchronizer networkCopySynchronizer) {
         this(
                 options,
                 cache,
                 createPersistentServersApi(options, httpClient),
                 new InlineBlueprintSupport(options, createBlueprintsApi(options, httpClient)),
                 executor,
-                networkCopy
+                networkCopySynchronizer
         );
     }
 
@@ -79,7 +79,7 @@ public class PersistentServerApiImpl implements PersistentServerApi {
                 persistentServersApi,
                 new InlineBlueprintSupport(options, blueprintsApi),
                 ForkJoinPool.commonPool(),
-                NetworkCopy.neverStarted()
+                NetworkCopySynchronizer.createNeverStarted()
         );
     }
 
@@ -94,7 +94,7 @@ public class PersistentServerApiImpl implements PersistentServerApi {
                 persistentServersApi,
                 new InlineBlueprintSupport(options, blueprintsApi, serverUrlResolver),
                 ForkJoinPool.commonPool(),
-                NetworkCopy.neverStarted()
+                NetworkCopySynchronizer.createNeverStarted()
         );
     }
 
@@ -103,14 +103,14 @@ public class PersistentServerApiImpl implements PersistentServerApi {
                                     PersistentServersApi persistentServersApi,
                                     InlineBlueprintSupport inlineBlueprintSupport,
                                     Executor executor,
-                                    NetworkCopy networkCopy) {
+                                    NetworkCopySynchronizer networkCopySynchronizer) {
         this.options = options;
         this.cache = cache;
         this.persistentServersApi = persistentServersApi;
         this.inlineBlueprintSupport = inlineBlueprintSupport;
         this.createRequestDefaults = new CreateRequestDefaults();
         this.executor = executor;
-        this.networkCopy = networkCopy;
+        this.networkCopySynchronizer = networkCopySynchronizer;
         this.httpReadApi = new HttpPersistentServerReadApi(options, persistentServersApi, cache, executor);
     }
 
@@ -147,7 +147,7 @@ public class PersistentServerApiImpl implements PersistentServerApi {
     }
 
     private InternalPersistentServerReadApi selectPersistentServerReadApi() {
-        NetworkContents contents = networkCopy.currentContents();
+        NetworkContents contents = networkCopySynchronizer.currentContents();
         if (contents == null) {
             return httpReadApi;
         }
@@ -233,7 +233,7 @@ public class PersistentServerApiImpl implements PersistentServerApi {
                 cache.invalidateAll(QueryKey.of("persistentServers"));
                 cache.invalidateAll(QueryKey.of("persistentServer", "name"));
 
-                networkCopy.waitForOwnWrite(httpResponse.getHeaders());
+                networkCopySynchronizer.waitForOwnWrite(httpResponse.getHeaders());
                 return new PersistentServerImpl(toSummary(response));
             } catch (ApiException e) {
                 throw ApiErrors.from(e);
@@ -277,7 +277,7 @@ public class PersistentServerApiImpl implements PersistentServerApi {
                 cache.invalidateAll(QueryKey.of("persistentServers"));
                 cache.invalidateAll(QueryKey.of("persistentServer", "name"));
 
-                networkCopy.waitForOwnWrite(httpResponse.getHeaders());
+                networkCopySynchronizer.waitForOwnWrite(httpResponse.getHeaders());
                 return new PersistentServerImpl(toSummary(response));
             } catch (ApiException e) {
                 throw ApiErrors.from(e);
@@ -302,7 +302,7 @@ public class PersistentServerApiImpl implements PersistentServerApi {
                 cache.invalidateAll(QueryKey.of("persistentServer", "name"));
 
                 inlineBlueprintSupport.deleteBlueprint(blueprintId);
-                networkCopy.waitForOwnWrite(httpResponse.getHeaders());
+                networkCopySynchronizer.waitForOwnWrite(httpResponse.getHeaders());
             } catch (ApiException e) {
                 throw ApiErrors.from(e);
             }
@@ -328,7 +328,7 @@ public class PersistentServerApiImpl implements PersistentServerApi {
                 cache.invalidateAll(QueryKey.of("persistentServers"));
                 cache.invalidateAll(QueryKey.of("persistentServer", "name"));
 
-                networkCopy.waitForOwnWrite(httpResponse.getHeaders());
+                networkCopySynchronizer.waitForOwnWrite(httpResponse.getHeaders());
                 Map<String, Object> result = response.getProperties();
                 return result != null ? result : new HashMap<>();
             } catch (ApiException e) {
@@ -356,7 +356,7 @@ public class PersistentServerApiImpl implements PersistentServerApi {
                 cache.invalidateAll(QueryKey.of("persistentServers"));
                 cache.invalidateAll(QueryKey.of("persistentServer", "name"));
 
-                networkCopy.waitForOwnWrite(httpResponse.getHeaders());
+                networkCopySynchronizer.waitForOwnWrite(httpResponse.getHeaders());
                 Map<String, Object> result = response.getProperties();
                 return result != null ? result : new HashMap<>();
             } catch (ApiException e) {

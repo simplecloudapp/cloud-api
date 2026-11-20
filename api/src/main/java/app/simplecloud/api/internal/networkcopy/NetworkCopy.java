@@ -1,291 +1,367 @@
 package app.simplecloud.api.internal.networkcopy;
 
-import app.simplecloud.api.internal.web.Identifiers;
+import app.simplecloud.api.web.JSON;
+import app.simplecloud.api.web.models.ModelsBlueprintInfo;
+import app.simplecloud.api.web.models.ModelsPersistentServerInfo;
+import app.simplecloud.api.web.models.ModelsPersistentServerSummary;
+import app.simplecloud.api.web.models.ModelsServerGroupInfo;
+import app.simplecloud.api.web.models.ModelsServerGroupSummary;
+import app.simplecloud.api.web.models.ModelsServerSummary;
 import build.buf.gen.simplecloud.controller.v2.NetworkState;
 import build.buf.gen.simplecloud.controller.v2.StateBatch;
-import build.buf.gen.simplecloud.controller.v2.StatePulse;
-import com.google.protobuf.InvalidProtocolBufferException;
-import io.nats.client.Connection;
-import io.nats.client.Dispatcher;
-import io.nats.client.Message;
-import okhttp3.OkHttpClient;
-import okhttp3.Request;
-import okhttp3.Response;
+import build.buf.gen.simplecloud.controller.v2.StatePersistentServer;
+import build.buf.gen.simplecloud.controller.v2.StateServer;
+import build.buf.gen.simplecloud.controller.v2.StateServerGroup;
+import build.buf.gen.simplecloud.controller.v2.StateServerMetrics;
+import com.google.gson.reflect.TypeToken;
+import com.google.protobuf.ByteString;
 import org.jetbrains.annotations.Nullable;
 
-import java.io.IOException;
-import java.net.HttpURLConnection;
-import java.time.Duration;
+import java.lang.reflect.Type;
+import java.math.BigDecimal;
+import java.nio.ByteBuffer;
+import java.time.Instant;
+import java.time.ZoneOffset;
+import java.time.format.DateTimeFormatter;
+import java.time.format.DateTimeFormatterBuilder;
+import java.time.temporal.ChronoField;
+import java.util.ArrayList;
+import java.util.HashMap;
 import java.util.List;
-import java.util.Locale;
 import java.util.Map;
-import java.util.function.LongSupplier;
-import java.util.logging.Logger;
+import java.util.UUID;
 
 /**
- * The plugin's live copy of its network: follows the controller and hands out the current contents.
+ * The local copy of one network: what the controller sent about it, by id, at one revision.
+ * Changed only by {@link NetworkCopySynchronizer}, under its lock.
+ * JSON that the generated model classes cannot read makes the methods throw a {@link RuntimeException}.
  */
-public final class NetworkCopy {
-    private static final Logger LOGGER = Logger.getLogger(NetworkCopy.class.getName());
-    private static final Duration PULSE_SILENCE_LIMIT = Duration.ofSeconds(15);
-    private static final Duration OWN_WRITE_WAIT_LIMIT = Duration.ofSeconds(3);
-    private static final Duration OWN_WRITE_POLL_INTERVAL = Duration.ofMillis(20);
-    private static final Duration LOAD_TIME_LIMIT = Duration.ofSeconds(10);
-    private static final Duration FRESH_LOAD_INTERVAL = Duration.ofMinutes(30);
+final class NetworkCopy {
+    private static final Type PROPERTIES_TYPE = new TypeToken<Map<String, Object>>() {
+    }.getType();
 
-    private final OkHttpClient httpClient;
-    private final Request networkStateRequest;
+    // Go's RFC3339Nano in UTC: only as many fraction digits as needed, and no point for whole seconds.
+    private static final DateTimeFormatter TIMESTAMP_FORMAT = new DateTimeFormatterBuilder()
+            .appendPattern("uuuu-MM-dd'T'HH:mm:ss")
+            .appendFraction(ChronoField.NANO_OF_SECOND, 0, 9, true)
+            .appendLiteral('Z')
+            .toFormatter()
+            .withZone(ZoneOffset.UTC);
+
     private final String networkId;
-    private final LongSupplier nanoTime;
-    private @Nullable Connection natsConnection;
-    private @Nullable Dispatcher dispatcher;
+    private final long epoch;
+    private long revision;
+    private final Map<String, ServerItem> serverItemsById = new HashMap<>();
+    private final Map<String, GroupItem> groupItemsById = new HashMap<>();
+    private final Map<String, PersistentServerItem> persistentServerItemsById = new HashMap<>();
+    private Map<String, StateServerMetrics> metricsByServerId = new HashMap<>();
 
-    // Changed only inside onPulse and onBatch.
-    private @Nullable ReceivedNetworkState receivedState;
-    private boolean loadRefused;
-    private long lastLoadNanos;
-
-    // Read by any thread.
-    private volatile @Nullable NetworkContents contents;
-    private volatile long lastPulseNanos;
-
-    /**
-     * A copy that is not started yet.
-     */
-    public NetworkCopy(OkHttpClient httpClient, String controllerUrl, String networkId, String networkSecret) {
-        this(httpClient, controllerUrl, networkId, networkSecret, System::nanoTime);
+    // Keeps the message, not a built summary: a server's summary also shows its metrics and its group's or persistent server's info, which change without the server.
+    private record ServerItem(StateServer stateServer, Map<String, Object> properties) {
     }
 
-    NetworkCopy(OkHttpClient httpClient, String controllerUrl, String networkId, String networkSecret, LongSupplier nanoTime) {
-        this.httpClient = httpClient.newBuilder().callTimeout(LOAD_TIME_LIMIT).build();
-        this.networkStateRequest = new Request.Builder()
-                .url(controllerUrl + "/v0/network-state")
-                .header("X-Network-ID", networkId)
-                .header("X-Network-Credential", networkSecret)
-                .header("Accept", "application/x-protobuf")
-                .build();
-        // Lower case, as the controller writes it in its subjects and lists.
-        this.networkId = networkId.toLowerCase(Locale.ROOT);
-        this.nanoTime = nanoTime;
+    private record GroupItem(ModelsServerGroupSummary summary, ModelsServerGroupInfo infoInsideServers, Instant createdAt) {
+    }
+
+    private record PersistentServerItem(ModelsPersistentServerSummary summary,
+                                        ModelsPersistentServerInfo infoInsideServers,
+                                        Instant createdAt) {
+    }
+
+    private NetworkCopy(String networkId, long epoch, long revision) {
+        this.networkId = networkId;
+        this.epoch = epoch;
+        this.revision = revision;
     }
 
     /**
-     * A copy that never has contents, for API objects built without a shared runtime.
+     * What a full snapshot holds.
      */
-    public static NetworkCopy neverStarted() {
-        return new NetworkCopy(new OkHttpClient(), "http://localhost", "", "");
+    static NetworkCopy createFromSnapshot(NetworkState snapshot, String networkId) {
+        NetworkCopy networkCopy = new NetworkCopy(networkId, snapshot.getEpoch(), snapshot.getRevision());
+        for (StateServer stateServer : snapshot.getServersList()) {
+            networkCopy.putServer(stateServer);
+        }
+        for (StateServerGroup stateServerGroup : snapshot.getServerGroupsList()) {
+            networkCopy.putGroup(stateServerGroup);
+        }
+        for (StatePersistentServer statePersistentServer : snapshot.getPersistentServersList()) {
+            networkCopy.putPersistentServer(statePersistentServer);
+        }
+        networkCopy.setMetrics(snapshot.getMetricsList());
+        return networkCopy;
+    }
+
+    long epoch() {
+        return epoch;
+    }
+
+    long revision() {
+        return revision;
     }
 
     /**
-     * Subscribes to the network's batch and pulse subjects; does nothing if the network id is no UUID.
+     * Puts the batch's servers, groups and persistent servers in, removes its deleted ids, and moves to the batch's revision.
      */
-    public void start(Connection natsConnection) {
-        if (!Identifiers.isUuid(networkId)) {
-            // The controller publishes under the network's UUID. An instance set up with another id gets no messages.
-            return;
+    void applyBatch(StateBatch batch) {
+        for (StateServer stateServer : batch.getServersList()) {
+            putServer(stateServer);
         }
-        String subjectRoot = networkId + ".state.v1.";
-        // One dispatcher for both subjects, so batches and pulses arrive in the order the controller sent them.
-        dispatcher = natsConnection.createDispatcher();
-        dispatcher.subscribe(subjectRoot + "batch", this::onBatchMessage);
-        dispatcher.subscribe(subjectRoot + "pulse", this::onPulseMessage);
-        this.natsConnection = natsConnection;
+        for (ByteString id : batch.getDeletedServerIdsList()) {
+            serverItemsById.remove(toUuidText(id));
+        }
+        for (StateServerGroup stateServerGroup : batch.getServerGroupsList()) {
+            putGroup(stateServerGroup);
+        }
+        for (ByteString id : batch.getDeletedServerGroupIdsList()) {
+            groupItemsById.remove(toUuidText(id));
+        }
+        for (StatePersistentServer statePersistentServer : batch.getPersistentServersList()) {
+            putPersistentServer(statePersistentServer);
+        }
+        for (ByteString id : batch.getDeletedPersistentServerIdsList()) {
+            persistentServerItemsById.remove(toUuidText(id));
+        }
+        revision = batch.getRevision();
     }
 
     /**
-     * Ends the subscriptions; does nothing on a copy that was never started.
+     * Replaces all server metrics.
      */
-    public void close() {
-        if (dispatcher == null) {
-            return;
+    void setMetrics(List<StateServerMetrics> metrics) {
+        Map<String, StateServerMetrics> newMetrics = new HashMap<>();
+        for (StateServerMetrics serverMetrics : metrics) {
+            newMetrics.put(toUuidText(serverMetrics.getServerId()), serverMetrics);
         }
-        try {
-            natsConnection.closeDispatcher(dispatcher);
-        } catch (IllegalStateException connectionAlreadyClosed) {
-            // A closed connection has no subscriptions left, so there is nothing to end.
-        }
+        metricsByServerId = newMetrics;
     }
 
     /**
-     * The current contents, or null while reads must go to the controller.
+     * Builds the three lists from this copy, in the controller's default order.
      */
-    public @Nullable NetworkContents currentContents() {
-        // The time first: a pulse writes its contents before its time, so a fresh time means contents at least as new.
-        long pulseNanos = lastPulseNanos;
-        NetworkContents current = contents;
-        if (current == null) {
-            return null;
+    NetworkContents buildContents() {
+        List<ModelsServerSummary> serverSummaries = new ArrayList<>(serverItemsById.size());
+        for (ServerItem serverItem : serverItemsById.values()) {
+            serverSummaries.add(buildServerSummary(serverItem));
         }
-        long nanosSincePulse = nanoTime.getAsLong() - pulseNanos;
-        if (nanosSincePulse > PULSE_SILENCE_LIMIT.toNanos()) {
-            return null;
+        serverSummaries.sort(NetworkCopy::compareServerSummaries);
+
+        List<GroupItem> groupItems = new ArrayList<>(groupItemsById.values());
+        groupItems.sort(NetworkCopy::compareGroupItems);
+        List<ModelsServerGroupSummary> groupSummaries = new ArrayList<>(groupItems.size());
+        for (GroupItem groupItem : groupItems) {
+            groupSummaries.add(groupItem.summary());
         }
-        return current;
+
+        Map<String, Integer> playerCounts = countPlayersByPersistentServerId(serverSummaries);
+        List<PersistentServerItem> persistentServerItems = new ArrayList<>(persistentServerItemsById.values());
+        persistentServerItems.sort(NetworkCopy::comparePersistentServerItems);
+        List<ModelsPersistentServerSummary> persistentServerSummaries = new ArrayList<>(persistentServerItems.size());
+        for (PersistentServerItem persistentServerItem : persistentServerItems) {
+            int playerCount = playerCounts.getOrDefault(persistentServerItem.summary().getPersistentServerId(), 0);
+            persistentServerSummaries.add(buildPersistentServerSummary(persistentServerItem, playerCount));
+        }
+
+        return new NetworkContents(epoch, revision, serverSummaries, groupSummaries, persistentServerSummaries);
     }
 
-    /**
-     * Returns when the copy holds the write these response headers belong to, or after 3 seconds.
-     * Returns at once when the controller sent no revision headers, or while reads go to the controller.
-     */
-    public void waitForOwnWrite(Map<String, List<String>> responseHeaders) {
-        Long epoch = headerNumber(responseHeaders, "x-sc-state-epoch");
-        Long revision = headerNumber(responseHeaders, "x-sc-state-revision");
-        if (epoch == null || revision == null) {
-            return;
+    private void putServer(StateServer stateServer) {
+        String propertiesJson = stateServer.getPropertiesJson().toStringUtf8();
+        Map<String, Object> properties = JSON.deserialize(propertiesJson, PROPERTIES_TYPE);
+        serverItemsById.put(toUuidText(stateServer.getId()), new ServerItem(stateServer, properties));
+    }
+
+    // The group's info JSON comes without its blueprint. The public API reads only the blueprint's id.
+    private void putGroup(StateServerGroup stateServerGroup) {
+        String summaryJson = stateServerGroup.getSummaryJson().toStringUtf8();
+        ModelsServerGroupSummary summary = JSON.deserialize(summaryJson, ModelsServerGroupSummary.class);
+        String infoJson = stateServerGroup.getInfoJson().toStringUtf8();
+        ModelsServerGroupInfo info = JSON.deserialize(infoJson, ModelsServerGroupInfo.class);
+        boolean showsBlueprint = stateServerGroup.hasBlueprintId() && info.getSource() != null;
+        if (showsBlueprint) {
+            ModelsBlueprintInfo blueprint = new ModelsBlueprintInfo().id(toUuidText(stateServerGroup.getBlueprintId()));
+            info.getSource().setBlueprint(blueprint);
         }
-        // The real time, not the copy's time source: the loop sleeps in real time.
-        long waitStart = System.nanoTime();
-        while (lacksWrite(epoch, revision) && System.nanoTime() - waitStart < OWN_WRITE_WAIT_LIMIT.toNanos()) {
-            boolean interrupted = sleepWasInterrupted(OWN_WRITE_POLL_INTERVAL);
-            if (interrupted) {
-                return;
+        Instant createdAt = Instant.parse(summary.getCreatedAt());
+        groupItemsById.put(toUuidText(stateServerGroup.getId()), new GroupItem(summary, info, createdAt));
+    }
+
+    private void putPersistentServer(StatePersistentServer statePersistentServer) {
+        String summaryJson = statePersistentServer.getSummaryJson().toStringUtf8();
+        ModelsPersistentServerSummary summary = JSON.deserialize(summaryJson, ModelsPersistentServerSummary.class);
+        String infoJson = statePersistentServer.getInfoJson().toStringUtf8();
+        ModelsPersistentServerInfo info = JSON.deserialize(infoJson, ModelsPersistentServerInfo.class);
+        Instant createdAt = Instant.parse(summary.getCreatedAt());
+        persistentServerItemsById.put(toUuidText(statePersistentServer.getId()), new PersistentServerItem(summary, info, createdAt));
+    }
+
+    private ModelsServerSummary buildServerSummary(ServerItem serverItem) {
+        StateServer stateServer = serverItem.stateServer();
+        String id = toUuidText(stateServer.getId());
+        ModelsServerSummary summary = new ModelsServerSummary();
+        summary.setServerId(id);
+        summary.setNetworkId(networkId);
+        if (stateServer.hasServerGroupId()) {
+            String groupId = toUuidText(stateServer.getServerGroupId());
+            summary.setServerGroupId(groupId);
+            GroupItem groupItem = groupItemsById.get(groupId);
+            if (groupItem != null) {
+                summary.setServerGroup(groupItem.infoInsideServers());
             }
         }
-    }
-
-    private void onPulseMessage(Message message) {
-        StatePulse pulse;
-        try {
-            pulse = StatePulse.parseFrom(message.getData());
-        } catch (InvalidProtocolBufferException e) {
-            LOGGER.warning("Ignored a network state pulse that could not be read: " + e);
-            return;
-        }
-        onPulse(pulse);
-    }
-
-    private void onBatchMessage(Message message) {
-        StateBatch batch;
-        try {
-            batch = StateBatch.parseFrom(message.getData());
-        } catch (InvalidProtocolBufferException e) {
-            LOGGER.warning("Ignored a network state batch that could not be read: " + e);
-            return;
-        }
-        onBatch(batch);
-    }
-
-    // Synchronized with onBatch: while the NATS connection is replaced, two NATS threads can deliver for a moment.
-    synchronized void onPulse(StatePulse pulse) {
-        if (loadRefused) {
-            return;
-        }
-        if (!pulse.getViewsMayAnswer()) {
-            forgetCopy("the controller turned copy answers off");
-            return;
-        }
-        try {
-            if (mustLoad(pulse)) {
-                receivedState = loadState();
-                lastLoadNanos = nanoTime.getAsLong();
-            } else {
-                receivedState.setMetrics(pulse.getMetricsList());
+        if (stateServer.hasPersistentServerId()) {
+            String persistentServerId = toUuidText(stateServer.getPersistentServerId());
+            summary.setPersistentServerId(persistentServerId);
+            PersistentServerItem persistentServerItem = persistentServerItemsById.get(persistentServerId);
+            if (persistentServerItem != null) {
+                summary.setPersistentServer(persistentServerItem.infoInsideServers());
             }
-            contents = receivedState.buildContents();
-            lastPulseNanos = nanoTime.getAsLong();
-        } catch (IOException | RuntimeException e) {
-            forgetCopy("the network state could not be loaded or read: " + e);
+        }
+        if (stateServer.hasServerhostId()) {
+            summary.setServerhostId(toUuidText(stateServer.getServerhostId()));
+        }
+        summary.setNumericalId(stateServer.getNumericalId());
+        if (stateServer.hasIp()) {
+            summary.setIp(stateServer.getIp());
+        }
+        if (stateServer.hasPort()) {
+            summary.setPort(Math.toIntExact(stateServer.getPort()));
+        }
+        summary.setMinMemory(Math.toIntExact(stateServer.getMinMemory()));
+        summary.setMaxMemory(Math.toIntExact(stateServer.getMaxMemory()));
+        summary.setMaxPlayers(Math.toIntExact(stateServer.getMaxPlayers()));
+        summary.setState(ModelsServerSummary.StateEnum.fromValue(stateServer.getState()));
+        summary.setProperties(serverItem.properties());
+        Instant createdAt = microsToInstant(stateServer.getCreatedAtMicros());
+        summary.setCreatedAt(formatTimestamp(createdAt));
+        Instant updatedAt = microsToInstant(stateServer.getUpdatedAtMicros());
+        summary.setUpdatedAt(formatTimestamp(updatedAt));
+        fillMetrics(summary, metricsByServerId.get(id));
+        return summary;
+    }
+
+    // Without fresh metrics the controller shows zeros and an empty last activity.
+    private static void fillMetrics(ModelsServerSummary summary, @Nullable StateServerMetrics metrics) {
+        if (metrics == null) {
+            summary.setPlayerCount(0);
+            summary.setCpuUsage(BigDecimal.ZERO);
+            summary.setMemoryUsage(BigDecimal.ZERO);
+            summary.setLastActivity("");
+            return;
+        }
+        summary.setPlayerCount(metrics.getPlayerCount());
+        summary.setCpuUsage(BigDecimal.valueOf(metrics.getCpuUsage()));
+        summary.setMemoryUsage(BigDecimal.valueOf(metrics.getMemoryUsage()));
+        if (metrics.hasLastActivityNanos()) {
+            Instant lastActivity = nanosToInstant(metrics.getLastActivityNanos());
+            summary.setLastActivity(formatTimestamp(lastActivity));
+        } else {
+            summary.setLastActivity("");
         }
     }
 
-    synchronized void onBatch(StateBatch batch) {
-        if (receivedState == null) {
-            return;
-        }
-        boolean otherEpoch = batch.getEpoch() != receivedState.epoch();
-        int baseComparedToCopy = Long.compareUnsigned(batch.getBaseRevision(), receivedState.revision());
-        boolean startsAfterCopy = baseComparedToCopy > 0;
-        if (otherEpoch || startsAfterCopy) {
-            forgetCopy("a change message did not fit the copy");
-            return;
-        }
-        int revisionComparedToCopy = Long.compareUnsigned(batch.getRevision(), receivedState.revision());
-        boolean alreadyApplied = revisionComparedToCopy <= 0;
-        if (alreadyApplied) {
-            return;
-        }
-        try {
-            receivedState.apply(batch);
-            contents = receivedState.buildContents();
-        } catch (RuntimeException e) {
-            forgetCopy("a change message could not be read: " + e);
-        }
+    // A new object, because the parsed summary is shared by every contents built from this copy.
+    private static ModelsPersistentServerSummary buildPersistentServerSummary(PersistentServerItem persistentServerItem, int playerCount) {
+        ModelsPersistentServerSummary parsedSummary = persistentServerItem.summary();
+        ModelsPersistentServerSummary summary = new ModelsPersistentServerSummary();
+        summary.setActive(parsedSummary.getActive());
+        summary.setCreatedAt(parsedSummary.getCreatedAt());
+        summary.setMaxMemory(parsedSummary.getMaxMemory());
+        summary.setMaxPlayers(parsedSummary.getMaxPlayers());
+        summary.setMinMemory(parsedSummary.getMinMemory());
+        summary.setName(parsedSummary.getName());
+        summary.setPersistentServerId(parsedSummary.getPersistentServerId());
+        summary.setPlayerCount(playerCount);
+        summary.setPriority(parsedSummary.getPriority());
+        summary.setProperties(parsedSummary.getProperties());
+        summary.setServerhostId(parsedSummary.getServerhostId());
+        summary.setSource(parsedSummary.getSource());
+        summary.setTags(parsedSummary.getTags());
+        summary.setType(parsedSummary.getType());
+        summary.setUpdatedAt(parsedSummary.getUpdatedAt());
+        summary.setWorkflows(parsedSummary.getWorkflows());
+        return summary;
     }
 
-    private boolean mustLoad(StatePulse pulse) {
-        if (receivedState == null) {
-            return true;
-        }
-        boolean otherEpoch = receivedState.epoch() != pulse.getEpoch();
-        if (otherEpoch) {
-            return true;
-        }
-        int pulseComparedToCopy = Long.compareUnsigned(pulse.getRevision(), receivedState.revision());
-        boolean pulseIsAheadOfCopy = pulseComparedToCopy > 0;
-        if (pulseIsAheadOfCopy) {
-            return true;
-        }
-        // A fresh load limits how long a change that never reached the copy can stay wrong.
-        long nanosSinceLoad = nanoTime.getAsLong() - lastLoadNanos;
-        boolean lastLoadIsOld = nanosSinceLoad >= FRESH_LOAD_INTERVAL.toNanos();
-        return lastLoadIsOld;
-    }
-
-    private ReceivedNetworkState loadState() throws IOException {
-        try (Response response = httpClient.newCall(networkStateRequest).execute()) {
-            if (response.code() == HttpURLConnection.HTTP_FORBIDDEN) {
-                // The controller gives the full state only to the network password. A JWT never gets it.
-                loadRefused = true;
-                LOGGER.warning("Network copy is off for this connection: the controller refuses the network state to this credential");
-                throw new IOException("the controller refuses the network state to this credential");
+    // The controller counts the players of servers that are AVAILABLE or INGAME.
+    private static Map<String, Integer> countPlayersByPersistentServerId(List<ModelsServerSummary> serverSummaries) {
+        Map<String, Integer> playerCounts = new HashMap<>();
+        for (ModelsServerSummary serverSummary : serverSummaries) {
+            ModelsServerSummary.StateEnum state = serverSummary.getState();
+            boolean isCounted = state == ModelsServerSummary.StateEnum.AVAILABLE || state == ModelsServerSummary.StateEnum.INGAME;
+            String persistentServerId = serverSummary.getPersistentServerId();
+            if (isCounted && persistentServerId != null) {
+                int countedSoFar = playerCounts.getOrDefault(persistentServerId, 0);
+                playerCounts.put(persistentServerId, countedSoFar + serverSummary.getPlayerCount());
             }
-            if (!response.isSuccessful()) {
-                throw new IOException("GET /v0/network-state answered " + response.code());
-            }
-            NetworkState snapshot = NetworkState.parseFrom(response.body().bytes());
-            return ReceivedNetworkState.fromSnapshot(snapshot, networkId);
         }
+        return playerCounts;
     }
 
-    private void forgetCopy(String reason) {
-        if (contents != null) {
-            LOGGER.info("Network copy dropped, reads go to the controller: " + reason);
+    // Group id with servers without a group last, then numerical id, then id.
+    private static int compareServerSummaries(ModelsServerSummary first, ModelsServerSummary second) {
+        int byGroup = compareGroupIds(first.getServerGroupId(), second.getServerGroupId());
+        if (byGroup != 0) {
+            return byGroup;
         }
-        receivedState = null;
-        contents = null;
+        int byNumericalId = Integer.compare(first.getNumericalId(), second.getNumericalId());
+        if (byNumericalId != 0) {
+            return byNumericalId;
+        }
+        return first.getServerId().compareTo(second.getServerId());
     }
 
-    private boolean lacksWrite(long epoch, long revision) {
-        NetworkContents current = currentContents();
-        if (current == null) {
-            // Reads go to the controller then, so there is nothing to wait for.
-            return false;
+    private static int compareGroupIds(String first, String second) {
+        if (first == null && second == null) {
+            return 0;
         }
-        int copyComparedToWrite = Long.compareUnsigned(current.revision(), revision);
-        return current.epoch() != epoch || copyComparedToWrite < 0;
+        if (first == null) {
+            return 1;
+        }
+        if (second == null) {
+            return -1;
+        }
+        return first.compareTo(second);
     }
 
-    // A header that is missing or not a number counts as no header: the write itself already succeeded.
-    private static @Nullable Long headerNumber(Map<String, List<String>> headers, String name) {
-        List<String> values = headers.get(name);
-        if (values == null || values.isEmpty()) {
-            return null;
-        }
-        try {
-            return Long.parseUnsignedLong(values.getFirst());
-        } catch (NumberFormatException e) {
-            return null;
-        }
+    private static int compareGroupItems(GroupItem first, GroupItem second) {
+        return compareNewestFirst(first.createdAt(), first.summary().getServerGroupId(),
+                second.createdAt(), second.summary().getServerGroupId());
     }
 
-    // The interrupt stays set for the caller.
-    private static boolean sleepWasInterrupted(Duration duration) {
-        try {
-            Thread.sleep(duration);
-            return false;
-        } catch (InterruptedException e) {
-            Thread.currentThread().interrupt();
-            return true;
+    private static int comparePersistentServerItems(PersistentServerItem first, PersistentServerItem second) {
+        return compareNewestFirst(first.createdAt(), first.summary().getPersistentServerId(),
+                second.createdAt(), second.summary().getPersistentServerId());
+    }
+
+    private static int compareNewestFirst(Instant firstCreatedAt, String firstId, Instant secondCreatedAt, String secondId) {
+        int byCreation = secondCreatedAt.compareTo(firstCreatedAt);
+        if (byCreation != 0) {
+            return byCreation;
         }
+        return firstId.compareTo(secondId);
+    }
+
+    // Lower-case text, so the order of the texts is the order of the id bytes.
+    private static String toUuidText(ByteString id) {
+        ByteBuffer bytes = id.asReadOnlyByteBuffer();
+        UUID uuid = new UUID(bytes.getLong(), bytes.getLong());
+        return uuid.toString();
+    }
+
+    private static Instant microsToInstant(long micros) {
+        long seconds = Math.floorDiv(micros, 1_000_000L);
+        long microsOfSecond = Math.floorMod(micros, 1_000_000L);
+        return Instant.ofEpochSecond(seconds, microsOfSecond * 1_000L);
+    }
+
+    private static Instant nanosToInstant(long nanos) {
+        long seconds = Math.floorDiv(nanos, 1_000_000_000L);
+        long nanosOfSecond = Math.floorMod(nanos, 1_000_000_000L);
+        return Instant.ofEpochSecond(seconds, nanosOfSecond);
+    }
+
+    private static String formatTimestamp(Instant time) {
+        return TIMESTAMP_FORMAT.format(time);
     }
 }
