@@ -41,7 +41,7 @@ public final class NetworkCopy {
     private @Nullable Dispatcher dispatcher;
 
     // Changed only inside onPulse and onBatch.
-    private @Nullable ReceivedNetworkState received;
+    private @Nullable ReceivedNetworkState receivedState;
     private boolean loadRefused;
     private long lastLoadNanos;
 
@@ -176,12 +176,12 @@ public final class NetworkCopy {
         }
         try {
             if (mustLoad(pulse)) {
-                received = loadState();
+                receivedState = loadState();
                 lastLoadNanos = nanoTime.getAsLong();
             } else {
-                received.setMetrics(pulse.getMetricsList());
+                receivedState.setMetrics(pulse.getMetricsList());
             }
-            contents = received.buildContents();
+            contents = receivedState.buildContents();
             lastPulseNanos = nanoTime.getAsLong();
         } catch (IOException | RuntimeException e) {
             forgetCopy("the network state could not be loaded or read: " + e);
@@ -189,38 +189,38 @@ public final class NetworkCopy {
     }
 
     synchronized void onBatch(StateBatch batch) {
-        if (received == null) {
+        if (receivedState == null) {
             return;
         }
-        boolean otherEpoch = batch.getEpoch() != received.epoch();
-        int baseComparedToCopy = Long.compareUnsigned(batch.getBaseRevision(), received.revision());
+        boolean otherEpoch = batch.getEpoch() != receivedState.epoch();
+        int baseComparedToCopy = Long.compareUnsigned(batch.getBaseRevision(), receivedState.revision());
         boolean startsAfterCopy = baseComparedToCopy > 0;
         if (otherEpoch || startsAfterCopy) {
             forgetCopy("a change message did not fit the copy");
             return;
         }
-        int revisionComparedToCopy = Long.compareUnsigned(batch.getRevision(), received.revision());
+        int revisionComparedToCopy = Long.compareUnsigned(batch.getRevision(), receivedState.revision());
         boolean alreadyApplied = revisionComparedToCopy <= 0;
         if (alreadyApplied) {
             return;
         }
         try {
-            received.apply(batch);
-            contents = received.buildContents();
+            receivedState.apply(batch);
+            contents = receivedState.buildContents();
         } catch (RuntimeException e) {
             forgetCopy("a change message could not be read: " + e);
         }
     }
 
     private boolean mustLoad(StatePulse pulse) {
-        if (received == null) {
+        if (receivedState == null) {
             return true;
         }
-        boolean otherEpoch = received.epoch() != pulse.getEpoch();
+        boolean otherEpoch = receivedState.epoch() != pulse.getEpoch();
         if (otherEpoch) {
             return true;
         }
-        int pulseComparedToCopy = Long.compareUnsigned(pulse.getRevision(), received.revision());
+        int pulseComparedToCopy = Long.compareUnsigned(pulse.getRevision(), receivedState.revision());
         boolean pulseIsAheadOfCopy = pulseComparedToCopy > 0;
         if (pulseIsAheadOfCopy) {
             return true;
@@ -251,7 +251,7 @@ public final class NetworkCopy {
         if (contents != null) {
             LOGGER.info("Network copy dropped, reads go to the controller: " + reason);
         }
-        received = null;
+        receivedState = null;
         contents = null;
     }
 
