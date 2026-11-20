@@ -2,6 +2,7 @@ package app.simplecloud.api.internal;
 
 import app.simplecloud.api.CloudApiOptions;
 import app.simplecloud.api.internal.nats.NatsFailoverConnectionManager;
+import app.simplecloud.api.internal.networkcopy.NetworkCopySynchronizer;
 import app.simplecloud.api.web.ApiClient;
 import okhttp3.OkHttpClient;
 
@@ -10,9 +11,10 @@ import java.util.HashMap;
 import java.util.Map;
 
 /**
- * What the {@code CloudApi} instances of one class loader with equal settings share: one NATS connection and
- * one HTTP client. No instance owns it. The first instance opens it, and the last one to release it closes
- * it, so the order in which plugins stop does not matter. An instance created after that opens a new one.
+ * What the {@code CloudApi} instances of one class loader with equal settings share: one NATS connection,
+ * one HTTP client and one network copy. No instance owns it. The first instance opens it, and the last one to
+ * release it closes it, so the order in which plugins stop does not matter. An instance created after that opens
+ * a new one.
  */
 final class SharedRuntime {
 
@@ -21,6 +23,7 @@ final class SharedRuntime {
     private final Settings settings;
     private final NatsFailoverConnectionManager natsConnectionManager;
     private final OkHttpClient httpClient;
+    private final NetworkCopySynchronizer networkCopySynchronizer;
     private int users;
 
     private SharedRuntime(Settings settings) {
@@ -34,6 +37,13 @@ final class SharedRuntime {
                 settings.networkSecret(),
                 settings.natsFailoverReconnectAfter()
         );
+        this.networkCopySynchronizer = new NetworkCopySynchronizer(
+                httpClient,
+                settings.controllerUrl(),
+                settings.networkId(),
+                settings.networkSecret()
+        );
+        networkCopySynchronizer.start(natsConnectionManager.getConnection());
     }
 
     static SharedRuntime acquire(CloudApiOptions options) {
@@ -52,8 +62,13 @@ final class SharedRuntime {
         return httpClient;
     }
 
+    NetworkCopySynchronizer networkCopySynchronizer() {
+        return networkCopySynchronizer;
+    }
+
     /**
-     * Call once for each {@link #acquire}. The last release closes the NATS connection and the HTTP client.
+     * Call once for each {@link #acquire}. The last release closes the network copy, the NATS connection
+     * and the HTTP client.
      */
     void release() {
         synchronized (OPEN) {
@@ -64,6 +79,7 @@ final class SharedRuntime {
         }
         // Outside the lock, because the NATS close can block for about a second while it flushes.
         try {
+            networkCopySynchronizer.close();
             natsConnectionManager.shutdown();
         } finally {
             httpClient.dispatcher().executorService().shutdown();

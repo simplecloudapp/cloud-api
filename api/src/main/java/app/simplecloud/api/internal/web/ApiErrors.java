@@ -28,6 +28,10 @@ public final class ApiErrors {
         return new CloudApiException(CloudApiException.Reason.NOT_FOUND, 404, message, null);
     }
 
+    public static CloudApiException invalidRequest(String message) {
+        return new CloudApiException(CloudApiException.Reason.INVALID_REQUEST, 400, message, null);
+    }
+
     private static CloudApiException.Reason reason(ApiException exception) {
         int statusCode = exception.getCode();
         if (statusCode <= 0) {
