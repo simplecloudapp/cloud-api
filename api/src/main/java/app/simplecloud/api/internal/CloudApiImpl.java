@@ -22,6 +22,8 @@ import app.simplecloud.api.web.ApiClient;
 import app.simplecloud.api.persistentserver.PersistentServerApi;
 import app.simplecloud.api.player.PlayerApi;
 import app.simplecloud.api.server.ServerApi;
+import app.simplecloud.api.stats.StatsApi;
+import app.simplecloud.api.internal.stats.StatsApiImpl;
 import io.nats.client.Connection;
 
 import java.util.concurrent.Executor;
@@ -48,6 +50,7 @@ public class CloudApiImpl implements CloudApi {
     private final BlueprintApi blueprintApi;
     private final EventApi eventApi;
     private final PlayerApi playerApi;
+    private final StatsApi statsApi;
     private final ExecutorService executor = Executors.newVirtualThreadPerTaskExecutor();
     private final AtomicBoolean closed = new AtomicBoolean(false);
 
@@ -79,6 +82,7 @@ public class CloudApiImpl implements CloudApi {
         this.groupApi = new GroupApiImpl(context);
         this.persistentServerApi = new PersistentServerApiImpl(context);
         this.blueprintApi = new BlueprintApiImpl(context);
+        this.statsApi = new StatsApiImpl(context);
 
         // Setup event-based cache invalidation with debouncing
         if (cacheConfig.isEnabled() && cacheConfig.isAutoInvalidateOnEvents()) {
@@ -118,6 +122,11 @@ public class CloudApiImpl implements CloudApi {
     @Override
     public PlayerApi player() {
         return playerApi;
+    }
+
+    @Override
+    public StatsApi stats() {
+        return statsApi;
     }
 
     /**

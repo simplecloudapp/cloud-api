@@ -4,6 +4,7 @@ import app.simplecloud.api.server.Server;
 import app.simplecloud.api.server.ServerApi;
 import app.simplecloud.api.server.ServerQuery;
 import app.simplecloud.api.server.UpdateServerRequest;
+import app.simplecloud.api.workflow.ServerWorkflowResult;
 import app.simplecloud.api.testing.internal.CloudState;
 import app.simplecloud.api.testing.internal.Futures;
 import org.jetbrains.annotations.Nullable;
@@ -85,6 +86,21 @@ public final class TestServerApi implements ServerApi {
     @Override
     public CompletableFuture<Map<String, Object>> updateServerProperties(String id, Map<String, Object> properties) {
         return Futures.call(() -> cloud.updateServerProperties(id, properties));
+    }
+
+    @Override
+    public CompletableFuture<Void> sendCommand(String id, String command) {
+        return Futures.run(() -> cloud.sendCommand(id, command));
+    }
+
+    @Override
+    public CompletableFuture<ServerWorkflowResult> executeWorkflow(String id, String workflowId) {
+        return Futures.call(() -> cloud.executeServerWorkflow(id, workflowId));
+    }
+
+    @Override
+    public CompletableFuture<Map<String, Object>> setServerProperties(String id, Map<String, Object> properties) {
+        return Futures.call(() -> cloud.setServerProperties(id, properties));
     }
 
     @Override

@@ -9,6 +9,7 @@ import app.simplecloud.api.internal.cache.NoOpQueryCache;
 import app.simplecloud.api.persistentserver.PersistentServerApi;
 import app.simplecloud.api.player.PlayerApi;
 import app.simplecloud.api.server.ServerApi;
+import app.simplecloud.api.stats.StatsApi;
 import app.simplecloud.api.testing.internal.blueprint.TestBlueprintApi;
 import app.simplecloud.api.testing.internal.event.TestEventApi;
 import app.simplecloud.api.testing.internal.group.TestGroupApi;
@@ -72,6 +73,11 @@ final class TestCloudApi implements CloudApi {
     @Override
     public PlayerApi player() {
         return playerApi;
+    }
+
+    @Override
+    public StatsApi stats() {
+        return () -> Futures.call(cloud::stats);
     }
 
     @Override

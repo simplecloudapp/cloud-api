@@ -7,6 +7,14 @@ import app.simplecloud.api.group.WorkflowsConfig;
 import app.simplecloud.api.internal.ApiContext;
 import app.simplecloud.api.internal.blueprint.InlineBlueprintSupport;
 import app.simplecloud.api.internal.create.CreateRequestDefaults;
+import app.simplecloud.api.internal.update.ConfigMerger;
+import app.simplecloud.api.group.DeploymentConfig;
+import app.simplecloud.api.group.DeploymentHost;
+import app.simplecloud.api.group.Group;
+import app.simplecloud.api.group.ScalingConfig;
+import app.simplecloud.api.internal.group.GroupImpl;
+import app.simplecloud.api.internal.workflow.WorkflowResults;
+import app.simplecloud.api.workflow.WorkflowExecutionResult;
 import app.simplecloud.api.internal.util.ModelConversionUtil;
 import app.simplecloud.api.internal.util.ValidationUtil;
 import app.simplecloud.api.internal.web.ApiExceptions;
@@ -18,6 +26,7 @@ import app.simplecloud.api.web.apis.PersistentServersApi;
 import app.simplecloud.api.web.models.*;
 import org.jetbrains.annotations.Nullable;
 
+import java.util.ArrayList;
 import java.util.HashMap;
 import java.util.List;
 import java.util.Map;
@@ -114,7 +123,7 @@ public class PersistentServerApiImpl implements PersistentServerApi {
 
     @Override
     public CompletableFuture<PersistentServer> updatePersistentServer(String id, UpdatePersistentServerRequest request) {
-        return ApiCalls.runAsync(() -> {
+        return ApiCalls.supplyAsync(() -> {
             ModelsPatchPersistentServerRequest apiRequest = new ModelsPatchPersistentServerRequest();
             apiRequest.setName(request.getName());
             if (request.getType() != null) {
@@ -129,11 +138,49 @@ public class PersistentServerApiImpl implements PersistentServerApi {
             apiRequest.setProperties(request.getProperties());
             apiRequest.setTags(request.getTags());
             apiRequest.setSource(ModelConversionUtil.toModel(request.getSource()));
-            apiRequest.setWorkflows(ModelConversionUtil.toModel(request.getWorkflows()));
+            WorkflowsConfig currentWorkflows = request.getWorkflows() != null ? findCurrentWorkflows(id) : null;
+            apiRequest.setWorkflows(ModelConversionUtil.toModel(ConfigMerger.merge(currentWorkflows, request.getWorkflows())));
 
-            persistentServersApi.patchPersistentServer(context.networkId(), id, apiRequest);
-            invalidate(id);
-        }, context.executor()).thenCompose(ignored -> getPersistentServerById(id));
+            PersistentServer persistentServer = PersistentServerImpl.from(
+                    persistentServersApi.patchPersistentServer(context.networkId(), id, apiRequest)
+            );
+            context.cache().set(QueryKey.of("persistentServer", id), persistentServer);
+            invalidateLists();
+            invalidateServers();
+            return persistentServer;
+        }, context.executor());
+    }
+
+    @Override
+    public CompletableFuture<PersistentServer> replacePersistentServer(String id, CreatePersistentServerRequest request) {
+        return ApiCalls.supplyAsync(() -> {
+            if (request.getCreateBlueprint() != null) {
+                throw new IllegalArgumentException("createBlueprint is not supported when replacing a persistent server");
+            }
+            GroupServerType type = createRequestDefaults.defaultType(request.getType());
+
+            ModelsUpdatePersistentServerRequest apiRequest = new ModelsUpdatePersistentServerRequest();
+            apiRequest.setName(request.getName());
+            apiRequest.setType(ModelsUpdatePersistentServerRequest.TypeEnum.valueOf(type.name()));
+            apiRequest.setMinMemory(request.getMinMemory());
+            apiRequest.setMaxMemory(request.getMaxMemory());
+            apiRequest.setMaxPlayers(createRequestDefaults.defaultMaxPlayers(request.getMaxPlayers()));
+            apiRequest.setActive(createRequestDefaults.defaultActive(request.getActive()));
+            apiRequest.setPriority(request.getPriority());
+            apiRequest.setServerhostId(request.getServerhostId());
+            apiRequest.setProperties(createRequestDefaults.defaultProperties(request.getProperties()));
+            apiRequest.setTags(createRequestDefaults.defaultTags(request.getName(), request.getTags()));
+            apiRequest.setWorkflows(ModelConversionUtil.toModel(createRequestDefaults.defaultWorkflows(request.getWorkflows())));
+            apiRequest.setSource(ModelConversionUtil.toModel(request.getSource()));
+
+            PersistentServer persistentServer = PersistentServerImpl.from(
+                    persistentServersApi.updatePersistentServer(context.networkId(), id, apiRequest)
+            );
+            context.cache().set(QueryKey.of("persistentServer", id), persistentServer);
+            invalidateLists();
+            invalidateServers();
+            return persistentServer;
+        }, context.executor());
     }
 
     @Override
@@ -156,6 +203,58 @@ public class PersistentServerApiImpl implements PersistentServerApi {
             ModelsPatchPropertiesResponse response = persistentServersApi.patchPersistentServerProperties(context.networkId(), id, request);
             invalidate(id);
             return Objects.requireNonNullElseGet(response.getProperties(), HashMap::new);
+        }, context.executor());
+    }
+
+    @Override
+    public CompletableFuture<Map<String, Object>> setPersistentServerProperties(String id, Map<String, Object> properties) {
+        return ApiCalls.supplyAsync(() -> {
+            ModelsUpdatePropertiesRequest request = new ModelsUpdatePropertiesRequest();
+            request.setProperties(properties);
+            ModelsUpdatePropertiesResponse response = persistentServersApi.updatePersistentServerProperties(context.networkId(), id, request);
+            invalidate(id);
+            return Objects.requireNonNullElseGet(response.getProperties(), HashMap::new);
+        }, context.executor());
+    }
+
+    @Override
+    public CompletableFuture<WorkflowExecutionResult> executeWorkflow(String id, String workflowId) {
+        return ApiCalls.supplyAsync(() -> {
+            ModelsExecuteManualWorkflowRequest request = new ModelsExecuteManualWorkflowRequest();
+            request.setWorkflowId(workflowId);
+            ModelsExecutePersistentServerWorkflowResponse response =
+                    persistentServersApi.executePersistentServerWorkflow(context.networkId(), id, request);
+            return WorkflowResults.of(
+                    workflowId,
+                    response.getWorkflowId(),
+                    response.getTotalServers(),
+                    response.getSucceededServerIds(),
+                    response.getSkippedServerIds(),
+                    response.getFailedServers()
+            );
+        }, context.executor());
+    }
+
+    @Override
+    public CompletableFuture<Group> convertToGroup(String id, List<DeploymentHost> hosts, @Nullable ScalingConfig scaling) {
+        return ApiCalls.supplyAsync(() -> {
+            ModelsDeploymentConfig deployment = ModelConversionUtil.toModel(
+                    DeploymentConfig.builder().hosts(hosts.toArray(DeploymentHost[]::new)).build()
+            );
+            ModelsConversionDeployment conversionDeployment = new ModelsConversionDeployment();
+            conversionDeployment.setHosts(deployment != null && deployment.getHosts() != null
+                    ? deployment.getHosts()
+                    : new ArrayList<>());
+
+            ModelsConvertPersistentToGroupRequest request = new ModelsConvertPersistentToGroupRequest();
+            request.setDeployment(conversionDeployment);
+            request.setScaling(ModelConversionUtil.toModel(createRequestDefaults.defaultGroupScaling(scaling)));
+
+            Group group = GroupImpl.from(persistentServersApi.convertPersistentToGroup(context.networkId(), id, request));
+            invalidate(id);
+            context.cache().invalidateAll(QueryKey.of("groups"));
+            context.cache().invalidateAll(QueryKey.of("group"));
+            return group;
         }, context.executor());
     }
 
@@ -219,6 +318,14 @@ public class PersistentServerApiImpl implements PersistentServerApi {
         );
     }
 
+    private @Nullable WorkflowsConfig findCurrentWorkflows(String persistentServerId) throws ApiException {
+        return listPersistentServers(null, persistentServerId, null).stream()
+                .filter(server -> persistentServerId.equals(server.getPersistentServerId()))
+                .findFirst()
+                .map(server -> ModelConversionUtil.fromModel(server.getWorkflows()))
+                .orElse(null);
+    }
+
     private @Nullable String findAttachedBlueprintId(String persistentServerId) throws ApiException {
         return listPersistentServers(null, persistentServerId, null).stream()
                 .filter(server -> persistentServerId.equals(server.getPersistentServerId()))
@@ -232,6 +339,12 @@ public class PersistentServerApiImpl implements PersistentServerApi {
     private void invalidate(String id) {
         context.cache().invalidate(QueryKey.of("persistentServer", id));
         invalidateLists();
+        invalidateServers();
+    }
+
+    private void invalidateServers() {
+        context.cache().invalidateAll(QueryKey.of("servers"));
+        context.cache().invalidateAll(QueryKey.of("server"));
     }
 
     private void invalidateLists() {

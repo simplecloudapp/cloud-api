@@ -1,9 +1,16 @@
 package app.simplecloud.api.testing.internal;
 
+import app.simplecloud.api.workflow.ServerWorkflowResult;
+import app.simplecloud.api.workflow.WorkflowExecutionResult;
 import app.simplecloud.api.CloudApiException;
 import app.simplecloud.api.blueprint.CreateBlueprintRequest;
 import app.simplecloud.api.blueprint.UpdateBlueprintRequest;
 import app.simplecloud.api.group.CreateGroupRequest;
+import app.simplecloud.api.group.DeploymentConfig;
+import app.simplecloud.api.group.DeploymentHost;
+import app.simplecloud.api.group.DeploymentStrategy;
+import app.simplecloud.api.group.RollingRestartStatus;
+import app.simplecloud.api.stats.CloudStats;
 import app.simplecloud.api.group.GroupQuery;
 import app.simplecloud.api.group.GroupServerType;
 import app.simplecloud.api.group.GroupStartQueue;
@@ -303,6 +310,173 @@ public final class CloudState {
         return read(() -> new LinkedHashMap<>(group.properties));
     }
 
+    public Map<String, Object> setGroupProperties(String id, Map<String, Object> properties) {
+        GroupData group = modifyGroup(id, data -> {
+            data.properties.clear();
+            data.properties.putAll(properties);
+        });
+        return read(() -> new LinkedHashMap<>(group.properties));
+    }
+
+    public int stopAllServers(String id) {
+        return mutate(events -> {
+            List<ServerData> running = serversOf(requireGroup(id));
+            for (ServerData server : running) {
+                stopLocked(server, false, null, "all servers of the group stopped", events);
+            }
+            return running.size();
+        });
+    }
+
+    public WorkflowExecutionResult executeGroupWorkflow(String id, String workflowId) {
+        requireWorkflowId(workflowId);
+        return read(() -> {
+            List<String> serverIds = serversOf(requireGroup(id)).stream().map(server -> server.id).toList();
+            return new WorkflowExecutionResult(workflowId, serverIds.size(), serverIds, List.of(), List.of());
+        });
+    }
+
+    public GroupData replaceGroup(String id, CreateGroupRequest request) {
+        Objects.requireNonNull(request, "request");
+        if (request.getCreateBlueprint() != null) {
+            throw invalid("createBlueprint is not supported when replacing a group");
+        }
+        return modifyGroup(id, group -> {
+            String name = request.getName();
+            if (name == null || name.isBlank()) {
+                throw invalid("Group name must not be blank");
+            }
+            if (!name.equals(group.name) && groupByName(name).isPresent()) {
+                throw conflict("Group '" + name + "' already exists");
+            }
+            if (request.getSource() != null) {
+                requireSourceBlueprint(request.getSource());
+            }
+            group.name = name;
+            group.type = request.getType() != null ? request.getType() : GroupServerType.SERVER;
+            group.active = request.getActive() != null ? request.getActive() : Boolean.TRUE;
+            group.minMemory = request.getMinMemory();
+            group.maxMemory = request.getMaxMemory();
+            group.maxPlayers = request.getMaxPlayers();
+            group.priority = request.getPriority();
+            group.deployment = request.getDeployment();
+            group.scaling = request.getScaling();
+            group.source = request.getSource();
+            group.workflows = request.getWorkflows();
+            group.properties.clear();
+            if (request.getProperties() != null) {
+                group.properties.putAll(request.getProperties());
+            }
+            group.tags.clear();
+            if (request.getTags() != null) {
+                group.tags.addAll(request.getTags());
+            }
+        });
+    }
+
+    public void startRollingRestart(String id) {
+        mutate(events -> {
+            GroupData group = requireGroup(id);
+            ScalingMode mode = group.scaling == null || group.scaling.getScalingMode() == null
+                    ? ScalingMode.SLOTS
+                    : group.scaling.getScalingMode();
+            if (mode != ScalingMode.SLOTS) {
+                throw invalid("Rolling restarts require SLOTS scaling mode");
+            }
+            for (ServerData server : serversOf(group)) {
+                stopLocked(server, false, null, "rolling restart", events);
+                startLocked(group, events);
+            }
+            return null;
+        });
+    }
+
+    public RollingRestartStatus rollingRestartStatus(String id) {
+        return read(() -> new RollingRestartStatus(requireGroup(id).id, false, null));
+    }
+
+    public void cancelRollingRestart(String id) {
+        read(() -> requireGroup(id));
+    }
+
+    public PersistentServerData convertGroupToPersistentServer(String id, String serverhostId) {
+        if (serverhostId == null || serverhostId.isBlank()) {
+            throw invalid("A valid serverhost_id is required");
+        }
+        return mutate(events -> {
+            GroupData group = requireGroup(id);
+            if (!Boolean.FALSE.equals(group.active)) {
+                throw conflict("Group '" + group.name + "' must be inactive to be converted");
+            }
+            if (!serversOf(group).isEmpty()) {
+                throw conflict("Group '" + group.name + "' still has servers");
+            }
+            if (startQueue.stream().anyMatch(start -> start.group == group)) {
+                throw conflict("Group '" + group.name + "' still has queued starts");
+            }
+            if (persistentServerByName(group.name).isPresent()) {
+                throw conflict("Persistent server '" + group.name + "' already exists");
+            }
+            String now = timestamp();
+            PersistentServerData server = new PersistentServerData(UUID.randomUUID().toString(), group.name, now);
+            server.type = group.type;
+            server.active = Boolean.FALSE;
+            server.minMemory = group.minMemory;
+            server.maxMemory = group.maxMemory;
+            server.maxPlayers = group.maxPlayers;
+            server.priority = group.priority;
+            server.serverhostId = serverhostId;
+            server.source = group.source;
+            server.workflows = group.workflows;
+            server.properties.putAll(group.properties);
+            server.tags.addAll(group.tags);
+
+            groups.remove(group.id);
+            group.deleted = true;
+            events.add(new GroupDeleted(networkId, now, group.id, group.name));
+            persistentServers.put(server.id, server);
+            events.add(new PersistentServerCreated(networkId, now, server.id, server.name));
+            return server;
+        });
+    }
+
+    public CloudStats stats() {
+        return read(() -> {
+            List<ServerData> all = List.copyOf(servers.values());
+            List<ServerData> active = all.stream().filter(server -> server.state != ServerState.STOPPED).toList();
+            int healthy = (int) active.stream()
+                    .filter(server -> server.state == ServerState.AVAILABLE || server.state == ServerState.INGAME)
+                    .count();
+            int capacity = active.stream().mapToInt(server -> server.maxPlayers).sum();
+            int online = (int) players.values().stream().filter(PlayerData::online).count();
+            double healthyPercent = active.isEmpty() ? 0 : healthy * 100.0 / active.size();
+            String health = active.isEmpty() ? "down" : healthyPercent < 50 ? "degraded" : "operational";
+            return new CloudStats(
+                    new CloudStats.ServerStats(all.size(), active.size(), new CloudStats.ServersByState(
+                            countState(all, ServerState.QUEUED),
+                            countState(all, ServerState.PREPARING),
+                            countState(all, ServerState.STARTING),
+                            countState(all, ServerState.AVAILABLE),
+                            countState(all, ServerState.INGAME),
+                            countState(all, ServerState.STOPPING),
+                            countState(all, ServerState.STOPPED)
+                    )),
+                    new CloudStats.PlayerStats(online, capacity, capacity == 0 ? 0 : online * 100.0 / capacity),
+                    new CloudStats.CountStats(groups.size(),
+                            (int) groups.values().stream().filter(group -> Boolean.TRUE.equals(group.active)).count()),
+                    new CloudStats.CountStats(persistentServers.size(),
+                            (int) persistentServers.values().stream().filter(server -> Boolean.TRUE.equals(server.active)).count()),
+                    new CloudStats.ServerhostStats(1, 1, 0),
+                    new CloudStats.ResourceStats(active.stream().mapToInt(server -> server.maxMemory).sum(), 0, 0),
+                    new CloudStats.HealthStats(health, healthyPercent)
+            );
+        });
+    }
+
+    private static int countState(List<ServerData> servers, ServerState state) {
+        return (int) servers.stream().filter(server -> server.state == state).count();
+    }
+
     public Map<String, Object> deleteGroupProperties(String id, Collection<String> keys) {
         GroupData group = modifyGroup(id, data -> keys.forEach(data.properties::remove));
         return read(() -> new LinkedHashMap<>(group.properties));
@@ -449,6 +623,32 @@ public final class CloudState {
     public Map<String, Object> updateServerProperties(String id, Map<String, Object> properties) {
         ServerData server = modifyServer(id, data -> data.properties.putAll(properties));
         return read(() -> new LinkedHashMap<>(server.properties));
+    }
+
+    public Map<String, Object> setServerProperties(String id, Map<String, Object> properties) {
+        ServerData server = modifyServer(id, data -> {
+            data.properties.clear();
+            data.properties.putAll(properties);
+        });
+        return read(() -> new LinkedHashMap<>(server.properties));
+    }
+
+    public void sendCommand(String id, String command) {
+        if (command == null || command.isBlank()) {
+            throw invalid("command is required");
+        }
+        read(() -> requireServer(id));
+    }
+
+    public ServerWorkflowResult executeServerWorkflow(String id, String workflowId) {
+        requireWorkflowId(workflowId);
+        return read(() -> new ServerWorkflowResult(requireServer(id).id, workflowId, true, null));
+    }
+
+    private static void requireWorkflowId(String workflowId) {
+        if (workflowId == null || workflowId.isBlank()) {
+            throw invalid("workflow_id is required");
+        }
     }
 
     public Map<String, Object> deleteServerProperties(String id, Collection<String> keys) {
@@ -682,6 +882,100 @@ public final class CloudState {
     public Map<String, Object> updatePersistentServerProperties(String id, Map<String, Object> properties) {
         PersistentServerData server = modifyPersistentServer(id, data -> data.properties.putAll(properties));
         return read(() -> new LinkedHashMap<>(server.properties));
+    }
+
+    public Map<String, Object> setPersistentServerProperties(String id, Map<String, Object> properties) {
+        PersistentServerData server = modifyPersistentServer(id, data -> {
+            data.properties.clear();
+            data.properties.putAll(properties);
+        });
+        return read(() -> new LinkedHashMap<>(server.properties));
+    }
+
+    public WorkflowExecutionResult executePersistentServerWorkflow(String id, String workflowId) {
+        requireWorkflowId(workflowId);
+        return read(() -> {
+            ServerData running = requirePersistentServer(id).server;
+            List<String> serverIds = running == null ? List.of() : List.of(running.id);
+            return new WorkflowExecutionResult(workflowId, serverIds.size(), serverIds, List.of(), List.of());
+        });
+    }
+
+    public PersistentServerData replacePersistentServer(String id, CreatePersistentServerRequest request) {
+        Objects.requireNonNull(request, "request");
+        if (request.getCreateBlueprint() != null) {
+            throw invalid("createBlueprint is not supported when replacing a persistent server");
+        }
+        return modifyPersistentServer(id, server -> {
+            String name = request.getName();
+            if (name == null || name.isBlank()) {
+                throw invalid("Persistent server name must not be blank");
+            }
+            if (!name.equals(server.name) && persistentServerByName(name).isPresent()) {
+                throw conflict("Persistent server '" + name + "' already exists");
+            }
+            if (request.getSource() != null) {
+                requireSourceBlueprint(request.getSource());
+            }
+            server.name = name;
+            server.type = request.getType() != null ? request.getType() : GroupServerType.SERVER;
+            server.active = request.getActive() != null ? request.getActive() : Boolean.TRUE;
+            server.minMemory = request.getMinMemory();
+            server.maxMemory = request.getMaxMemory();
+            server.maxPlayers = request.getMaxPlayers();
+            server.priority = request.getPriority();
+            server.serverhostId = request.getServerhostId();
+            server.source = request.getSource();
+            server.workflows = request.getWorkflows();
+            server.properties.clear();
+            if (request.getProperties() != null) {
+                server.properties.putAll(request.getProperties());
+            }
+            server.tags.clear();
+            if (request.getTags() != null) {
+                server.tags.addAll(request.getTags());
+            }
+        });
+    }
+
+    public GroupData convertPersistentServerToGroup(String id, List<DeploymentHost> hosts, @Nullable ScalingConfig scaling) {
+        Objects.requireNonNull(hosts, "hosts");
+        return mutate(events -> {
+            PersistentServerData server = requirePersistentServer(id);
+            if (!Boolean.FALSE.equals(server.active)) {
+                throw conflict("Persistent server '" + server.name + "' must be inactive to be converted");
+            }
+            if (server.server != null) {
+                throw conflict("Persistent server '" + server.name + "' still has a running server");
+            }
+            if (groupByName(server.name).isPresent()) {
+                throw conflict("Group '" + server.name + "' already exists");
+            }
+            String now = timestamp();
+            GroupData group = new GroupData(UUID.randomUUID().toString(), server.name, now);
+            group.type = server.type;
+            group.active = Boolean.FALSE;
+            group.minMemory = server.minMemory;
+            group.maxMemory = server.maxMemory;
+            group.maxPlayers = server.maxPlayers;
+            group.priority = server.priority;
+            group.deployment = DeploymentConfig.builder()
+                    .strategy(hosts.isEmpty() ? DeploymentStrategy.BLACKLIST : DeploymentStrategy.WHITELIST)
+                    .hosts(hosts.toArray(DeploymentHost[]::new))
+                    .build();
+            group.scaling = scaling;
+            group.source = server.source;
+            group.workflows = server.workflows;
+            group.properties.putAll(server.properties);
+            group.tags.addAll(server.tags);
+
+            persistentServers.remove(server.id);
+            server.deleted = true;
+            events.add(new PersistentServerDeleted(networkId, now, server.id, server.name));
+            groups.put(group.id, group);
+            events.add(new GroupCreated(networkId, now, group.snapshot()));
+            return group;
+        });
     }
 
     public Map<String, Object> deletePersistentServerProperties(String id, Collection<String> keys) {

@@ -1,6 +1,7 @@
 package app.simplecloud.api.server;
 
 import app.simplecloud.api.CloudApiException;
+import app.simplecloud.api.workflow.ServerWorkflowResult;
 import org.jetbrains.annotations.Nullable;
 
 import java.util.List;
@@ -85,6 +86,25 @@ public interface ServerApi {
     CompletableFuture<Void> stopServer(String id);
 
     /**
+     * Sends a console command to a server.
+     *
+     * @param id      the unique ID of the server
+     * @param command the command to run, without a leading slash
+     * @return a CompletableFuture that completes when the controller accepted the command
+     */
+    CompletableFuture<Void> sendCommand(String id, String command);
+
+    /**
+     * Runs a manual workflow on a server.
+     *
+     * @param id         the unique ID of the server
+     * @param workflowId the workflow to run, for example {@code default/backup}
+     * @return a CompletableFuture that completes with the workflow result; a failed workflow completes normally
+     * with {@link ServerWorkflowResult#success()} set to false
+     */
+    CompletableFuture<ServerWorkflowResult> executeWorkflow(String id, String workflowId);
+
+    /**
      * Updates an existing server instance.
      *
      * @param id the unique ID of the server to update
@@ -108,6 +128,15 @@ public interface ServerApi {
      * @return a CompletableFuture that completes with the updated properties
      */
     CompletableFuture<Map<String, Object>> updateServerProperties(String id, Map<String, Object> properties);
+
+    /**
+     * Replaces all server properties with the given properties.
+     *
+     * @param id the unique ID of the server
+     * @param properties the new properties
+     * @return a CompletableFuture that completes with the stored properties
+     */
+    CompletableFuture<Map<String, Object>> setServerProperties(String id, Map<String, Object> properties);
 
     /**
      * Updates a single server property by merging it with existing properties.

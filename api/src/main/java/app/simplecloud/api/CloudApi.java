@@ -8,6 +8,7 @@ import app.simplecloud.api.internal.CloudApiImpl;
 import app.simplecloud.api.persistentserver.PersistentServerApi;
 import app.simplecloud.api.player.PlayerApi;
 import app.simplecloud.api.server.ServerApi;
+import app.simplecloud.api.stats.StatsApi;
 
 /**
  * Main entry point for the SimpleCloud API.
@@ -124,6 +125,13 @@ public interface CloudApi extends AutoCloseable {
      * @return the player API
      */
     PlayerApi player();
+
+    /**
+     * Returns the network statistics API.
+     *
+     * @return the stats API
+     */
+    StatsApi stats();
 
     /**
      * Returns the network ID this API is connected to.

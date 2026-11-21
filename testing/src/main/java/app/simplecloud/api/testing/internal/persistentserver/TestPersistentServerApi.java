@@ -1,12 +1,17 @@
 package app.simplecloud.api.testing.internal.persistentserver;
 
+import app.simplecloud.api.group.DeploymentHost;
+import app.simplecloud.api.group.Group;
+import app.simplecloud.api.group.ScalingConfig;
 import app.simplecloud.api.persistentserver.CreatePersistentServerRequest;
+import app.simplecloud.api.workflow.WorkflowExecutionResult;
 import app.simplecloud.api.persistentserver.PersistentServer;
 import app.simplecloud.api.persistentserver.PersistentServerApi;
 import app.simplecloud.api.persistentserver.PersistentServerQuery;
 import app.simplecloud.api.persistentserver.UpdatePersistentServerRequest;
 import app.simplecloud.api.testing.internal.CloudState;
 import app.simplecloud.api.testing.internal.Futures;
+import app.simplecloud.api.testing.internal.group.GroupData;
 import org.jetbrains.annotations.Nullable;
 
 import java.util.List;
@@ -75,6 +80,32 @@ public final class TestPersistentServerApi implements PersistentServerApi {
     @Override
     public CompletableFuture<Map<String, Object>> updatePersistentServerProperties(String id, Map<String, Object> properties) {
         return Futures.call(() -> cloud.updatePersistentServerProperties(id, properties));
+    }
+
+    @Override
+    public CompletableFuture<PersistentServer> replacePersistentServer(String id, CreatePersistentServerRequest request) {
+        return Futures.call(() -> {
+            PersistentServerData server = cloud.replacePersistentServer(id, request);
+            return cloud.read(server::snapshot);
+        });
+    }
+
+    @Override
+    public CompletableFuture<Map<String, Object>> setPersistentServerProperties(String id, Map<String, Object> properties) {
+        return Futures.call(() -> cloud.setPersistentServerProperties(id, properties));
+    }
+
+    @Override
+    public CompletableFuture<WorkflowExecutionResult> executeWorkflow(String id, String workflowId) {
+        return Futures.call(() -> cloud.executePersistentServerWorkflow(id, workflowId));
+    }
+
+    @Override
+    public CompletableFuture<Group> convertToGroup(String id, List<DeploymentHost> hosts, @Nullable ScalingConfig scaling) {
+        return Futures.call(() -> {
+            GroupData group = cloud.convertPersistentServerToGroup(id, hosts, scaling);
+            return cloud.read(group::snapshot);
+        });
     }
 
     @Override

@@ -6,6 +6,11 @@ import app.simplecloud.api.group.*;
 import app.simplecloud.api.internal.ApiContext;
 import app.simplecloud.api.internal.blueprint.InlineBlueprintSupport;
 import app.simplecloud.api.internal.create.CreateRequestDefaults;
+import app.simplecloud.api.internal.update.ConfigMerger;
+import app.simplecloud.api.internal.persistentserver.PersistentServerImpl;
+import app.simplecloud.api.internal.workflow.WorkflowResults;
+import app.simplecloud.api.persistentserver.PersistentServer;
+import app.simplecloud.api.workflow.WorkflowExecutionResult;
 import app.simplecloud.api.internal.util.ModelConversionUtil;
 import app.simplecloud.api.internal.util.ValidationUtil;
 import app.simplecloud.api.internal.web.ApiExceptions;
@@ -162,16 +167,56 @@ public class GroupApiImpl implements GroupApi {
             apiRequest.setPriority(request.getPriority());
             apiRequest.setProperties(request.getProperties());
             apiRequest.setTags(request.getTags());
-            apiRequest.setDeployment(ModelConversionUtil.toModel(request.getDeployment()));
-            if (request.getScaling() != null) {
-                apiRequest.setScaling(ModelConversionUtil.toModel(createRequestDefaults.defaultGroupScaling(request.getScaling())));
+            Group current = request.getDeployment() != null || request.getScaling() != null || request.getWorkflows() != null
+                    ? findCurrentGroup(id)
+                    : null;
+            apiRequest.setDeployment(ModelConversionUtil.toModel(
+                    ConfigMerger.merge(current != null ? current.getDeployment() : null, request.getDeployment())
+            ));
+            ScalingConfig scaling = ConfigMerger.merge(current != null ? current.getScaling() : null, request.getScaling());
+            if (scaling != null) {
+                apiRequest.setScaling(ModelConversionUtil.toModel(createRequestDefaults.defaultGroupScaling(scaling)));
             }
             apiRequest.setSource(ModelConversionUtil.toModel(request.getSource()));
-            apiRequest.setWorkflows(ModelConversionUtil.toModel(request.getWorkflows()));
+            apiRequest.setWorkflows(ModelConversionUtil.toModel(
+                    ConfigMerger.merge(current != null ? current.getWorkflows() : null, request.getWorkflows())
+            ));
 
             Group group = GroupImpl.from(serverGroupsApi.patchServerGroup(context.networkId(), id, apiRequest));
             context.cache().set(QueryKey.of("group", id), group);
             invalidateLists();
+            invalidateServers();
+            return group;
+        }, context.executor());
+    }
+
+    @Override
+    public CompletableFuture<Group> replaceGroup(String id, CreateGroupRequest request) {
+        return ApiCalls.supplyAsync(() -> {
+            if (request.getCreateBlueprint() != null) {
+                throw new IllegalArgumentException("createBlueprint is not supported when replacing a group");
+            }
+            GroupServerType type = createRequestDefaults.defaultType(request.getType());
+
+            ModelsUpdateServerGroupRequest apiRequest = new ModelsUpdateServerGroupRequest();
+            apiRequest.setName(request.getName());
+            apiRequest.setType(ModelsUpdateServerGroupRequest.TypeEnum.valueOf(type.name()));
+            apiRequest.setMinMemory(request.getMinMemory());
+            apiRequest.setMaxMemory(request.getMaxMemory());
+            apiRequest.setMaxPlayers(createRequestDefaults.defaultMaxPlayers(request.getMaxPlayers()));
+            apiRequest.setActive(createRequestDefaults.defaultActive(request.getActive()));
+            apiRequest.setPriority(request.getPriority());
+            apiRequest.setProperties(createRequestDefaults.defaultProperties(request.getProperties()));
+            apiRequest.setTags(createRequestDefaults.defaultTags(request.getName(), request.getTags()));
+            apiRequest.setDeployment(ModelConversionUtil.toModel(createRequestDefaults.defaultDeployment(request.getDeployment())));
+            apiRequest.setScaling(ModelConversionUtil.toModel(createRequestDefaults.defaultGroupScaling(request.getScaling())));
+            apiRequest.setWorkflows(ModelConversionUtil.toModel(createRequestDefaults.defaultWorkflows(request.getWorkflows())));
+            apiRequest.setSource(ModelConversionUtil.toModel(request.getSource()));
+
+            Group group = GroupImpl.from(serverGroupsApi.updateServerGroup(context.networkId(), id, apiRequest));
+            context.cache().set(QueryKey.of("group", id), group);
+            invalidateLists();
+            invalidateServers();
             return group;
         }, context.executor());
     }
@@ -196,6 +241,88 @@ public class GroupApiImpl implements GroupApi {
             ModelsPatchPropertiesResponse response = serverGroupsApi.patchServerGroupProperties(context.networkId(), id, request);
             invalidate(id);
             return Objects.requireNonNullElseGet(response.getProperties(), HashMap::new);
+        }, context.executor());
+    }
+
+    @Override
+    public CompletableFuture<Map<String, Object>> setGroupProperties(String id, Map<String, Object> properties) {
+        return ApiCalls.supplyAsync(() -> {
+            ModelsUpdatePropertiesRequest request = new ModelsUpdatePropertiesRequest();
+            request.setProperties(properties);
+            ModelsUpdatePropertiesResponse response = serverGroupsApi.updateServerGroupProperties(context.networkId(), id, request);
+            invalidate(id);
+            return Objects.requireNonNullElseGet(response.getProperties(), HashMap::new);
+        }, context.executor());
+    }
+
+    @Override
+    public CompletableFuture<Void> startRollingRestart(String id) {
+        return ApiCalls.runAsync(() -> {
+            ModelsRollingRestartRequest request = new ModelsRollingRestartRequest();
+            request.setServerGroupId(id);
+            serverGroupsApi.startRollingRestart(context.networkId(), request);
+        }, context.executor());
+    }
+
+    @Override
+    public CompletableFuture<RollingRestartStatus> getRollingRestartStatus(String id) {
+        return ApiCalls.supplyAsync(() -> {
+            ModelsRollingRestartStatusResponse response = serverGroupsApi.getRollingRestartStatus(context.networkId(), id);
+            String timestamp = response.getTimestamp();
+            return new RollingRestartStatus(
+                    Objects.requireNonNullElse(response.getGroupId(), id),
+                    Boolean.TRUE.equals(response.getActive()),
+                    timestamp == null || timestamp.isEmpty() ? null : timestamp
+            );
+        }, context.executor());
+    }
+
+    @Override
+    public CompletableFuture<Void> cancelRollingRestart(String id) {
+        return ApiCalls.runAsync(
+                () -> serverGroupsApi.cancelRollingRestart(context.networkId(), id),
+                context.executor()
+        );
+    }
+
+    @Override
+    public CompletableFuture<Integer> stopAllServers(String id) {
+        return ApiCalls.supplyAsync(() -> {
+            ModelsStopAllServersResponse response = serverGroupsApi.stopAllServers(context.networkId(), id, null);
+            invalidateServers();
+            return intValue(response.getServersStopped());
+        }, context.executor());
+    }
+
+    @Override
+    public CompletableFuture<WorkflowExecutionResult> executeWorkflow(String id, String workflowId) {
+        return ApiCalls.supplyAsync(() -> {
+            ModelsExecuteManualWorkflowRequest request = new ModelsExecuteManualWorkflowRequest();
+            request.setWorkflowId(workflowId);
+            ModelsExecuteServerGroupWorkflowResponse response = serverGroupsApi.executeServerGroupWorkflow(context.networkId(), id, request);
+            return WorkflowResults.of(
+                    workflowId,
+                    response.getWorkflowId(),
+                    response.getTotalServers(),
+                    response.getSucceededServerIds(),
+                    response.getSkippedServerIds(),
+                    response.getFailedServers()
+            );
+        }, context.executor());
+    }
+
+    @Override
+    public CompletableFuture<PersistentServer> convertToPersistentServer(String id, String serverhostId) {
+        return ApiCalls.supplyAsync(() -> {
+            ModelsConvertGroupToPersistentRequest request = new ModelsConvertGroupToPersistentRequest();
+            request.setServerhostId(serverhostId);
+            PersistentServer persistentServer = PersistentServerImpl.from(
+                    serverGroupsApi.convertGroupToPersistent(context.networkId(), id, request)
+            );
+            invalidate(id);
+            context.cache().invalidateAll(QueryKey.of("persistentServers"));
+            context.cache().invalidateAll(QueryKey.of("persistentServer"));
+            return persistentServer;
         }, context.executor());
     }
 
@@ -250,6 +377,14 @@ public class GroupApiImpl implements GroupApi {
         return QueryKey.of("groups", "query", query.getType(), query.getTag(), query.getLimit());
     }
 
+    private @Nullable Group findCurrentGroup(String groupId) throws ApiException {
+        return listGroups(null, groupId, null).stream()
+                .filter(group -> groupId.equals(group.getServerGroupId()))
+                .findFirst()
+                .<Group>map(GroupImpl::from)
+                .orElse(null);
+    }
+
     private @Nullable String findAttachedBlueprintId(String groupId) throws ApiException {
         return listGroups(null, groupId, null).stream()
                 .filter(group -> groupId.equals(group.getServerGroupId()))
@@ -263,6 +398,12 @@ public class GroupApiImpl implements GroupApi {
     private void invalidate(String id) {
         context.cache().invalidate(QueryKey.of("group", id));
         invalidateLists();
+        invalidateServers();
+    }
+
+    private void invalidateServers() {
+        context.cache().invalidateAll(QueryKey.of("servers"));
+        context.cache().invalidateAll(QueryKey.of("server"));
     }
 
     private void invalidateLists() {

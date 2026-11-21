@@ -13,6 +13,11 @@ import app.simplecloud.api.server.UpdateServerRequest;
 import app.simplecloud.api.web.ApiException;
 import app.simplecloud.api.web.apis.ServersApi;
 import app.simplecloud.api.web.models.ModelsDeletePropertiesRequest;
+import app.simplecloud.api.web.models.ModelsExecuteManualWorkflowRequest;
+import app.simplecloud.api.web.models.ModelsExecuteServerWorkflowResponse;
+import app.simplecloud.api.web.models.ModelsSendCommandRequest;
+import app.simplecloud.api.web.models.ModelsUpdatePropertiesRequest;
+import app.simplecloud.api.workflow.ServerWorkflowResult;
 import app.simplecloud.api.web.models.ModelsListServersResponse;
 import app.simplecloud.api.web.models.ModelsPatchPropertiesRequest;
 import app.simplecloud.api.web.models.ModelsPatchServerRequest;
@@ -133,6 +138,30 @@ public class ServerApiImpl implements ServerApi {
     }
 
     @Override
+    public CompletableFuture<Void> sendCommand(String id, String command) {
+        return ApiCalls.runAsync(() -> {
+            ModelsSendCommandRequest request = new ModelsSendCommandRequest();
+            request.setCommand(command);
+            serversApi.sendCommand(context.networkId(), id, request);
+        }, context.executor());
+    }
+
+    @Override
+    public CompletableFuture<ServerWorkflowResult> executeWorkflow(String id, String workflowId) {
+        return ApiCalls.supplyAsync(() -> {
+            ModelsExecuteManualWorkflowRequest request = new ModelsExecuteManualWorkflowRequest();
+            request.setWorkflowId(workflowId);
+            ModelsExecuteServerWorkflowResponse response = serversApi.executeServerWorkflow(context.networkId(), id, request);
+            return new ServerWorkflowResult(
+                    Objects.requireNonNullElse(response.getServerId(), id),
+                    Objects.requireNonNullElse(response.getWorkflowId(), workflowId),
+                    Boolean.TRUE.equals(response.getSuccess()),
+                    response.getErrorMessage()
+            );
+        }, context.executor());
+    }
+
+    @Override
     public CompletableFuture<Server> updateServer(String id, UpdateServerRequest request) {
         return ApiCalls.supplyAsync(() -> {
             ModelsPatchServerRequest patchRequest = new ModelsPatchServerRequest();
@@ -165,6 +194,17 @@ public class ServerApiImpl implements ServerApi {
             ModelsPatchPropertiesRequest request = new ModelsPatchPropertiesRequest();
             request.setProperties(properties);
             Map<String, Object> result = serversApi.patchServerProperties(context.networkId(), id, request).getProperties();
+            invalidate(id);
+            return Objects.requireNonNullElseGet(result, HashMap::new);
+        }, context.executor());
+    }
+
+    @Override
+    public CompletableFuture<Map<String, Object>> setServerProperties(String id, Map<String, Object> properties) {
+        return ApiCalls.supplyAsync(() -> {
+            ModelsUpdatePropertiesRequest request = new ModelsUpdatePropertiesRequest();
+            request.setProperties(properties);
+            Map<String, Object> result = serversApi.updateServerProperties(context.networkId(), id, request).getProperties();
             invalidate(id);
             return Objects.requireNonNullElseGet(result, HashMap::new);
         }, context.executor());
