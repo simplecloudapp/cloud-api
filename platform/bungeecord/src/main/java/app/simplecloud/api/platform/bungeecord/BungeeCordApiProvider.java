@@ -2,6 +2,7 @@ package app.simplecloud.api.platform.bungeecord;
 
 import app.simplecloud.api.CloudApi;
 import app.simplecloud.api.internal.CloudApiImpl;
+import app.simplecloud.api.internal.integration.heap.HeapUsageReporter;
 import app.simplecloud.api.internal.integration.player.PlayerCommandHandler;
 import app.simplecloud.api.internal.integration.player.PlayerSessionReporter;
 import app.simplecloud.api.internal.integration.presence.ProxyPresenceResponder;
@@ -28,6 +29,7 @@ public class BungeeCordApiProvider extends Plugin implements ProxyPresencePlayer
     private ProxyPresenceTracker proxyPresenceTracker;
     private ProxyPresenceResponder proxyPresenceResponder;
     private LuckPermsSynchronizer luckPermsSynchronizer;
+    private HeapUsageReporter heapUsageReporter;
 
     private BungeeAudiences bungeeAudiences;
 
@@ -37,6 +39,8 @@ public class BungeeCordApiProvider extends Plugin implements ProxyPresencePlayer
         // Started right after the CloudApi and stopped first in onDisable, so onDisable stops it
         // even if a later step of onEnable fails.
         this.luckPermsSynchronizer = startLuckPermsSynchronizer();
+        this.heapUsageReporter = new HeapUsageReporter(cloudApi);
+        heapUsageReporter.start();
         this.proxyName = SimpleCloudRuntime.serverName();
         this.playerSessionReporter = new PlayerSessionReporter(cloudApi);
         this.playerCommandHandler = new PlayerCommandHandler(cloudApi, new BungeeCordPlayers(getProxy()));
@@ -67,6 +71,7 @@ public class BungeeCordApiProvider extends Plugin implements ProxyPresencePlayer
     public void onDisable() {
         getLogger().info("SimpleCloud v3 API provider uninitialized!");
         luckPermsSynchronizer.stop();
+        heapUsageReporter.stop();
         proxyPresenceResponder.stop();
         playerCommandHandler.stop();
 
