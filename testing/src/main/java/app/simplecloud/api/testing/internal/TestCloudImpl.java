@@ -1,6 +1,8 @@
 package app.simplecloud.api.testing.internal;
 
 import app.simplecloud.api.CloudApi;
+import app.simplecloud.api.blueprint.Blueprint;
+import app.simplecloud.api.blueprint.CreateBlueprintRequest;
 import app.simplecloud.api.group.CreateGroupRequest;
 import app.simplecloud.api.persistentserver.CreatePersistentServerRequest;
 import app.simplecloud.api.server.Server;
@@ -8,6 +10,7 @@ import app.simplecloud.api.testing.TestCloud;
 import app.simplecloud.api.testing.controller.TestController;
 import app.simplecloud.api.testing.event.EventTracker;
 import app.simplecloud.api.testing.group.TestGroup;
+import app.simplecloud.api.testing.internal.blueprint.BlueprintData;
 import app.simplecloud.api.testing.internal.event.EventTrackerImpl;
 import app.simplecloud.api.testing.internal.event.SimulatedEvents;
 import app.simplecloud.api.testing.network.TestNetwork;
@@ -26,6 +29,9 @@ import java.util.UUID;
 import java.util.function.Predicate;
 
 public final class TestCloudImpl implements TestCloud {
+
+    private static final String DEFAULT_SOFTWARE = "paper";
+    private static final String DEFAULT_VERSION = "1.21.4";
 
     private final CloudState cloud;
     private final TestCloudApi api;
@@ -115,6 +121,35 @@ public final class TestCloudImpl implements TestCloud {
     public List<TestPersistentServer> persistentServers() {
         return cloud.read(() -> cloud.persistentServers(null).stream()
                 .<TestPersistentServer>map(cloud::handle)
+                .toList());
+    }
+
+    @Override
+    public Blueprint createBlueprint(String name) {
+        return createBlueprint(CreateBlueprintRequest.builder()
+                .name(name)
+                .configurator(DEFAULT_SOFTWARE)
+                .serverSoftware(DEFAULT_SOFTWARE)
+                .minecraftVersion(DEFAULT_VERSION)
+                .softwareVersion(DEFAULT_VERSION)
+                .build());
+    }
+
+    @Override
+    public Blueprint createBlueprint(CreateBlueprintRequest request) {
+        BlueprintData blueprint = cloud.createBlueprint(request);
+        return cloud.read(blueprint::snapshot);
+    }
+
+    @Override
+    public Optional<Blueprint> blueprint(String name) {
+        return cloud.read(() -> cloud.blueprintByName(name).map(BlueprintData::snapshot));
+    }
+
+    @Override
+    public List<Blueprint> blueprints() {
+        return cloud.read(() -> cloud.blueprints().stream()
+                .map(BlueprintData::snapshot)
                 .toList());
     }
 

@@ -3,7 +3,8 @@ package app.simplecloud.api.internal.blueprint;
 import app.simplecloud.api.CloudApiException;
 import app.simplecloud.api.CloudApiOptions;
 import app.simplecloud.api.blueprint.CreateBlueprintRequest;
-import app.simplecloud.api.blueprint.RuntimeConfig;
+import app.simplecloud.api.cache.QueryCache;
+import app.simplecloud.api.cache.QueryKey;
 import app.simplecloud.api.group.SourceConfig;
 import app.simplecloud.api.group.SourceType;
 import app.simplecloud.api.internal.web.ApiErrors;
@@ -11,16 +12,18 @@ import app.simplecloud.api.web.ApiException;
 import app.simplecloud.api.web.apis.BlueprintsApi;
 import app.simplecloud.api.web.models.ModelsCreateBlueprintRequest;
 import app.simplecloud.api.web.models.ModelsCreateBlueprintResponse;
-import app.simplecloud.api.web.models.ModelsRuntimeConfig;
 import app.simplecloud.api.web.models.ModelsSourceConfig;
 import org.jetbrains.annotations.Nullable;
 
 import java.time.Duration;
+import java.util.logging.Level;
+import java.util.logging.Logger;
 
 /**
  * Shared support for resources that create or delete a referenced blueprint as part of their lifecycle.
  */
 public final class InlineBlueprintSupport {
+    private static final Logger LOGGER = Logger.getLogger(InlineBlueprintSupport.class.getName());
     private static final Duration DELETE_RETRY_DELAY = Duration.ofMillis(200);
     private static final int DELETE_MAX_ATTEMPTS = 3;
     private static final Duration RECONCILE_RETRY_DELAY = Duration.ofMillis(200);
@@ -28,7 +31,7 @@ public final class InlineBlueprintSupport {
 
     private final CloudApiOptions options;
     private final BlueprintsApi blueprintsApi;
-    private final ServerUrlResolver serverUrlResolver;
+    private final BlueprintRequestConverter converter;
 
     public InlineBlueprintSupport(CloudApiOptions options, BlueprintsApi blueprintsApi) {
         this(options, blueprintsApi, new ManifestServerUrlResolver(options));
@@ -39,7 +42,7 @@ public final class InlineBlueprintSupport {
                                   ServerUrlResolver serverUrlResolver) {
         this.options = options;
         this.blueprintsApi = blueprintsApi;
-        this.serverUrlResolver = serverUrlResolver;
+        this.converter = new BlueprintRequestConverter(serverUrlResolver);
     }
 
     public void validateInlineBlueprintSource(@Nullable CreateBlueprintRequest createBlueprint,
@@ -65,11 +68,19 @@ public final class InlineBlueprintSupport {
             return null;
         }
 
-        ModelsCreateBlueprintRequest apiRequest = convertCreateBlueprintRequest(blueprintName, request);
-        ModelsCreateBlueprintResponse response = blueprintsApi.createBlueprint(
-                options.getNetworkId(),
-                apiRequest
-        );
+        String name = normalize(request.getName());
+        String effectiveName = name != null ? name : blueprintName;
+        ModelsCreateBlueprintRequest apiRequest = converter.toCreateRequest(effectiveName, request);
+        ModelsCreateBlueprintResponse response;
+        try {
+            response = blueprintsApi.createBlueprint(options.getNetworkId(), apiRequest);
+        } catch (ApiException e) {
+            if (e.getCode() == 409) {
+                throw ApiErrors.from("Blueprint '" + effectiveName
+                        + "' already exists, set another name with CreateBlueprintRequest.name", e);
+            }
+            throw e;
+        }
 
         String blueprintId = response.getBlueprintId();
         if (blueprintId == null || blueprintId.isBlank()) {
@@ -92,6 +103,26 @@ public final class InlineBlueprintSupport {
     @Nullable
     public String getReferencedBlueprintId(@Nullable ModelsSourceConfig source) {
         return source == null ? null : normalize(source.getBlueprint());
+    }
+
+    /**
+     * Deletes the blueprint of a resource that was already deleted. Failures are logged instead of thrown,
+     * because the resource itself is gone.
+     */
+    public void deleteBlueprintOfDeletedResource(@Nullable String blueprintId) {
+        try {
+            deleteBlueprint(blueprintId);
+        } catch (ApiException e) {
+            LOGGER.log(Level.WARNING, "Failed to delete blueprint " + blueprintId + ", it may be left unused", e);
+        }
+    }
+
+    public static void invalidateCache(QueryCache cache, @Nullable String blueprintId) {
+        if (blueprintId != null) {
+            cache.invalidate(QueryKey.of("blueprint", blueprintId));
+        }
+        cache.invalidateAll(QueryKey.of("blueprints"));
+        cache.invalidateAll(QueryKey.of("blueprint", "name"));
     }
 
     public void deleteBlueprint(@Nullable String blueprintId) throws ApiException {
@@ -189,60 +220,8 @@ public final class InlineBlueprintSupport {
         return false;
     }
 
-    private ModelsCreateBlueprintRequest convertCreateBlueprintRequest(String blueprintName, CreateBlueprintRequest request) {
-        ModelsCreateBlueprintRequest apiRequest = new ModelsCreateBlueprintRequest();
-        apiRequest.setName(blueprintName);
-        apiRequest.setConfigurator(request.getConfigurator());
-        apiRequest.setMinecraftVersion(request.getMinecraftVersion());
-        apiRequest.setServerSoftware(request.getServerSoftware());
-        apiRequest.setServerUrl(resolveServerUrl(request));
-        apiRequest.setSoftwareVersion(request.getSoftwareVersion());
-        apiRequest.setWorkflowSteps(request.getWorkflowSteps());
-
-        RuntimeConfig runtimeConfig = request.getRuntimeConfig();
-        if (runtimeConfig != null) {
-            ModelsRuntimeConfig apiRuntimeConfig = new ModelsRuntimeConfig();
-            if (runtimeConfig.getType() != null) {
-                apiRuntimeConfig.setType(runtimeConfig.getType().name().toLowerCase());
-            }
-            apiRuntimeConfig.setWith(runtimeConfig.getWith());
-            apiRequest.setRuntimeConfig(apiRuntimeConfig);
-        }
-
-        return apiRequest;
-    }
-
-    private @Nullable String resolveServerUrl(CreateBlueprintRequest request) {
-        String explicitServerUrl = normalize(request.getServerUrl());
-        if (explicitServerUrl != null) {
-            return explicitServerUrl;
-        }
-
-        String software = normalize(request.getServerSoftware());
-        String version = resolveRequestedVersion(request);
-        if (software == null || version == null) {
-            return null;
-        }
-
-        String resolvedServerUrl = normalize(serverUrlResolver.resolve(request));
-        if (resolvedServerUrl == null) {
-            throw new IllegalArgumentException(
-                    "No manifest download link found for software '" + software + "' and version '" + version + "'"
-            );
-        }
-        return resolvedServerUrl;
-    }
-
     private boolean hasText(@Nullable String value) {
         return value != null && !value.isBlank();
-    }
-
-    private @Nullable String resolveRequestedVersion(CreateBlueprintRequest request) {
-        String minecraftVersion = normalize(request.getMinecraftVersion());
-        if (minecraftVersion != null) {
-            return minecraftVersion;
-        }
-        return normalize(request.getSoftwareVersion());
     }
 
     private @Nullable String normalize(@Nullable String value) {

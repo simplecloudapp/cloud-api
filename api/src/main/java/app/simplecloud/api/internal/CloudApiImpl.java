@@ -2,10 +2,12 @@ package app.simplecloud.api.internal;
 
 import app.simplecloud.api.CloudApi;
 import app.simplecloud.api.CloudApiOptions;
+import app.simplecloud.api.blueprint.BlueprintApi;
 import app.simplecloud.api.cache.CacheConfig;
 import app.simplecloud.api.cache.QueryCache;
 import app.simplecloud.api.event.EventApi;
 import app.simplecloud.api.group.GroupApi;
+import app.simplecloud.api.internal.blueprint.BlueprintApiImpl;
 import app.simplecloud.api.internal.cache.CacheEventListener;
 import app.simplecloud.api.internal.cache.NoOpQueryCache;
 import app.simplecloud.api.internal.cache.QueryCacheImpl;
@@ -43,6 +45,7 @@ public class CloudApiImpl implements CloudApi {
     private final ServerApi serverApi;
     private final GroupApi groupApi;
     private final PersistentServerApi persistentServerApi;
+    private final BlueprintApi blueprintApi;
     private final EventApi eventApi;
     private final PlayerApi playerApi;
     private final ExecutorService executor = Executors.newVirtualThreadPerTaskExecutor();
@@ -74,6 +77,7 @@ public class CloudApiImpl implements CloudApi {
         this.serverApi = new ServerApiImpl(options, queryCache, httpClient, executor);
         this.groupApi = new GroupApiImpl(options, queryCache, httpClient, executor);
         this.persistentServerApi = new PersistentServerApiImpl(options, queryCache, httpClient, executor);
+        this.blueprintApi = new BlueprintApiImpl(options, queryCache, httpClient, executor);
 
         // Setup event-based cache invalidation with debouncing
         if (cacheConfig.isEnabled() && cacheConfig.isAutoInvalidateOnEvents()) {
@@ -98,6 +102,11 @@ public class CloudApiImpl implements CloudApi {
     @Override
     public PersistentServerApi persistentServer() {
         return persistentServerApi;
+    }
+
+    @Override
+    public BlueprintApi blueprint() {
+        return blueprintApi;
     }
 
     @Override

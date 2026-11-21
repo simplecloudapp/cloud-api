@@ -348,6 +348,9 @@ public class GroupApiImpl implements GroupApi {
             String createdBlueprintId;
             try {
                 createdBlueprintId = inlineBlueprintSupport.createBlueprint(request.getName(), effectiveCreateBlueprint);
+                if (createdBlueprintId != null) {
+                    InlineBlueprintSupport.invalidateCache(cache, null);
+                }
                 SourceConfig effectiveSource = createdBlueprintId != null
                         ? inlineBlueprintSupport.buildInlineBlueprintSource(request.getSource(), createdBlueprintId)
                         : request.getSource();
@@ -587,7 +590,8 @@ public class GroupApiImpl implements GroupApi {
                 cache.invalidateAll(QueryKey.of("groups"));
                 cache.invalidateAll(QueryKey.of("group", "name"));
 
-                inlineBlueprintSupport.deleteBlueprint(blueprintId);
+                inlineBlueprintSupport.deleteBlueprintOfDeletedResource(blueprintId);
+                InlineBlueprintSupport.invalidateCache(cache, blueprintId);
             } catch (ApiException e) {
                 throw ApiErrors.from(e);
             }

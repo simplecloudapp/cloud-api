@@ -116,6 +116,7 @@ public final class CreateRequestDefaults {
         }
 
         return CreateBlueprintRequest.builder()
+                .name(createBlueprint.getName())
                 .configurator(createBlueprint.getConfigurator())
                 .minecraftVersion(createBlueprint.getMinecraftVersion())
                 .runtimeConfig(defaultRuntimeConfig(createBlueprint.getRuntimeConfig()))
@@ -125,6 +126,21 @@ public final class CreateRequestDefaults {
                 .workflowSteps(createBlueprint.getWorkflowSteps() != null
                         ? List.copyOf(createBlueprint.getWorkflowSteps())
                         : List.copyOf(Objects.requireNonNull(Objects.requireNonNull(workflows.getWhen()).getStart())))
+                .build();
+    }
+
+    public CreateBlueprintRequest defaultBlueprint(CreateBlueprintRequest blueprint) {
+        return CreateBlueprintRequest.builder()
+                .name(blueprint.getName())
+                .configurator(blueprint.getConfigurator())
+                .minecraftVersion(blueprint.getMinecraftVersion())
+                .runtimeConfig(defaultRuntimeConfig(blueprint.getRuntimeConfig()))
+                .serverSoftware(blueprint.getServerSoftware())
+                .serverUrl(blueprint.getServerUrl())
+                .softwareVersion(blueprint.getSoftwareVersion())
+                .workflowSteps(blueprint.getWorkflowSteps() != null
+                        ? List.copyOf(blueprint.getWorkflowSteps())
+                        : DEFAULT_WORKFLOW_START)
                 .build();
     }
 

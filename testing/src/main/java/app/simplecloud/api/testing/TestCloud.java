@@ -1,6 +1,8 @@
 package app.simplecloud.api.testing;
 
 import app.simplecloud.api.CloudApi;
+import app.simplecloud.api.blueprint.Blueprint;
+import app.simplecloud.api.blueprint.CreateBlueprintRequest;
 import app.simplecloud.api.group.CreateGroupRequest;
 import app.simplecloud.api.persistentserver.CreatePersistentServerRequest;
 import app.simplecloud.api.server.Server;
@@ -131,6 +133,26 @@ public interface TestCloud extends AutoCloseable {
      * Returns all persistent servers sorted by name.
      */
     List<TestPersistentServer> persistentServers();
+
+    /**
+     * Creates a paper blueprint with default versions.
+     */
+    Blueprint createBlueprint(String name);
+
+    /**
+     * Creates a blueprint from a full request. A missing server URL is filled with a fake download link.
+     */
+    Blueprint createBlueprint(CreateBlueprintRequest request);
+
+    /**
+     * Finds a blueprint by name.
+     */
+    Optional<Blueprint> blueprint(String name);
+
+    /**
+     * Returns all blueprints, newest first.
+     */
+    List<Blueprint> blueprints();
 
     /**
      * Creates an offline player with the offline mode uuid of the name.

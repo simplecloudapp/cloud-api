@@ -157,6 +157,9 @@ public interface Server {
     /**
      * Returns the blueprint this server was created from.
      *
+     * <p>For persistent servers the controller only sends the blueprint in events. For servers fetched through
+     * {@code ServerApi} use {@code BlueprintApi.getBlueprintById} with the id from the persistent server source.
+     *
      * @return the blueprint, or null if not available
      */
     @Nullable Blueprint getBlueprint();

@@ -1,5 +1,9 @@
 package app.simplecloud.api.testing.internal.event;
 
+import app.simplecloud.api.blueprint.Blueprint;
+import app.simplecloud.api.event.blueprint.BlueprintCreatedEvent;
+import app.simplecloud.api.event.blueprint.BlueprintDeletedEvent;
+import app.simplecloud.api.event.blueprint.BlueprintUpdatedEvent;
 import app.simplecloud.api.event.group.GroupCreatedEvent;
 import app.simplecloud.api.event.group.GroupDeletedEvent;
 import app.simplecloud.api.event.group.GroupUpdatedEvent;
@@ -728,6 +732,100 @@ public final class SimulatedEvents {
         public PersistentServerStopped stamp(String networkId, String timestamp) {
             return new PersistentServerStopped(orElse(this.networkId, networkId), orElse(this.timestamp, timestamp),
                     persistentServerId, serverId);
+        }
+    }
+
+    public record BlueprintCreated(@Nullable String networkId, @Nullable String timestamp, Blueprint blueprint)
+            implements BlueprintCreatedEvent, Stampable {
+
+        @Override
+        public String getNetworkId() {
+            return networkId;
+        }
+
+        @Override
+        public String getBlueprintId() {
+            return blueprint.getBlueprintId();
+        }
+
+        @Override
+        public Blueprint getBlueprint() {
+            return blueprint;
+        }
+
+        @Override
+        public String getTimestamp() {
+            return timestamp;
+        }
+
+        @Override
+        public BlueprintCreated stamp(String networkId, String timestamp) {
+            return new BlueprintCreated(orElse(this.networkId, networkId), orElse(this.timestamp, timestamp), blueprint);
+        }
+    }
+
+    public record BlueprintUpdated(@Nullable String networkId, @Nullable String timestamp, Blueprint blueprint)
+            implements BlueprintUpdatedEvent, Stampable {
+
+        @Override
+        public String getNetworkId() {
+            return networkId;
+        }
+
+        @Override
+        public String getBlueprintId() {
+            return blueprint.getBlueprintId();
+        }
+
+        @Override
+        public Blueprint getBlueprint() {
+            return blueprint;
+        }
+
+        @Override
+        public String getTimestamp() {
+            return timestamp;
+        }
+
+        @Override
+        public BlueprintUpdated stamp(String networkId, String timestamp) {
+            return new BlueprintUpdated(orElse(this.networkId, networkId), orElse(this.timestamp, timestamp), blueprint);
+        }
+    }
+
+    public record BlueprintDeleted(@Nullable String networkId, @Nullable String timestamp, String blueprintId,
+                                   @Nullable String name, @Nullable Blueprint blueprint)
+            implements BlueprintDeletedEvent, Stampable {
+
+        @Override
+        public String getNetworkId() {
+            return networkId;
+        }
+
+        @Override
+        public String getBlueprintId() {
+            return blueprintId;
+        }
+
+        @Override
+        public @Nullable String getName() {
+            return name;
+        }
+
+        @Override
+        public @Nullable Blueprint getBlueprint() {
+            return blueprint;
+        }
+
+        @Override
+        public String getTimestamp() {
+            return timestamp;
+        }
+
+        @Override
+        public BlueprintDeleted stamp(String networkId, String timestamp) {
+            return new BlueprintDeleted(orElse(this.networkId, networkId), orElse(this.timestamp, timestamp),
+                    blueprintId, name, blueprint);
         }
     }
 }
