@@ -143,7 +143,7 @@ public class PlayerConnectionListener {
     private void sendClientSettings(Player player, String sessionId, PlayerSettings settings) {
         playerSessionReporter.reportClientSettings(sessionId, toClientSettings(settings))
                 .exceptionally(e -> {
-                    logger.error("Failed to send client settings for {}: {}", player.getUsername(), e.getMessage());
+                    logger.debug("Failed to send client settings for {}: {}", player.getUsername(), e.getMessage());
                     return null;
                 });
     }

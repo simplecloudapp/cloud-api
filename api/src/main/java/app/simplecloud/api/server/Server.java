@@ -108,9 +108,9 @@ public interface Server {
     /**
      * Returns the current number of connected players.
      *
-     * @return the player count, or null if not available
+     * @return the player count, or 0 if not available
      */
-    @Nullable Integer getPlayerCount();
+    Integer getPlayerCount();
 
     /**
      * Returns the maximum number of players allowed on this server.

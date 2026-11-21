@@ -33,10 +33,6 @@ public final class ProtoConversionUtil {
         }
 
         String name = protoState.name();
-        if (name == null || name.isEmpty() || name.equals("UNRECOGNIZED")) {
-            return null;
-        }
-
         if (name.startsWith("SERVER_STATE_")) {
             name = name.substring("SERVER_STATE_".length());
         }
@@ -44,7 +40,7 @@ public final class ProtoConversionUtil {
         try {
             return ServerState.valueOf(name);
         } catch (IllegalArgumentException e) {
-            return null;
+            return ServerState.UNKNOWN_STATE;
         }
     }
 

@@ -143,7 +143,7 @@ public class PlayerConnectionListener implements Listener {
     private void sendClientSettings(ProxiedPlayer player, String sessionId) {
         playerSessionReporter.reportClientSettings(sessionId, toClientSettings(player))
                 .exceptionally(e -> {
-                    logger.log(Level.SEVERE, "Failed to send client settings for " + player.getName(), e);
+                    logger.log(Level.FINE, "Failed to send client settings for " + player.getName() + ": " + e.getMessage());
                     return null;
                 });
     }

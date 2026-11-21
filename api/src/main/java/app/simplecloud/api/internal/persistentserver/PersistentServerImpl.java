@@ -8,6 +8,7 @@ import app.simplecloud.api.persistentserver.PersistentServer;
 import app.simplecloud.api.web.models.ModelsCreatePersistentServerResponse;
 import app.simplecloud.api.web.models.ModelsPersistentServerInfo;
 import app.simplecloud.api.web.models.ModelsPersistentServerSummary;
+import app.simplecloud.api.web.models.ModelsUpdatePersistentServerResponse;
 import org.jetbrains.annotations.Nullable;
 
 import java.util.List;
@@ -74,7 +75,28 @@ public record PersistentServerImpl(
         );
     }
 
-    public static PersistentServerImpl from(ModelsPersistentServerInfo info) {
+    public static PersistentServerImpl from(ModelsUpdatePersistentServerResponse response) {
+        return new PersistentServerImpl(
+                response.getPersistentServerId(),
+                response.getName(),
+                response.getType(),
+                response.getMinMemory(),
+                response.getMaxMemory(),
+                response.getMaxPlayers(),
+                response.getActive(),
+                response.getPriority(),
+                playerCount(response.getPlayerCount()),
+                response.getServerhostId(),
+                ModelConversionUtil.fromModel(response.getSource()),
+                ModelConversionUtil.fromModel(response.getWorkflows()),
+                response.getProperties(),
+                response.getTags(),
+                response.getCreatedAt(),
+                response.getUpdatedAt()
+        );
+    }
+
+    public static PersistentServerImpl from(ModelsPersistentServerInfo info, int playerCount) {
         return new PersistentServerImpl(
                 info.getId(),
                 info.getName(),
@@ -84,7 +106,7 @@ public record PersistentServerImpl(
                 info.getMaxPlayers(),
                 info.getActive(),
                 null,
-                0,
+                playerCount,
                 info.getServerhostId(),
                 ModelConversionUtil.fromModel(info.getSource()),
                 ModelConversionUtil.fromModel(info.getWorkflows()),

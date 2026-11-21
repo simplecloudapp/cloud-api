@@ -33,21 +33,37 @@ public class GroupQuery {
         return this;
     }
 
+    /**
+     * @deprecated the controller does not support sorting groups, this value is ignored
+     */
+    @Deprecated
     @Nullable
     public String getSortBy() {
         return sortBy;
     }
 
+    /**
+     * @deprecated the controller does not support sorting groups, this value is ignored
+     */
+    @Deprecated
     public GroupQuery sortBy(String sortBy) {
         this.sortBy = sortBy;
         return this;
     }
 
+    /**
+     * @deprecated the controller does not support sorting groups, this value is ignored
+     */
+    @Deprecated
     @Nullable
     public String getSortOrder() {
         return sortOrder;
     }
 
+    /**
+     * @deprecated the controller does not support sorting groups, this value is ignored
+     */
+    @Deprecated
     public GroupQuery sortOrder(String sortOrder) {
         this.sortOrder = sortOrder;
         return this;

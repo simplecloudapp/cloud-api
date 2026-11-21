@@ -131,6 +131,7 @@ public class PlayerSessionReporter {
 
     /**
      * Notifies the controller that a player's client settings changed.
+     * Completes exceptionally if the controller rejects the request or no valid reply is received.
      */
     public CompletableFuture<Void> reportClientSettings(String sessionId, PlayerClientSettings settings) {
         return CompletableFuture.runAsync(() -> {
@@ -153,8 +154,19 @@ public class PlayerSessionReporter {
                         .build();
 
                 String subject = networkId + ".player.settings";
-                natsConnection.request(subject, request.toByteArray(), REQUEST_TIMEOUT);
-            } catch (Exception ignored) {
+                Message response = natsConnection.request(subject, request.toByteArray(), REQUEST_TIMEOUT);
+                if (response == null) {
+                    throw new TimeoutException("No controller reply within " + REQUEST_TIMEOUT.toSeconds() + " seconds");
+                }
+                if (!UpdateClientSettingsResponse.parseFrom(response.getData()).getSuccess()) {
+                    throw new IllegalStateException("Controller rejected the client settings update");
+                }
+            } catch (Exception e) {
+                if (e instanceof InterruptedException) {
+                    Thread.currentThread().interrupt();
+                }
+                throw new CompletionException("Failed to report client settings for session " + sessionId
+                        + ": " + e.getMessage(), e);
             }
         }, executor);
     }

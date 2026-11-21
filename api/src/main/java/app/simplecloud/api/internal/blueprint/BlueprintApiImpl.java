@@ -151,6 +151,8 @@ public class BlueprintApiImpl implements BlueprintApi {
 
     private void invalidate(String id) {
         InlineBlueprintSupport.invalidateCache(context.cache(), id);
+        context.cache().invalidateAll(QueryKey.of("servers"));
+        context.cache().invalidateAll(QueryKey.of("server"));
     }
 
     private void invalidateLists() {

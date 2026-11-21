@@ -134,6 +134,8 @@ public class CacheEventListener {
             scheduleInvalidation(QueryKey.of("group", event.getServerGroupId()));
             schedulePatternInvalidation(QueryKey.of("groups"));
             schedulePatternInvalidation(QueryKey.of("group", "name"));
+            schedulePatternInvalidation(QueryKey.of("servers"));
+            schedulePatternInvalidation(QueryKey.of("server"));
         }));
 
         subscriptions.add(eventApi.group().onDeleted(event -> {
@@ -184,6 +186,8 @@ public class CacheEventListener {
             scheduleInvalidation(QueryKey.of("persistentServer", event.getPersistentServerId()));
             schedulePatternInvalidation(QueryKey.of("persistentServers"));
             schedulePatternInvalidation(QueryKey.of("persistentServer", "name"));
+            schedulePatternInvalidation(QueryKey.of("servers"));
+            schedulePatternInvalidation(QueryKey.of("server"));
         }));
 
         subscriptions.add(eventApi.persistentServer().onDeleted(event -> {

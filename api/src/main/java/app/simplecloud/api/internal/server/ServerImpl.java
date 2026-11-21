@@ -129,9 +129,9 @@ public class ServerImpl implements Server {
     }
 
     @Override
-    @Nullable
     public Integer getPlayerCount() {
-        return delegate.getPlayerCount();
+        Integer playerCount = delegate.getPlayerCount();
+        return playerCount != null ? playerCount : 0;
     }
 
     @Override
@@ -147,12 +147,12 @@ public class ServerImpl implements Server {
     public ServerState getState() {
         ModelsServerSummary.StateEnum stateStr = delegate.getState();
         if (stateStr == null) {
-            throw new IllegalStateException("Server state is null");
+            return ServerState.UNKNOWN_STATE;
         }
         try {
             return ServerState.parse(stateStr);
         } catch (IllegalArgumentException e) {
-            throw new IllegalStateException("Invalid server state: " + stateStr, e);
+            return ServerState.UNKNOWN_STATE;
         }
     }
 
@@ -232,7 +232,7 @@ public class ServerImpl implements Server {
     @Nullable
     public PersistentServer getPersistentServer() {
         if  (persistentServer == null && delegate.getPersistentServer() != null) {
-            persistentServer = PersistentServerImpl.from(delegate.getPersistentServer());
+            persistentServer = PersistentServerImpl.from(delegate.getPersistentServer(), getPlayerCount());
         }
 
         return persistentServer;

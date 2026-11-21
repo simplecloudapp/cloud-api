@@ -4,6 +4,7 @@ import org.jetbrains.annotations.Nullable;
 
 public class DeploymentConfig {
     private DeploymentHost[] hosts;
+    private boolean hostsSet;
     @Nullable
     private DeploymentStrategy strategy;
 
@@ -21,6 +22,11 @@ public class DeploymentConfig {
 
     public void setHosts(DeploymentHost[] hosts) {
         this.hosts = hosts;
+        this.hostsSet = true;
+    }
+
+    public boolean hasHosts() {
+        return hostsSet;
     }
 
     @Nullable

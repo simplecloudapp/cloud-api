@@ -4,8 +4,11 @@ import org.jetbrains.annotations.Nullable;
 
 public class ScalingConfig {
     private int availableSlots;
+    private boolean availableSlotsSet;
     private int maxServers;
+    private boolean maxServersSet;
     private int minServers;
+    private boolean minServersSet;
     private double playerThreshold;
     private boolean playerThresholdSet;
     @Nullable
@@ -26,6 +29,11 @@ public class ScalingConfig {
 
     public void setAvailableSlots(int availableSlots) {
         this.availableSlots = availableSlots;
+        this.availableSlotsSet = true;
+    }
+
+    public boolean hasAvailableSlots() {
+        return availableSlotsSet;
     }
 
     public int getMaxServers() {
@@ -34,6 +42,11 @@ public class ScalingConfig {
 
     public void setMaxServers(int maxServers) {
         this.maxServers = maxServers;
+        this.maxServersSet = true;
+    }
+
+    public boolean hasMaxServers() {
+        return maxServersSet;
     }
 
     public int getMinServers() {
@@ -42,6 +55,11 @@ public class ScalingConfig {
 
     public void setMinServers(int minServers) {
         this.minServers = minServers;
+        this.minServersSet = true;
+    }
+
+    public boolean hasMinServers() {
+        return minServersSet;
     }
 
     public double getPlayerThreshold() {
@@ -77,8 +95,11 @@ public class ScalingConfig {
 
     public static class Builder {
         private int availableSlots;
+        private boolean availableSlotsSet;
         private int maxServers;
+        private boolean maxServersSet;
         private int minServers;
+        private boolean minServersSet;
         private double playerThreshold;
         private boolean playerThresholdSet;
         private ScaleDownConfig scaleDown;
@@ -86,16 +107,19 @@ public class ScalingConfig {
 
         public Builder availableSlots(int availableSlots) {
             this.availableSlots = availableSlots;
+            this.availableSlotsSet = true;
             return this;
         }
 
         public Builder maxServers(int maxServers) {
             this.maxServers = maxServers;
+            this.maxServersSet = true;
             return this;
         }
 
         public Builder minServers(int minServers) {
             this.minServers = minServers;
+            this.minServersSet = true;
             return this;
         }
 
@@ -117,9 +141,15 @@ public class ScalingConfig {
 
         public ScalingConfig build() {
             ScalingConfig config = new ScalingConfig();
-            config.setAvailableSlots(availableSlots);
-            config.setMaxServers(maxServers);
-            config.setMinServers(minServers);
+            if (availableSlotsSet) {
+                config.setAvailableSlots(availableSlots);
+            }
+            if (maxServersSet) {
+                config.setMaxServers(maxServers);
+            }
+            if (minServersSet) {
+                config.setMinServers(minServers);
+            }
             if (playerThresholdSet) {
                 config.setPlayerThreshold(playerThreshold);
             }
