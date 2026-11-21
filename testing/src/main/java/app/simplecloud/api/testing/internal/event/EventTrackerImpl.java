@@ -1,32 +1,32 @@
 package app.simplecloud.api.testing.internal.event;
 
 import app.simplecloud.api.event.Subscription;
-import app.simplecloud.api.testing.event.EventCollector;
+import app.simplecloud.api.testing.event.EventTracker;
 
 import java.time.Duration;
 import java.util.ArrayList;
 import java.util.List;
 import java.util.function.Predicate;
 
-public final class EventCollectorImpl<E> implements EventCollector<E> {
+public final class EventTrackerImpl<E> implements EventTracker<E> {
 
     private final Class<E> type;
     private final List<E> events = new ArrayList<>();
     private Subscription subscription = () -> {
     };
 
-    private EventCollectorImpl(Class<E> type) {
+    private EventTrackerImpl(Class<E> type) {
         this.type = type;
     }
 
-    public static <E> EventCollectorImpl<E> subscribe(EventBus bus, Class<E> type, Predicate<? super E> filter) {
-        EventCollectorImpl<E> collector = new EventCollectorImpl<>(type);
-        collector.subscription = bus.subscribe(type, event -> {
+    public static <E> EventTrackerImpl<E> subscribe(EventBus bus, Class<E> type, Predicate<? super E> filter) {
+        EventTrackerImpl<E> tracker = new EventTrackerImpl<>(type);
+        tracker.subscription = bus.subscribe(type, event -> {
             if (filter.test(event)) {
-                collector.add(event);
+                tracker.add(event);
             }
         });
-        return collector;
+        return tracker;
     }
 
     private synchronized void add(E event) {

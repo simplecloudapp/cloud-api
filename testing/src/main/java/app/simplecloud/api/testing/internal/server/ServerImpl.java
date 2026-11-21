@@ -14,15 +14,17 @@ import java.util.Map;
 public class ServerImpl implements Server {
 
     protected final ServerData data;
-    private final Group group;
+    private final @Nullable Group group;
+    private final @Nullable PersistentServer persistentServer;
 
-    public ServerImpl(ServerData data, Group group) {
+    public ServerImpl(ServerData data, @Nullable Group group, @Nullable PersistentServer persistentServer) {
         this.data = data;
         this.group = group;
+        this.persistentServer = persistentServer;
     }
 
     public String getName() {
-        return group.getName() + "-" + data.numericalId;
+        return group != null ? group.getName() + "-" + data.numericalId : persistentServer.getName();
     }
 
     @Override
@@ -32,7 +34,7 @@ public class ServerImpl implements Server {
 
     @Override
     public @Nullable String getPersistentServerId() {
-        return null;
+        return persistentServer == null ? null : persistentServer.getPersistentServerId();
     }
 
     @Override
@@ -42,7 +44,7 @@ public class ServerImpl implements Server {
 
     @Override
     public String getServerGroupId() {
-        return group.getServerGroupId();
+        return group == null ? null : group.getServerGroupId();
     }
 
     @Override
@@ -127,17 +129,17 @@ public class ServerImpl implements Server {
 
     @Override
     public ServerBase getServerBase() {
-        return group;
+        return group != null ? group : persistentServer;
     }
 
     @Override
-    public Group getGroup() {
+    public @Nullable Group getGroup() {
         return group;
     }
 
     @Override
     public @Nullable PersistentServer getPersistentServer() {
-        return null;
+        return persistentServer;
     }
 
     @Override

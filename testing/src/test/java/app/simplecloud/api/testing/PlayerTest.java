@@ -64,8 +64,8 @@ class PlayerTest {
     void joinLogsInAndSwitchesServer(TestCloud cloud) {
         TestServer proxy = cloud.createGroup("proxy").startServer();
         TestServer lobby = cloud.createGroup("lobby").startServer();
-        var logins = cloud.collect(PlayerLoginEvent.class);
-        var switches = cloud.collect(PlayerServerSwitchEvent.class);
+        var logins = cloud.track(PlayerLoginEvent.class);
+        var switches = cloud.track(PlayerServerSwitchEvent.class);
 
         TestPlayer steve = cloud.createPlayer("Steve").login(proxy).join(lobby);
 
@@ -98,7 +98,7 @@ class PlayerTest {
     void disconnectRecordsSessionAndOnlineTime(TestCloud cloud) {
         TestServer lobby = cloud.createGroup("lobby").startServer();
         TestPlayer steve = cloud.createPlayer("Steve").join(lobby);
-        var disconnects = cloud.collect(PlayerDisconnectEvent.class);
+        var disconnects = cloud.track(PlayerDisconnectEvent.class);
 
         cloud.advanceTime(Duration.ofMinutes(5));
         assertEquals(300, steve.getOnlineTimeSeconds());
@@ -118,7 +118,7 @@ class PlayerTest {
     void secondLoginIsNotNew(TestCloud cloud) {
         TestPlayer steve = cloud.createPlayer("Steve").login();
         steve.disconnect();
-        var logins = cloud.collect(PlayerLoginEvent.class);
+        var logins = cloud.track(PlayerLoginEvent.class);
 
         steve.login();
 
@@ -199,8 +199,8 @@ class PlayerTest {
     void kickPublishesKickAndDisconnect(TestCloud cloud) {
         TestServer lobby = cloud.createGroup("lobby").startServer();
         TestPlayer steve = cloud.createPlayer("Steve").join(lobby);
-        var kicks = cloud.collect(PlayerKickEvent.class);
-        var disconnects = cloud.collect(PlayerDisconnectEvent.class);
+        var kicks = cloud.track(PlayerKickEvent.class);
+        var disconnects = cloud.track(PlayerDisconnectEvent.class);
 
         steve.kick(Component.text("bye")).join();
 
@@ -244,8 +244,8 @@ class PlayerTest {
     void profileChangeRenamesPlayer(TestCloud cloud) {
         TestPlayer steve = cloud.createPlayer("Steve").login();
         steve.disconnect();
-        var changes = cloud.collect(PlayerProfileChangedEvent.class);
-        var logins = cloud.collect(PlayerLoginEvent.class);
+        var changes = cloud.track(PlayerProfileChangedEvent.class);
+        var logins = cloud.track(PlayerLoginEvent.class);
 
         steve.changeProfile("Steven", "texture").login();
 
@@ -261,7 +261,7 @@ class PlayerTest {
     @Test
     void clientSettingsCanBeUpdated(TestCloud cloud) {
         TestPlayer steve = cloud.createPlayer("Steve").login();
-        var updates = cloud.collect(PlayerClientSettingsUpdatedEvent.class);
+        var updates = cloud.track(PlayerClientSettingsUpdatedEvent.class);
 
         steve.updateClientSettings(UpdateClientSettingsRequest.builder()
                 .locale("de_DE")
@@ -309,7 +309,7 @@ class PlayerTest {
     @Test
     void publishedPlayerEventsReachApiSubscribers(TestCloud cloud) {
         TestPlayer steve = cloud.createPlayer("Steve");
-        var logins = cloud.collect(PlayerLoginEvent.class);
+        var logins = cloud.track(PlayerLoginEvent.class);
 
         cloud.publish(TestEvents.playerLogin(steve, true, false));
 

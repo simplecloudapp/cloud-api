@@ -225,10 +225,7 @@ public final class TestPlayerApi implements PlayerApi {
 
     @Override
     public CompletableFuture<CloudPlayer.ConnectResult> connectToPersistentServer(UUID uniqueId, String persistentServerId) {
-        return Futures.call(() -> cloud.read(() -> cloud.playerById(uniqueId)
-                .filter(PlayerData::online)
-                .map(player -> CloudPlayer.ConnectResult.SERVER_NOT_FOUND)
-                .orElse(CloudPlayer.ConnectResult.PLAYER_NOT_FOUND)));
+        return Futures.call(() -> cloud.connectToPersistentServer(uniqueId, persistentServerId));
     }
 
     private CloudPlayer snapshot(PlayerData player) {

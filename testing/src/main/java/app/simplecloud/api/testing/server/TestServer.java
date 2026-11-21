@@ -2,7 +2,9 @@ package app.simplecloud.api.testing.server;
 
 import app.simplecloud.api.server.Server;
 import app.simplecloud.api.server.ServerState;
+import app.simplecloud.api.server.UpdateServerRequest;
 import app.simplecloud.api.testing.group.TestGroup;
+import app.simplecloud.api.testing.persistentserver.TestPersistentServer;
 import org.jetbrains.annotations.Nullable;
 
 public interface TestServer extends Server {
@@ -10,7 +12,12 @@ public interface TestServer extends Server {
     String getName();
 
     @Override
-    TestGroup getGroup();
+    @Nullable TestGroup getGroup();
+
+    @Override
+    @Nullable TestPersistentServer getPersistentServer();
+
+    TestServer update(UpdateServerRequest request);
 
     TestServer setState(ServerState state);
 

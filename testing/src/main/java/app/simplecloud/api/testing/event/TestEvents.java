@@ -3,6 +3,11 @@ package app.simplecloud.api.testing.event;
 import app.simplecloud.api.event.group.GroupCreatedEvent;
 import app.simplecloud.api.event.group.GroupDeletedEvent;
 import app.simplecloud.api.event.group.GroupUpdatedEvent;
+import app.simplecloud.api.event.persistentserver.PersistentServerCreatedEvent;
+import app.simplecloud.api.event.persistentserver.PersistentServerDeletedEvent;
+import app.simplecloud.api.event.persistentserver.PersistentServerStartedEvent;
+import app.simplecloud.api.event.persistentserver.PersistentServerStoppedEvent;
+import app.simplecloud.api.event.persistentserver.PersistentServerUpdatedEvent;
 import app.simplecloud.api.event.player.PlayerClientSettingsUpdatedEvent;
 import app.simplecloud.api.event.player.PlayerDisconnectEvent;
 import app.simplecloud.api.event.player.PlayerKickEvent;
@@ -15,6 +20,7 @@ import app.simplecloud.api.event.server.ServerStateChangedEvent;
 import app.simplecloud.api.event.server.ServerStoppedEvent;
 import app.simplecloud.api.event.server.ServerUpdatedEvent;
 import app.simplecloud.api.group.Group;
+import app.simplecloud.api.persistentserver.PersistentServer;
 import app.simplecloud.api.player.CloudPlayer;
 import app.simplecloud.api.player.PlayerClientSettings;
 import app.simplecloud.api.player.PlayerProfile;
@@ -72,6 +78,26 @@ public final class TestEvents {
 
     public static ServerStateChangedEvent serverStateChanged(Server server, ServerState oldState, ServerState newState) {
         return new SimulatedEvents.ServerStateChanged(null, null, frozen(server), oldState, newState);
+    }
+
+    public static PersistentServerCreatedEvent persistentServerCreated(PersistentServer server) {
+        return new SimulatedEvents.PersistentServerCreated(null, null, server.getPersistentServerId(), server.getName());
+    }
+
+    public static PersistentServerUpdatedEvent persistentServerUpdated(PersistentServer server) {
+        return new SimulatedEvents.PersistentServerUpdated(null, null, server.getPersistentServerId(), server.getName());
+    }
+
+    public static PersistentServerDeletedEvent persistentServerDeleted(PersistentServer server) {
+        return new SimulatedEvents.PersistentServerDeleted(null, null, server.getPersistentServerId(), server.getName());
+    }
+
+    public static PersistentServerStartedEvent persistentServerStarted(PersistentServer server, @Nullable String serverId) {
+        return new SimulatedEvents.PersistentServerStarted(null, null, server.getPersistentServerId(), serverId);
+    }
+
+    public static PersistentServerStoppedEvent persistentServerStopped(PersistentServer server, @Nullable String serverId) {
+        return new SimulatedEvents.PersistentServerStopped(null, null, server.getPersistentServerId(), serverId);
     }
 
     public static PlayerLoginEvent playerLogin(CloudPlayer player) {

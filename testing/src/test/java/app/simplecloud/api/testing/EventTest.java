@@ -33,7 +33,7 @@ class EventTest {
     @Test
     void publishedEventsAreStampedButDoNotChangeState(TestCloud cloud) {
         TestServer server = cloud.createGroup("lobby").startServer();
-        var deleted = cloud.collect(ServerDeletedEvent.class);
+        var deleted = cloud.track(ServerDeletedEvent.class);
 
         cloud.publish(TestEvents.serverDeleted(server));
 
@@ -44,8 +44,8 @@ class EventTest {
     }
 
     @Test
-    void collectorFiltersEvents(TestCloud cloud) {
-        var lobbyStarts = cloud.collect(ServerStartedEvent.class,
+    void trackerFiltersEvents(TestCloud cloud) {
+        var lobbyStarts = cloud.track(ServerStartedEvent.class,
                 event -> event.getServer().getGroup().getName().equals("lobby"));
 
         cloud.createGroup("lobby").startServer();
@@ -57,7 +57,7 @@ class EventTest {
     @Test
     void asyncEventsCanBeAwaited(TestCloud cloud) {
         cloud.asyncEvents(true);
-        var started = cloud.collect(ServerStartedEvent.class);
+        var started = cloud.track(ServerStartedEvent.class);
 
         cloud.createGroup("lobby").startServer();
 
@@ -75,7 +75,7 @@ class EventTest {
 
     @Test
     void timestampsFollowTheTestClock(TestCloud cloud) {
-        var started = cloud.collect(ServerStartedEvent.class);
+        var started = cloud.track(ServerStartedEvent.class);
         cloud.advanceTime(Duration.ofMinutes(5));
 
         cloud.createGroup("lobby").startServer();

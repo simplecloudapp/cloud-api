@@ -3,7 +3,7 @@ package app.simplecloud.api.testing.event;
 import java.time.Duration;
 import java.util.List;
 
-public interface EventCollector<E> extends AutoCloseable {
+public interface EventTracker<E> extends AutoCloseable {
 
     Duration DEFAULT_TIMEOUT = Duration.ofSeconds(5);
 

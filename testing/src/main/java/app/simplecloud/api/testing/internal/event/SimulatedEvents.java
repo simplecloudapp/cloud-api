@@ -8,6 +8,11 @@ import app.simplecloud.api.event.server.ServerStartedEvent;
 import app.simplecloud.api.event.server.ServerStateChangedEvent;
 import app.simplecloud.api.event.server.ServerStoppedEvent;
 import app.simplecloud.api.event.server.ServerUpdatedEvent;
+import app.simplecloud.api.event.persistentserver.PersistentServerCreatedEvent;
+import app.simplecloud.api.event.persistentserver.PersistentServerDeletedEvent;
+import app.simplecloud.api.event.persistentserver.PersistentServerStartedEvent;
+import app.simplecloud.api.event.persistentserver.PersistentServerStoppedEvent;
+import app.simplecloud.api.event.persistentserver.PersistentServerUpdatedEvent;
 import app.simplecloud.api.event.player.PlayerClientSettingsUpdatedEvent;
 import app.simplecloud.api.event.player.PlayerDisconnectEvent;
 import app.simplecloud.api.event.player.PlayerKickEvent;
@@ -568,6 +573,161 @@ public final class SimulatedEvents {
         public PlayerClientSettingsUpdated stamp(String networkId, String timestamp) {
             return new PlayerClientSettingsUpdated(orElse(this.networkId, networkId), orElse(this.timestamp, timestamp),
                     playerId, sessionId, settings);
+        }
+    }
+
+    public record PersistentServerCreated(@Nullable String networkId, @Nullable String timestamp,
+                                       String persistentServerId, @Nullable String name)
+            implements PersistentServerCreatedEvent, Stampable {
+
+        @Override
+        public String getNetworkId() {
+            return networkId;
+        }
+
+        @Override
+        public String getPersistentServerId() {
+            return persistentServerId;
+        }
+
+        @Override
+        public @Nullable String getName() {
+            return name;
+        }
+
+        @Override
+        public String getTimestamp() {
+            return timestamp;
+        }
+
+        @Override
+        public PersistentServerCreated stamp(String networkId, String timestamp) {
+            return new PersistentServerCreated(orElse(this.networkId, networkId), orElse(this.timestamp, timestamp),
+                    persistentServerId, name);
+        }
+    }
+
+    public record PersistentServerUpdated(@Nullable String networkId, @Nullable String timestamp,
+                                       String persistentServerId, @Nullable String name)
+            implements PersistentServerUpdatedEvent, Stampable {
+
+        @Override
+        public String getNetworkId() {
+            return networkId;
+        }
+
+        @Override
+        public String getPersistentServerId() {
+            return persistentServerId;
+        }
+
+        @Override
+        public @Nullable String getName() {
+            return name;
+        }
+
+        @Override
+        public String getTimestamp() {
+            return timestamp;
+        }
+
+        @Override
+        public PersistentServerUpdated stamp(String networkId, String timestamp) {
+            return new PersistentServerUpdated(orElse(this.networkId, networkId), orElse(this.timestamp, timestamp),
+                    persistentServerId, name);
+        }
+    }
+
+    public record PersistentServerDeleted(@Nullable String networkId, @Nullable String timestamp,
+                                       String persistentServerId, @Nullable String name)
+            implements PersistentServerDeletedEvent, Stampable {
+
+        @Override
+        public String getNetworkId() {
+            return networkId;
+        }
+
+        @Override
+        public String getPersistentServerId() {
+            return persistentServerId;
+        }
+
+        @Override
+        public @Nullable String getName() {
+            return name;
+        }
+
+        @Override
+        public String getTimestamp() {
+            return timestamp;
+        }
+
+        @Override
+        public PersistentServerDeleted stamp(String networkId, String timestamp) {
+            return new PersistentServerDeleted(orElse(this.networkId, networkId), orElse(this.timestamp, timestamp),
+                    persistentServerId, name);
+        }
+    }
+
+    public record PersistentServerStarted(@Nullable String networkId, @Nullable String timestamp,
+                                       String persistentServerId, @Nullable String serverId)
+            implements PersistentServerStartedEvent, Stampable {
+
+        @Override
+        public String getNetworkId() {
+            return networkId;
+        }
+
+        @Override
+        public String getPersistentServerId() {
+            return persistentServerId;
+        }
+
+        @Override
+        public @Nullable String getServerId() {
+            return serverId;
+        }
+
+        @Override
+        public String getTimestamp() {
+            return timestamp;
+        }
+
+        @Override
+        public PersistentServerStarted stamp(String networkId, String timestamp) {
+            return new PersistentServerStarted(orElse(this.networkId, networkId), orElse(this.timestamp, timestamp),
+                    persistentServerId, serverId);
+        }
+    }
+
+    public record PersistentServerStopped(@Nullable String networkId, @Nullable String timestamp,
+                                       String persistentServerId, @Nullable String serverId)
+            implements PersistentServerStoppedEvent, Stampable {
+
+        @Override
+        public String getNetworkId() {
+            return networkId;
+        }
+
+        @Override
+        public String getPersistentServerId() {
+            return persistentServerId;
+        }
+
+        @Override
+        public @Nullable String getServerId() {
+            return serverId;
+        }
+
+        @Override
+        public String getTimestamp() {
+            return timestamp;
+        }
+
+        @Override
+        public PersistentServerStopped stamp(String networkId, String timestamp) {
+            return new PersistentServerStopped(orElse(this.networkId, networkId), orElse(this.timestamp, timestamp),
+                    persistentServerId, serverId);
         }
     }
 }

@@ -3,12 +3,16 @@ package app.simplecloud.api.testing.internal;
 import app.simplecloud.api.CloudApiException;
 import app.simplecloud.api.group.CreateGroupRequest;
 import app.simplecloud.api.group.GroupQuery;
+import app.simplecloud.api.group.GroupServerType;
 import app.simplecloud.api.group.GroupStartQueue;
 import app.simplecloud.api.group.GroupStartQueueEntry;
 import app.simplecloud.api.group.GroupStartQueueItemStatus;
 import app.simplecloud.api.group.ScalingConfig;
 import app.simplecloud.api.group.ScalingMode;
 import app.simplecloud.api.group.UpdateGroupRequest;
+import app.simplecloud.api.persistentserver.CreatePersistentServerRequest;
+import app.simplecloud.api.persistentserver.PersistentServerQuery;
+import app.simplecloud.api.persistentserver.UpdatePersistentServerRequest;
 import app.simplecloud.api.player.CloudPlayer;
 import app.simplecloud.api.player.CloudPlayer.ConnectResult;
 import app.simplecloud.api.player.PlayerApi;
@@ -29,6 +33,11 @@ import app.simplecloud.api.testing.internal.event.SimulatedEvents.PlayerDisconne
 import app.simplecloud.api.testing.internal.event.SimulatedEvents.PlayerKick;
 import app.simplecloud.api.testing.internal.event.SimulatedEvents.PlayerLogin;
 import app.simplecloud.api.testing.internal.event.SimulatedEvents.PlayerProfileChanged;
+import app.simplecloud.api.testing.internal.event.SimulatedEvents.PersistentServerCreated;
+import app.simplecloud.api.testing.internal.event.SimulatedEvents.PersistentServerDeleted;
+import app.simplecloud.api.testing.internal.event.SimulatedEvents.PersistentServerStarted;
+import app.simplecloud.api.testing.internal.event.SimulatedEvents.PersistentServerStopped;
+import app.simplecloud.api.testing.internal.event.SimulatedEvents.PersistentServerUpdated;
 import app.simplecloud.api.testing.internal.event.SimulatedEvents.PlayerServerSwitch;
 import app.simplecloud.api.testing.internal.event.SimulatedEvents.ServerStarted;
 import app.simplecloud.api.testing.internal.event.SimulatedEvents.ServerStateChanged;
@@ -37,6 +46,8 @@ import app.simplecloud.api.testing.internal.event.SimulatedEvents.ServerUpdated;
 import app.simplecloud.api.testing.internal.group.GroupData;
 import app.simplecloud.api.testing.internal.group.QueuedStart;
 import app.simplecloud.api.testing.internal.group.TestGroupImpl;
+import app.simplecloud.api.testing.internal.persistentserver.PersistentServerData;
+import app.simplecloud.api.testing.internal.persistentserver.TestPersistentServerImpl;
 import app.simplecloud.api.testing.internal.player.PlayerData;
 import app.simplecloud.api.testing.internal.player.ProfileData;
 import app.simplecloud.api.testing.internal.player.SessionData;
@@ -84,6 +95,7 @@ public final class CloudState {
     private final EventBus bus = new EventBus();
     private final Map<String, GroupData> groups = new LinkedHashMap<>();
     private final Map<String, ServerData> servers = new LinkedHashMap<>();
+    private final Map<String, PersistentServerData> persistentServers = new LinkedHashMap<>();
     private final Map<UUID, PlayerData> players = new LinkedHashMap<>();
     private final List<QueuedStart> startQueue = new ArrayList<>();
     private final TestNetworkImpl network = new TestNetworkImpl();
@@ -163,7 +175,9 @@ public final class CloudState {
     public TestServerImpl handle(ServerData data) {
         synchronized (lock) {
             if (data.handle == null) {
-                data.handle = new TestServerImpl(this, data, handle(data.group));
+                data.handle = new TestServerImpl(this, data,
+                        data.group == null ? null : handle(data.group),
+                        data.persistent == null ? null : handle(data.persistent));
             }
             return data.handle;
         }
@@ -338,17 +352,31 @@ public final class CloudState {
     }
 
     private ServerData startLocked(GroupData group, List<Object> events) {
-        String now = timestamp();
-        ServerData server = new ServerData(UUID.randomUUID().toString(), networkId, group, nextNumericalId(group), now);
+        ServerData server = new ServerData(UUID.randomUUID().toString(), networkId, group, null,
+                nextNumericalId(group), timestamp());
         server.serverhostId = SERVERHOST_ID;
+        return launchLocked(server, group.minMemory, group.maxMemory, group.maxPlayers, events);
+    }
+
+    private ServerData startLocked(PersistentServerData persistent, List<Object> events) {
+        ServerData server = new ServerData(UUID.randomUUID().toString(), networkId, null, persistent, 1, timestamp());
+        server.serverhostId = persistent.serverhostId == null ? SERVERHOST_ID : persistent.serverhostId;
+        persistent.server = server;
+        launchLocked(server, persistent.minMemory, persistent.maxMemory, persistent.maxPlayers, events);
+        events.add(new PersistentServerStarted(networkId, server.createdAt, persistent.id, server.id));
+        return server;
+    }
+
+    private ServerData launchLocked(ServerData server, @Nullable Integer minMemory, @Nullable Integer maxMemory,
+                                    @Nullable Integer maxPlayers, List<Object> events) {
         server.ip = SERVER_IP;
         server.port = nextPort++;
-        server.minMemory = group.minMemory == null ? DEFAULT_MIN_MEMORY : group.minMemory;
-        server.maxMemory = group.maxMemory == null ? DEFAULT_MAX_MEMORY : group.maxMemory;
-        server.maxPlayers = group.maxPlayers == null ? DEFAULT_MAX_PLAYERS : group.maxPlayers;
+        server.minMemory = minMemory == null ? DEFAULT_MIN_MEMORY : minMemory;
+        server.maxMemory = maxMemory == null ? DEFAULT_MAX_MEMORY : maxMemory;
+        server.maxPlayers = maxPlayers == null ? DEFAULT_MAX_PLAYERS : maxPlayers;
         server.state = startState;
         servers.put(server.id, server);
-        events.add(new ServerStarted(networkId, now, server.snapshot()));
+        events.add(new ServerStarted(networkId, server.createdAt, server.snapshot()));
         return server;
     }
 
@@ -436,6 +464,10 @@ public final class CloudState {
             events.add(new ServerStateChanged(networkId, now, snapshot, oldState, ServerState.STOPPED));
         }
         events.add(new ServerStopped(networkId, now, snapshot, crashed, exitCode, reason));
+        if (server.persistent != null && server.persistent.server == server) {
+            server.persistent.server = null;
+            events.add(new PersistentServerStopped(networkId, now, server.persistent.id, server.id));
+        }
     }
 
     public Optional<ServerData> serverById(String id) {
@@ -450,7 +482,7 @@ public final class CloudState {
 
     public Optional<ServerData> serverByNumericalId(String groupName, int numericalId) {
         return servers.values().stream()
-                .filter(server -> server.group.name.equals(groupName) && server.numericalId == numericalId)
+                .filter(server -> server.group != null && server.group.name.equals(groupName) && server.numericalId == numericalId)
                 .findFirst();
     }
 
@@ -469,7 +501,7 @@ public final class CloudState {
     }
 
     private static Comparator<ServerData> comparator(@Nullable ServerQuery query) {
-        Comparator<ServerData> natural = Comparator.<ServerData, String>comparing(server -> server.group.name)
+        Comparator<ServerData> natural = Comparator.<ServerData, String>comparing(ServerData::baseName)
                 .thenComparingInt(server -> server.numericalId);
         if (query == null) {
             return natural;
@@ -501,16 +533,19 @@ public final class CloudState {
             return true;
         }
         GroupData group = server.group;
-        if (query.getServerGroupIds() != null && !query.getServerGroupIds().contains(group.id)) {
+        PersistentServerData persistent = server.persistent;
+        if (query.getServerGroupIds() != null && (group == null || !query.getServerGroupIds().contains(group.id))) {
             return false;
         }
-        if (query.getServerGroupNames() != null && !query.getServerGroupNames().contains(group.name)) {
+        if (query.getServerGroupNames() != null && (group == null || !query.getServerGroupNames().contains(group.name))) {
             return false;
         }
-        if (query.getServerGroupTypes() != null && !query.getServerGroupTypes().contains(group.type)) {
+        GroupServerType type = group != null ? group.type : persistent.type;
+        if (query.getServerGroupTypes() != null && !query.getServerGroupTypes().contains(type)) {
             return false;
         }
-        if (query.getServerGroupTags() != null && query.getServerGroupTags().stream().noneMatch(group.tags::contains)) {
+        List<String> tags = group != null ? group.tags : persistent.tags;
+        if (query.getServerGroupTags() != null && query.getServerGroupTags().stream().noneMatch(tags::contains)) {
             return false;
         }
         if (query.getStates() != null && !query.getStates().contains(server.state)) {
@@ -522,7 +557,185 @@ public final class CloudState {
         if (query.getServerhostId() != null && !query.getServerhostId().equals(server.serverhostId)) {
             return false;
         }
-        return query.getPersistentServerId() == null;
+        return query.getPersistentServerId() == null
+                || (persistent != null && query.getPersistentServerId().equals(persistent.id));
+    }
+
+    public TestPersistentServerImpl handle(PersistentServerData data) {
+        synchronized (lock) {
+            if (data.handle == null) {
+                data.handle = new TestPersistentServerImpl(this, data);
+            }
+            return data.handle;
+        }
+    }
+
+    public PersistentServerData createPersistentServer(CreatePersistentServerRequest request) {
+        Objects.requireNonNull(request, "request");
+        return mutate(events -> {
+            String name = request.getName();
+            if (name == null || name.isBlank()) {
+                throw invalid("Persistent server name must not be blank");
+            }
+            if (persistentServerByName(name).isPresent()) {
+                throw conflict("Persistent server '" + name + "' already exists");
+            }
+            String now = timestamp();
+            PersistentServerData server = new PersistentServerData(UUID.randomUUID().toString(), name, now);
+            if (request.getType() != null) {
+                server.type = request.getType();
+            }
+            if (request.getActive() != null) {
+                server.active = request.getActive();
+            }
+            server.minMemory = request.getMinMemory();
+            server.maxMemory = request.getMaxMemory();
+            server.maxPlayers = request.getMaxPlayers();
+            server.priority = request.getPriority();
+            server.serverhostId = request.getServerhostId();
+            server.source = request.getSource();
+            server.workflows = request.getWorkflows();
+            if (request.getProperties() != null) {
+                server.properties.putAll(request.getProperties());
+            }
+            if (request.getTags() != null) {
+                server.tags.addAll(request.getTags());
+            }
+            persistentServers.put(server.id, server);
+            events.add(new PersistentServerCreated(networkId, now, server.id, server.name));
+            return server;
+        });
+    }
+
+    public PersistentServerData updatePersistentServer(String id, UpdatePersistentServerRequest request) {
+        return modifyPersistentServer(id, server -> {
+            String name = request.getName();
+            if (name != null && !name.equals(server.name)) {
+                if (name.isBlank()) {
+                    throw invalid("Persistent server name must not be blank");
+                }
+                if (persistentServerByName(name).isPresent()) {
+                    throw conflict("Persistent server '" + name + "' already exists");
+                }
+                server.name = name;
+            }
+            if (request.getType() != null) {
+                server.type = request.getType();
+            }
+            if (request.getMinMemory() != null) {
+                server.minMemory = request.getMinMemory();
+            }
+            if (request.getMaxMemory() != null) {
+                server.maxMemory = request.getMaxMemory();
+            }
+            if (request.getMaxPlayers() != null) {
+                server.maxPlayers = request.getMaxPlayers();
+            }
+            if (request.getActive() != null) {
+                server.active = request.getActive();
+            }
+            if (request.getPriority() != null) {
+                server.priority = request.getPriority();
+            }
+            if (request.getServerhostId() != null) {
+                server.serverhostId = request.getServerhostId();
+            }
+            if (request.getSource() != null) {
+                server.source = request.getSource();
+            }
+            if (request.getWorkflows() != null) {
+                server.workflows = request.getWorkflows();
+            }
+            if (request.getProperties() != null) {
+                server.properties.clear();
+                server.properties.putAll(request.getProperties());
+            }
+            if (request.getTags() != null) {
+                server.tags.clear();
+                server.tags.addAll(request.getTags());
+            }
+        });
+    }
+
+    public Map<String, Object> updatePersistentServerProperties(String id, Map<String, Object> properties) {
+        PersistentServerData server = modifyPersistentServer(id, data -> data.properties.putAll(properties));
+        return read(() -> new LinkedHashMap<>(server.properties));
+    }
+
+    public Map<String, Object> deletePersistentServerProperties(String id, Collection<String> keys) {
+        PersistentServerData server = modifyPersistentServer(id, data -> keys.forEach(data.properties::remove));
+        return read(() -> new LinkedHashMap<>(server.properties));
+    }
+
+    private PersistentServerData modifyPersistentServer(String id, Consumer<PersistentServerData> change) {
+        return mutate(events -> {
+            PersistentServerData server = requirePersistentServer(id);
+            change.accept(server);
+            server.updatedAt = timestamp();
+            events.add(new PersistentServerUpdated(networkId, server.updatedAt, server.id, server.name));
+            return server;
+        });
+    }
+
+    public void deletePersistentServer(String id) {
+        mutate(events -> {
+            PersistentServerData server = requirePersistentServer(id);
+            if (server.server != null) {
+                stopLocked(server.server, false, null, "persistent server deleted", events);
+            }
+            persistentServers.remove(server.id);
+            server.deleted = true;
+            events.add(new PersistentServerDeleted(networkId, timestamp(), server.id, server.name));
+            return null;
+        });
+    }
+
+    public ServerData startPersistentServer(String id) {
+        return mutate(events -> {
+            PersistentServerData server = requirePersistentServer(id);
+            if (server.server != null) {
+                throw conflict("Persistent server '" + server.name + "' is already running");
+            }
+            return startLocked(server, events);
+        });
+    }
+
+    public Optional<PersistentServerData> persistentServerById(String id) {
+        return Optional.ofNullable(persistentServers.get(id));
+    }
+
+    public Optional<PersistentServerData> persistentServerByName(String name) {
+        return persistentServers.values().stream()
+                .filter(server -> server.name.equals(name))
+                .findFirst();
+    }
+
+    public List<PersistentServerData> persistentServers(@Nullable PersistentServerQuery query) {
+        Stream<PersistentServerData> result = persistentServers.values().stream()
+                .filter(server -> matches(server, query))
+                .sorted(Comparator.comparing(server -> server.name));
+        if (query != null && query.getLimit() != null && query.getLimit() >= 0) {
+            result = result.limit(query.getLimit());
+        }
+        return result.toList();
+    }
+
+    private static boolean matches(PersistentServerData server, @Nullable PersistentServerQuery query) {
+        if (query == null) {
+            return true;
+        }
+        if (query.getActive() != null && !query.getActive().equals(server.active == null || server.active)) {
+            return false;
+        }
+        if (query.getServerhostId() != null && !query.getServerhostId().equals(server.serverhostId)) {
+            return false;
+        }
+        return query.getTags() == null || query.getTags().isEmpty()
+                || query.getTags().stream().anyMatch(server.tags::contains);
+    }
+
+    private PersistentServerData requirePersistentServer(String id) {
+        return persistentServerById(id).orElseThrow(() -> notFound("Persistent server with ID '" + id + "' not found"));
     }
 
     public PlayerData createPlayer(UUID id, String name) {
@@ -817,6 +1030,26 @@ public final class CloudState {
         });
     }
 
+    public ConnectResult connectToPersistentServer(UUID id, String persistentServerId) {
+        return mutate(events -> {
+            PlayerData player = players.get(id);
+            if (player == null || !player.online()) {
+                return ConnectResult.PLAYER_NOT_FOUND;
+            }
+            ServerData target = persistentServerById(persistentServerId)
+                    .map(persistent -> persistent.server)
+                    .orElse(null);
+            if (target == null) {
+                return ConnectResult.SERVER_NOT_FOUND;
+            }
+            if (player.server == target) {
+                return ConnectResult.ALREADY_CONNECTED;
+            }
+            switchLocked(player, target, events);
+            return ConnectResult.SUCCESS;
+        });
+    }
+
     private static boolean joinable(ServerData server) {
         return server.state == ServerState.AVAILABLE
                 && (server.maxPlayers <= 0 || server.playerCount < server.maxPlayers);
@@ -932,6 +1165,11 @@ public final class CloudState {
                             + MAX_SCALE_STEPS + " servers, check its scaling config");
                 }
                 started.add(startLocked(group, events));
+            }
+        }
+        for (PersistentServerData persistent : List.copyOf(persistentServers.values())) {
+            if (!Boolean.FALSE.equals(persistent.active) && persistent.server == null) {
+                started.add(startLocked(persistent, events));
             }
         }
         return started;

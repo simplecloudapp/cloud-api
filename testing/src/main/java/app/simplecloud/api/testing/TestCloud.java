@@ -2,12 +2,14 @@ package app.simplecloud.api.testing;
 
 import app.simplecloud.api.CloudApi;
 import app.simplecloud.api.group.CreateGroupRequest;
+import app.simplecloud.api.persistentserver.CreatePersistentServerRequest;
 import app.simplecloud.api.server.Server;
 import app.simplecloud.api.testing.controller.TestController;
-import app.simplecloud.api.testing.event.EventCollector;
+import app.simplecloud.api.testing.event.EventTracker;
 import app.simplecloud.api.testing.group.TestGroup;
 import app.simplecloud.api.testing.internal.TestCloudImpl;
 import app.simplecloud.api.testing.network.TestNetwork;
+import app.simplecloud.api.testing.persistentserver.TestPersistentServer;
 import app.simplecloud.api.testing.player.TestPlayer;
 import app.simplecloud.api.testing.server.TestServer;
 import org.jetbrains.annotations.Nullable;
@@ -53,6 +55,14 @@ public interface TestCloud extends AutoCloseable {
 
     List<TestServer> servers();
 
+    TestPersistentServer createPersistentServer(String name);
+
+    TestPersistentServer createPersistentServer(CreatePersistentServerRequest request);
+
+    Optional<TestPersistentServer> persistentServer(String name);
+
+    List<TestPersistentServer> persistentServers();
+
     TestPlayer createPlayer(String name);
 
     TestPlayer createPlayer(UUID uniqueId, String name);
@@ -65,9 +75,9 @@ public interface TestCloud extends AutoCloseable {
 
     void publish(Object event);
 
-    <E> EventCollector<E> collect(Class<E> type);
+    <E> EventTracker<E> track(Class<E> type);
 
-    <E> EventCollector<E> collect(Class<E> type, Predicate<? super E> filter);
+    <E> EventTracker<E> track(Class<E> type, Predicate<? super E> filter);
 
     void asyncEvents(boolean async);
 

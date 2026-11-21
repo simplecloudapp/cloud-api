@@ -26,7 +26,7 @@ class GroupTest {
 
     @Test
     void createdGroupIsVisibleThroughApi(TestCloud cloud) {
-        var created = cloud.collect(GroupCreatedEvent.class);
+        var created = cloud.track(GroupCreatedEvent.class);
 
         TestGroup lobby = cloud.createGroup(CreateGroupRequest.builder()
                 .name("lobby")
@@ -94,8 +94,8 @@ class GroupTest {
         TestGroup lobby = cloud.createGroup("lobby");
         lobby.startServer();
         lobby.startServer();
-        var stopped = cloud.collect(ServerStoppedEvent.class);
-        var deleted = cloud.collect(GroupDeletedEvent.class);
+        var stopped = cloud.track(ServerStoppedEvent.class);
+        var deleted = cloud.track(GroupDeletedEvent.class);
 
         lobby.delete();
 

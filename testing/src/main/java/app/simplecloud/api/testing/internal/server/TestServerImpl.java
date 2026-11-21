@@ -2,9 +2,12 @@ package app.simplecloud.api.testing.internal.server;
 
 import app.simplecloud.api.server.Server;
 import app.simplecloud.api.server.ServerState;
+import app.simplecloud.api.server.UpdateServerRequest;
 import app.simplecloud.api.testing.group.TestGroup;
 import app.simplecloud.api.testing.internal.CloudState;
 import app.simplecloud.api.testing.internal.group.TestGroupImpl;
+import app.simplecloud.api.testing.internal.persistentserver.TestPersistentServerImpl;
+import app.simplecloud.api.testing.persistentserver.TestPersistentServer;
 import app.simplecloud.api.testing.server.TestServer;
 import org.jetbrains.annotations.Nullable;
 
@@ -15,17 +18,31 @@ import java.util.Objects;
 public final class TestServerImpl extends ServerImpl implements TestServer {
 
     private final CloudState cloud;
-    private final TestGroupImpl group;
+    private final @Nullable TestGroupImpl group;
+    private final @Nullable TestPersistentServerImpl persistentServer;
 
-    public TestServerImpl(CloudState cloud, ServerData data, TestGroupImpl group) {
-        super(data, group);
+    public TestServerImpl(CloudState cloud, ServerData data, @Nullable TestGroupImpl group,
+                          @Nullable TestPersistentServerImpl persistentServer) {
+        super(data, group, persistentServer);
         this.cloud = cloud;
         this.group = group;
+        this.persistentServer = persistentServer;
     }
 
     @Override
-    public TestGroup getGroup() {
+    public @Nullable TestGroup getGroup() {
         return group;
+    }
+
+    @Override
+    public @Nullable TestPersistentServer getPersistentServer() {
+        return persistentServer;
+    }
+
+    @Override
+    public TestServer update(UpdateServerRequest request) {
+        cloud.updateServer(data.id, Objects.requireNonNull(request, "request"));
+        return this;
     }
 
     @Override

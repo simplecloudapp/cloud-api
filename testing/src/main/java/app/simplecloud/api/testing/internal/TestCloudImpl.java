@@ -2,14 +2,16 @@ package app.simplecloud.api.testing.internal;
 
 import app.simplecloud.api.CloudApi;
 import app.simplecloud.api.group.CreateGroupRequest;
+import app.simplecloud.api.persistentserver.CreatePersistentServerRequest;
 import app.simplecloud.api.server.Server;
 import app.simplecloud.api.testing.TestCloud;
 import app.simplecloud.api.testing.controller.TestController;
-import app.simplecloud.api.testing.event.EventCollector;
+import app.simplecloud.api.testing.event.EventTracker;
 import app.simplecloud.api.testing.group.TestGroup;
-import app.simplecloud.api.testing.internal.event.EventCollectorImpl;
+import app.simplecloud.api.testing.internal.event.EventTrackerImpl;
 import app.simplecloud.api.testing.internal.event.SimulatedEvents;
 import app.simplecloud.api.testing.network.TestNetwork;
+import app.simplecloud.api.testing.persistentserver.TestPersistentServer;
 import app.simplecloud.api.testing.player.TestPlayer;
 import app.simplecloud.api.testing.server.TestServer;
 import org.jetbrains.annotations.Nullable;
@@ -95,6 +97,28 @@ public final class TestCloudImpl implements TestCloud {
     }
 
     @Override
+    public TestPersistentServer createPersistentServer(String name) {
+        return createPersistentServer(CreatePersistentServerRequest.builder().name(name).build());
+    }
+
+    @Override
+    public TestPersistentServer createPersistentServer(CreatePersistentServerRequest request) {
+        return cloud.handle(cloud.createPersistentServer(request));
+    }
+
+    @Override
+    public Optional<TestPersistentServer> persistentServer(String name) {
+        return cloud.read(() -> cloud.persistentServerByName(name).<TestPersistentServer>map(cloud::handle));
+    }
+
+    @Override
+    public List<TestPersistentServer> persistentServers() {
+        return cloud.read(() -> cloud.persistentServers(null).stream()
+                .<TestPersistentServer>map(cloud::handle)
+                .toList());
+    }
+
+    @Override
     public TestPlayer createPlayer(String name) {
         Objects.requireNonNull(name, "name");
         return createPlayer(UUID.nameUUIDFromBytes(("OfflinePlayer:" + name).getBytes(StandardCharsets.UTF_8)), name);
@@ -132,13 +156,13 @@ public final class TestCloudImpl implements TestCloud {
     }
 
     @Override
-    public <E> EventCollector<E> collect(Class<E> type) {
-        return collect(type, event -> true);
+    public <E> EventTracker<E> track(Class<E> type) {
+        return track(type, event -> true);
     }
 
     @Override
-    public <E> EventCollector<E> collect(Class<E> type, Predicate<? super E> filter) {
-        return EventCollectorImpl.subscribe(cloud.bus(), type, filter);
+    public <E> EventTracker<E> track(Class<E> type, Predicate<? super E> filter) {
+        return EventTrackerImpl.subscribe(cloud.bus(), type, filter);
     }
 
     @Override

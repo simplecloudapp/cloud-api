@@ -4,6 +4,8 @@ import app.simplecloud.api.server.Server;
 import app.simplecloud.api.server.ServerState;
 import app.simplecloud.api.testing.internal.group.GroupData;
 import app.simplecloud.api.testing.internal.group.GroupImpl;
+import app.simplecloud.api.testing.internal.persistentserver.PersistentServerData;
+import app.simplecloud.api.testing.internal.persistentserver.PersistentServerImpl;
 import org.jetbrains.annotations.Nullable;
 
 import java.util.LinkedHashMap;
@@ -13,7 +15,8 @@ public final class ServerData {
 
     public final String id;
     public final String networkId;
-    public final GroupData group;
+    public final @Nullable GroupData group;
+    public final @Nullable PersistentServerData persistent;
     public final int numericalId;
     public final String createdAt;
     public String updatedAt;
@@ -29,21 +32,30 @@ public final class ServerData {
     public boolean running = true;
     public @Nullable TestServerImpl handle;
 
-    public ServerData(String id, String networkId, GroupData group, int numericalId, String createdAt) {
+    public ServerData(String id, String networkId, @Nullable GroupData group, @Nullable PersistentServerData persistent,
+                      int numericalId, String createdAt) {
+        if ((group == null) == (persistent == null)) {
+            throw new IllegalArgumentException("A server belongs to exactly one group or persistent server");
+        }
         this.id = id;
         this.networkId = networkId;
         this.group = group;
+        this.persistent = persistent;
         this.numericalId = numericalId;
         this.createdAt = createdAt;
         this.updatedAt = createdAt;
     }
 
+    public String baseName() {
+        return group != null ? group.name : persistent.name;
+    }
+
     public String name() {
-        return group.name + "-" + numericalId;
+        return group != null ? group.name + "-" + numericalId : persistent.name;
     }
 
     public ServerData copy() {
-        ServerData copy = new ServerData(id, networkId, group, numericalId, createdAt);
+        ServerData copy = new ServerData(id, networkId, group, persistent, numericalId, createdAt);
         copy.updatedAt = updatedAt;
         copy.serverhostId = serverhostId;
         copy.ip = ip;
@@ -59,6 +71,8 @@ public final class ServerData {
     }
 
     public Server snapshot() {
-        return new ServerImpl(copy(), new GroupImpl(group.copy()));
+        return new ServerImpl(copy(),
+                group == null ? null : new GroupImpl(group.copy()),
+                persistent == null ? null : new PersistentServerImpl(persistent.copy()));
     }
 }

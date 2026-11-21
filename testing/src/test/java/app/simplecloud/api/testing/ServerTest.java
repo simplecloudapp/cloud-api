@@ -29,7 +29,7 @@ class ServerTest {
 
     @Test
     void startedServersGetIncreasingNumericalIds(TestCloud cloud) {
-        var started = cloud.collect(ServerStartedEvent.class);
+        var started = cloud.track(ServerStartedEvent.class);
         TestGroup lobby = cloud.createGroup("lobby");
 
         TestServer first = lobby.startServer();
@@ -56,7 +56,7 @@ class ServerTest {
     @Test
     void stateChangePublishesEventAndIsVisibleThroughApi(TestCloud cloud) {
         TestServer server = cloud.createGroup("bedwars").startServer();
-        var changes = cloud.collect(ServerStateChangedEvent.class);
+        var changes = cloud.track(ServerStateChangedEvent.class);
 
         server.setState(ServerState.INGAME);
 
@@ -80,6 +80,20 @@ class ServerTest {
     }
 
     @Test
+    void handleCanBeUpdatedWithRequest(TestCloud cloud) {
+        TestServer server = cloud.createGroup("lobby").startServer();
+        var changes = cloud.track(ServerStateChangedEvent.class);
+
+        server.update(UpdateServerRequest.builder()
+                .state(ServerState.INGAME)
+                .maxPlayers(16)
+                .build());
+
+        assertEquals(ServerState.INGAME, changes.single().getNewState());
+        assertEquals(16, cloud.api().server().getServerById(server.getServerId()).join().getMaxPlayers());
+    }
+
+    @Test
     void queryFiltersByGroupAndState(TestCloud cloud) {
         TestGroup lobby = cloud.createGroup("lobby");
         lobby.startServer();
@@ -98,7 +112,7 @@ class ServerTest {
     @Test
     void crashPublishesStoppedEventWithDetails(TestCloud cloud) {
         TestServer server = cloud.createGroup("lobby").startServer();
-        var stopped = cloud.collect(ServerStoppedEvent.class);
+        var stopped = cloud.track(ServerStoppedEvent.class);
 
         server.crash(137, "out of memory");
 
@@ -130,7 +144,7 @@ class ServerTest {
     void serversStartInConfiguredStartState(TestCloud cloud) {
         cloud.controller().startState(ServerState.STARTING);
         TestServer server = cloud.createGroup("lobby").startServer();
-        var changes = cloud.collect(ServerStateChangedEvent.class);
+        var changes = cloud.track(ServerStateChangedEvent.class);
 
         assertEquals(ServerState.STARTING, server.getState());
 
