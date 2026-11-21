@@ -22,7 +22,10 @@ fun devBuildId(): String {
         .getOrElse(System.currentTimeMillis().toString())
 }
 
-val buildVersion = if (isSnapshot) "${baseVersion}-dev.${devBuildId()}-${commitHash}" else baseVersion
+val publishVersion = providers.environmentVariable("PUBLISH_VERSION").orNull?.takeIf { it.isNotBlank() }
+
+val buildVersion = publishVersion
+    ?: if (isSnapshot) "${baseVersion}-dev.${devBuildId()}-${commitHash}" else baseVersion
 
 allprojects {
     group = "app.simplecloud.api"
