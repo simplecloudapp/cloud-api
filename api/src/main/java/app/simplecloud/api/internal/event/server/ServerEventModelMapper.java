@@ -79,6 +79,10 @@ final class ServerEventModelMapper {
             summary.setPersistentServer(persistentServer);
             summary.setPersistentServerId(persistentServerId);
             server.setPersistentServer(new PersistentServerImpl(persistentServer));
+            build.buf.gen.simplecloud.controller.v2.SourceConfig source = persistentServerConfig.getBaseConfig().getSourceConfig();
+            if (source.hasBlueprint()) {
+                server.setBlueprint(BlueprintImpl.from(source.getBlueprint(), null, null));
+            }
         }
 
         return server;

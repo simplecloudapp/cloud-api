@@ -281,6 +281,9 @@ public class PersistentServerApiImpl implements PersistentServerApi {
             String createdBlueprintId = null;
             try {
                 createdBlueprintId = inlineBlueprintSupport.createBlueprint(request.getName(), effectiveCreateBlueprint);
+                if (createdBlueprintId != null) {
+                    InlineBlueprintSupport.invalidateCache(cache, null);
+                }
                 SourceConfig effectiveSource = createdBlueprintId != null
                         ? inlineBlueprintSupport.buildInlineBlueprintSource(request.getSource(), createdBlueprintId)
                         : request.getSource();
@@ -375,7 +378,8 @@ public class PersistentServerApiImpl implements PersistentServerApi {
                 cache.invalidateAll(QueryKey.of("persistentServers"));
                 cache.invalidateAll(QueryKey.of("persistentServer", "name"));
 
-                inlineBlueprintSupport.deleteBlueprint(blueprintId);
+                inlineBlueprintSupport.deleteBlueprintOfDeletedResource(blueprintId);
+                InlineBlueprintSupport.invalidateCache(cache, blueprintId);
             } catch (ApiException e) {
                 throw ApiErrors.from(e);
             }

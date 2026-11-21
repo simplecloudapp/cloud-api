@@ -28,6 +28,10 @@ public class ServerImpl implements Server {
         this.delegate = delegate;
     }
 
+    public void setBlueprint(@Nullable Blueprint blueprint) {
+        this.blueprint = blueprint;
+    }
+
     public void setPersistentServer(PersistentServer persistentServer) {
         this.persistentServer = persistentServer;
     }

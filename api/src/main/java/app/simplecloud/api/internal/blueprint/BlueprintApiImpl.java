@@ -75,7 +75,7 @@ public class BlueprintApiImpl implements BlueprintApi {
         }
         return cache.fetchWithTransientMissRecovery(
                 QueryKey.of("blueprint", id),
-                () -> fetchFirst(summary -> id.equals(summary.getBlueprintId())),
+                () -> fetchFirst(summary -> id.equalsIgnoreCase(summary.getBlueprintId())),
                 Objects::isNull,
                 TRANSIENT_MISS_RETRY_DELAY,
                 TRANSIENT_MISS_MAX_RETRIES
@@ -201,13 +201,11 @@ public class BlueprintApiImpl implements BlueprintApi {
     }
 
     private void invalidate(String id) {
-        cache.invalidate(QueryKey.of("blueprint", id));
-        invalidateLists();
+        InlineBlueprintSupport.invalidateCache(cache, id);
     }
 
     private void invalidateLists() {
-        cache.invalidateAll(QueryKey.of("blueprints"));
-        cache.invalidateAll(QueryKey.of("blueprint", "name"));
+        InlineBlueprintSupport.invalidateCache(cache, null);
     }
 
     private static BlueprintsApi createBlueprintsApi(CloudApiOptions options, ApiClient httpClient) {

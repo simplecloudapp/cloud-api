@@ -65,7 +65,8 @@ public interface Blueprint {
     /**
      * Returns the runtime configuration for servers using this blueprint.
      *
-     * <p>Defines the runtime type (Java or binary) and associated configuration.
+     * <p>Defines the runtime type (Java or binary) and associated configuration. In blueprints from events,
+     * numbers and booleans in {@code with} are strings, lists and objects are decoded.
      *
      * @return the runtime config, or null if not set
      */

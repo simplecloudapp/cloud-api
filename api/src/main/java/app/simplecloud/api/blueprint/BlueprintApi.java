@@ -59,7 +59,8 @@ public interface BlueprintApi {
      * Creates a new blueprint.
      *
      * <p>The name is required. Without a runtime config the same Java defaults as for inline blueprints are used,
-     * and without a server URL it is resolved from the server software and version.
+     * without workflow steps {@code internal/setup} is used, and without a server URL it is resolved from the
+     * server software and version.
      *
      * @param request the configuration for the new blueprint
      * @return a CompletableFuture that completes with the created blueprint, or fails with a
@@ -78,6 +79,7 @@ public interface BlueprintApi {
 
     /**
      * Updates an existing blueprint. Only specified fields are changed, the server URL is not resolved again.
+     * A runtime config replaces the stored one and needs a type.
      *
      * @param id      the unique ID of the blueprint to update
      * @param request the fields to change

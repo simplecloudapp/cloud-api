@@ -138,7 +138,9 @@ public final class CreateRequestDefaults {
                 .serverSoftware(blueprint.getServerSoftware())
                 .serverUrl(blueprint.getServerUrl())
                 .softwareVersion(blueprint.getSoftwareVersion())
-                .workflowSteps(blueprint.getWorkflowSteps())
+                .workflowSteps(blueprint.getWorkflowSteps() != null
+                        ? List.copyOf(blueprint.getWorkflowSteps())
+                        : DEFAULT_WORKFLOW_START)
                 .build();
     }
 

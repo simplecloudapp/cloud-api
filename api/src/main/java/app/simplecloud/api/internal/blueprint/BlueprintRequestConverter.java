@@ -48,6 +48,9 @@ final class BlueprintRequestConverter {
     }
 
     ModelsPatchBlueprintRequest toPatchRequest(UpdateBlueprintRequest request) {
+        if (request.getRuntimeConfig() != null && request.getRuntimeConfig().getType() == null) {
+            throw new IllegalArgumentException("runtimeConfig.type is required when updating the runtime config");
+        }
         ModelsPatchBlueprintRequest apiRequest = new ModelsPatchBlueprintRequest();
         apiRequest.setName(request.getName());
         apiRequest.setConfigurator(request.getConfigurator());

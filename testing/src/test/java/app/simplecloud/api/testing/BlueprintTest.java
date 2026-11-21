@@ -3,6 +3,7 @@ package app.simplecloud.api.testing;
 import app.simplecloud.api.CloudApiException;
 import app.simplecloud.api.blueprint.Blueprint;
 import app.simplecloud.api.blueprint.CreateBlueprintRequest;
+import app.simplecloud.api.blueprint.RuntimeConfig;
 import app.simplecloud.api.blueprint.RuntimeType;
 import app.simplecloud.api.blueprint.UpdateBlueprintRequest;
 import app.simplecloud.api.event.blueprint.BlueprintCreatedEvent;
@@ -17,6 +18,7 @@ import app.simplecloud.api.testing.server.TestServer;
 import org.junit.jupiter.api.Test;
 
 import java.util.List;
+import java.util.Map;
 import java.util.concurrent.CompletionException;
 
 import static org.junit.jupiter.api.Assertions.assertEquals;
@@ -41,6 +43,7 @@ class BlueprintTest {
         assertEquals("1.21.4", fetched.getMinecraftVersion());
         assertNotNull(fetched.getServerUrl());
         assertEquals(RuntimeType.JAVA, fetched.getRuntimeConfig().getType());
+        assertEquals(List.of("internal/setup"), fetched.getWorkflowSteps());
         assertEquals(paper.getBlueprintId(), created.single().getBlueprint().getBlueprintId());
         assertEquals(List.of(fetched.getBlueprintId()),
                 cloud.api().blueprint().getAllBlueprints().join().stream().map(Blueprint::getBlueprintId).toList());
@@ -142,9 +145,34 @@ class BlueprintTest {
 
         Blueprint blueprint = cloud.blueprint("lobby").orElseThrow();
         assertEquals(blueprint.getBlueprintId(), lobby.getSource().getBlueprint());
+        assertEquals(List.of("internal/setup"), blueprint.getWorkflowSteps());
 
         lobby.delete();
 
         assertFalse(cloud.blueprint("lobby").isPresent());
+    }
+
+    @Test
+    void unknownSourceBlueprintFailsWithNotFound(TestCloud cloud) {
+        CloudApiException exception = assertThrows(CloudApiException.class, () -> cloud.createGroup(CreateGroupRequest.builder()
+                .name("lobby")
+                .source(SourceConfig.builder().type(SourceType.BLUEPRINT).blueprint("unknown").build())
+                .build()));
+
+        assertEquals(CloudApiException.Reason.NOT_FOUND, exception.getReason());
+    }
+
+    @Test
+    void updateRuntimeConfigWithoutTypeFails(TestCloud cloud) {
+        Blueprint paper = cloud.createBlueprint("paper");
+
+        CompletionException exception = assertThrows(CompletionException.class, () -> cloud.api().blueprint()
+                .updateBlueprint(paper.getBlueprintId(), UpdateBlueprintRequest.builder()
+                        .runtimeConfig(RuntimeConfig.builder().with(Map.of("version", "17")).build())
+                        .build())
+                .join());
+
+        CloudApiException cause = assertInstanceOf(CloudApiException.class, exception.getCause());
+        assertEquals(CloudApiException.Reason.INVALID_REQUEST, cause.getReason());
     }
 }

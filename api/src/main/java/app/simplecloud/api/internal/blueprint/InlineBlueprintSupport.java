@@ -3,6 +3,8 @@ package app.simplecloud.api.internal.blueprint;
 import app.simplecloud.api.CloudApiException;
 import app.simplecloud.api.CloudApiOptions;
 import app.simplecloud.api.blueprint.CreateBlueprintRequest;
+import app.simplecloud.api.cache.QueryCache;
+import app.simplecloud.api.cache.QueryKey;
 import app.simplecloud.api.group.SourceConfig;
 import app.simplecloud.api.group.SourceType;
 import app.simplecloud.api.internal.web.ApiErrors;
@@ -14,11 +16,14 @@ import app.simplecloud.api.web.models.ModelsSourceConfig;
 import org.jetbrains.annotations.Nullable;
 
 import java.time.Duration;
+import java.util.logging.Level;
+import java.util.logging.Logger;
 
 /**
  * Shared support for resources that create or delete a referenced blueprint as part of their lifecycle.
  */
 public final class InlineBlueprintSupport {
+    private static final Logger LOGGER = Logger.getLogger(InlineBlueprintSupport.class.getName());
     private static final Duration DELETE_RETRY_DELAY = Duration.ofMillis(200);
     private static final int DELETE_MAX_ATTEMPTS = 3;
     private static final Duration RECONCILE_RETRY_DELAY = Duration.ofMillis(200);
@@ -64,11 +69,18 @@ public final class InlineBlueprintSupport {
         }
 
         String name = normalize(request.getName());
-        ModelsCreateBlueprintRequest apiRequest = converter.toCreateRequest(name != null ? name : blueprintName, request);
-        ModelsCreateBlueprintResponse response = blueprintsApi.createBlueprint(
-                options.getNetworkId(),
-                apiRequest
-        );
+        String effectiveName = name != null ? name : blueprintName;
+        ModelsCreateBlueprintRequest apiRequest = converter.toCreateRequest(effectiveName, request);
+        ModelsCreateBlueprintResponse response;
+        try {
+            response = blueprintsApi.createBlueprint(options.getNetworkId(), apiRequest);
+        } catch (ApiException e) {
+            if (e.getCode() == 409) {
+                throw ApiErrors.from("Blueprint '" + effectiveName
+                        + "' already exists, set another name with CreateBlueprintRequest.name", e);
+            }
+            throw e;
+        }
 
         String blueprintId = response.getBlueprintId();
         if (blueprintId == null || blueprintId.isBlank()) {
@@ -91,6 +103,26 @@ public final class InlineBlueprintSupport {
     @Nullable
     public String getReferencedBlueprintId(@Nullable ModelsSourceConfig source) {
         return source == null ? null : normalize(source.getBlueprint());
+    }
+
+    /**
+     * Deletes the blueprint of a resource that was already deleted. Failures are logged instead of thrown,
+     * because the resource itself is gone.
+     */
+    public void deleteBlueprintOfDeletedResource(@Nullable String blueprintId) {
+        try {
+            deleteBlueprint(blueprintId);
+        } catch (ApiException e) {
+            LOGGER.log(Level.WARNING, "Failed to delete blueprint " + blueprintId + ", it may be left unused", e);
+        }
+    }
+
+    public static void invalidateCache(QueryCache cache, @Nullable String blueprintId) {
+        if (blueprintId != null) {
+            cache.invalidate(QueryKey.of("blueprint", blueprintId));
+        }
+        cache.invalidateAll(QueryKey.of("blueprints"));
+        cache.invalidateAll(QueryKey.of("blueprint", "name"));
     }
 
     public void deleteBlueprint(@Nullable String blueprintId) throws ApiException {

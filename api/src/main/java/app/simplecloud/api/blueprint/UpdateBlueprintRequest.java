@@ -99,7 +99,7 @@ public class UpdateBlueprintRequest {
         }
 
         /**
-         * Replaces the whole runtime config, keys missing in {@code with} are removed.
+         * Replaces the whole runtime config, keys missing in {@code with} are removed. The type is required.
          */
         public Builder runtimeConfig(RuntimeConfig runtimeConfig) {
             this.runtimeConfig = runtimeConfig;

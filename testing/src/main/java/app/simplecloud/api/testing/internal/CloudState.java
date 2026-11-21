@@ -14,6 +14,7 @@ import app.simplecloud.api.group.ScalingMode;
 import app.simplecloud.api.group.SourceConfig;
 import app.simplecloud.api.group.SourceType;
 import app.simplecloud.api.group.UpdateGroupRequest;
+import app.simplecloud.api.group.WorkflowsConfig;
 import app.simplecloud.api.internal.create.CreateRequestDefaults;
 import app.simplecloud.api.persistentserver.CreatePersistentServerRequest;
 import app.simplecloud.api.persistentserver.PersistentServerQuery;
@@ -213,7 +214,8 @@ public final class CloudState {
             if (groupByName(name).isPresent()) {
                 throw conflict("Group '" + name + "' already exists");
             }
-            SourceConfig source = inlineSourceLocked(name, request.getCreateBlueprint(), request.getSource(), events);
+            SourceConfig source = inlineSourceLocked(name, request.getCreateBlueprint(), request.getSource(),
+                    request.getWorkflows(), events);
             String now = timestamp();
             GroupData group = new GroupData(UUID.randomUUID().toString(), name, now);
             if (request.getType() != null) {
@@ -279,6 +281,7 @@ public final class CloudState {
                 group.scaling = request.getScaling();
             }
             if (request.getSource() != null) {
+                requireSourceBlueprint(request.getSource());
                 group.source = request.getSource();
             }
             if (request.getWorkflows() != null) {
@@ -596,7 +599,8 @@ public final class CloudState {
             if (persistentServerByName(name).isPresent()) {
                 throw conflict("Persistent server '" + name + "' already exists");
             }
-            SourceConfig source = inlineSourceLocked(name, request.getCreateBlueprint(), request.getSource(), events);
+            SourceConfig source = inlineSourceLocked(name, request.getCreateBlueprint(), request.getSource(),
+                    request.getWorkflows(), events);
             String now = timestamp();
             PersistentServerData server = new PersistentServerData(UUID.randomUUID().toString(), name, now);
             if (request.getType() != null) {
@@ -658,6 +662,7 @@ public final class CloudState {
                 server.serverhostId = request.getServerhostId();
             }
             if (request.getSource() != null) {
+                requireSourceBlueprint(request.getSource());
                 server.source = request.getSource();
             }
             if (request.getWorkflows() != null) {
@@ -763,7 +768,7 @@ public final class CloudState {
             if (name == null || name.isBlank()) {
                 throw invalid("Blueprint name is required");
             }
-            return createBlueprintLocked(name, request, events);
+            return createBlueprintLocked(name.trim(), request, events);
         });
     }
 
@@ -786,8 +791,8 @@ public final class CloudState {
             if (name == null || name.isBlank()) {
                 throw invalid("Blueprint name is required");
             }
-            requireFreeBlueprintName(blueprint, name);
-            apply(blueprint, fromRequest(blueprint, name, request));
+            requireFreeBlueprintName(blueprint, name.trim());
+            apply(blueprint, fromRequest(blueprint, name.trim(), request));
         });
     }
 
@@ -815,6 +820,9 @@ public final class CloudState {
                 changed.softwareVersion = request.getSoftwareVersion();
             }
             if (request.getRuntimeConfig() != null) {
+                if (request.getRuntimeConfig().getType() == null) {
+                    throw invalid("runtimeConfig.type is required when updating the runtime config");
+                }
                 changed.runtimeConfig = BlueprintData.copy(request.getRuntimeConfig());
             }
             if (request.getWorkflowSteps() != null) {
@@ -863,14 +871,16 @@ public final class CloudState {
     }
 
     public List<BlueprintData> blueprints() {
-        return blueprints.values().stream()
-                .sorted(Comparator.comparing(blueprint -> blueprint.name))
-                .toList();
+        return new ArrayList<>(blueprints.values()).reversed();
     }
 
     private @Nullable SourceConfig inlineSourceLocked(String resourceName, @Nullable CreateBlueprintRequest request,
-                                                     @Nullable SourceConfig source, List<Object> events) {
+                                                     @Nullable SourceConfig source, @Nullable WorkflowsConfig workflows,
+                                                     List<Object> events) {
         if (request == null) {
+            if (source != null) {
+                requireSourceBlueprint(source);
+            }
             return source;
         }
         if (source != null) {
@@ -884,12 +894,22 @@ public final class CloudState {
                 throw invalid("createBlueprint cannot be combined with source.image");
             }
         }
-        String name = request.getName() != null && !request.getName().isBlank() ? request.getName() : resourceName;
-        BlueprintData blueprint = createBlueprintLocked(name, request, events);
+        String name = request.getName() != null && !request.getName().isBlank() ? request.getName().trim() : resourceName;
+        CreateBlueprintRequest effective = defaults.defaultInlineBlueprint(request, defaults.defaultWorkflows(workflows));
+        if (blueprintByName(name).isPresent()) {
+            throw conflict("Blueprint '" + name + "' already exists, set another name with CreateBlueprintRequest.name");
+        }
+        BlueprintData blueprint = createBlueprintLocked(name, effective, events);
         return SourceConfig.builder()
                 .type(SourceType.BLUEPRINT)
                 .blueprint(blueprint.id)
                 .build();
+    }
+
+    private void requireSourceBlueprint(SourceConfig source) {
+        if (source.getBlueprint() != null && !blueprints.containsKey(source.getBlueprint())) {
+            throw notFound("Blueprint not found");
+        }
     }
 
     private void deleteUnusedBlueprintLocked(@Nullable SourceConfig source, List<Object> events) {

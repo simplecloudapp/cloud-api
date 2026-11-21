@@ -150,7 +150,7 @@ public interface TestCloud extends AutoCloseable {
     Optional<Blueprint> blueprint(String name);
 
     /**
-     * Returns all blueprints sorted by name.
+     * Returns all blueprints, newest first.
      */
     List<Blueprint> blueprints();
 
