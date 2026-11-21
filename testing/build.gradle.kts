@@ -21,7 +21,7 @@ publishing {
 
             pom {
                 name = "SimpleCloud API Testing"
-                description = "In-memory testing framework for the SimpleCloud API"
+                description = "Testing framework for the SimpleCloud API"
                 url = "https://github.com/simplecloudapp/cloud-api"
 
                 licenses {

@@ -9,6 +9,7 @@ import app.simplecloud.api.testing.event.EventCollector;
 import app.simplecloud.api.testing.group.TestGroup;
 import app.simplecloud.api.testing.internal.event.EventCollectorImpl;
 import app.simplecloud.api.testing.internal.event.SimulatedEvents;
+import app.simplecloud.api.testing.network.TestNetwork;
 import app.simplecloud.api.testing.server.TestServer;
 import org.jetbrains.annotations.Nullable;
 
@@ -121,6 +122,11 @@ public final class TestCloudImpl implements TestCloud {
     @Override
     public TestController controller() {
         return controller;
+    }
+
+    @Override
+    public TestNetwork network() {
+        return cloud.network();
     }
 
     @Override

@@ -7,6 +7,7 @@ import app.simplecloud.api.testing.controller.TestController;
 import app.simplecloud.api.testing.event.EventCollector;
 import app.simplecloud.api.testing.group.TestGroup;
 import app.simplecloud.api.testing.internal.TestCloudImpl;
+import app.simplecloud.api.testing.network.TestNetwork;
 import app.simplecloud.api.testing.server.TestServer;
 import org.jetbrains.annotations.Nullable;
 
@@ -60,6 +61,8 @@ public interface TestCloud extends AutoCloseable {
     void asyncEvents(boolean async);
 
     TestController controller();
+
+    TestNetwork network();
 
     Instant now();
 

@@ -25,8 +25,8 @@ final class TestCloudApi implements CloudApi {
     TestCloudApi(CloudState cloud, @Nullable String currentServerId) {
         this.cloud = cloud;
         this.currentServerId = currentServerId;
-        this.groupApi = new TestGroupApi(cloud);
-        this.serverApi = new TestServerApi(cloud, () -> this.currentServerId);
+        this.groupApi = cloud.network().wrap(GroupApi.class, new TestGroupApi(cloud));
+        this.serverApi = cloud.network().wrap(ServerApi.class, new TestServerApi(cloud, () -> this.currentServerId));
         this.eventApi = new TestEventApi(cloud.bus());
     }
 

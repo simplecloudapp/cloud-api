@@ -1,6 +1,7 @@
 package app.simplecloud.api.testing;
 
 import app.simplecloud.api.CloudApi;
+import app.simplecloud.api.CloudApiException;
 import app.simplecloud.api.event.server.ServerStartedEvent;
 import app.simplecloud.api.event.server.ServerStateChangedEvent;
 import app.simplecloud.api.event.server.ServerStoppedEvent;
@@ -12,10 +13,13 @@ import app.simplecloud.api.testing.group.TestGroup;
 import app.simplecloud.api.testing.server.TestServer;
 import org.junit.jupiter.api.Test;
 
+import java.time.Duration;
 import java.util.List;
+import java.util.concurrent.CompletionException;
 
 import static org.junit.jupiter.api.Assertions.assertEquals;
 import static org.junit.jupiter.api.Assertions.assertFalse;
+import static org.junit.jupiter.api.Assertions.assertInstanceOf;
 import static org.junit.jupiter.api.Assertions.assertSame;
 import static org.junit.jupiter.api.Assertions.assertThrows;
 import static org.junit.jupiter.api.Assertions.assertTrue;
@@ -120,5 +124,57 @@ class ServerTest {
     @Test
     void currentServerFailsWithoutRunAs(TestCloud cloud) {
         assertThrows(Exception.class, () -> cloud.api().server().getCurrentServer().join());
+    }
+
+    @Test
+    void serversStartInConfiguredStartState(TestCloud cloud) {
+        cloud.controller().startState(ServerState.STARTING);
+        TestServer server = cloud.createGroup("lobby").startServer();
+        var changes = cloud.collect(ServerStateChangedEvent.class);
+
+        assertEquals(ServerState.STARTING, server.getState());
+
+        server.setState(ServerState.AVAILABLE);
+
+        assertEquals(ServerState.STARTING, changes.single().getOldState());
+    }
+
+    @Test
+    void invalidStartStateIsRejected(TestCloud cloud) {
+        assertThrows(IllegalArgumentException.class, () -> cloud.controller().startState(ServerState.STOPPED));
+    }
+
+    @Test
+    void serversCanBeSortedByNumericalIdDescending(TestCloud cloud) {
+        TestGroup lobby = cloud.createGroup("lobby");
+        lobby.startServer();
+        lobby.startServer();
+        lobby.startServer();
+
+        List<Server> servers = cloud.api().server().getAllServers(ServerQuery.create()
+                .sortBy("numerical_id")
+                .sortOrder("desc")).join();
+
+        assertEquals(List.of(3, 2, 1), servers.stream().map(Server::getNumericalId).toList());
+    }
+
+    @Test
+    void serversCanBeSortedByCreationTime(TestCloud cloud) {
+        cloud.createGroup("b").startServer();
+        cloud.advanceTime(Duration.ofSeconds(1));
+        cloud.createGroup("a").startServer();
+
+        List<Server> servers = cloud.api().server().getAllServers(ServerQuery.create().sortBy("created_at")).join();
+
+        assertEquals(List.of("b", "a"), servers.stream().map(server -> server.getGroup().getName()).toList());
+    }
+
+    @Test
+    void unknownSortFieldFailsWithInvalidRequest(TestCloud cloud) {
+        CompletionException exception = assertThrows(CompletionException.class,
+                () -> cloud.api().server().getAllServers(ServerQuery.create().sortBy("name")).join());
+
+        CloudApiException cause = assertInstanceOf(CloudApiException.class, exception.getCause());
+        assertEquals(CloudApiException.Reason.INVALID_REQUEST, cause.getReason());
     }
 }

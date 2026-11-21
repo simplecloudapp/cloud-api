@@ -6,6 +6,8 @@ import app.simplecloud.api.group.GroupQuery;
 import app.simplecloud.api.group.GroupStartQueue;
 import app.simplecloud.api.group.GroupStartQueueEntry;
 import app.simplecloud.api.group.GroupStartQueueItemStatus;
+import app.simplecloud.api.group.ScalingConfig;
+import app.simplecloud.api.group.ScalingMode;
 import app.simplecloud.api.group.UpdateGroupRequest;
 import app.simplecloud.api.server.Server;
 import app.simplecloud.api.server.ServerQuery;
@@ -33,6 +35,7 @@ import java.util.Collection;
 import java.util.Comparator;
 import java.util.LinkedHashMap;
 import java.util.List;
+import java.util.Locale;
 import java.util.Map;
 import java.util.Objects;
 import java.util.Optional;
@@ -51,6 +54,7 @@ public final class CloudState {
     private static final int DEFAULT_MIN_MEMORY = 512;
     private static final int DEFAULT_MAX_MEMORY = 1024;
     private static final int DEFAULT_MAX_PLAYERS = 20;
+    private static final int MAX_SCALE_STEPS = 100;
 
     private static final Instant START_TIME = Instant.parse("2026-01-01T00:00:00Z");
 
@@ -60,8 +64,11 @@ public final class CloudState {
     private final Map<String, GroupData> groups = new LinkedHashMap<>();
     private final Map<String, ServerData> servers = new LinkedHashMap<>();
     private final List<QueuedStart> startQueue = new ArrayList<>();
+    private final TestNetworkImpl network = new TestNetworkImpl();
     private Instant now = START_TIME;
     private boolean autoStart = true;
+    private boolean scaling;
+    private ServerState startState = ServerState.AVAILABLE;
     private int nextPort = FIRST_PORT;
 
     public CloudState(String networkId) {
@@ -74,6 +81,10 @@ public final class CloudState {
 
     public EventBus bus() {
         return bus;
+    }
+
+    public TestNetworkImpl network() {
+        return network;
     }
 
     public Instant now() {
@@ -105,6 +116,9 @@ public final class CloudState {
         T result;
         synchronized (lock) {
             result = action.apply(events);
+            if (scaling) {
+                scaleLocked(events);
+            }
         }
         events.forEach(bus::publish);
         return result;
@@ -296,7 +310,7 @@ public final class CloudState {
         server.minMemory = group.minMemory == null ? DEFAULT_MIN_MEMORY : group.minMemory;
         server.maxMemory = group.maxMemory == null ? DEFAULT_MAX_MEMORY : group.maxMemory;
         server.maxPlayers = group.maxPlayers == null ? DEFAULT_MAX_PLAYERS : group.maxPlayers;
-        server.state = ServerState.AVAILABLE;
+        server.state = startState;
         servers.put(server.id, server);
         events.add(new ServerStarted(networkId, now, server.snapshot()));
         return server;
@@ -406,9 +420,36 @@ public final class CloudState {
     public List<ServerData> servers(@Nullable ServerQuery query) {
         return servers.values().stream()
                 .filter(server -> matches(server, query))
-                .sorted(Comparator.<ServerData, String>comparing(server -> server.group.name)
-                        .thenComparingInt(server -> server.numericalId))
+                .sorted(comparator(query))
                 .toList();
+    }
+
+    private static Comparator<ServerData> comparator(@Nullable ServerQuery query) {
+        Comparator<ServerData> natural = Comparator.<ServerData, String>comparing(server -> server.group.name)
+                .thenComparingInt(server -> server.numericalId);
+        if (query == null) {
+            return natural;
+        }
+        Comparator<ServerData> comparator = natural;
+        String sortBy = query.getSortBy();
+        if (sortBy != null && !sortBy.isBlank()) {
+            Comparator<ServerData> field = switch (sortBy.toLowerCase(Locale.ROOT)) {
+                case "created_at" -> Comparator.comparing((ServerData server) -> Instant.parse(server.createdAt));
+                case "updated_at" -> Comparator.comparing((ServerData server) -> Instant.parse(server.updatedAt));
+                case "numerical_id" -> Comparator.comparingInt((ServerData server) -> server.numericalId);
+                case "state" -> Comparator.comparing((ServerData server) -> server.state);
+                default -> throw invalid("Unsupported sort field '" + sortBy + "'");
+            };
+            comparator = field.thenComparing(natural);
+        }
+        String sortOrder = query.getSortOrder();
+        if (sortOrder == null || sortOrder.isBlank() || sortOrder.equalsIgnoreCase("asc")) {
+            return comparator;
+        }
+        if (sortOrder.equalsIgnoreCase("desc")) {
+            return comparator.reversed();
+        }
+        throw invalid("Unsupported sort order '" + sortOrder + "'");
     }
 
     private static boolean matches(ServerData server, @Nullable ServerQuery query) {
@@ -448,6 +489,88 @@ public final class CloudState {
         synchronized (lock) {
             this.autoStart = autoStart;
         }
+    }
+
+    public ServerState startState() {
+        return read(() -> startState);
+    }
+
+    public void startState(ServerState startState) {
+        Objects.requireNonNull(startState, "startState");
+        switch (startState) {
+            case QUEUED, PREPARING, STARTING, AVAILABLE, INGAME -> {
+            }
+            default -> throw new IllegalArgumentException("Servers cannot start in state " + startState);
+        }
+        synchronized (lock) {
+            this.startState = startState;
+        }
+    }
+
+    public boolean isScaling() {
+        return read(() -> scaling);
+    }
+
+    public void scaling(boolean scaling) {
+        mutate(events -> {
+            this.scaling = scaling;
+            return null;
+        });
+    }
+
+    public List<ServerData> scale() {
+        return mutate(events -> scaleLocked(events));
+    }
+
+    private List<ServerData> scaleLocked(List<Object> events) {
+        List<ServerData> started = new ArrayList<>();
+        for (GroupData group : List.copyOf(groups.values())) {
+            ScalingConfig config = group.scaling;
+            if (config == null || Boolean.FALSE.equals(group.active) || config.getScalingMode() == ScalingMode.MANUAL) {
+                continue;
+            }
+            int attempts = 0;
+            while (needsServer(group, config)) {
+                if (++attempts > MAX_SCALE_STEPS) {
+                    throw new IllegalStateException("Scaling of group '" + group.name + "' did not settle after "
+                            + MAX_SCALE_STEPS + " servers, check its scaling config");
+                }
+                started.add(startLocked(group, events));
+            }
+        }
+        return started;
+    }
+
+    private boolean needsServer(GroupData group, ScalingConfig config) {
+        List<ServerData> running = serversOf(group);
+        if (config.getMaxServers() > 0 && running.size() >= config.getMaxServers()) {
+            return false;
+        }
+        if (running.size() < config.getMinServers()) {
+            return true;
+        }
+        if (running.isEmpty()) {
+            return false;
+        }
+        if (config.getScalingMode() == ScalingMode.PLAYERS) {
+            double threshold = config.getPlayerThreshold() > 1 ? config.getPlayerThreshold() / 100 : config.getPlayerThreshold();
+            return config.hasPlayerThreshold() && running.stream().allMatch(server -> load(server) >= threshold);
+        }
+        return config.getAvailableSlots() > 0 && freeSlots(running) < config.getAvailableSlots();
+    }
+
+    private static double load(ServerData server) {
+        return server.maxPlayers <= 0 ? 1 : (double) server.playerCount / server.maxPlayers;
+    }
+
+    private static int freeSlots(List<ServerData> servers) {
+        return servers.stream()
+                .filter(server -> switch (server.state) {
+                    case INGAME, STOPPING, CLEANUP, STOPPED -> false;
+                    default -> true;
+                })
+                .mapToInt(server -> Math.max(0, server.maxPlayers - server.playerCount))
+                .sum();
     }
 
     public Optional<ServerData> requestServerStart(String groupId) {
