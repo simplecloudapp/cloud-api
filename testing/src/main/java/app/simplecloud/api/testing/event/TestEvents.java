@@ -35,17 +35,27 @@ import org.jetbrains.annotations.Nullable;
 
 import java.util.UUID;
 
+/**
+ * Creates events for {@link app.simplecloud.api.testing.TestCloud#publish(Object)}. Publishing only notifies
+ * subscribers, the cloud state stays unchanged. Network id and timestamp are filled in on publish and test
+ * objects like {@code TestServer} are replaced by their snapshot.
+ *
+ * <pre>{@code
+ * cloud.publish(TestEvents.serverCrashed(server, 137, "out of memory"));
+ * cloud.publish(TestEvents.playerLogin(steve, true, false));
+ * }</pre>
+ */
 public final class TestEvents {
 
     private TestEvents() {
     }
 
     public static GroupCreatedEvent groupCreated(Group group) {
-        return new SimulatedEvents.GroupCreated(null, null, frozen(group));
+        return new SimulatedEvents.GroupCreated(null, null, snapshot(group));
     }
 
     public static GroupUpdatedEvent groupUpdated(Group group) {
-        return new SimulatedEvents.GroupUpdated(null, null, frozen(group));
+        return new SimulatedEvents.GroupUpdated(null, null, snapshot(group));
     }
 
     public static GroupDeletedEvent groupDeleted(Group group) {
@@ -57,27 +67,27 @@ public final class TestEvents {
     }
 
     public static ServerStartedEvent serverStarted(Server server) {
-        return new SimulatedEvents.ServerStarted(null, null, frozen(server));
+        return new SimulatedEvents.ServerStarted(null, null, snapshot(server));
     }
 
     public static ServerUpdatedEvent serverUpdated(Server server) {
-        return new SimulatedEvents.ServerUpdated(null, null, frozen(server));
+        return new SimulatedEvents.ServerUpdated(null, null, snapshot(server));
     }
 
     public static ServerDeletedEvent serverDeleted(Server server) {
-        return new SimulatedEvents.ServerDeleted(null, null, frozen(server));
+        return new SimulatedEvents.ServerDeleted(null, null, snapshot(server));
     }
 
     public static ServerStoppedEvent serverStopped(Server server) {
-        return new SimulatedEvents.ServerStopped(null, null, frozen(server), false, null, null);
+        return new SimulatedEvents.ServerStopped(null, null, snapshot(server), false, null, null);
     }
 
     public static ServerStoppedEvent serverCrashed(Server server, @Nullable Integer exitCode, @Nullable String reason) {
-        return new SimulatedEvents.ServerStopped(null, null, frozen(server), true, exitCode, reason);
+        return new SimulatedEvents.ServerStopped(null, null, snapshot(server), true, exitCode, reason);
     }
 
     public static ServerStateChangedEvent serverStateChanged(Server server, ServerState oldState, ServerState newState) {
-        return new SimulatedEvents.ServerStateChanged(null, null, frozen(server), oldState, newState);
+        return new SimulatedEvents.ServerStateChanged(null, null, snapshot(server), oldState, newState);
     }
 
     public static PersistentServerCreatedEvent persistentServerCreated(PersistentServer server) {
@@ -105,25 +115,25 @@ public final class TestEvents {
     }
 
     public static PlayerLoginEvent playerLogin(CloudPlayer player, boolean newPlayer, boolean nameChanged) {
-        CloudPlayer frozen = frozen(player);
-        return new SimulatedEvents.PlayerLogin(null, null, frozen, frozen.getConnectedProxyName(),
-                frozen.getSessionId(), newPlayer, nameChanged);
+        CloudPlayer snapshot = snapshot(player);
+        return new SimulatedEvents.PlayerLogin(null, null, snapshot, snapshot.getConnectedProxyName(),
+                snapshot.getSessionId(), newPlayer, nameChanged);
     }
 
     public static PlayerDisconnectEvent playerDisconnect(CloudPlayer player, long sessionDurationSeconds) {
-        CloudPlayer frozen = frozen(player);
-        return new SimulatedEvents.PlayerDisconnect(null, null, frozen, frozen.getConnectedProxyName(),
-                frozen.getConnectedServerName(), sessionDurationSeconds);
+        CloudPlayer snapshot = snapshot(player);
+        return new SimulatedEvents.PlayerDisconnect(null, null, snapshot, snapshot.getConnectedProxyName(),
+                snapshot.getConnectedServerName(), sessionDurationSeconds);
     }
 
     public static PlayerServerSwitchEvent playerServerSwitch(CloudPlayer player, @Nullable String previousServerName,
                                                              String newServerName) {
-        return new SimulatedEvents.PlayerServerSwitch(null, null, frozen(player), previousServerName, newServerName);
+        return new SimulatedEvents.PlayerServerSwitch(null, null, snapshot(player), previousServerName, newServerName);
     }
 
     public static PlayerKickEvent playerKick(CloudPlayer player, @Nullable Component reason) {
-        CloudPlayer frozen = frozen(player);
-        return new SimulatedEvents.PlayerKick(null, null, frozen, frozen.getConnectedServerName(), reason);
+        CloudPlayer snapshot = snapshot(player);
+        return new SimulatedEvents.PlayerKick(null, null, snapshot, snapshot.getConnectedServerName(), reason);
     }
 
     public static PlayerProfileChangedEvent playerProfileChanged(UUID playerId, @Nullable PlayerProfile oldProfile,
@@ -136,15 +146,15 @@ public final class TestEvents {
         return new SimulatedEvents.PlayerClientSettingsUpdated(null, null, playerId, sessionId, settings);
     }
 
-    private static CloudPlayer frozen(CloudPlayer player) {
+    private static CloudPlayer snapshot(CloudPlayer player) {
         return player instanceof TestPlayer testPlayer ? testPlayer.snapshot() : player;
     }
 
-    private static Group frozen(Group group) {
+    private static Group snapshot(Group group) {
         return group instanceof TestGroup testGroup ? testGroup.snapshot() : group;
     }
 
-    private static Server frozen(Server server) {
+    private static Server snapshot(Server server) {
         return server instanceof TestServer testServer ? testServer.snapshot() : server;
     }
 }
