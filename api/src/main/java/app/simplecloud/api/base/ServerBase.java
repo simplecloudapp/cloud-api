@@ -21,7 +21,7 @@ import java.util.Map;
 public interface ServerBase {
 
     /**
-     * Returns the human-readable name of this server configuration.
+     * Returns the name of this server configuration.
      *
      * @return the name
      */
@@ -51,16 +51,12 @@ public interface ServerBase {
     /**
      * Returns the source configuration.
      *
-     * <p>Defines whether servers use a blueprint or container image.
-     *
      * @return the source config, or null if not set
      */
     @Nullable SourceConfig getSource();
 
     /**
      * Returns the workflows configuration.
-     *
-     * <p>Defines automated workflows to run on server lifecycle events.
      *
      * @return the workflows config, or null if not set
      */

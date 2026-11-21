@@ -1,6 +1,6 @@
 package app.simplecloud.api.internal.event.player;
 
-import app.simplecloud.api.internal.ProtoConversionUtil;
+import app.simplecloud.api.internal.util.ProtoConversionUtil;
 import app.simplecloud.api.internal.player.CloudPlayerImpl;
 import app.simplecloud.api.player.CloudPlayer;
 import app.simplecloud.api.player.PlayerApi;

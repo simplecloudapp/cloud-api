@@ -7,13 +7,15 @@ import com.google.gson.JsonObject;
 import com.google.gson.JsonParser;
 
 import java.io.IOException;
+import java.util.Optional;
+import java.util.function.Function;
 
 /**
  * Converts generated client failures into {@link CloudApiException}s.
  */
-public final class ApiErrors {
+public final class ApiExceptions {
 
-    private ApiErrors() {
+    private ApiExceptions() {
     }
 
     public static CloudApiException from(ApiException exception) {
@@ -26,6 +28,10 @@ public final class ApiErrors {
 
     public static CloudApiException notFound(String message) {
         return new CloudApiException(CloudApiException.Reason.NOT_FOUND, 404, message, null);
+    }
+
+    public static <T> Function<Optional<T>, T> orNotFound(String message) {
+        return value -> value.orElseThrow(() -> notFound(message));
     }
 
     private static CloudApiException.Reason reason(ApiException exception) {

@@ -13,9 +13,9 @@ import java.time.Duration;
 /**
  * Helpers for configuring the generated {@link ApiClient}.
  */
-public final class ApiClients {
+public final class ApiClientFactory {
 
-    private ApiClients() {
+    private ApiClientFactory() {
     }
 
     /**
@@ -25,6 +25,7 @@ public final class ApiClients {
      */
     public static ApiClient create(CloudApiOptions options) {
         ApiClient client = new ResponseValidatingApiClient();
+        client.setBasePath(options.getControllerUrl());
         applyTimeouts(client, options);
         ApiKeyAuth credential = (ApiKeyAuth) client.getAuthentication("NetworkCredential");
         credential.setApiKey(options.getNetworkSecret());

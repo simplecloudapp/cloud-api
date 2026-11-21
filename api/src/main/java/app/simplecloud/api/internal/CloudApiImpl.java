@@ -17,7 +17,7 @@ import app.simplecloud.api.internal.nats.NatsFailoverConnectionManager;
 import app.simplecloud.api.internal.persistentserver.PersistentServerApiImpl;
 import app.simplecloud.api.internal.server.ServerApiImpl;
 import app.simplecloud.api.internal.player.PlayerApiImpl;
-import app.simplecloud.api.internal.web.ApiClients;
+import app.simplecloud.api.internal.web.ApiClientFactory;
 import app.simplecloud.api.web.ApiClient;
 import app.simplecloud.api.persistentserver.PersistentServerApi;
 import app.simplecloud.api.player.PlayerApi;
@@ -65,19 +65,20 @@ public class CloudApiImpl implements CloudApi {
         // Initialize cache
         CacheConfig cacheConfig = options.getCacheConfig();
         if (cacheConfig.isEnabled()) {
-            this.queryCache = new QueryCacheImpl(cacheConfig, ApiClients.maxRequestDuration(options));
+            this.queryCache = new QueryCacheImpl(cacheConfig, ApiClientFactory.maxRequestDuration(options));
         } else {
             this.queryCache = new NoOpQueryCache();
         }
 
         // Initialize APIs with cache
-        this.httpClient = ApiClients.create(options);
-        this.playerApi = new PlayerApiImpl(options, natsClient, httpClient, executor);
+        this.httpClient = ApiClientFactory.create(options);
+        ApiContext context = new ApiContext(options, queryCache, httpClient, executor);
+        this.playerApi = new PlayerApiImpl(context, natsClient);
         this.eventApi = new EventApiImpl(natsClient, options.getNetworkId(), playerApi);
-        this.serverApi = new ServerApiImpl(options, queryCache, httpClient, executor);
-        this.groupApi = new GroupApiImpl(options, queryCache, httpClient, executor);
-        this.persistentServerApi = new PersistentServerApiImpl(options, queryCache, httpClient, executor);
-        this.blueprintApi = new BlueprintApiImpl(options, queryCache, httpClient, executor);
+        this.serverApi = new ServerApiImpl(context);
+        this.groupApi = new GroupApiImpl(context);
+        this.persistentServerApi = new PersistentServerApiImpl(context);
+        this.blueprintApi = new BlueprintApiImpl(context);
 
         // Setup event-based cache invalidation with debouncing
         if (cacheConfig.isEnabled() && cacheConfig.isAutoInvalidateOnEvents()) {

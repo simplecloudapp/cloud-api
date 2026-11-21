@@ -1,7 +1,7 @@
 package app.simplecloud.api.internal.event.server;
 
 import app.simplecloud.api.event.server.ServerStateChangedEvent;
-import app.simplecloud.api.internal.ProtoConversionUtil;
+import app.simplecloud.api.internal.util.ProtoConversionUtil;
 import app.simplecloud.api.server.Server;
 import app.simplecloud.api.server.ServerState;
 

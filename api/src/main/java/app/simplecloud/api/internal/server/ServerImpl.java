@@ -223,7 +223,7 @@ public class ServerImpl implements Server {
     @Nullable
     public Group getGroup() {
         if (group == null && delegate.getServerGroup() != null) {
-            group = new GroupImpl(delegate.getServerGroup());
+            group = GroupImpl.from(delegate.getServerGroup());
         }
         return group;
     }
@@ -232,7 +232,7 @@ public class ServerImpl implements Server {
     @Nullable
     public PersistentServer getPersistentServer() {
         if  (persistentServer == null && delegate.getPersistentServer() != null) {
-            persistentServer = new PersistentServerImpl(delegate.getPersistentServer());
+            persistentServer = PersistentServerImpl.from(delegate.getPersistentServer());
         }
 
         return persistentServer;

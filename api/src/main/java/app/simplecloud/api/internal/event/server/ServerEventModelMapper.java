@@ -1,6 +1,6 @@
 package app.simplecloud.api.internal.event.server;
 
-import app.simplecloud.api.internal.ProtoConversionUtil;
+import app.simplecloud.api.internal.util.ProtoConversionUtil;
 import app.simplecloud.api.internal.blueprint.BlueprintImpl;
 import app.simplecloud.api.internal.persistentserver.PersistentServerImpl;
 import app.simplecloud.api.internal.server.ServerImpl;
@@ -78,7 +78,7 @@ final class ServerEventModelMapper {
             );
             summary.setPersistentServer(persistentServer);
             summary.setPersistentServerId(persistentServerId);
-            server.setPersistentServer(new PersistentServerImpl(persistentServer));
+            server.setPersistentServer(PersistentServerImpl.from(persistentServer));
             build.buf.gen.simplecloud.controller.v2.SourceConfig source = persistentServerConfig.getBaseConfig().getSourceConfig();
             if (source.hasBlueprint()) {
                 server.setBlueprint(BlueprintImpl.from(source.getBlueprint(), null, null));

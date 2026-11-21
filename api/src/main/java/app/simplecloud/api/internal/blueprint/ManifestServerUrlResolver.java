@@ -7,7 +7,6 @@ import com.google.gson.Gson;
 import com.google.gson.JsonParseException;
 import com.google.gson.reflect.TypeToken;
 import okhttp3.Call;
-import okhttp3.Dns;
 import okhttp3.HttpUrl;
 import okhttp3.OkHttpClient;
 import okhttp3.Request;
@@ -26,13 +25,8 @@ import java.util.concurrent.TimeUnit;
 
 /**
  * Resolves inline blueprint download links from the server version manifest.
- *
- * <p>The manifest URL is configurable, so the fetch is restricted to HTTPS and public addresses
- * (see {@link PublicAddressDns}). Redirects are followed manually so every hop is checked again,
- * and the body is capped before it is parsed.
  */
 final class ManifestServerUrlResolver implements InlineBlueprintSupport.ServerUrlResolver {
-    static final int MAX_REDIRECTS = 5;
     static final long MAX_MANIFEST_BYTES = 1024 * 1024;
 
     private static final Duration FETCH_TIMEOUT = Duration.ofSeconds(30);
@@ -55,7 +49,6 @@ final class ManifestServerUrlResolver implements InlineBlueprintSupport.ServerUr
                         .connectTimeout(options.getHttpConnectTimeout().toMillis(), TimeUnit.MILLISECONDS)
                         .readTimeout(options.getHttpReadTimeout().toMillis(), TimeUnit.MILLISECONDS)
                         .writeTimeout(options.getHttpWriteTimeout().toMillis(), TimeUnit.MILLISECONDS)
-                        .dns(new PublicAddressDns(Dns.SYSTEM))
                         .build(),
                 FETCH_TIMEOUT,
                 new Gson()
@@ -63,17 +56,12 @@ final class ManifestServerUrlResolver implements InlineBlueprintSupport.ServerUr
     }
 
     /**
-     * Address filtering is the caller's responsibility via the client's {@link Dns};
-     * redirects are always disabled so {@link #fetchManifest()} can check each hop.
      * An invalid URL only fails once the manifest is needed, so unrelated SDK features keep working.
      */
     ManifestServerUrlResolver(String manifestUrl, OkHttpClient httpClient, Duration fetchTimeout, Gson gson) {
         this.manifestUrl = HttpUrl.parse(Objects.requireNonNull(manifestUrl, "manifestUrl").trim());
         this.manifestUrlForErrors = this.manifestUrl != null ? withoutSecrets(this.manifestUrl) : "an invalid URL";
-        this.httpClient = Objects.requireNonNull(httpClient, "httpClient").newBuilder()
-                .followRedirects(false)
-                .followSslRedirects(false)
-                .build();
+        this.httpClient = Objects.requireNonNull(httpClient, "httpClient");
         this.fetchTimeout = Objects.requireNonNull(fetchTimeout, "fetchTimeout");
         this.gson = Objects.requireNonNull(gson, "gson");
     }
@@ -115,40 +103,18 @@ final class ManifestServerUrlResolver implements InlineBlueprintSupport.ServerUr
     }
 
     private List<ManifestEntry> fetchManifest() {
-        HttpUrl url = manifestUrl;
-        if (url == null) {
+        if (manifestUrl == null) {
             throw fetchFailure("invalid URL");
         }
 
-        // The per-read timeouts don't bound a slow trickle across several hops while the cache lock is held.
-        Instant deadline = Instant.now().plus(fetchTimeout);
-        try {
-            for (int redirects = 0; ; redirects++) {
-                if (!url.isHttps()) {
-                    throw fetchFailure("refusing non-HTTPS URL " + withoutSecrets(url));
-                }
-                PublicAddressDns.requirePublicLiteral(url);
-
-                long remainingMillis = Duration.between(Instant.now(), deadline).toMillis();
-                if (remainingMillis <= 0) {
-                    throw fetchFailure("timed out after " + fetchTimeout.toMillis() + " ms");
-                }
-                Request request = new Request.Builder()
-                        .url(url)
-                        .get()
-                        .build();
-                Call call = httpClient.newCall(request);
-                call.timeout().timeout(remainingMillis, TimeUnit.MILLISECONDS);
-                try (Response response = call.execute()) {
-                    if (!response.isRedirect()) {
-                        return readManifest(response);
-                    }
-                    if (redirects == MAX_REDIRECTS) {
-                        throw fetchFailure("more than " + MAX_REDIRECTS + " redirects");
-                    }
-                    url = redirectTarget(response);
-                }
-            }
+        Request request = new Request.Builder()
+                .url(manifestUrl)
+                .get()
+                .build();
+        Call call = httpClient.newCall(request);
+        call.timeout().timeout(fetchTimeout.toMillis(), TimeUnit.MILLISECONDS);
+        try (Response response = call.execute()) {
+            return readManifest(response);
         } catch (IOException e) {
             throw new CloudApiException(
                     CloudApiException.Reason.UNAVAILABLE,
@@ -157,18 +123,6 @@ final class ManifestServerUrlResolver implements InlineBlueprintSupport.ServerUr
                     e
             );
         }
-    }
-
-    private HttpUrl redirectTarget(Response response) {
-        String location = response.header("Location");
-        if (location == null) {
-            throw fetchFailure("HTTP " + response.code() + " without Location header");
-        }
-        HttpUrl target = response.request().url().resolve(location);
-        if (target == null) {
-            throw fetchFailure("HTTP " + response.code() + " with invalid Location header");
-        }
-        return target;
     }
 
     private List<ManifestEntry> readManifest(Response response) throws IOException {
@@ -181,7 +135,6 @@ final class ManifestServerUrlResolver implements InlineBlueprintSupport.ServerUr
             throw fetchFailure("empty response body");
         }
 
-        // Content-Length may be absent or lie, so also probe the stream for one byte past the limit.
         BufferedSource source = body.source();
         if (body.contentLength() > MAX_MANIFEST_BYTES || source.request(MAX_MANIFEST_BYTES + 1)) {
             throw fetchFailure("response exceeds " + MAX_MANIFEST_BYTES + " bytes");
