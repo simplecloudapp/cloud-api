@@ -57,6 +57,7 @@ public final class QueryKey {
             case "group", "groups" -> EntityType.GROUP;
             case "persistentServer", "persistentServers" -> EntityType.PERSISTENT_SERVER;
             case "player", "players" -> EntityType.PLAYER;
+            case "blueprint", "blueprints" -> EntityType.BLUEPRINT;
             default -> null;
         };
     }

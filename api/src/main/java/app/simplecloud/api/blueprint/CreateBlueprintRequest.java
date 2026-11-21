@@ -6,8 +6,12 @@ import java.util.List;
 
 /**
  * Request object for creating a new blueprint.
+ *
+ * <p>{@link BlueprintApi#createBlueprint(CreateBlueprintRequest)} requires a name. Inline blueprints of groups and
+ * persistent servers use the name of the group or persistent server when no name is set.
  */
 public class CreateBlueprintRequest {
+    private String name;
     private String configurator;
     private String minecraftVersion;
     private RuntimeConfig runtimeConfig;
@@ -21,6 +25,16 @@ public class CreateBlueprintRequest {
 
     public static Builder builder() {
         return new Builder();
+    }
+
+    @Nullable
+    public String getName() {
+        return name;
+    }
+
+    public CreateBlueprintRequest setName(@Nullable String name) {
+        this.name = name;
+        return this;
     }
 
     @Nullable
@@ -94,6 +108,7 @@ public class CreateBlueprintRequest {
     }
 
     public static class Builder {
+        private String name;
         private String configurator;
         private String minecraftVersion;
         private RuntimeConfig runtimeConfig;
@@ -101,6 +116,11 @@ public class CreateBlueprintRequest {
         private String serverUrl;
         private String softwareVersion;
         private List<String> workflowSteps;
+
+        public Builder name(String name) {
+            this.name = name;
+            return this;
+        }
 
         public Builder configurator(String configurator) {
             this.configurator = configurator;
@@ -139,6 +159,7 @@ public class CreateBlueprintRequest {
 
         public CreateBlueprintRequest build() {
             return new CreateBlueprintRequest()
+                    .setName(name)
                     .setConfigurator(configurator)
                     .setMinecraftVersion(minecraftVersion)
                     .setRuntimeConfig(runtimeConfig)

@@ -24,6 +24,7 @@ import java.util.Map;
  *   <li>GROUP: 30 seconds (configuration rarely changes, events handle updates)</li>
  *   <li>PERSISTENT_SERVER: 30 seconds (similar to groups)</li>
  *   <li>PLAYER: 5 seconds (balance between freshness and load)</li>
+ *   <li>BLUEPRINT: 10 seconds (similar to groups)</li>
  * </ul>
  *
  * <p>Example:
@@ -151,6 +152,9 @@ public class CacheConfig {
             // Players: 5 seconds - balance between freshness and reducing load
             configs.put(EntityType.PLAYER, EntityCacheConfig.builder()
                     .staleTime(Duration.ofSeconds(5))
+                    .build());
+            configs.put(EntityType.BLUEPRINT, EntityCacheConfig.builder()
+                    .staleTime(Duration.ofSeconds(10))
                     .build());
             return configs;
         }
