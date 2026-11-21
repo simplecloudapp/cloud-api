@@ -1,6 +1,8 @@
 package app.simplecloud.api.internal.event.blueprint;
 
+import app.simplecloud.api.blueprint.Blueprint;
 import app.simplecloud.api.event.blueprint.BlueprintDeletedEvent;
+import app.simplecloud.api.internal.blueprint.BlueprintImpl;
 import org.jetbrains.annotations.Nullable;
 
 import java.time.Instant;
@@ -27,6 +29,12 @@ class BlueprintDeletedEventImpl implements BlueprintDeletedEvent {
     public String getName() {
         String name = delegate.getName();
         return name.isEmpty() ? null : name;
+    }
+
+    @Override
+    @Nullable
+    public Blueprint getBlueprint() {
+        return delegate.hasConfig() ? BlueprintImpl.from(delegate.getConfig(), null, null) : null;
     }
 
     @Override

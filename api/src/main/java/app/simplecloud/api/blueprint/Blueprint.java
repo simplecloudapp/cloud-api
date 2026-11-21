@@ -65,7 +65,7 @@ public interface Blueprint {
     /**
      * Returns the runtime configuration for servers using this blueprint.
      *
-     * <p>Defines the runtime type (e.g., Java) and associated configuration.
+     * <p>Defines the runtime type (Java or binary) and associated configuration.
      *
      * @return the runtime config, or null if not set
      */
@@ -81,14 +81,14 @@ public interface Blueprint {
     /**
      * Returns the timestamp when this blueprint was created (ISO 8601 format).
      *
-     * @return the creation timestamp
+     * @return the creation timestamp, or null if not available, for example in update events
      */
-    String getCreatedAt();
+    @Nullable String getCreatedAt();
 
     /**
      * Returns the timestamp when this blueprint was last updated (ISO 8601 format).
      *
-     * @return the update timestamp
+     * @return the update timestamp, or null if not available
      */
-    String getUpdatedAt();
+    @Nullable String getUpdatedAt();
 }

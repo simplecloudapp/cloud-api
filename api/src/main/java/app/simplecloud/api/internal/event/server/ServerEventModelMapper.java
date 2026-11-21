@@ -1,6 +1,7 @@
 package app.simplecloud.api.internal.event.server;
 
 import app.simplecloud.api.internal.ProtoConversionUtil;
+import app.simplecloud.api.internal.blueprint.BlueprintImpl;
 import app.simplecloud.api.internal.persistentserver.PersistentServerImpl;
 import app.simplecloud.api.internal.server.ServerImpl;
 import app.simplecloud.api.server.Server;
@@ -361,6 +362,21 @@ final class ServerEventModelMapper {
         result.setServerUrl(blueprint.getServerUrl());
         result.setSoftwareVersion(blueprint.getSoftwareVersion());
         result.setWorkflowSteps(new ArrayList<>(blueprint.getWorkflowStepsList()));
+        if (blueprint.hasRuntime()) {
+            result.setRuntimeConfig(toRuntimeConfig(blueprint.getRuntime()));
+        }
+        return result;
+    }
+
+    private static Map<String, Object> toRuntimeConfig(build.buf.gen.simplecloud.controller.v2.RuntimeConfig runtime) {
+        Map<String, Object> result = new LinkedHashMap<>();
+        switch (runtime.getType()) {
+            case RUNTIME_TYPE_JAVA -> result.put("type", "java");
+            case RUNTIME_TYPE_BINARY -> result.put("type", "binary");
+            default -> {
+            }
+        }
+        result.put("with", BlueprintImpl.decodeRuntimeWith(runtime.getWithMap()));
         return result;
     }
 
