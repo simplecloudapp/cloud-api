@@ -8,6 +8,7 @@ import app.simplecloud.api.group.CreateGroupRequest;
 import app.simplecloud.api.group.Group;
 import app.simplecloud.api.group.GroupQuery;
 import app.simplecloud.api.group.GroupServerType;
+import app.simplecloud.api.group.UpdateGroupRequest;
 import app.simplecloud.api.testing.group.TestGroup;
 import org.junit.jupiter.api.Test;
 
@@ -27,7 +28,11 @@ class GroupTest {
     void createdGroupIsVisibleThroughApi(TestCloud cloud) {
         var created = cloud.collect(GroupCreatedEvent.class);
 
-        TestGroup lobby = cloud.createGroup("lobby", group -> group.maxPlayers(50).tags(List.of("hub")));
+        TestGroup lobby = cloud.createGroup(CreateGroupRequest.builder()
+                .name("lobby")
+                .maxPlayers(50)
+                .tags(List.of("hub"))
+                .build());
 
         Group fetched = cloud.api().group().getGroupByName("lobby").join();
         assertEquals(lobby.getServerGroupId(), fetched.getServerGroupId());
@@ -63,7 +68,7 @@ class GroupTest {
         TestGroup lobby = cloud.createGroup("lobby");
         Group before = cloud.api().group().getGroupByName("lobby").join();
 
-        lobby.update(group -> group.maxPlayers(100)).setProperty("motd", "hello");
+        lobby.update(UpdateGroupRequest.builder().maxPlayers(100).build()).setProperty("motd", "hello");
 
         assertEquals(100, lobby.getMaxPlayers());
         assertEquals("hello", lobby.getProperties().get("motd"));
@@ -73,8 +78,8 @@ class GroupTest {
 
     @Test
     void queryFiltersByTypeAndTag(TestCloud cloud) {
-        cloud.createGroup("proxy", group -> group.type(GroupServerType.PROXY));
-        cloud.createGroup("lobby", group -> group.tags(List.of("hub")));
+        cloud.createGroup(CreateGroupRequest.builder().name("proxy").type(GroupServerType.PROXY).build());
+        cloud.createGroup(CreateGroupRequest.builder().name("lobby").tags(List.of("hub")).build());
         cloud.createGroup("bedwars");
 
         List<Group> proxies = cloud.api().group().getAllGroups(GroupQuery.create().filterByType(GroupServerType.PROXY)).join();

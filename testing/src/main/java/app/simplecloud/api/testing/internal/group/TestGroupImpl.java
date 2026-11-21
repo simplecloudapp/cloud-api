@@ -8,7 +8,7 @@ import app.simplecloud.api.testing.server.TestServer;
 
 import java.util.Collections;
 import java.util.List;
-import java.util.function.Consumer;
+import java.util.Objects;
 
 public final class TestGroupImpl extends GroupImpl implements TestGroup {
 
@@ -32,10 +32,8 @@ public final class TestGroupImpl extends GroupImpl implements TestGroup {
     }
 
     @Override
-    public TestGroup update(Consumer<UpdateGroupRequest.Builder> configurer) {
-        UpdateGroupRequest.Builder builder = UpdateGroupRequest.builder();
-        configurer.accept(builder);
-        cloud.updateGroup(data.id, builder.build());
+    public TestGroup update(UpdateGroupRequest request) {
+        cloud.updateGroup(data.id, Objects.requireNonNull(request, "request"));
         return this;
     }
 

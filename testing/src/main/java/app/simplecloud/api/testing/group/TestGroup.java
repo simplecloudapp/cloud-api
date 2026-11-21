@@ -5,7 +5,6 @@ import app.simplecloud.api.group.UpdateGroupRequest;
 import app.simplecloud.api.testing.server.TestServer;
 
 import java.util.List;
-import java.util.function.Consumer;
 
 public interface TestGroup extends Group {
 
@@ -13,7 +12,7 @@ public interface TestGroup extends Group {
 
     List<TestServer> getServers();
 
-    TestGroup update(Consumer<UpdateGroupRequest.Builder> configurer);
+    TestGroup update(UpdateGroupRequest request);
 
     TestGroup setProperty(String key, Object value);
 

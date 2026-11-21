@@ -10,15 +10,17 @@ import app.simplecloud.api.testing.group.TestGroup;
 import app.simplecloud.api.testing.internal.event.EventCollectorImpl;
 import app.simplecloud.api.testing.internal.event.SimulatedEvents;
 import app.simplecloud.api.testing.network.TestNetwork;
+import app.simplecloud.api.testing.player.TestPlayer;
 import app.simplecloud.api.testing.server.TestServer;
 import org.jetbrains.annotations.Nullable;
 
+import java.nio.charset.StandardCharsets;
 import java.time.Duration;
 import java.time.Instant;
 import java.util.List;
 import java.util.Objects;
 import java.util.Optional;
-import java.util.function.Consumer;
+import java.util.UUID;
 import java.util.function.Predicate;
 
 public final class TestCloudImpl implements TestCloud {
@@ -60,15 +62,12 @@ public final class TestCloudImpl implements TestCloud {
 
     @Override
     public TestGroup createGroup(String name) {
-        return createGroup(name, builder -> {
-        });
+        return createGroup(new CreateGroupRequest(name));
     }
 
     @Override
-    public TestGroup createGroup(String name, Consumer<CreateGroupRequest.Builder> configurer) {
-        CreateGroupRequest.Builder builder = CreateGroupRequest.builder().name(name);
-        configurer.accept(builder);
-        return cloud.handle(cloud.createGroup(builder.build()));
+    public TestGroup createGroup(CreateGroupRequest request) {
+        return cloud.handle(cloud.createGroup(Objects.requireNonNull(request, "request")));
     }
 
     @Override
@@ -92,6 +91,34 @@ public final class TestCloudImpl implements TestCloud {
     public List<TestServer> servers() {
         return cloud.read(() -> cloud.servers(null).stream()
                 .<TestServer>map(cloud::handle)
+                .toList());
+    }
+
+    @Override
+    public TestPlayer createPlayer(String name) {
+        Objects.requireNonNull(name, "name");
+        return createPlayer(UUID.nameUUIDFromBytes(("OfflinePlayer:" + name).getBytes(StandardCharsets.UTF_8)), name);
+    }
+
+    @Override
+    public TestPlayer createPlayer(UUID uniqueId, String name) {
+        return cloud.handle(cloud.createPlayer(uniqueId, name));
+    }
+
+    @Override
+    public Optional<TestPlayer> player(String name) {
+        return cloud.read(() -> cloud.playerByName(name).<TestPlayer>map(cloud::handle));
+    }
+
+    @Override
+    public Optional<TestPlayer> player(UUID uniqueId) {
+        return cloud.read(() -> cloud.playerById(uniqueId).<TestPlayer>map(cloud::handle));
+    }
+
+    @Override
+    public List<TestPlayer> players() {
+        return cloud.read(() -> cloud.players(null).stream()
+                .<TestPlayer>map(cloud::handle)
                 .toList());
     }
 

@@ -8,6 +8,7 @@ import app.simplecloud.api.testing.event.EventCollector;
 import app.simplecloud.api.testing.group.TestGroup;
 import app.simplecloud.api.testing.internal.TestCloudImpl;
 import app.simplecloud.api.testing.network.TestNetwork;
+import app.simplecloud.api.testing.player.TestPlayer;
 import app.simplecloud.api.testing.server.TestServer;
 import org.jetbrains.annotations.Nullable;
 
@@ -15,7 +16,7 @@ import java.time.Duration;
 import java.time.Instant;
 import java.util.List;
 import java.util.Optional;
-import java.util.function.Consumer;
+import java.util.UUID;
 import java.util.function.Predicate;
 
 public interface TestCloud extends AutoCloseable {
@@ -42,7 +43,7 @@ public interface TestCloud extends AutoCloseable {
 
     TestGroup createGroup(String name);
 
-    TestGroup createGroup(String name, Consumer<CreateGroupRequest.Builder> configurer);
+    TestGroup createGroup(CreateGroupRequest request);
 
     Optional<TestGroup> group(String name);
 
@@ -51,6 +52,16 @@ public interface TestCloud extends AutoCloseable {
     Optional<TestServer> server(String name);
 
     List<TestServer> servers();
+
+    TestPlayer createPlayer(String name);
+
+    TestPlayer createPlayer(UUID uniqueId, String name);
+
+    Optional<TestPlayer> player(String name);
+
+    Optional<TestPlayer> player(UUID uniqueId);
+
+    List<TestPlayer> players();
 
     void publish(Object event);
 

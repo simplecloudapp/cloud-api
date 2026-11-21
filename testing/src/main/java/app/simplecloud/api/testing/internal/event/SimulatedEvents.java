@@ -8,10 +8,22 @@ import app.simplecloud.api.event.server.ServerStartedEvent;
 import app.simplecloud.api.event.server.ServerStateChangedEvent;
 import app.simplecloud.api.event.server.ServerStoppedEvent;
 import app.simplecloud.api.event.server.ServerUpdatedEvent;
+import app.simplecloud.api.event.player.PlayerClientSettingsUpdatedEvent;
+import app.simplecloud.api.event.player.PlayerDisconnectEvent;
+import app.simplecloud.api.event.player.PlayerKickEvent;
+import app.simplecloud.api.event.player.PlayerLoginEvent;
+import app.simplecloud.api.event.player.PlayerProfileChangedEvent;
+import app.simplecloud.api.event.player.PlayerServerSwitchEvent;
 import app.simplecloud.api.group.Group;
+import app.simplecloud.api.player.CloudPlayer;
+import app.simplecloud.api.player.PlayerClientSettings;
+import app.simplecloud.api.player.PlayerProfile;
 import app.simplecloud.api.server.Server;
 import app.simplecloud.api.server.ServerState;
+import net.kyori.adventure.text.Component;
 import org.jetbrains.annotations.Nullable;
+
+import java.util.UUID;
 
 public final class SimulatedEvents {
 
@@ -305,6 +317,257 @@ public final class SimulatedEvents {
         public ServerStateChanged stamp(String networkId, String timestamp) {
             return new ServerStateChanged(orElse(this.networkId, networkId), orElse(this.timestamp, timestamp), server,
                     oldState, newState);
+        }
+    }
+
+    public record PlayerLogin(@Nullable String networkId, @Nullable String timestamp, CloudPlayer player,
+                              @Nullable String proxyName, @Nullable String sessionId, boolean newPlayer,
+                              boolean nameChanged) implements PlayerLoginEvent, Stampable {
+
+        @Override
+        public String getNetworkId() {
+            return networkId;
+        }
+
+        @Override
+        public UUID getPlayerId() {
+            return player.getUniqueId();
+        }
+
+        @Override
+        public @Nullable String getProxyName() {
+            return proxyName;
+        }
+
+        @Override
+        public @Nullable String getSessionId() {
+            return sessionId;
+        }
+
+        @Override
+        public boolean isNewPlayer() {
+            return newPlayer;
+        }
+
+        @Override
+        public boolean isNameChanged() {
+            return nameChanged;
+        }
+
+        @Override
+        public CloudPlayer getPlayer() {
+            return player;
+        }
+
+        @Override
+        public String getTimestamp() {
+            return timestamp;
+        }
+
+        @Override
+        public PlayerLogin stamp(String networkId, String timestamp) {
+            return new PlayerLogin(orElse(this.networkId, networkId), orElse(this.timestamp, timestamp), player,
+                    proxyName, sessionId, newPlayer, nameChanged);
+        }
+    }
+
+    public record PlayerDisconnect(@Nullable String networkId, @Nullable String timestamp, CloudPlayer player,
+                                   @Nullable String proxyName, @Nullable String serverName,
+                                   long sessionDurationSeconds) implements PlayerDisconnectEvent, Stampable {
+
+        @Override
+        public String getNetworkId() {
+            return networkId;
+        }
+
+        @Override
+        public UUID getPlayerId() {
+            return player.getUniqueId();
+        }
+
+        @Override
+        public @Nullable String getProxyName() {
+            return proxyName;
+        }
+
+        @Override
+        public @Nullable String getServerName() {
+            return serverName;
+        }
+
+        @Override
+        public long getSessionDurationSeconds() {
+            return sessionDurationSeconds;
+        }
+
+        @Override
+        public CloudPlayer getPlayer() {
+            return player;
+        }
+
+        @Override
+        public String getTimestamp() {
+            return timestamp;
+        }
+
+        @Override
+        public PlayerDisconnect stamp(String networkId, String timestamp) {
+            return new PlayerDisconnect(orElse(this.networkId, networkId), orElse(this.timestamp, timestamp), player,
+                    proxyName, serverName, sessionDurationSeconds);
+        }
+    }
+
+    public record PlayerServerSwitch(@Nullable String networkId, @Nullable String timestamp, CloudPlayer player,
+                                     @Nullable String previousServerName, String newServerName)
+            implements PlayerServerSwitchEvent, Stampable {
+
+        @Override
+        public String getNetworkId() {
+            return networkId;
+        }
+
+        @Override
+        public UUID getPlayerId() {
+            return player.getUniqueId();
+        }
+
+        @Override
+        public @Nullable String getPreviousServerName() {
+            return previousServerName;
+        }
+
+        @Override
+        public String getNewServerName() {
+            return newServerName;
+        }
+
+        @Override
+        public CloudPlayer getPlayer() {
+            return player;
+        }
+
+        @Override
+        public String getTimestamp() {
+            return timestamp;
+        }
+
+        @Override
+        public PlayerServerSwitch stamp(String networkId, String timestamp) {
+            return new PlayerServerSwitch(orElse(this.networkId, networkId), orElse(this.timestamp, timestamp), player,
+                    previousServerName, newServerName);
+        }
+    }
+
+    public record PlayerKick(@Nullable String networkId, @Nullable String timestamp, CloudPlayer player,
+                             @Nullable String serverName, @Nullable Component reason)
+            implements PlayerKickEvent, Stampable {
+
+        @Override
+        public String getNetworkId() {
+            return networkId;
+        }
+
+        @Override
+        public UUID getPlayerId() {
+            return player.getUniqueId();
+        }
+
+        @Override
+        public @Nullable String getServerName() {
+            return serverName;
+        }
+
+        @Override
+        public @Nullable Component getReason() {
+            return reason;
+        }
+
+        @Override
+        public CloudPlayer getPlayer() {
+            return player;
+        }
+
+        @Override
+        public String getTimestamp() {
+            return timestamp;
+        }
+
+        @Override
+        public PlayerKick stamp(String networkId, String timestamp) {
+            return new PlayerKick(orElse(this.networkId, networkId), orElse(this.timestamp, timestamp), player,
+                    serverName, reason);
+        }
+    }
+
+    public record PlayerProfileChanged(@Nullable String networkId, @Nullable String timestamp, UUID playerId,
+                                       @Nullable PlayerProfile oldProfile, @Nullable PlayerProfile newProfile)
+            implements PlayerProfileChangedEvent, Stampable {
+
+        @Override
+        public String getNetworkId() {
+            return networkId;
+        }
+
+        @Override
+        public UUID getPlayerId() {
+            return playerId;
+        }
+
+        @Override
+        public @Nullable PlayerProfile getOldProfile() {
+            return oldProfile;
+        }
+
+        @Override
+        public @Nullable PlayerProfile getNewProfile() {
+            return newProfile;
+        }
+
+        @Override
+        public String getTimestamp() {
+            return timestamp;
+        }
+
+        @Override
+        public PlayerProfileChanged stamp(String networkId, String timestamp) {
+            return new PlayerProfileChanged(orElse(this.networkId, networkId), orElse(this.timestamp, timestamp),
+                    playerId, oldProfile, newProfile);
+        }
+    }
+
+    public record PlayerClientSettingsUpdated(@Nullable String networkId, @Nullable String timestamp, UUID playerId,
+                                              @Nullable String sessionId, @Nullable PlayerClientSettings settings)
+            implements PlayerClientSettingsUpdatedEvent, Stampable {
+
+        @Override
+        public String getNetworkId() {
+            return networkId;
+        }
+
+        @Override
+        public UUID getPlayerId() {
+            return playerId;
+        }
+
+        @Override
+        public @Nullable String getSessionId() {
+            return sessionId;
+        }
+
+        @Override
+        public @Nullable PlayerClientSettings getSettings() {
+            return settings;
+        }
+
+        @Override
+        public String getTimestamp() {
+            return timestamp;
+        }
+
+        @Override
+        public PlayerClientSettingsUpdated stamp(String networkId, String timestamp) {
+            return new PlayerClientSettingsUpdated(orElse(this.networkId, networkId), orElse(this.timestamp, timestamp),
+                    playerId, sessionId, settings);
         }
     }
 }

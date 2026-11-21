@@ -3,18 +3,31 @@ package app.simplecloud.api.testing.event;
 import app.simplecloud.api.event.group.GroupCreatedEvent;
 import app.simplecloud.api.event.group.GroupDeletedEvent;
 import app.simplecloud.api.event.group.GroupUpdatedEvent;
+import app.simplecloud.api.event.player.PlayerClientSettingsUpdatedEvent;
+import app.simplecloud.api.event.player.PlayerDisconnectEvent;
+import app.simplecloud.api.event.player.PlayerKickEvent;
+import app.simplecloud.api.event.player.PlayerLoginEvent;
+import app.simplecloud.api.event.player.PlayerProfileChangedEvent;
+import app.simplecloud.api.event.player.PlayerServerSwitchEvent;
 import app.simplecloud.api.event.server.ServerDeletedEvent;
 import app.simplecloud.api.event.server.ServerStartedEvent;
 import app.simplecloud.api.event.server.ServerStateChangedEvent;
 import app.simplecloud.api.event.server.ServerStoppedEvent;
 import app.simplecloud.api.event.server.ServerUpdatedEvent;
 import app.simplecloud.api.group.Group;
+import app.simplecloud.api.player.CloudPlayer;
+import app.simplecloud.api.player.PlayerClientSettings;
+import app.simplecloud.api.player.PlayerProfile;
 import app.simplecloud.api.server.Server;
 import app.simplecloud.api.server.ServerState;
 import app.simplecloud.api.testing.group.TestGroup;
 import app.simplecloud.api.testing.internal.event.SimulatedEvents;
+import app.simplecloud.api.testing.player.TestPlayer;
 import app.simplecloud.api.testing.server.TestServer;
+import net.kyori.adventure.text.Component;
 import org.jetbrains.annotations.Nullable;
+
+import java.util.UUID;
 
 public final class TestEvents {
 
@@ -59,6 +72,46 @@ public final class TestEvents {
 
     public static ServerStateChangedEvent serverStateChanged(Server server, ServerState oldState, ServerState newState) {
         return new SimulatedEvents.ServerStateChanged(null, null, frozen(server), oldState, newState);
+    }
+
+    public static PlayerLoginEvent playerLogin(CloudPlayer player) {
+        return playerLogin(player, false, false);
+    }
+
+    public static PlayerLoginEvent playerLogin(CloudPlayer player, boolean newPlayer, boolean nameChanged) {
+        CloudPlayer frozen = frozen(player);
+        return new SimulatedEvents.PlayerLogin(null, null, frozen, frozen.getConnectedProxyName(),
+                frozen.getSessionId(), newPlayer, nameChanged);
+    }
+
+    public static PlayerDisconnectEvent playerDisconnect(CloudPlayer player, long sessionDurationSeconds) {
+        CloudPlayer frozen = frozen(player);
+        return new SimulatedEvents.PlayerDisconnect(null, null, frozen, frozen.getConnectedProxyName(),
+                frozen.getConnectedServerName(), sessionDurationSeconds);
+    }
+
+    public static PlayerServerSwitchEvent playerServerSwitch(CloudPlayer player, @Nullable String previousServerName,
+                                                             String newServerName) {
+        return new SimulatedEvents.PlayerServerSwitch(null, null, frozen(player), previousServerName, newServerName);
+    }
+
+    public static PlayerKickEvent playerKick(CloudPlayer player, @Nullable Component reason) {
+        CloudPlayer frozen = frozen(player);
+        return new SimulatedEvents.PlayerKick(null, null, frozen, frozen.getConnectedServerName(), reason);
+    }
+
+    public static PlayerProfileChangedEvent playerProfileChanged(UUID playerId, @Nullable PlayerProfile oldProfile,
+                                                                 @Nullable PlayerProfile newProfile) {
+        return new SimulatedEvents.PlayerProfileChanged(null, null, playerId, oldProfile, newProfile);
+    }
+
+    public static PlayerClientSettingsUpdatedEvent playerClientSettingsUpdated(UUID playerId, @Nullable String sessionId,
+                                                                               PlayerClientSettings settings) {
+        return new SimulatedEvents.PlayerClientSettingsUpdated(null, null, playerId, sessionId, settings);
+    }
+
+    private static CloudPlayer frozen(CloudPlayer player) {
+        return player instanceof TestPlayer testPlayer ? testPlayer.snapshot() : player;
     }
 
     private static Group frozen(Group group) {

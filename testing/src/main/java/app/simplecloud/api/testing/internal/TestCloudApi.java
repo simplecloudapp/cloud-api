@@ -10,6 +10,7 @@ import app.simplecloud.api.player.PlayerApi;
 import app.simplecloud.api.server.ServerApi;
 import app.simplecloud.api.testing.internal.event.TestEventApi;
 import app.simplecloud.api.testing.internal.group.TestGroupApi;
+import app.simplecloud.api.testing.internal.player.TestPlayerApi;
 import app.simplecloud.api.testing.internal.server.TestServerApi;
 import org.jetbrains.annotations.Nullable;
 
@@ -18,6 +19,7 @@ final class TestCloudApi implements CloudApi {
     private final CloudState cloud;
     private final GroupApi groupApi;
     private final ServerApi serverApi;
+    private final PlayerApi playerApi;
     private final EventApi eventApi;
     private final QueryCache cache = new NoOpQueryCache();
     private volatile @Nullable String currentServerId;
@@ -27,6 +29,7 @@ final class TestCloudApi implements CloudApi {
         this.currentServerId = currentServerId;
         this.groupApi = cloud.network().wrap(GroupApi.class, new TestGroupApi(cloud));
         this.serverApi = cloud.network().wrap(ServerApi.class, new TestServerApi(cloud, () -> this.currentServerId));
+        this.playerApi = cloud.network().wrap(PlayerApi.class, new TestPlayerApi(cloud, () -> this.playerApi));
         this.eventApi = new TestEventApi(cloud.bus());
     }
 
@@ -56,7 +59,7 @@ final class TestCloudApi implements CloudApi {
 
     @Override
     public PlayerApi player() {
-        throw new UnsupportedOperationException("Players are not implemented yet");
+        return playerApi;
     }
 
     @Override

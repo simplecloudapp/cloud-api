@@ -1,5 +1,6 @@
 package app.simplecloud.api.testing;
 
+import app.simplecloud.api.group.CreateGroupRequest;
 import app.simplecloud.api.group.ScalingConfig;
 import app.simplecloud.api.group.ScalingMode;
 import app.simplecloud.api.testing.group.TestGroup;
@@ -16,16 +17,20 @@ class ScalingTest {
 
     @Test
     void scalingIsOffByDefault(TestCloud cloud) {
-        TestGroup lobby = cloud.createGroup("lobby", group -> group
-                .scaling(ScalingConfig.builder().minServers(2).build()));
+        TestGroup lobby = cloud.createGroup(CreateGroupRequest.builder()
+                .name("lobby")
+                .scaling(ScalingConfig.builder().minServers(2).build())
+                .build());
 
         assertTrue(lobby.getServers().isEmpty());
     }
 
     @Test
     void minServersAreStartedWhenScalingIsEnabled(TestCloud cloud) {
-        TestGroup lobby = cloud.createGroup("lobby", group -> group
-                .scaling(ScalingConfig.builder().minServers(2).build()));
+        TestGroup lobby = cloud.createGroup(CreateGroupRequest.builder()
+                .name("lobby")
+                .scaling(ScalingConfig.builder().minServers(2).build())
+                .build());
 
         cloud.controller().scaling(true);
 
@@ -35,8 +40,10 @@ class ScalingTest {
     @Test
     void stoppedServerIsReplaced(TestCloud cloud) {
         cloud.controller().scaling(true);
-        TestGroup lobby = cloud.createGroup("lobby", group -> group
-                .scaling(ScalingConfig.builder().minServers(1).build()));
+        TestGroup lobby = cloud.createGroup(CreateGroupRequest.builder()
+                .name("lobby")
+                .scaling(ScalingConfig.builder().minServers(1).build())
+                .build());
         TestServer first = lobby.getServers().getFirst();
 
         first.stop();
@@ -49,13 +56,15 @@ class ScalingTest {
     @Test
     void slotModeStartsServerWhenFreeSlotsRunLow(TestCloud cloud) {
         cloud.controller().scaling(true);
-        TestGroup lobby = cloud.createGroup("lobby", group -> group
+        TestGroup lobby = cloud.createGroup(CreateGroupRequest.builder()
+                .name("lobby")
                 .maxPlayers(20)
                 .scaling(ScalingConfig.builder()
                         .scalingMode(ScalingMode.SLOTS)
                         .minServers(1)
                         .availableSlots(10)
-                        .build()));
+                        .build())
+                .build());
 
         lobby.getServers().getFirst().setPlayerCount(15);
 
@@ -65,13 +74,15 @@ class ScalingTest {
     @Test
     void playerModeStartsServerWhenThresholdIsReached(TestCloud cloud) {
         cloud.controller().scaling(true);
-        TestGroup lobby = cloud.createGroup("lobby", group -> group
+        TestGroup lobby = cloud.createGroup(CreateGroupRequest.builder()
+                .name("lobby")
                 .maxPlayers(10)
                 .scaling(ScalingConfig.builder()
                         .scalingMode(ScalingMode.PLAYERS)
                         .minServers(1)
                         .playerThreshold(0.8)
-                        .build()));
+                        .build())
+                .build());
 
         lobby.getServers().getFirst().setPlayerCount(7);
         assertEquals(1, lobby.getServers().size());
@@ -83,13 +94,15 @@ class ScalingTest {
     @Test
     void maxServersIsRespected(TestCloud cloud) {
         cloud.controller().scaling(true);
-        TestGroup lobby = cloud.createGroup("lobby", group -> group
+        TestGroup lobby = cloud.createGroup(CreateGroupRequest.builder()
+                .name("lobby")
                 .maxPlayers(10)
                 .scaling(ScalingConfig.builder()
                         .minServers(1)
                         .maxServers(2)
                         .availableSlots(100)
-                        .build()));
+                        .build())
+                .build());
 
         assertEquals(2, lobby.getServers().size());
     }
@@ -97,11 +110,13 @@ class ScalingTest {
     @Test
     void manualModeIsIgnored(TestCloud cloud) {
         cloud.controller().scaling(true);
-        TestGroup lobby = cloud.createGroup("lobby", group -> group
+        TestGroup lobby = cloud.createGroup(CreateGroupRequest.builder()
+                .name("lobby")
                 .scaling(ScalingConfig.builder()
                         .scalingMode(ScalingMode.MANUAL)
                         .minServers(3)
-                        .build()));
+                        .build())
+                .build());
 
         assertTrue(lobby.getServers().isEmpty());
     }

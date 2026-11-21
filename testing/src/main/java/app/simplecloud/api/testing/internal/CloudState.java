@@ -9,6 +9,13 @@ import app.simplecloud.api.group.GroupStartQueueItemStatus;
 import app.simplecloud.api.group.ScalingConfig;
 import app.simplecloud.api.group.ScalingMode;
 import app.simplecloud.api.group.UpdateGroupRequest;
+import app.simplecloud.api.player.CloudPlayer;
+import app.simplecloud.api.player.CloudPlayer.ConnectResult;
+import app.simplecloud.api.player.PlayerApi;
+import app.simplecloud.api.player.PlayerClientSettings;
+import app.simplecloud.api.player.PlayerQuery;
+import app.simplecloud.api.player.ServerSelectionMode;
+import app.simplecloud.api.player.UpdateClientSettingsRequest;
 import app.simplecloud.api.server.Server;
 import app.simplecloud.api.server.ServerQuery;
 import app.simplecloud.api.server.ServerState;
@@ -17,6 +24,12 @@ import app.simplecloud.api.testing.internal.event.EventBus;
 import app.simplecloud.api.testing.internal.event.SimulatedEvents.GroupCreated;
 import app.simplecloud.api.testing.internal.event.SimulatedEvents.GroupDeleted;
 import app.simplecloud.api.testing.internal.event.SimulatedEvents.GroupUpdated;
+import app.simplecloud.api.testing.internal.event.SimulatedEvents.PlayerClientSettingsUpdated;
+import app.simplecloud.api.testing.internal.event.SimulatedEvents.PlayerDisconnect;
+import app.simplecloud.api.testing.internal.event.SimulatedEvents.PlayerKick;
+import app.simplecloud.api.testing.internal.event.SimulatedEvents.PlayerLogin;
+import app.simplecloud.api.testing.internal.event.SimulatedEvents.PlayerProfileChanged;
+import app.simplecloud.api.testing.internal.event.SimulatedEvents.PlayerServerSwitch;
 import app.simplecloud.api.testing.internal.event.SimulatedEvents.ServerStarted;
 import app.simplecloud.api.testing.internal.event.SimulatedEvents.ServerStateChanged;
 import app.simplecloud.api.testing.internal.event.SimulatedEvents.ServerStopped;
@@ -24,8 +37,14 @@ import app.simplecloud.api.testing.internal.event.SimulatedEvents.ServerUpdated;
 import app.simplecloud.api.testing.internal.group.GroupData;
 import app.simplecloud.api.testing.internal.group.QueuedStart;
 import app.simplecloud.api.testing.internal.group.TestGroupImpl;
+import app.simplecloud.api.testing.internal.player.PlayerData;
+import app.simplecloud.api.testing.internal.player.ProfileData;
+import app.simplecloud.api.testing.internal.player.SessionData;
+import app.simplecloud.api.testing.internal.player.TestPlayerApi;
+import app.simplecloud.api.testing.internal.player.TestPlayerImpl;
 import app.simplecloud.api.testing.internal.server.ServerData;
 import app.simplecloud.api.testing.internal.server.TestServerImpl;
+import net.kyori.adventure.text.Component;
 import org.jetbrains.annotations.Nullable;
 
 import java.time.Duration;
@@ -41,10 +60,12 @@ import java.util.Objects;
 import java.util.Optional;
 import java.util.Set;
 import java.util.UUID;
+import java.util.concurrent.ThreadLocalRandom;
 import java.util.function.Consumer;
 import java.util.function.Function;
 import java.util.function.Supplier;
 import java.util.stream.Collectors;
+import java.util.stream.Stream;
 
 public final class CloudState {
 
@@ -63,8 +84,10 @@ public final class CloudState {
     private final EventBus bus = new EventBus();
     private final Map<String, GroupData> groups = new LinkedHashMap<>();
     private final Map<String, ServerData> servers = new LinkedHashMap<>();
+    private final Map<UUID, PlayerData> players = new LinkedHashMap<>();
     private final List<QueuedStart> startQueue = new ArrayList<>();
     private final TestNetworkImpl network = new TestNetworkImpl();
+    private final PlayerApi playerApi = new TestPlayerApi(this);
     private Instant now = START_TIME;
     private boolean autoStart = true;
     private boolean scaling;
@@ -85,6 +108,10 @@ public final class CloudState {
 
     public TestNetworkImpl network() {
         return network;
+    }
+
+    public PlayerApi playerApi() {
+        return playerApi;
     }
 
     public Instant now() {
@@ -137,6 +164,15 @@ public final class CloudState {
         synchronized (lock) {
             if (data.handle == null) {
                 data.handle = new TestServerImpl(this, data, handle(data.group));
+            }
+            return data.handle;
+        }
+    }
+
+    public TestPlayerImpl handle(PlayerData data) {
+        synchronized (lock) {
+            if (data.handle == null) {
+                data.handle = new TestPlayerImpl(this, data);
             }
             return data.handle;
         }
@@ -328,18 +364,19 @@ public final class CloudState {
     }
 
     public ServerData modifyServer(String id, Consumer<ServerData> change) {
-        return mutate(events -> {
-            ServerData server = requireServer(id);
-            ServerState oldState = server.state;
-            change.accept(server);
-            server.updatedAt = timestamp();
-            Server snapshot = server.snapshot();
-            if (oldState != server.state) {
-                events.add(new ServerStateChanged(networkId, server.updatedAt, snapshot, oldState, server.state));
-            }
-            events.add(new ServerUpdated(networkId, server.updatedAt, snapshot));
-            return server;
-        });
+        return mutate(events -> modifyServerLocked(requireServer(id), change, events));
+    }
+
+    private ServerData modifyServerLocked(ServerData server, Consumer<ServerData> change, List<Object> events) {
+        ServerState oldState = server.state;
+        change.accept(server);
+        server.updatedAt = timestamp();
+        Server snapshot = server.snapshot();
+        if (oldState != server.state) {
+            events.add(new ServerStateChanged(networkId, server.updatedAt, snapshot, oldState, server.state));
+        }
+        events.add(new ServerUpdated(networkId, server.updatedAt, snapshot));
+        return server;
     }
 
     public ServerData updateServer(String id, UpdateServerRequest request) {
@@ -381,11 +418,18 @@ public final class CloudState {
 
     private void stopLocked(ServerData server, boolean crashed, @Nullable Integer exitCode, @Nullable String reason,
                             List<Object> events) {
+        server.running = false;
+        for (PlayerData player : List.copyOf(players.values())) {
+            if (player.proxy == server) {
+                disconnectLocked(player, events);
+            } else if (player.server == server) {
+                player.server = null;
+            }
+        }
         String now = timestamp();
         ServerState oldState = server.state;
         server.state = ServerState.STOPPED;
         server.updatedAt = now;
-        server.running = false;
         servers.remove(server.id);
         Server snapshot = server.snapshot();
         if (oldState != ServerState.STOPPED) {
@@ -479,6 +523,358 @@ public final class CloudState {
             return false;
         }
         return query.getPersistentServerId() == null;
+    }
+
+    public PlayerData createPlayer(UUID id, String name) {
+        Objects.requireNonNull(id, "uniqueId");
+        return mutate(events -> {
+            if (name == null || name.isBlank()) {
+                throw invalid("Player name must not be blank");
+            }
+            if (players.containsKey(id)) {
+                throw conflict("Player '" + id + "' already exists");
+            }
+            if (playerByName(name).isPresent()) {
+                throw conflict("Player '" + name + "' already exists");
+            }
+            PlayerData player = new PlayerData(id, name, now);
+            player.profiles.add(new ProfileData(UUID.randomUUID().toString(), name, null, now));
+            players.put(id, player);
+            return player;
+        });
+    }
+
+    public Optional<PlayerData> playerById(UUID id) {
+        return Optional.ofNullable(players.get(id));
+    }
+
+    public Optional<PlayerData> playerByName(@Nullable String name) {
+        if (name == null || name.isEmpty()) {
+            return Optional.empty();
+        }
+        return players.values().stream()
+                .filter(player -> player.name.equalsIgnoreCase(name))
+                .findFirst();
+    }
+
+    public PlayerData requirePlayer(UUID id) {
+        return playerById(id).orElseThrow(() -> notFound("Player '" + id + "' not found"));
+    }
+
+    public List<PlayerData> players(@Nullable PlayerQuery query) {
+        Stream<PlayerData> result = players.values().stream()
+                .filter(player -> matches(player, query))
+                .sorted(playerComparator(query));
+        if (query != null && query.getOffset() != null) {
+            result = result.skip(query.getOffset());
+        }
+        if (query != null && query.getLimit() != null) {
+            result = result.limit(query.getLimit());
+        }
+        return result.toList();
+    }
+
+    private boolean matches(PlayerData player, @Nullable PlayerQuery query) {
+        if (query == null) {
+            return true;
+        }
+        if (query.getOnline() != null && query.getOnline() != player.online()) {
+            return false;
+        }
+        if (query.getServerName() != null && !query.getServerName().equals(player.serverName())) {
+            return false;
+        }
+        if (query.getProxyName() != null && !query.getProxyName().equals(player.proxyName())) {
+            return false;
+        }
+        if (query.getPlayerIds() != null && !query.getPlayerIds().contains(player.id)) {
+            return false;
+        }
+        if (!within(player.firstSeen, query.getFirstSeenFrom(), query.getFirstSeenTo())
+                || !within(player.lastSeen, query.getLastSeenFrom(), query.getLastSeenTo())) {
+            return false;
+        }
+        long onlineTime = player.onlineTimeSeconds(now);
+        if (query.getOnlineTimeSecondsMin() != null && onlineTime < query.getOnlineTimeSecondsMin()) {
+            return false;
+        }
+        if (query.getOnlineTimeSecondsMax() != null && onlineTime > query.getOnlineTimeSecondsMax()) {
+            return false;
+        }
+        return query.getSearch() == null
+                || player.name.toLowerCase(Locale.ROOT).contains(query.getSearch().toLowerCase(Locale.ROOT));
+    }
+
+    private static boolean within(Instant value, @Nullable Instant from, @Nullable Instant to) {
+        return (from == null || !value.isBefore(from)) && (to == null || !value.isAfter(to));
+    }
+
+    private Comparator<PlayerData> playerComparator(@Nullable PlayerQuery query) {
+        Comparator<PlayerData> byName = Comparator.comparing(player -> player.name.toLowerCase(Locale.ROOT));
+        if (query == null || query.getSortBy() == null) {
+            return query != null && query.getSortOrder() == PlayerQuery.SortOrder.DESC ? byName.reversed() : byName;
+        }
+        Comparator<PlayerData> comparator = switch (query.getSortBy()) {
+            case NAME -> byName;
+            case FIRST_SEEN -> Comparator.<PlayerData, Instant>comparing(player -> player.firstSeen).thenComparing(byName);
+            case LAST_SEEN -> Comparator.<PlayerData, Instant>comparing(player -> player.lastSeen).thenComparing(byName);
+            case ONLINE_TIME -> Comparator.<PlayerData>comparingLong(player -> player.onlineTimeSeconds(now))
+                    .thenComparing(byName);
+        };
+        return query.getSortOrder() == PlayerQuery.SortOrder.DESC ? comparator.reversed() : comparator;
+    }
+
+    public CloudPlayer snapshot(PlayerData player, PlayerApi api) {
+        return read(() -> player.snapshot(api, now));
+    }
+
+    public PlayerData modifyPlayer(UUID id, Consumer<PlayerData> change) {
+        return mutate(events -> {
+            PlayerData player = requirePlayer(id);
+            change.accept(player);
+            return player;
+        });
+    }
+
+    public PlayerData setOnlineTime(UUID id, long seconds) {
+        return modifyPlayer(id, player -> {
+            player.onlineTimeSeconds = seconds;
+            if (player.onlineSince != null) {
+                player.onlineSince = now;
+            }
+        });
+    }
+
+    public Map<String, String> setPlayerProperties(UUID id, Map<String, String> properties) {
+        PlayerData player = modifyPlayer(id, data -> {
+            data.properties.clear();
+            data.properties.putAll(properties);
+        });
+        return read(() -> new LinkedHashMap<>(player.properties));
+    }
+
+    public Map<String, String> updatePlayerProperties(UUID id, Map<String, String> properties) {
+        PlayerData player = modifyPlayer(id, data -> data.properties.putAll(properties));
+        return read(() -> new LinkedHashMap<>(player.properties));
+    }
+
+    public Map<String, String> deletePlayerProperties(UUID id, Collection<String> keys) {
+        PlayerData player = modifyPlayer(id, data -> keys.forEach(data.properties::remove));
+        return read(() -> new LinkedHashMap<>(player.properties));
+    }
+
+    public void login(UUID id, @Nullable String proxyId) {
+        mutate(events -> {
+            PlayerData player = requirePlayer(id);
+            ServerData proxy = proxyId == null ? null : requireServer(proxyId);
+            if (player.online()) {
+                throw new IllegalStateException("Player '" + player.name + "' is already online");
+            }
+            loginLocked(player, proxy, events);
+            return null;
+        });
+    }
+
+    private void loginLocked(PlayerData player, @Nullable ServerData proxy, List<Object> events) {
+        boolean newPlayer = player.sessions.isEmpty();
+        boolean nameChanged = player.lastLoginName != null && !player.lastLoginName.equals(player.name);
+        SessionData session = new SessionData(UUID.randomUUID().toString(), now);
+        player.sessions.add(session);
+        player.onlineSince = now;
+        player.lastSeen = now;
+        player.lastLoginName = player.name;
+        player.proxy = proxy;
+        events.add(new PlayerLogin(networkId, now.toString(), player.snapshot(playerApi, now), player.proxyName(),
+                session.id, newPlayer, nameChanged));
+        if (proxy != null) {
+            addPlayerCount(proxy, 1, events);
+        }
+    }
+
+    public void join(UUID id, String serverId) {
+        mutate(events -> {
+            PlayerData player = requirePlayer(id);
+            ServerData server = requireServer(serverId);
+            if (!player.online()) {
+                loginLocked(player, null, events);
+            }
+            if (player.server != server) {
+                switchLocked(player, server, events);
+            }
+            return null;
+        });
+    }
+
+    private void switchLocked(PlayerData player, ServerData target, List<Object> events) {
+        ServerData previous = player.server;
+        player.server = target;
+        events.add(new PlayerServerSwitch(networkId, now.toString(), player.snapshot(playerApi, now),
+                previous == null ? null : previous.name(), target.name()));
+        if (previous != null) {
+            addPlayerCount(previous, -1, events);
+        }
+        addPlayerCount(target, 1, events);
+    }
+
+    private void addPlayerCount(ServerData server, int delta, List<Object> events) {
+        if (server.running) {
+            modifyServerLocked(server, data -> data.playerCount = Math.max(0, data.playerCount + delta), events);
+        }
+    }
+
+    public void disconnect(UUID id) {
+        mutate(events -> {
+            PlayerData player = requirePlayer(id);
+            if (!player.online()) {
+                throw new IllegalStateException("Player '" + player.name + "' is not online");
+            }
+            disconnectLocked(player, events);
+            return null;
+        });
+    }
+
+    private void disconnectLocked(PlayerData player, List<Object> events) {
+        SessionData session = player.currentSession();
+        if (session == null) {
+            return;
+        }
+        player.onlineTimeSeconds = player.onlineTimeSeconds(now);
+        player.onlineSince = null;
+        player.lastSeen = now;
+        session.logoutTime = now;
+        ServerData proxy = player.proxy;
+        ServerData server = player.server;
+        player.proxy = null;
+        player.server = null;
+        events.add(new PlayerDisconnect(networkId, now.toString(), player.snapshot(playerApi, now),
+                proxy == null ? null : proxy.name(), server == null ? null : server.name(), session.durationSeconds(now)));
+        if (server != null) {
+            addPlayerCount(server, -1, events);
+        }
+        if (proxy != null) {
+            addPlayerCount(proxy, -1, events);
+        }
+    }
+
+    public boolean kick(UUID id, @Nullable Component reason) {
+        return mutate(events -> {
+            PlayerData player = players.get(id);
+            if (player == null || !player.online()) {
+                return false;
+            }
+            events.add(new PlayerKick(networkId, now.toString(), player.snapshot(playerApi, now), player.serverName(),
+                    reason));
+            disconnectLocked(player, events);
+            return true;
+        });
+    }
+
+    public ConnectResult connect(UUID id, String serverName) {
+        return mutate(events -> {
+            PlayerData player = players.get(id);
+            if (player == null || !player.online()) {
+                return ConnectResult.PLAYER_NOT_FOUND;
+            }
+            Optional<ServerData> target = serverByName(serverName);
+            if (target.isEmpty()) {
+                return ConnectResult.SERVER_NOT_FOUND;
+            }
+            if (player.server == target.get()) {
+                return ConnectResult.ALREADY_CONNECTED;
+            }
+            switchLocked(player, target.get(), events);
+            return ConnectResult.SUCCESS;
+        });
+    }
+
+    public ConnectResult connectToGroup(UUID id, String groupName, ServerSelectionMode mode) {
+        return mutate(events -> {
+            PlayerData player = players.get(id);
+            if (player == null || !player.online()) {
+                return ConnectResult.PLAYER_NOT_FOUND;
+            }
+            Optional<GroupData> group = groupByName(groupName).or(() -> groupById(groupName));
+            if (group.isEmpty()) {
+                return ConnectResult.SERVER_NOT_FOUND;
+            }
+            if (player.server != null && player.server.group == group.get()) {
+                return ConnectResult.ALREADY_CONNECTED;
+            }
+            List<ServerData> candidates = serversOf(group.get()).stream()
+                    .filter(CloudState::joinable)
+                    .toList();
+            if (candidates.isEmpty()) {
+                return ConnectResult.SERVER_NOT_FOUND;
+            }
+            ServerData target = switch (mode) {
+                case FIRST -> candidates.getFirst();
+                case MIN_PLAYERS -> candidates.stream().min(Comparator.comparingInt(server -> server.playerCount)).orElseThrow();
+                case MAX_PLAYERS -> candidates.stream().max(Comparator.comparingInt(server -> server.playerCount)).orElseThrow();
+                case RANDOM -> candidates.get(ThreadLocalRandom.current().nextInt(candidates.size()));
+            };
+            switchLocked(player, target, events);
+            return ConnectResult.SUCCESS;
+        });
+    }
+
+    private static boolean joinable(ServerData server) {
+        return server.state == ServerState.AVAILABLE
+                && (server.maxPlayers <= 0 || server.playerCount < server.maxPlayers);
+    }
+
+    public void changeProfile(UUID id, String name, @Nullable String texture) {
+        mutate(events -> {
+            PlayerData player = requirePlayer(id);
+            if (name == null || name.isBlank()) {
+                throw invalid("Player name must not be blank");
+            }
+            Optional<PlayerData> other = playerByName(name);
+            if (other.isPresent() && other.get() != player) {
+                throw conflict("Player '" + name + "' already exists");
+            }
+            ProfileData old = player.latestProfile();
+            ProfileData profile = new ProfileData(UUID.randomUUID().toString(), name, texture, now);
+            player.profiles.add(profile);
+            if (player.displayName.equals(player.name)) {
+                player.displayName = name;
+            }
+            player.name = name;
+            events.add(new PlayerProfileChanged(networkId, now.toString(), id, old == null ? null : old.toProfile(id),
+                    profile.toProfile(id)));
+            return null;
+        });
+    }
+
+    public PlayerClientSettings updateClientSettings(UUID id, UpdateClientSettingsRequest request) {
+        return mutate(events -> {
+            PlayerData player = requirePlayer(id);
+            PlayerClientSettings settings = player.clientSettings == null ? new PlayerClientSettings() : player.clientSettings;
+            if (request.getChatMode() != null) {
+                settings.setChatMode(request.getChatMode());
+            }
+            if (request.getLocale() != null) {
+                settings.setLocale(request.getLocale());
+            }
+            if (request.getMainHand() != null) {
+                settings.setMainHand(request.getMainHand());
+            }
+            if (request.getViewDistance() != null) {
+                settings.setViewDistance(request.getViewDistance());
+            }
+            if (request.getChatColors() != null) {
+                settings.setChatColors(request.getChatColors());
+            }
+            if (request.getClientListingAllowed() != null) {
+                settings.setClientListingAllowed(request.getClientListingAllowed());
+            }
+            if (request.getSkinParts() != null) {
+                settings.setSkinParts(request.getSkinParts());
+            }
+            player.clientSettings = settings;
+            events.add(new PlayerClientSettingsUpdated(networkId, now.toString(), id, player.sessionId(),
+                    PlayerData.copy(settings)));
+            return PlayerData.copy(settings);
+        });
     }
 
     public boolean isAutoStart() {
