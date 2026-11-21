@@ -17,6 +17,7 @@ rootProject.name = "cloud-api"
 include(
     "api",
     "local-dev",
+    "testing",
     "platform:shared",
     "platform:spigot",
     "platform:spigot-legacy",
