@@ -1,6 +1,8 @@
 package app.simplecloud.api.testing.internal;
 
 import app.simplecloud.api.CloudApiException;
+import app.simplecloud.api.blueprint.CreateBlueprintRequest;
+import app.simplecloud.api.blueprint.UpdateBlueprintRequest;
 import app.simplecloud.api.group.CreateGroupRequest;
 import app.simplecloud.api.group.GroupQuery;
 import app.simplecloud.api.group.GroupServerType;
@@ -9,7 +11,10 @@ import app.simplecloud.api.group.GroupStartQueueEntry;
 import app.simplecloud.api.group.GroupStartQueueItemStatus;
 import app.simplecloud.api.group.ScalingConfig;
 import app.simplecloud.api.group.ScalingMode;
+import app.simplecloud.api.group.SourceConfig;
+import app.simplecloud.api.group.SourceType;
 import app.simplecloud.api.group.UpdateGroupRequest;
+import app.simplecloud.api.internal.create.CreateRequestDefaults;
 import app.simplecloud.api.persistentserver.CreatePersistentServerRequest;
 import app.simplecloud.api.persistentserver.PersistentServerQuery;
 import app.simplecloud.api.persistentserver.UpdatePersistentServerRequest;
@@ -24,7 +29,11 @@ import app.simplecloud.api.server.Server;
 import app.simplecloud.api.server.ServerQuery;
 import app.simplecloud.api.server.ServerState;
 import app.simplecloud.api.server.UpdateServerRequest;
+import app.simplecloud.api.testing.internal.blueprint.BlueprintData;
 import app.simplecloud.api.testing.internal.event.EventBus;
+import app.simplecloud.api.testing.internal.event.SimulatedEvents.BlueprintCreated;
+import app.simplecloud.api.testing.internal.event.SimulatedEvents.BlueprintDeleted;
+import app.simplecloud.api.testing.internal.event.SimulatedEvents.BlueprintUpdated;
 import app.simplecloud.api.testing.internal.event.SimulatedEvents.GroupCreated;
 import app.simplecloud.api.testing.internal.event.SimulatedEvents.GroupDeleted;
 import app.simplecloud.api.testing.internal.event.SimulatedEvents.GroupUpdated;
@@ -87,6 +96,7 @@ public final class CloudState {
     private static final int DEFAULT_MAX_MEMORY = 1024;
     private static final int DEFAULT_MAX_PLAYERS = 20;
     private static final int MAX_SCALE_STEPS = 100;
+    private static final int MAX_BLUEPRINT_NAME_LENGTH = 100;
 
     private static final Instant START_TIME = Instant.parse("2026-01-01T00:00:00Z");
 
@@ -96,6 +106,8 @@ public final class CloudState {
     private final Map<String, GroupData> groups = new LinkedHashMap<>();
     private final Map<String, ServerData> servers = new LinkedHashMap<>();
     private final Map<String, PersistentServerData> persistentServers = new LinkedHashMap<>();
+    private final Map<String, BlueprintData> blueprints = new LinkedHashMap<>();
+    private final CreateRequestDefaults defaults = new CreateRequestDefaults();
     private final Map<UUID, PlayerData> players = new LinkedHashMap<>();
     private final List<QueuedStart> startQueue = new ArrayList<>();
     private final TestNetworkImpl network = new TestNetworkImpl();
@@ -201,6 +213,7 @@ public final class CloudState {
             if (groupByName(name).isPresent()) {
                 throw conflict("Group '" + name + "' already exists");
             }
+            SourceConfig source = inlineSourceLocked(name, request.getCreateBlueprint(), request.getSource(), events);
             String now = timestamp();
             GroupData group = new GroupData(UUID.randomUUID().toString(), name, now);
             if (request.getType() != null) {
@@ -215,7 +228,7 @@ public final class CloudState {
             group.priority = request.getPriority();
             group.deployment = request.getDeployment();
             group.scaling = request.getScaling();
-            group.source = request.getSource();
+            group.source = source;
             group.workflows = request.getWorkflows();
             if (request.getProperties() != null) {
                 group.properties.putAll(request.getProperties());
@@ -312,6 +325,7 @@ public final class CloudState {
             groups.remove(group.id);
             group.deleted = true;
             events.add(new GroupDeleted(networkId, timestamp(), group.id, group.name));
+            deleteUnusedBlueprintLocked(group.source, events);
             return null;
         });
     }
@@ -355,12 +369,14 @@ public final class CloudState {
         ServerData server = new ServerData(UUID.randomUUID().toString(), networkId, group, null,
                 nextNumericalId(group), timestamp());
         server.serverhostId = SERVERHOST_ID;
+        server.blueprint = blueprintOf(group.source);
         return launchLocked(server, group.minMemory, group.maxMemory, group.maxPlayers, events);
     }
 
     private ServerData startLocked(PersistentServerData persistent, List<Object> events) {
         ServerData server = new ServerData(UUID.randomUUID().toString(), networkId, null, persistent, 1, timestamp());
         server.serverhostId = persistent.serverhostId == null ? SERVERHOST_ID : persistent.serverhostId;
+        server.blueprint = blueprintOf(persistent.source);
         persistent.server = server;
         launchLocked(server, persistent.minMemory, persistent.maxMemory, persistent.maxPlayers, events);
         events.add(new PersistentServerStarted(networkId, server.createdAt, persistent.id, server.id));
@@ -580,6 +596,7 @@ public final class CloudState {
             if (persistentServerByName(name).isPresent()) {
                 throw conflict("Persistent server '" + name + "' already exists");
             }
+            SourceConfig source = inlineSourceLocked(name, request.getCreateBlueprint(), request.getSource(), events);
             String now = timestamp();
             PersistentServerData server = new PersistentServerData(UUID.randomUUID().toString(), name, now);
             if (request.getType() != null) {
@@ -593,7 +610,7 @@ public final class CloudState {
             server.maxPlayers = request.getMaxPlayers();
             server.priority = request.getPriority();
             server.serverhostId = request.getServerhostId();
-            server.source = request.getSource();
+            server.source = source;
             server.workflows = request.getWorkflows();
             if (request.getProperties() != null) {
                 server.properties.putAll(request.getProperties());
@@ -686,6 +703,7 @@ public final class CloudState {
             persistentServers.remove(server.id);
             server.deleted = true;
             events.add(new PersistentServerDeleted(networkId, timestamp(), server.id, server.name));
+            deleteUnusedBlueprintLocked(server.source, events);
             return null;
         });
     }
@@ -737,6 +755,236 @@ public final class CloudState {
     private PersistentServerData requirePersistentServer(String id) {
         return persistentServerById(id).orElseThrow(() -> notFound("Persistent server with ID '" + id + "' not found"));
     }
+
+    public BlueprintData createBlueprint(CreateBlueprintRequest request) {
+        Objects.requireNonNull(request, "request");
+        return mutate(events -> {
+            String name = request.getName();
+            if (name == null || name.isBlank()) {
+                throw invalid("Blueprint name is required");
+            }
+            return createBlueprintLocked(name, request, events);
+        });
+    }
+
+    private BlueprintData createBlueprintLocked(String name, CreateBlueprintRequest request, List<Object> events) {
+        if (blueprintByName(name).isPresent()) {
+            throw conflict("Blueprint '" + name + "' already exists");
+        }
+        String now = timestamp();
+        BlueprintData blueprint = new BlueprintData(UUID.randomUUID().toString(), name, now);
+        apply(blueprint, fromRequest(blueprint, name, request));
+        blueprints.put(blueprint.id, blueprint);
+        events.add(new BlueprintCreated(networkId, now, blueprint.snapshot()));
+        return blueprint;
+    }
+
+    public BlueprintData replaceBlueprint(String id, CreateBlueprintRequest request) {
+        Objects.requireNonNull(request, "request");
+        return modifyBlueprint(id, blueprint -> {
+            String name = request.getName();
+            if (name == null || name.isBlank()) {
+                throw invalid("Blueprint name is required");
+            }
+            requireFreeBlueprintName(blueprint, name);
+            apply(blueprint, fromRequest(blueprint, name, request));
+        });
+    }
+
+    public BlueprintData updateBlueprint(String id, UpdateBlueprintRequest request) {
+        Objects.requireNonNull(request, "request");
+        return modifyBlueprint(id, blueprint -> {
+            BlueprintData changed = blueprint.copy();
+            if (request.getName() != null) {
+                requireFreeBlueprintName(blueprint, request.getName());
+                changed.name = request.getName();
+            }
+            if (request.getConfigurator() != null) {
+                changed.configurator = request.getConfigurator();
+            }
+            if (request.getMinecraftVersion() != null) {
+                changed.minecraftVersion = request.getMinecraftVersion();
+            }
+            if (request.getServerSoftware() != null) {
+                changed.serverSoftware = request.getServerSoftware();
+            }
+            if (request.getServerUrl() != null) {
+                changed.serverUrl = request.getServerUrl();
+            }
+            if (request.getSoftwareVersion() != null) {
+                changed.softwareVersion = request.getSoftwareVersion();
+            }
+            if (request.getRuntimeConfig() != null) {
+                changed.runtimeConfig = BlueprintData.copy(request.getRuntimeConfig());
+            }
+            if (request.getWorkflowSteps() != null) {
+                changed.workflowSteps.clear();
+                changed.workflowSteps.addAll(request.getWorkflowSteps());
+            }
+            apply(blueprint, changed);
+        });
+    }
+
+    private BlueprintData modifyBlueprint(String id, Consumer<BlueprintData> change) {
+        return mutate(events -> {
+            BlueprintData blueprint = requireBlueprint(id);
+            change.accept(blueprint);
+            blueprint.updatedAt = timestamp();
+            events.add(new BlueprintUpdated(networkId, blueprint.updatedAt, blueprint.snapshot()));
+            return blueprint;
+        });
+    }
+
+    public void deleteBlueprint(String id) {
+        mutate(events -> {
+            BlueprintData blueprint = requireBlueprint(id);
+            if (isBlueprintUsed(blueprint.id)) {
+                throw conflict("Blueprint '" + blueprint.name + "' is still used by a group or persistent server");
+            }
+            removeBlueprintLocked(blueprint, events);
+            return null;
+        });
+    }
+
+    private void removeBlueprintLocked(BlueprintData blueprint, List<Object> events) {
+        blueprints.remove(blueprint.id);
+        blueprint.deleted = true;
+        events.add(new BlueprintDeleted(networkId, timestamp(), blueprint.id, blueprint.name, blueprint.snapshot()));
+    }
+
+    public Optional<BlueprintData> blueprintById(String id) {
+        return Optional.ofNullable(blueprints.get(id));
+    }
+
+    public Optional<BlueprintData> blueprintByName(String name) {
+        return blueprints.values().stream()
+                .filter(blueprint -> blueprint.name.equals(name))
+                .findFirst();
+    }
+
+    public List<BlueprintData> blueprints() {
+        return blueprints.values().stream()
+                .sorted(Comparator.comparing(blueprint -> blueprint.name))
+                .toList();
+    }
+
+    private @Nullable SourceConfig inlineSourceLocked(String resourceName, @Nullable CreateBlueprintRequest request,
+                                                     @Nullable SourceConfig source, List<Object> events) {
+        if (request == null) {
+            return source;
+        }
+        if (source != null) {
+            if (source.getType() != null && source.getType() != SourceType.BLUEPRINT) {
+                throw invalid("createBlueprint requires source.type to be BLUEPRINT when source is provided");
+            }
+            if (source.getBlueprint() != null && !source.getBlueprint().isBlank()) {
+                throw invalid("createBlueprint cannot be combined with source.blueprint");
+            }
+            if (source.getImage() != null && !source.getImage().isBlank()) {
+                throw invalid("createBlueprint cannot be combined with source.image");
+            }
+        }
+        String name = request.getName() != null && !request.getName().isBlank() ? request.getName() : resourceName;
+        BlueprintData blueprint = createBlueprintLocked(name, request, events);
+        return SourceConfig.builder()
+                .type(SourceType.BLUEPRINT)
+                .blueprint(blueprint.id)
+                .build();
+    }
+
+    private void deleteUnusedBlueprintLocked(@Nullable SourceConfig source, List<Object> events) {
+        BlueprintData blueprint = blueprintOf(source);
+        if (blueprint != null && !isBlueprintUsed(blueprint.id)) {
+            removeBlueprintLocked(blueprint, events);
+        }
+    }
+
+    private @Nullable BlueprintData blueprintOf(@Nullable SourceConfig source) {
+        if (source == null || source.getBlueprint() == null) {
+            return null;
+        }
+        return blueprints.get(source.getBlueprint());
+    }
+
+    private boolean isBlueprintUsed(String blueprintId) {
+        return groups.values().stream().anyMatch(group -> usesBlueprint(group.source, blueprintId))
+                || persistentServers.values().stream().anyMatch(server -> usesBlueprint(server.source, blueprintId));
+    }
+
+    private static boolean usesBlueprint(@Nullable SourceConfig source, String blueprintId) {
+        return source != null && blueprintId.equals(source.getBlueprint());
+    }
+
+    private void requireFreeBlueprintName(BlueprintData blueprint, String name) {
+        if (!name.equals(blueprint.name) && blueprintByName(name).isPresent()) {
+            throw conflict("Blueprint '" + name + "' already exists");
+        }
+    }
+
+    private BlueprintData fromRequest(BlueprintData blueprint, String name, CreateBlueprintRequest request) {
+        CreateBlueprintRequest effective = defaults.defaultBlueprint(request);
+        BlueprintData changed = new BlueprintData(blueprint.id, name, blueprint.createdAt);
+        changed.configurator = orEmpty(effective.getConfigurator());
+        changed.minecraftVersion = orEmpty(effective.getMinecraftVersion());
+        changed.serverSoftware = orEmpty(effective.getServerSoftware());
+        changed.softwareVersion = orEmpty(effective.getSoftwareVersion());
+        changed.serverUrl = orEmpty(effective.getServerUrl());
+        String version = !changed.minecraftVersion.isBlank() ? changed.minecraftVersion : changed.softwareVersion;
+        if (changed.serverUrl.isBlank() && !changed.serverSoftware.isBlank() && !version.isBlank()) {
+            changed.serverUrl = "https://test.invalid/" + changed.serverSoftware + "/" + version + ".jar";
+        }
+        changed.runtimeConfig = BlueprintData.copy(effective.getRuntimeConfig());
+        if (effective.getWorkflowSteps() != null) {
+            changed.workflowSteps.addAll(effective.getWorkflowSteps());
+        }
+        return changed;
+    }
+
+    private static void apply(BlueprintData blueprint, BlueprintData changed) {
+        validateBlueprint(changed);
+        blueprint.name = changed.name;
+        blueprint.configurator = changed.configurator;
+        blueprint.minecraftVersion = changed.minecraftVersion;
+        blueprint.serverSoftware = changed.serverSoftware;
+        blueprint.serverUrl = changed.serverUrl;
+        blueprint.softwareVersion = changed.softwareVersion;
+        blueprint.runtimeConfig = changed.runtimeConfig;
+        blueprint.workflowSteps.clear();
+        blueprint.workflowSteps.addAll(changed.workflowSteps);
+    }
+
+    private static void validateBlueprint(BlueprintData blueprint) {
+        if (blueprint.name.isBlank()) {
+            throw invalid("Blueprint name is required");
+        }
+        if (blueprint.name.codePointCount(0, blueprint.name.length()) > MAX_BLUEPRINT_NAME_LENGTH) {
+            throw invalid("Blueprint name must be 100 characters or less");
+        }
+        if (blueprint.configurator.isBlank()) {
+            throw invalid("Configurator is required");
+        }
+        if (blueprint.minecraftVersion.isBlank()) {
+            throw invalid("Minecraft version is required");
+        }
+        if (blueprint.serverUrl.isBlank()) {
+            throw invalid("Server URL is required");
+        }
+        if (blueprint.serverSoftware.isBlank()) {
+            throw invalid("Server software is required");
+        }
+        if (blueprint.softwareVersion.isBlank()) {
+            throw invalid("Software version is required");
+        }
+    }
+
+    private static String orEmpty(@Nullable String value) {
+        return value == null ? "" : value.trim();
+    }
+
+    private BlueprintData requireBlueprint(String id) {
+        return blueprintById(id).orElseThrow(() -> notFound("Blueprint with ID '" + id + "' not found"));
+    }
+
 
     public PlayerData createPlayer(UUID id, String name) {
         Objects.requireNonNull(id, "uniqueId");

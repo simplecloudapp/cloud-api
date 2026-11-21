@@ -2,6 +2,7 @@ package app.simplecloud.api.testing.internal.server;
 
 import app.simplecloud.api.server.Server;
 import app.simplecloud.api.server.ServerState;
+import app.simplecloud.api.testing.internal.blueprint.BlueprintData;
 import app.simplecloud.api.testing.internal.group.GroupData;
 import app.simplecloud.api.testing.internal.group.GroupImpl;
 import app.simplecloud.api.testing.internal.persistentserver.PersistentServerData;
@@ -29,6 +30,7 @@ public final class ServerData {
     public int playerCount;
     public ServerState state = ServerState.UNKNOWN_STATE;
     public final Map<String, Object> properties = new LinkedHashMap<>();
+    public @Nullable BlueprintData blueprint;
     public boolean running = true;
     public @Nullable TestServerImpl handle;
 
@@ -67,6 +69,7 @@ public final class ServerData {
         copy.state = state;
         copy.properties.putAll(properties);
         copy.running = running;
+        copy.blueprint = blueprint == null ? null : blueprint.copy();
         return copy;
     }
 

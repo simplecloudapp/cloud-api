@@ -124,7 +124,7 @@ public class ServerImpl implements Server {
 
     @Override
     public @Nullable Blueprint getBlueprint() {
-        return null;
+        return data.blueprint == null ? null : data.blueprint.snapshot();
     }
 
     @Override

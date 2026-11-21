@@ -1,5 +1,9 @@
 package app.simplecloud.api.testing.event;
 
+import app.simplecloud.api.blueprint.Blueprint;
+import app.simplecloud.api.event.blueprint.BlueprintCreatedEvent;
+import app.simplecloud.api.event.blueprint.BlueprintDeletedEvent;
+import app.simplecloud.api.event.blueprint.BlueprintUpdatedEvent;
 import app.simplecloud.api.event.group.GroupCreatedEvent;
 import app.simplecloud.api.event.group.GroupDeletedEvent;
 import app.simplecloud.api.event.group.GroupUpdatedEvent;
@@ -108,6 +112,18 @@ public final class TestEvents {
 
     public static PersistentServerStoppedEvent persistentServerStopped(PersistentServer server, @Nullable String serverId) {
         return new SimulatedEvents.PersistentServerStopped(null, null, server.getPersistentServerId(), serverId);
+    }
+
+    public static BlueprintCreatedEvent blueprintCreated(Blueprint blueprint) {
+        return new SimulatedEvents.BlueprintCreated(null, null, blueprint);
+    }
+
+    public static BlueprintUpdatedEvent blueprintUpdated(Blueprint blueprint) {
+        return new SimulatedEvents.BlueprintUpdated(null, null, blueprint);
+    }
+
+    public static BlueprintDeletedEvent blueprintDeleted(Blueprint blueprint) {
+        return new SimulatedEvents.BlueprintDeleted(null, null, blueprint.getBlueprintId(), blueprint.getName(), blueprint);
     }
 
     public static PlayerLoginEvent playerLogin(CloudPlayer player) {
