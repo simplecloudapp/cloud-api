@@ -87,11 +87,11 @@ if err != nil {
 defer subscription.Unsubscribe()
 ```
 
-Group, server, persistent-server, and blueprint events all have typed subscription methods.
+Group, server, persistent-server, blueprint, and player events all have typed subscription methods.
 
 ## Complete controller API
 
-The facade intentionally keeps common operations compact. Every controller endpoint—including networks, blueprints, metrics, plugins, secrets, serverhosts, stats, workflows, rolling restarts, and player sessions—is exposed through the generated `Raw` client:
+The facade intentionally keeps common operations compact. Every controller endpoint—including networks, metrics, plugins, secrets, serverhosts, environment variables, and audit events—is exposed through the generated `Raw` client:
 
 ```go
 result, response, err := client.Raw.ServerhostsAPI.ListServerhosts(context.Background()).

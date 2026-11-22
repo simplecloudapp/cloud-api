@@ -3,12 +3,17 @@ package simplecloud
 import (
 	"context"
 	"net/http"
+
+	"github.com/nats-io/nats.go"
 )
 
 // Player is the stable facade name for a generated player model.
 type Player = ModelsPlayerResponse
 
-type PlayersClient struct{ authenticatedClient }
+type PlayersClient struct {
+	authenticatedClient
+	nats func() (*nats.Conn, error)
+}
 
 func (c *PlayersClient) GetByID(ctx context.Context, id string) (*Player, *http.Response, error) {
 	return c.api.PlayersAPI.GetPlayer(ctx).

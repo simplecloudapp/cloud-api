@@ -42,6 +42,15 @@ const (
 	SelectFirst      = sdk.SelectFirst
 )
 
+type PlayerConnectResult = sdk.PlayerConnectResult
+
+const (
+	PlayerConnectSuccess          = sdk.PlayerConnectSuccess
+	PlayerConnectAlreadyConnected = sdk.PlayerConnectAlreadyConnected
+	PlayerConnectServerNotFound   = sdk.PlayerConnectServerNotFound
+	PlayerConnectFailed           = sdk.PlayerConnectFailed
+)
+
 type Blueprint = sdk.Blueprint
 type BlueprintsClient = sdk.BlueprintsClient
 

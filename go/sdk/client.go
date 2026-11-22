@@ -53,7 +53,7 @@ func NewClient(options Options) (*Client, error) {
 	client.Groups = &GroupsClient{authenticatedClient: api}
 	client.Servers = &ServersClient{authenticatedClient: api}
 	client.PersistentServers = &PersistentServersClient{authenticatedClient: api}
-	client.Players = &PlayersClient{authenticatedClient: api}
+	client.Players = &PlayersClient{authenticatedClient: api, nats: client.NATS}
 	client.Blueprints = &BlueprintsClient{authenticatedClient: api}
 	client.Stats = &StatsClient{authenticatedClient: api}
 	client.Events = &EventsClient{client: client}
