@@ -28,8 +28,21 @@ dependencies {
     implementation(libs.adventure.gson)
     implementation(libs.caffeine)
 
-    testImplementation(libs.okhttp.mockwebserver)
-    testImplementation(libs.okhttp.tls)
+    testImplementation(libs.testcontainers)
+}
+
+val natsTestUrl = providers.gradleProperty("natsTestUrl").orElse(providers.environmentVariable("NATS_TEST_URL"))
+val natsTestContainer = providers.gradleProperty("nats")
+
+tasks.named<Test>("test") {
+    useJUnitPlatform {
+        if (!natsTestUrl.isPresent && !natsTestContainer.isPresent) {
+            excludeTags("nats")
+        }
+    }
+    if (natsTestUrl.isPresent) {
+        systemProperty("simplecloud.test.natsUrl", natsTestUrl.get())
+    }
 }
 
 tasks.named<ShadowJar>("shadowJar") {

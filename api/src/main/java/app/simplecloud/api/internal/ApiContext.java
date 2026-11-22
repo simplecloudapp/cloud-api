@@ -32,7 +32,7 @@ public record ApiContext(CloudApiOptions options, QueryCache cache, ApiClient cl
     }
 
     public <T> CompletableFuture<T> fetchWithTransientMissRecovery(QueryKey key,
-                                                                   supplier<CompletableFuture<T>> fetcher,
+                                                                   Supplier<CompletableFuture<T>> fetcher,
                                                                    Predicate<T> isTransientMiss) {
         return cache.fetchWithTransientMissRecovery(
                 key,
