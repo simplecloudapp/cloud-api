@@ -396,6 +396,15 @@ public class PlayerApiImpl implements PlayerApi {
 
     @Override
     public CompletableFuture<CloudPlayer.ConnectResult> connectDirect(UUID uniqueId, String serverName) {
+        return find(uniqueId)
+                .handle((player, failure) ->
+                        failure == null && player.filter(CloudPlayer::isOnline).isEmpty())
+                .thenCompose(offline -> offline
+                        ? CompletableFuture.completedFuture(CloudPlayer.ConnectResult.PLAYER_NOT_FOUND)
+                        : requestConnectFromProxy(uniqueId, serverName));
+    }
+
+    private CompletableFuture<CloudPlayer.ConnectResult> requestConnectFromProxy(UUID uniqueId, String serverName) {
         return CompletableFuture.supplyAsync(
                 () -> {
                     try {
@@ -418,6 +427,9 @@ public class PlayerApiImpl implements PlayerApi {
                             case CONNECT_RESULT_ALREADY_CONNECTED -> CloudPlayer.ConnectResult.ALREADY_CONNECTED;
                             default -> CloudPlayer.ConnectResult.CONNECTION_FAILED;
                         };
+                    } catch (InterruptedException e) {
+                        Thread.currentThread().interrupt();
+                        return CloudPlayer.ConnectResult.CONNECTION_FAILED;
                     } catch (Exception e) {
                         return CloudPlayer.ConnectResult.CONNECTION_FAILED;
                     }
@@ -429,7 +441,7 @@ public class PlayerApiImpl implements PlayerApi {
     public CompletableFuture<CloudPlayer.ConnectResult> connectToGroup(
             UUID uniqueId, String groupName, ServerSelectionMode selectionMode) {
         ModelsConnectPlayerRequest request = new ModelsConnectPlayerRequest();
-        request.setServerGroupId(groupName);
+        request.setServerGroupName(groupName);
         request.setSelectionMode((selectionMode != null ? selectionMode : ServerSelectionMode.RANDOM).name());
         return connectViaController(uniqueId, request);
     }
@@ -518,45 +530,40 @@ public class PlayerApiImpl implements PlayerApi {
     }
 
     private PlayerProfile convertProfile(ModelsPlayerProfileResponse response) {
-        PlayerProfile result = new PlayerProfile();
-        result.setId(response.getId());
-        result.setPlayerId(UUID.fromString(Objects.requireNonNull(response.getPlayerId())));
-        result.setName(response.getName());
-        result.setTexture(emptyToNull(response.getTexture()));
-        result.setCreatedAt(response.getCreatedAt());
-        return result;
+        return new PlayerProfile(
+                response.getId(),
+                UUID.fromString(Objects.requireNonNull(response.getPlayerId())),
+                response.getName(),
+                emptyToNull(response.getTexture()),
+                response.getCreatedAt());
     }
 
     private PlayerSession convertSession(
             ModelsPlayerSessionResponse response, @Nullable ModelsPlayerClientSettingsResponse settings) {
-        PlayerSession result = new PlayerSession();
-        result.setId(response.getId());
-        result.setNetworkId(response.getNetworkId());
-        result.setPlayerId(UUID.fromString(Objects.requireNonNull(response.getPlayerId())));
-        result.setAddressHash(emptyToNull(response.getAddressHash()));
-        result.setClientVersion(response.getClientVersion() != null ? response.getClientVersion() : 0);
-        result.setOnlineMode(Boolean.TRUE.equals(response.getOnlineMode()));
-        result.setLoginTime(response.getLoginTime());
-        result.setLogoutTime(emptyToNull(response.getLogoutTime()));
-        if (response.getDurationSeconds() != null) {
-            result.setDurationSeconds(response.getDurationSeconds().longValue());
-        }
-        if (settings != null) {
-            result.setClientSettings(convertClientSettings(settings));
-        }
-        return result;
+        return new PlayerSession(
+                response.getId(),
+                response.getNetworkId(),
+                UUID.fromString(Objects.requireNonNull(response.getPlayerId())),
+                emptyToNull(response.getAddressHash()),
+                response.getClientVersion() != null ? response.getClientVersion() : 0,
+                Boolean.TRUE.equals(response.getOnlineMode()),
+                response.getLoginTime(),
+                emptyToNull(response.getLogoutTime()),
+                response.getDurationSeconds() != null
+                        ? response.getDurationSeconds().longValue()
+                        : null,
+                settings != null ? convertClientSettings(settings) : null);
     }
 
     private PlayerClientSettings convertClientSettings(ModelsPlayerClientSettingsResponse response) {
-        PlayerClientSettings result = new PlayerClientSettings();
-        result.setChatMode(PlayerClientSettings.ChatMode.parse(response.getChatMode()));
-        result.setLocale(emptyToNull(response.getLocale()));
-        result.setMainHand(PlayerClientSettings.MainHand.parse(response.getMainHand()));
-        result.setViewDistance(response.getViewDistance() != null ? response.getViewDistance() : 0);
-        result.setChatColors(Boolean.TRUE.equals(response.getChatColors()));
-        result.setClientListingAllowed(Boolean.TRUE.equals(response.getClientListingAllowed()));
-        result.setSkinParts(response.getSkinParts());
-        return result;
+        return new PlayerClientSettings(
+                PlayerClientSettings.ChatMode.parse(response.getChatMode()),
+                emptyToNull(response.getLocale()),
+                PlayerClientSettings.MainHand.parse(response.getMainHand()),
+                response.getViewDistance() != null ? response.getViewDistance() : 0,
+                Boolean.TRUE.equals(response.getChatColors()),
+                Boolean.TRUE.equals(response.getClientListingAllowed()),
+                response.getSkinParts());
     }
 
     private static String emptyToNull(String value) {

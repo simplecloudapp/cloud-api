@@ -47,7 +47,7 @@ public class ServerImpl implements Server {
     }
 
     @Override
-    public String getServerhostId() {
+    public @Nullable String getServerhostId() {
         return data.serverhostId;
     }
 

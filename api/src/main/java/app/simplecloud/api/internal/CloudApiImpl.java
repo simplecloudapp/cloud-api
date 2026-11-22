@@ -18,6 +18,7 @@ import app.simplecloud.api.internal.persistentserver.PersistentServerApiImpl;
 import app.simplecloud.api.internal.player.PlayerApiImpl;
 import app.simplecloud.api.internal.server.ServerApiImpl;
 import app.simplecloud.api.internal.stats.StatsApiImpl;
+import app.simplecloud.api.internal.util.blueprint.ManifestServerUrlResolver;
 import app.simplecloud.api.internal.web.ApiClientFactory;
 import app.simplecloud.api.persistentserver.PersistentServerApi;
 import app.simplecloud.api.player.PlayerApi;
@@ -78,9 +79,11 @@ public class CloudApiImpl implements CloudApi {
         this.playerApi = new PlayerApiImpl(context, natsClient);
         this.eventApi = new EventApiImpl(natsClient, options.getNetworkId(), playerApi);
         this.serverApi = new ServerApiImpl(context);
-        this.groupApi = new GroupApiImpl(context);
-        this.persistentServerApi = new PersistentServerApiImpl(context);
-        this.blueprintApi = new BlueprintApiImpl(context);
+        ManifestServerUrlResolver serverUrlResolver =
+                new ManifestServerUrlResolver(options, httpClient.getHttpClient());
+        this.groupApi = new GroupApiImpl(context, serverUrlResolver);
+        this.persistentServerApi = new PersistentServerApiImpl(context, serverUrlResolver);
+        this.blueprintApi = new BlueprintApiImpl(context, serverUrlResolver);
         this.statsApi = new StatsApiImpl(context);
 
         if (cacheConfig.isEnabled() && cacheConfig.isAutoInvalidateOnEvents()) {

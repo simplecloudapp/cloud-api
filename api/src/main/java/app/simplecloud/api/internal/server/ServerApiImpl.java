@@ -59,7 +59,7 @@ public class ServerApiImpl implements ServerApi {
                         QueryKey.of("server", id),
                         () -> ApiCalls.supplyAsync(
                                 () -> listServers(null, id).stream()
-                                        .filter(summary -> id.equals(summary.getServerId()))
+                                        .filter(summary -> id.equalsIgnoreCase(summary.getServerId()))
                                         .findFirst()
                                         .<Server>map(ServerImpl::new)
                                         .orElse(null),

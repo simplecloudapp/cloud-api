@@ -64,12 +64,8 @@ public class ServerImpl implements Server {
     }
 
     @Override
-    public String getServerhostId() {
-        String serverhostId = delegate.getServerhostId();
-        if (serverhostId == null) {
-            throw new IllegalStateException("Serverhost ID is null");
-        }
-        return serverhostId;
+    @Nullable public String getServerhostId() {
+        return delegate.getServerhostId();
     }
 
     @Override

@@ -10,7 +10,6 @@ import app.simplecloud.api.internal.util.RequestDefaults;
 import app.simplecloud.api.internal.util.ValidationUtil;
 import app.simplecloud.api.internal.util.blueprint.BlueprintRequestMapper;
 import app.simplecloud.api.internal.util.blueprint.InlineBlueprintManager;
-import app.simplecloud.api.internal.util.blueprint.ManifestServerUrlResolver;
 import app.simplecloud.api.internal.web.ApiCalls;
 import app.simplecloud.api.internal.web.ApiExceptions;
 import app.simplecloud.api.web.ApiException;
@@ -31,8 +30,8 @@ public class BlueprintApiImpl implements BlueprintApi {
     private final BlueprintRequestMapper requestMapper;
     private final RequestDefaults requestDefaults = new RequestDefaults();
 
-    public BlueprintApiImpl(ApiContext context) {
-        this(context, context.api(BlueprintsApi::new), new ManifestServerUrlResolver(context.options()));
+    public BlueprintApiImpl(ApiContext context, InlineBlueprintManager.ServerUrlResolver serverUrlResolver) {
+        this(context, context.api(BlueprintsApi::new), serverUrlResolver);
     }
 
     BlueprintApiImpl(

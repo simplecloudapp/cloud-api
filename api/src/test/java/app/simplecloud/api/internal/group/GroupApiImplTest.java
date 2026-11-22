@@ -71,6 +71,15 @@ class GroupApiImplTest {
     }
 
     @Test
+    void findsGroupByIdRegardlessOfCase() {
+        controller.on("GET", GROUPS, groupList(group("Lobby")));
+
+        Group group = api().findGroupById(GROUP_ID.toUpperCase()).join().orElseThrow();
+
+        assertEquals(GROUP_ID, group.getServerGroupId());
+    }
+
+    @Test
     void lookupByIdSkipsTheControllerForInvalidIds() {
         assertTrue(api().findGroupById("Lobby").join().isEmpty());
         assertTrue(controller.requests().isEmpty());

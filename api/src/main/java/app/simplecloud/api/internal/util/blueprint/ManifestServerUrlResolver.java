@@ -40,16 +40,8 @@ public final class ManifestServerUrlResolver implements InlineBlueprintManager.S
 
     private volatile CachedManifest cachedManifest;
 
-    public ManifestServerUrlResolver(CloudApiOptions options) {
-        this(
-                options.getServerVersionManifestUrl(),
-                new OkHttpClient.Builder()
-                        .connectTimeout(options.getHttpConnectTimeout().toMillis(), TimeUnit.MILLISECONDS)
-                        .readTimeout(options.getHttpReadTimeout().toMillis(), TimeUnit.MILLISECONDS)
-                        .writeTimeout(options.getHttpWriteTimeout().toMillis(), TimeUnit.MILLISECONDS)
-                        .build(),
-                FETCH_TIMEOUT,
-                new Gson());
+    public ManifestServerUrlResolver(CloudApiOptions options, OkHttpClient httpClient) {
+        this(options.getServerVersionManifestUrl(), httpClient, FETCH_TIMEOUT, new Gson());
     }
 
     ManifestServerUrlResolver(String manifestUrl, OkHttpClient httpClient, Duration fetchTimeout, Gson gson) {

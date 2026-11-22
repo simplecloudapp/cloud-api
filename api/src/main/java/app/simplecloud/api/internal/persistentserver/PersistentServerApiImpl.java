@@ -59,11 +59,11 @@ public class PersistentServerApiImpl implements PersistentServerApi {
     private final InlineBlueprintManager inlineBlueprintManager;
     private final RequestDefaults requestDefaults = new RequestDefaults();
 
-    public PersistentServerApiImpl(ApiContext context) {
+    public PersistentServerApiImpl(ApiContext context, InlineBlueprintManager.ServerUrlResolver serverUrlResolver) {
         this(
                 context,
                 context.api(PersistentServersApi::new),
-                new InlineBlueprintManager(context.options(), context.api(BlueprintsApi::new)));
+                new InlineBlueprintManager(context.options(), context.api(BlueprintsApi::new), serverUrlResolver));
     }
 
     PersistentServerApiImpl(
@@ -87,7 +87,10 @@ public class PersistentServerApiImpl implements PersistentServerApi {
             return CompletableFuture.completedFuture(Optional.empty());
         }
         return findFirst(
-                QueryKey.of("persistentServer", id), id, null, summary -> id.equals(summary.getPersistentServerId()));
+                QueryKey.of("persistentServer", id),
+                id,
+                null,
+                summary -> id.equalsIgnoreCase(summary.getPersistentServerId()));
     }
 
     @Override
@@ -295,9 +298,8 @@ public class PersistentServerApiImpl implements PersistentServerApi {
             String id, List<DeploymentHost> hosts, @Nullable ScalingConfig scaling) {
         return ApiCalls.supplyAsync(
                 () -> {
-                    ModelsDeploymentConfig deployment = ModelConversionUtil.toModel(DeploymentConfig.builder()
-                            .hosts(hosts.toArray(DeploymentHost[]::new))
-                            .build());
+                    ModelsDeploymentConfig deployment = ModelConversionUtil.toModel(
+                            DeploymentConfig.builder().hosts(hosts).build());
                     ModelsConversionDeployment conversionDeployment = new ModelsConversionDeployment();
                     conversionDeployment.setHosts(
                             deployment != null && deployment.getHosts() != null
@@ -388,7 +390,7 @@ public class PersistentServerApiImpl implements PersistentServerApi {
 
     private @Nullable WorkflowsConfig findCurrentWorkflows(String persistentServerId) throws ApiException {
         return listPersistentServers(null, persistentServerId, null).stream()
-                .filter(server -> persistentServerId.equals(server.getPersistentServerId()))
+                .filter(server -> persistentServerId.equalsIgnoreCase(server.getPersistentServerId()))
                 .findFirst()
                 .map(server -> ModelConversionUtil.fromModel(server.getWorkflows()))
                 .orElse(null);
@@ -396,7 +398,7 @@ public class PersistentServerApiImpl implements PersistentServerApi {
 
     private @Nullable String findAttachedBlueprintId(String persistentServerId) throws ApiException {
         return listPersistentServers(null, persistentServerId, null).stream()
-                .filter(server -> persistentServerId.equals(server.getPersistentServerId()))
+                .filter(server -> persistentServerId.equalsIgnoreCase(server.getPersistentServerId()))
                 .map(ModelsPersistentServerSummary::getSource)
                 .map(inlineBlueprintManager::getReferencedBlueprintId)
                 .filter(Objects::nonNull)

@@ -27,10 +27,6 @@ public final class InlineBlueprintManager {
     private final BlueprintsApi blueprintsApi;
     private final BlueprintRequestMapper requestMapper;
 
-    public InlineBlueprintManager(CloudApiOptions options, BlueprintsApi blueprintsApi) {
-        this(options, blueprintsApi, new ManifestServerUrlResolver(options));
-    }
-
     public InlineBlueprintManager(
             CloudApiOptions options, BlueprintsApi blueprintsApi, ServerUrlResolver serverUrlResolver) {
         this.options = options;
@@ -44,14 +40,14 @@ public final class InlineBlueprintManager {
             return;
         }
 
-        if (requestedSource.getType() != null && requestedSource.getType() != SourceType.BLUEPRINT) {
+        if (requestedSource.type() != null && requestedSource.type() != SourceType.BLUEPRINT) {
             throw new IllegalArgumentException(
                     "createBlueprint requires source.type to be BLUEPRINT when source is provided");
         }
-        if (hasText(requestedSource.getBlueprint())) {
+        if (hasText(requestedSource.blueprint())) {
             throw new IllegalArgumentException("createBlueprint cannot be combined with source.blueprint");
         }
-        if (hasText(requestedSource.getImage())) {
+        if (hasText(requestedSource.image())) {
             throw new IllegalArgumentException("createBlueprint cannot be combined with source.image");
         }
     }
@@ -89,14 +85,10 @@ public final class InlineBlueprintManager {
         if (blueprintId == null) {
             return requestedSource;
         }
-        SourceConfig source = new SourceConfig();
-        if (requestedSource != null && requestedSource.getType() != null) {
-            source.setType(requestedSource.getType());
-        } else {
-            source.setType(SourceType.BLUEPRINT);
-        }
-        source.setBlueprint(blueprintId);
-        return source;
+        SourceType type = requestedSource != null && requestedSource.type() != null
+                ? requestedSource.type()
+                : SourceType.BLUEPRINT;
+        return new SourceConfig(type, blueprintId, null);
     }
 
     @Nullable public String getReferencedBlueprintId(@Nullable ModelsSourceConfig source) {

@@ -52,9 +52,9 @@ public interface Server {
     /**
      * Returns the ID of the host machine running this server.
      *
-     * @return the serverhost ID
+     * @return the serverhost ID, or null if the server is not placed on a host yet
      */
-    String getServerhostId();
+    @Nullable String getServerhostId();
 
     /**
      * Returns the network ID this server belongs to.

@@ -52,6 +52,24 @@ class PlayerApiImplTest {
     }
 
     @Test
+    void connectDirectToAnUnknownPlayerReportsItWithoutAskingTheProxies() {
+        controller.on("GET", "/v0/players/id", 404, "{\"error\":\"player not found\"}");
+
+        assertEquals(
+                ConnectResult.PLAYER_NOT_FOUND,
+                api.connectDirect(PLAYER_ID, "lobby-1").join());
+    }
+
+    @Test
+    void connectDirectToAnOfflinePlayerReportsItWithoutAskingTheProxies() {
+        controller.on("GET", "/v0/players/id", "{\"id\":\"" + PLAYER_ID + "\",\"name\":\"Steve\",\"online\":false}");
+
+        assertEquals(
+                ConnectResult.PLAYER_NOT_FOUND,
+                api.connectDirect(PLAYER_ID, "lobby-1").join());
+    }
+
+    @Test
     void connectReportsOfflinePlayer() {
         controller.on("POST", CONNECT, 404, "{\"error\":\"Player is not online\"}");
 
@@ -81,7 +99,8 @@ class PlayerApiImplTest {
 
         ControllerServer.Request request = controller.onlyRequest("POST", CONNECT);
         assertEquals(PLAYER_ID.toString(), request.query("player_id"));
-        assertEquals("lobby", request.json().get("server_group_id").getAsString());
+        assertEquals("lobby", request.json().get("server_group_name").getAsString());
+        assertFalse(request.json().has("server_group_id"));
         assertEquals("RANDOM", request.json().get("selection_mode").getAsString());
     }
 

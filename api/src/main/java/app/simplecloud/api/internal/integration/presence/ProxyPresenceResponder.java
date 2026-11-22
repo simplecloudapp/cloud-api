@@ -60,7 +60,8 @@ public final class ProxyPresenceResponder {
             return;
         }
         if (dispatcher != null) {
-            dispatcher.unsubscribe(subject);
+            natsConnection.closeDispatcher(dispatcher);
+            dispatcher = null;
         }
     }
 

@@ -52,8 +52,8 @@ public class PlayerCommandHandler {
         if (!running.compareAndSet(true, false)) return;
 
         if (requestDispatcher != null) {
-            requestDispatcher.unsubscribe(networkId + ".player.*.kick");
-            requestDispatcher.unsubscribe(networkId + ".player.*.connect");
+            natsConnection.closeDispatcher(requestDispatcher);
+            requestDispatcher = null;
         }
     }
 

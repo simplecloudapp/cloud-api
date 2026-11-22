@@ -66,11 +66,11 @@ public class GroupApiImpl implements GroupApi {
     private final InlineBlueprintManager inlineBlueprintManager;
     private final RequestDefaults requestDefaults = new RequestDefaults();
 
-    public GroupApiImpl(ApiContext context) {
+    public GroupApiImpl(ApiContext context, InlineBlueprintManager.ServerUrlResolver serverUrlResolver) {
         this(
                 context,
                 context.api(ServerGroupsApi::new),
-                new InlineBlueprintManager(context.options(), context.api(BlueprintsApi::new)));
+                new InlineBlueprintManager(context.options(), context.api(BlueprintsApi::new), serverUrlResolver));
     }
 
     GroupApiImpl(ApiContext context, ServerGroupsApi serverGroupsApi, InlineBlueprintManager inlineBlueprintManager) {
@@ -140,7 +140,8 @@ public class GroupApiImpl implements GroupApi {
         if (!ValidationUtil.isUuid(id)) {
             return CompletableFuture.completedFuture(Optional.empty());
         }
-        return findFirst(QueryKey.of("group", id), id, null, summary -> id.equals(summary.getServerGroupId()));
+        return findFirst(
+                QueryKey.of("group", id), id, null, summary -> id.equalsIgnoreCase(summary.getServerGroupId()));
     }
 
     @Override
@@ -459,7 +460,7 @@ public class GroupApiImpl implements GroupApi {
 
     private @Nullable Group findCurrentGroup(String groupId) throws ApiException {
         return listGroups(null, groupId, null).stream()
-                .filter(group -> groupId.equals(group.getServerGroupId()))
+                .filter(group -> groupId.equalsIgnoreCase(group.getServerGroupId()))
                 .findFirst()
                 .<Group>map(GroupImpl::from)
                 .orElse(null);
@@ -467,7 +468,7 @@ public class GroupApiImpl implements GroupApi {
 
     private @Nullable String findAttachedBlueprintId(String groupId) throws ApiException {
         return listGroups(null, groupId, null).stream()
-                .filter(group -> groupId.equals(group.getServerGroupId()))
+                .filter(group -> groupId.equalsIgnoreCase(group.getServerGroupId()))
                 .map(ModelsServerGroupSummary::getSource)
                 .map(inlineBlueprintManager::getReferencedBlueprintId)
                 .filter(Objects::nonNull)
