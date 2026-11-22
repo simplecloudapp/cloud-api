@@ -1,5 +1,6 @@
 package app.simplecloud.api.internal.server;
 
+import app.simplecloud.api.base.ServerBase;
 import app.simplecloud.api.blueprint.Blueprint;
 import app.simplecloud.api.group.Group;
 import app.simplecloud.api.internal.blueprint.BlueprintImpl;
@@ -8,15 +9,13 @@ import app.simplecloud.api.internal.persistentserver.PersistentServerImpl;
 import app.simplecloud.api.persistentserver.PersistentServer;
 import app.simplecloud.api.server.Server;
 import app.simplecloud.api.server.ServerState;
-import app.simplecloud.api.base.ServerBase;
 import app.simplecloud.api.web.models.ModelsBlueprintInfo;
 import app.simplecloud.api.web.models.ModelsServerGroupInfo;
 import app.simplecloud.api.web.models.ModelsServerSummary;
 import app.simplecloud.api.web.models.ModelsSourceInfo;
-import org.jetbrains.annotations.Nullable;
-
 import java.math.BigDecimal;
 import java.util.Map;
+import org.jetbrains.annotations.Nullable;
 
 public class ServerImpl implements Server {
     private final ModelsServerSummary delegate;
@@ -46,8 +45,7 @@ public class ServerImpl implements Server {
     }
 
     @Override
-    @Nullable
-    public String getPersistentServerId() {
+    @Nullable public String getPersistentServerId() {
         return delegate.getPersistentServerId();
     }
 
@@ -61,8 +59,7 @@ public class ServerImpl implements Server {
     }
 
     @Override
-    @Nullable
-    public String getServerGroupId() {
+    @Nullable public String getServerGroupId() {
         return delegate.getServerGroupId();
     }
 
@@ -85,14 +82,12 @@ public class ServerImpl implements Server {
     }
 
     @Override
-    @Nullable
-    public String getIp() {
+    @Nullable public String getIp() {
         return delegate.getIp();
     }
 
     @Override
-    @Nullable
-    public Integer getPort() {
+    @Nullable public Integer getPort() {
         return delegate.getPort();
     }
 
@@ -115,15 +110,13 @@ public class ServerImpl implements Server {
     }
 
     @Override
-    @Nullable
-    public Double getCpuUsage() {
+    @Nullable public Double getCpuUsage() {
         BigDecimal cpuUsage = delegate.getCpuUsage();
         return cpuUsage != null ? cpuUsage.doubleValue() : null;
     }
 
     @Override
-    @Nullable
-    public Double getMemoryUsage() {
+    @Nullable public Double getMemoryUsage() {
         BigDecimal memoryUsage = delegate.getMemoryUsage();
         return memoryUsage != null ? memoryUsage.doubleValue() : null;
     }
@@ -175,20 +168,17 @@ public class ServerImpl implements Server {
     }
 
     @Override
-    @Nullable
-    public String getLastActivity() {
+    @Nullable public String getLastActivity() {
         return delegate.getLastActivity();
     }
 
     @Override
-    @Nullable
-    public Map<String, Object> getProperties() {
+    @Nullable public Map<String, Object> getProperties() {
         return delegate.getProperties();
     }
 
     @Override
-    @Nullable
-    public Blueprint getBlueprint() {
+    @Nullable public Blueprint getBlueprint() {
         if (blueprint == null) {
             ModelsServerGroupInfo serverGroup = delegate.getServerGroup();
             ModelsSourceInfo source = serverGroup != null ? serverGroup.getSource() : null;
@@ -220,8 +210,7 @@ public class ServerImpl implements Server {
     }
 
     @Override
-    @Nullable
-    public Group getGroup() {
+    @Nullable public Group getGroup() {
         if (group == null && delegate.getServerGroup() != null) {
             group = GroupImpl.from(delegate.getServerGroup());
         }
@@ -229,9 +218,8 @@ public class ServerImpl implements Server {
     }
 
     @Override
-    @Nullable
-    public PersistentServer getPersistentServer() {
-        if  (persistentServer == null && delegate.getPersistentServer() != null) {
+    @Nullable public PersistentServer getPersistentServer() {
+        if (persistentServer == null && delegate.getPersistentServer() != null) {
             persistentServer = PersistentServerImpl.from(delegate.getPersistentServer(), getPlayerCount());
         }
 

@@ -1,11 +1,11 @@
 package app.simplecloud.api.internal.event.server;
 
+import static org.junit.jupiter.api.Assertions.assertEquals;
+import static org.junit.jupiter.api.Assertions.assertThrows;
+
 import app.simplecloud.api.server.ServerState;
 import build.buf.gen.simplecloud.controller.v2.ServerStateChangedEvent;
 import org.junit.jupiter.api.Test;
-
-import static org.junit.jupiter.api.Assertions.assertEquals;
-import static org.junit.jupiter.api.Assertions.assertThrows;
 
 class ServerStateChangedEventImplTest {
 
@@ -35,9 +35,8 @@ class ServerStateChangedEventImplTest {
 
     @Test
     void serverIsOnlyAvailableWhenTheEventCarriesItsConfig() {
-        ServerStateChangedEventImpl event = new ServerStateChangedEventImpl(ServerStateChangedEvent.newBuilder()
-                .setServerId("server-1")
-                .build());
+        ServerStateChangedEventImpl event = new ServerStateChangedEventImpl(
+                ServerStateChangedEvent.newBuilder().setServerId("server-1").build());
 
         assertThrows(IllegalStateException.class, event::getServer);
     }

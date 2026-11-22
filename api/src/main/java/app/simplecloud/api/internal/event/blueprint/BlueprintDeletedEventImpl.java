@@ -3,9 +3,8 @@ package app.simplecloud.api.internal.event.blueprint;
 import app.simplecloud.api.blueprint.Blueprint;
 import app.simplecloud.api.event.blueprint.BlueprintDeletedEvent;
 import app.simplecloud.api.internal.blueprint.BlueprintImpl;
-import org.jetbrains.annotations.Nullable;
-
 import java.time.Instant;
+import org.jetbrains.annotations.Nullable;
 
 class BlueprintDeletedEventImpl implements BlueprintDeletedEvent {
     private final build.buf.gen.simplecloud.controller.v2.BlueprintDeletedEvent delegate;
@@ -25,15 +24,13 @@ class BlueprintDeletedEventImpl implements BlueprintDeletedEvent {
     }
 
     @Override
-    @Nullable
-    public String getName() {
+    @Nullable public String getName() {
         String name = delegate.getName();
         return name.isEmpty() ? null : name;
     }
 
     @Override
-    @Nullable
-    public Blueprint getBlueprint() {
+    @Nullable public Blueprint getBlueprint() {
         return delegate.hasConfig() ? BlueprintImpl.from(delegate.getConfig(), null, null) : null;
     }
 
@@ -42,4 +39,3 @@ class BlueprintDeletedEventImpl implements BlueprintDeletedEvent {
         return Instant.ofEpochSecond(delegate.getTimestamp()).toString();
     }
 }
-

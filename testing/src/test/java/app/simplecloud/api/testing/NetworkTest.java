@@ -1,23 +1,22 @@
 package app.simplecloud.api.testing;
 
-import app.simplecloud.api.CloudApiException;
-import app.simplecloud.api.group.GroupApi;
-import app.simplecloud.api.server.Server;
-import app.simplecloud.api.server.ServerApi;
-import app.simplecloud.api.testing.server.TestServer;
-import org.junit.jupiter.api.Test;
-
-import java.time.Duration;
-import java.util.List;
-import java.util.concurrent.CompletableFuture;
-import java.util.concurrent.CompletionException;
-
 import static org.junit.jupiter.api.Assertions.assertEquals;
 import static org.junit.jupiter.api.Assertions.assertFalse;
 import static org.junit.jupiter.api.Assertions.assertInstanceOf;
 import static org.junit.jupiter.api.Assertions.assertSame;
 import static org.junit.jupiter.api.Assertions.assertThrows;
 import static org.junit.jupiter.api.Assertions.assertTrue;
+
+import app.simplecloud.api.CloudApiException;
+import app.simplecloud.api.group.GroupApi;
+import app.simplecloud.api.server.Server;
+import app.simplecloud.api.server.ServerApi;
+import app.simplecloud.api.testing.server.TestServer;
+import java.time.Duration;
+import java.util.List;
+import java.util.concurrent.CompletableFuture;
+import java.util.concurrent.CompletionException;
+import org.junit.jupiter.api.Test;
 
 @CloudTest
 class NetworkTest {
@@ -27,7 +26,8 @@ class NetworkTest {
         TestServer server = cloud.createGroup("lobby").startServer();
         cloud.network().failNext(ServerApi.class, "stopServer");
 
-        CompletionException exception = assertThrows(CompletionException.class,
+        CompletionException exception = assertThrows(
+                CompletionException.class,
                 () -> cloud.api().server().stopServer(server.getServerId()).join());
 
         CloudApiException cause = assertInstanceOf(CloudApiException.class, exception.getCause());
@@ -44,7 +44,8 @@ class NetworkTest {
         cloud.network().failAlways(GroupApi.class, "getAllGroups", error);
 
         for (int i = 0; i < 3; i++) {
-            CompletionException exception = assertThrows(CompletionException.class,
+            CompletionException exception = assertThrows(
+                    CompletionException.class,
                     () -> cloud.api().group().getAllGroups().join());
             assertSame(error, exception.getCause());
         }
@@ -58,7 +59,8 @@ class NetworkTest {
         TestServer server = cloud.createGroup("lobby").startServer();
         cloud.network().failAlways(ServerApi.class, "stopServer");
 
-        Server fetched = cloud.api().server().getServerById(server.getServerId()).join();
+        Server fetched =
+                cloud.api().server().getServerById(server.getServerId()).join();
 
         assertEquals(server.getServerId(), fetched.getServerId());
     }

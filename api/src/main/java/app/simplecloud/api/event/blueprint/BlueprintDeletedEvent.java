@@ -43,4 +43,3 @@ public interface BlueprintDeletedEvent {
      */
     String getTimestamp();
 }
-

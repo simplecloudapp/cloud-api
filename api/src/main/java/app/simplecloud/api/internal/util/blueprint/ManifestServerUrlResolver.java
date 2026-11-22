@@ -6,6 +6,13 @@ import app.simplecloud.api.blueprint.CreateBlueprintRequest;
 import com.google.gson.Gson;
 import com.google.gson.JsonParseException;
 import com.google.gson.reflect.TypeToken;
+import java.io.IOException;
+import java.lang.reflect.Type;
+import java.time.Duration;
+import java.time.Instant;
+import java.util.List;
+import java.util.Objects;
+import java.util.concurrent.TimeUnit;
 import okhttp3.Call;
 import okhttp3.HttpUrl;
 import okhttp3.OkHttpClient;
@@ -15,14 +22,6 @@ import okhttp3.ResponseBody;
 import okio.BufferedSource;
 import org.jetbrains.annotations.Nullable;
 
-import java.io.IOException;
-import java.lang.reflect.Type;
-import java.time.Duration;
-import java.time.Instant;
-import java.util.List;
-import java.util.Objects;
-import java.util.concurrent.TimeUnit;
-
 /**
  * Resolves inline blueprint download links from the server version manifest.
  */
@@ -31,8 +30,7 @@ public final class ManifestServerUrlResolver implements InlineBlueprintManager.S
 
     private static final Duration FETCH_TIMEOUT = Duration.ofSeconds(30);
     private static final Duration CACHE_TTL = Duration.ofMinutes(5);
-    private static final Type MANIFEST_TYPE = new TypeToken<List<ManifestEntry>>() {
-    }.getType();
+    private static final Type MANIFEST_TYPE = new TypeToken<List<ManifestEntry>>() {}.getType();
 
     private final @Nullable HttpUrl manifestUrl;
     private final String manifestUrlForErrors;
@@ -51,12 +49,12 @@ public final class ManifestServerUrlResolver implements InlineBlueprintManager.S
                         .writeTimeout(options.getHttpWriteTimeout().toMillis(), TimeUnit.MILLISECONDS)
                         .build(),
                 FETCH_TIMEOUT,
-                new Gson()
-        );
+                new Gson());
     }
 
     ManifestServerUrlResolver(String manifestUrl, OkHttpClient httpClient, Duration fetchTimeout, Gson gson) {
-        this.manifestUrl = HttpUrl.parse(Objects.requireNonNull(manifestUrl, "manifestUrl").trim());
+        this.manifestUrl =
+                HttpUrl.parse(Objects.requireNonNull(manifestUrl, "manifestUrl").trim());
         this.manifestUrlForErrors = this.manifestUrl != null ? withoutSecrets(this.manifestUrl) : "an invalid URL";
         this.httpClient = Objects.requireNonNull(httpClient, "httpClient");
         this.fetchTimeout = Objects.requireNonNull(fetchTimeout, "fetchTimeout");
@@ -104,10 +102,7 @@ public final class ManifestServerUrlResolver implements InlineBlueprintManager.S
             throw fetchFailure("invalid URL");
         }
 
-        Request request = new Request.Builder()
-                .url(manifestUrl)
-                .get()
-                .build();
+        Request request = new Request.Builder().url(manifestUrl).get().build();
         Call call = httpClient.newCall(request);
         call.timeout().timeout(fetchTimeout.toMillis(), TimeUnit.MILLISECONDS);
         try (Response response = call.execute()) {
@@ -117,8 +112,7 @@ public final class ManifestServerUrlResolver implements InlineBlueprintManager.S
                     CloudApiException.Reason.UNAVAILABLE,
                     0,
                     "Failed to fetch server version manifest from " + manifestUrlForErrors,
-                    e
-            );
+                    e);
         }
     }
 
@@ -145,16 +139,14 @@ public final class ManifestServerUrlResolver implements InlineBlueprintManager.S
                     CloudApiException.Reason.UNAVAILABLE,
                     0,
                     "Failed to parse server version manifest from " + manifestUrlForErrors,
-                    e
-            );
+                    e);
         }
     }
 
     private CloudApiException fetchFailure(String reason) {
         return new CloudApiException(
                 CloudApiException.Reason.UNAVAILABLE,
-                "Failed to fetch server version manifest from " + manifestUrlForErrors + ": " + reason
-        );
+                "Failed to fetch server version manifest from " + manifestUrlForErrors + ": " + reason);
     }
 
     private static String withoutSecrets(HttpUrl url) {
@@ -198,9 +190,7 @@ public final class ManifestServerUrlResolver implements InlineBlueprintManager.S
         }
     }
 
-    private record ManifestEntry(String name, List<ManifestDownloadLink> downloadLinks) {
-    }
+    private record ManifestEntry(String name, List<ManifestDownloadLink> downloadLinks) {}
 
-    private record ManifestDownloadLink(String version, String link) {
-    }
+    private record ManifestDownloadLink(String version, String link) {}
 }

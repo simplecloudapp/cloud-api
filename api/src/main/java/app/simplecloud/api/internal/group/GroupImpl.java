@@ -18,10 +18,9 @@ import app.simplecloud.api.web.models.ModelsSourceInfo;
 import app.simplecloud.api.web.models.ModelsUpdateServerGroupResponse;
 import app.simplecloud.api.web.models.ModelsWorkflowsConfig;
 import com.google.gson.Gson;
-import org.jetbrains.annotations.Nullable;
-
 import java.util.List;
 import java.util.Map;
+import org.jetbrains.annotations.Nullable;
 
 public record GroupImpl(
         @Nullable String serverGroupId,
@@ -39,8 +38,8 @@ public record GroupImpl(
         @Nullable Map<String, Object> properties,
         @Nullable List<String> tags,
         @Nullable String createdAt,
-        @Nullable String updatedAt
-) implements Group {
+        @Nullable String updatedAt)
+        implements Group {
 
     private static final Gson GSON = new Gson();
 
@@ -61,8 +60,7 @@ public record GroupImpl(
                 summary.getProperties(),
                 summary.getTags(),
                 summary.getCreatedAt(),
-                summary.getUpdatedAt()
-        );
+                summary.getUpdatedAt());
     }
 
     public static GroupImpl from(ModelsCreateServerGroupResponse response) {
@@ -82,8 +80,7 @@ public record GroupImpl(
                 response.getProperties(),
                 response.getTags(),
                 response.getCreatedAt(),
-                response.getUpdatedAt()
-        );
+                response.getUpdatedAt());
     }
 
     public static GroupImpl from(ModelsUpdateServerGroupResponse response) {
@@ -103,8 +100,7 @@ public record GroupImpl(
                 response.getProperties(),
                 response.getTags(),
                 response.getCreatedAt(),
-                response.getUpdatedAt()
-        );
+                response.getUpdatedAt());
     }
 
     public static GroupImpl from(ModelsServerGroupInfo info) {
@@ -124,8 +120,7 @@ public record GroupImpl(
                 info.getProperties(),
                 info.getTags(),
                 info.getCreatedAt(),
-                info.getUpdatedAt()
-        );
+                info.getUpdatedAt());
     }
 
     @Override

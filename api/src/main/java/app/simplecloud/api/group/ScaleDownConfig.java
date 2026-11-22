@@ -3,20 +3,18 @@ package app.simplecloud.api.group;
 import org.jetbrains.annotations.Nullable;
 
 public class ScaleDownConfig {
-    @Nullable
-    private String idleTime;
+    @Nullable private String idleTime;
+
     private boolean ignorePlayers;
     private boolean ignorePlayersSet;
 
-    public ScaleDownConfig() {
-    }
+    public ScaleDownConfig() {}
 
     public static Builder builder() {
         return new Builder();
     }
 
-    @Nullable
-    public String getIdleTime() {
+    @Nullable public String getIdleTime() {
         return idleTime;
     }
 

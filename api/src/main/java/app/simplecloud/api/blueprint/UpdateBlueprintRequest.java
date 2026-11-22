@@ -1,14 +1,13 @@
 package app.simplecloud.api.blueprint;
 
-import org.jetbrains.annotations.Nullable;
-
 import java.util.List;
+import org.jetbrains.annotations.Nullable;
 
 /**
  * Request to update an existing blueprint.
  * All fields are optional - only specified fields will be updated.
  */
-public class UpdateBlueprintRequest {
+public final class UpdateBlueprintRequest {
     private final String name;
     private final String configurator;
     private final String minecraftVersion;
@@ -33,43 +32,35 @@ public class UpdateBlueprintRequest {
         return new Builder();
     }
 
-    @Nullable
-    public String getName() {
+    @Nullable public String getName() {
         return name;
     }
 
-    @Nullable
-    public String getConfigurator() {
+    @Nullable public String getConfigurator() {
         return configurator;
     }
 
-    @Nullable
-    public String getMinecraftVersion() {
+    @Nullable public String getMinecraftVersion() {
         return minecraftVersion;
     }
 
-    @Nullable
-    public RuntimeConfig getRuntimeConfig() {
+    @Nullable public RuntimeConfig getRuntimeConfig() {
         return runtimeConfig;
     }
 
-    @Nullable
-    public String getServerSoftware() {
+    @Nullable public String getServerSoftware() {
         return serverSoftware;
     }
 
-    @Nullable
-    public String getServerUrl() {
+    @Nullable public String getServerUrl() {
         return serverUrl;
     }
 
-    @Nullable
-    public String getSoftwareVersion() {
+    @Nullable public String getSoftwareVersion() {
         return softwareVersion;
     }
 
-    @Nullable
-    public List<String> getWorkflowSteps() {
+    @Nullable public List<String> getWorkflowSteps() {
         return workflowSteps;
     }
 

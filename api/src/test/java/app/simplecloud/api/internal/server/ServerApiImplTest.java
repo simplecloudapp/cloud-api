@@ -1,5 +1,9 @@
 package app.simplecloud.api.internal.server;
 
+import static org.junit.jupiter.api.Assertions.assertEquals;
+import static org.junit.jupiter.api.Assertions.assertInstanceOf;
+import static org.junit.jupiter.api.Assertions.assertThrows;
+
 import app.simplecloud.api.CloudApiException;
 import app.simplecloud.api.cache.CacheConfig;
 import app.simplecloud.api.internal.cache.QueryCacheImpl;
@@ -9,14 +13,9 @@ import app.simplecloud.api.server.ServerState;
 import app.simplecloud.api.server.UpdateServerRequest;
 import app.simplecloud.api.support.ControllerServer;
 import app.simplecloud.api.support.TestContexts;
+import java.util.concurrent.CompletionException;
 import org.junit.jupiter.api.AfterEach;
 import org.junit.jupiter.api.Test;
-
-import java.util.concurrent.CompletionException;
-
-import static org.junit.jupiter.api.Assertions.assertEquals;
-import static org.junit.jupiter.api.Assertions.assertInstanceOf;
-import static org.junit.jupiter.api.Assertions.assertThrows;
 
 class ServerApiImplTest {
 
@@ -34,9 +33,11 @@ class ServerApiImplTest {
     void queryFiltersAreSentAsCommaSeparatedLists() {
         controller.on("GET", SERVERS, servers(server(1)));
 
-        new ServerApiImpl(TestContexts.create(controller)).getAllServers(ServerQuery.create()
-                .filterByServerGroupName("lobby", "game")
-                .filterByState(ServerState.AVAILABLE, ServerState.INGAME)).join();
+        new ServerApiImpl(TestContexts.create(controller))
+                .getAllServers(ServerQuery.create()
+                        .filterByServerGroupName("lobby", "game")
+                        .filterByState(ServerState.AVAILABLE, ServerState.INGAME))
+                .join();
 
         ControllerServer.Request request = controller.onlyRequest("GET", SERVERS);
         assertEquals("lobby,game", request.query("name"));
@@ -47,7 +48,9 @@ class ServerApiImplTest {
     void findsServerByGroupAndNumericalId() {
         controller.on("GET", SERVERS, servers(server(1), server(2)));
 
-        Server server = new ServerApiImpl(TestContexts.create(controller)).getServerByNumericalId("lobby", 2).join();
+        Server server = new ServerApiImpl(TestContexts.create(controller))
+                .getServerByNumericalId("lobby", 2)
+                .join();
 
         assertEquals(2, server.getNumericalId());
         ControllerServer.Request request = controller.onlyRequest("GET", SERVERS);
@@ -62,7 +65,10 @@ class ServerApiImplTest {
             ServerApiImpl api = new ServerApiImpl(TestContexts.create(controller, cache));
             controller.on("PATCH", SERVERS, "{\"server\":" + server(1) + "}");
 
-            api.updateServer(SERVER_ID, UpdateServerRequest.builder().maxPlayers(20).build()).join();
+            api.updateServer(
+                            SERVER_ID,
+                            UpdateServerRequest.builder().maxPlayers(20).build())
+                    .join();
             Server server = api.getServerById(SERVER_ID).join();
 
             assertEquals(SERVER_ID, server.getServerId());
@@ -76,8 +82,13 @@ class ServerApiImplTest {
     void updateWithoutServerInResponseFails() {
         controller.on("PATCH", SERVERS, "{}");
 
-        CompletionException failure = assertThrows(CompletionException.class, () -> new ServerApiImpl(TestContexts.create(controller))
-                .updateServer(SERVER_ID, UpdateServerRequest.builder().maxPlayers(20).build()).join());
+        CompletionException failure = assertThrows(
+                CompletionException.class,
+                () -> new ServerApiImpl(TestContexts.create(controller))
+                        .updateServer(
+                                SERVER_ID,
+                                UpdateServerRequest.builder().maxPlayers(20).build())
+                        .join());
 
         CloudApiException exception = assertInstanceOf(CloudApiException.class, failure.getCause());
         assertEquals(CloudApiException.Reason.UNKNOWN, exception.getReason());

@@ -5,7 +5,6 @@ import app.simplecloud.api.persistentserver.UpdatePersistentServerRequest;
 import app.simplecloud.api.testing.internal.CloudState;
 import app.simplecloud.api.testing.persistentserver.TestPersistentServer;
 import app.simplecloud.api.testing.server.TestServer;
-
 import java.util.Collections;
 import java.util.List;
 import java.util.Objects;

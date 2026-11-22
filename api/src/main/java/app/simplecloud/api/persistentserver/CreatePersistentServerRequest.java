@@ -1,18 +1,17 @@
 package app.simplecloud.api.persistentserver;
 
 import app.simplecloud.api.blueprint.CreateBlueprintRequest;
+import app.simplecloud.api.group.GroupServerType;
 import app.simplecloud.api.group.SourceConfig;
 import app.simplecloud.api.group.WorkflowsConfig;
-import app.simplecloud.api.group.GroupServerType;
-import org.jetbrains.annotations.Nullable;
-
 import java.util.List;
 import java.util.Map;
+import org.jetbrains.annotations.Nullable;
 
 /**
  * Request to create a new persistent server.
  */
-public class CreatePersistentServerRequest {
+public final class CreatePersistentServerRequest {
     private final String name;
     private final Integer minMemory;
     private final Integer maxMemory;
@@ -47,63 +46,51 @@ public class CreatePersistentServerRequest {
         return name;
     }
 
-    @Nullable
-    public Integer getMinMemory() {
+    @Nullable public Integer getMinMemory() {
         return minMemory;
     }
 
-    @Nullable
-    public Integer getMaxMemory() {
+    @Nullable public Integer getMaxMemory() {
         return maxMemory;
     }
 
-    @Nullable
-    public Integer getMaxPlayers() {
+    @Nullable public Integer getMaxPlayers() {
         return maxPlayers;
     }
 
-    @Nullable
-    public Boolean getActive() {
+    @Nullable public Boolean getActive() {
         return active;
     }
 
-    @Nullable
-    public Integer getPriority() {
+    @Nullable public Integer getPriority() {
         return priority;
     }
 
-    @Nullable
-    public String getServerhostId() {
+    @Nullable public String getServerhostId() {
         return serverhostId;
     }
 
-    @Nullable
-    public GroupServerType getType() {
+    @Nullable public GroupServerType getType() {
         return type;
     }
 
-    @Nullable
-    public SourceConfig getSource() {
+    @Nullable public SourceConfig getSource() {
         return source;
     }
 
-    @Nullable
-    public CreateBlueprintRequest getCreateBlueprint() {
+    @Nullable public CreateBlueprintRequest getCreateBlueprint() {
         return createBlueprint;
     }
 
-    @Nullable
-    public WorkflowsConfig getWorkflows() {
+    @Nullable public WorkflowsConfig getWorkflows() {
         return workflows;
     }
 
-    @Nullable
-    public Map<String, Object> getProperties() {
+    @Nullable public Map<String, Object> getProperties() {
         return properties;
     }
 
-    @Nullable
-    public List<String> getTags() {
+    @Nullable public List<String> getTags() {
         return tags;
     }
 

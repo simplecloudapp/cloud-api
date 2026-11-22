@@ -1,33 +1,32 @@
 package app.simplecloud.api.internal.web;
 
+import static org.junit.jupiter.api.Assertions.assertEquals;
+
 import app.simplecloud.api.CloudApiException;
 import app.simplecloud.api.CloudApiException.Reason;
 import app.simplecloud.api.web.ApiException;
+import java.net.ConnectException;
+import java.util.Map;
 import org.junit.jupiter.api.Test;
 import org.junit.jupiter.params.ParameterizedTest;
 import org.junit.jupiter.params.provider.CsvSource;
-
-import java.net.ConnectException;
-import java.util.Map;
-
-import static org.junit.jupiter.api.Assertions.assertEquals;
 
 class ApiExceptionsTest {
 
     @ParameterizedTest
     @CsvSource({
-            "400, INVALID_REQUEST",
-            "422, INVALID_REQUEST",
-            "401, UNAUTHORIZED",
-            "403, UNAUTHORIZED",
-            "404, NOT_FOUND",
-            "409, CONFLICT",
-            "408, UNAVAILABLE",
-            "429, UNAVAILABLE",
-            "502, UNAVAILABLE",
-            "503, UNAVAILABLE",
-            "504, UNAVAILABLE",
-            "500, UNKNOWN"
+        "400, INVALID_REQUEST",
+        "422, INVALID_REQUEST",
+        "401, UNAUTHORIZED",
+        "403, UNAUTHORIZED",
+        "404, NOT_FOUND",
+        "409, CONFLICT",
+        "408, UNAVAILABLE",
+        "429, UNAVAILABLE",
+        "502, UNAVAILABLE",
+        "503, UNAVAILABLE",
+        "504, UNAVAILABLE",
+        "500, UNKNOWN"
     })
     void mapsStatusCodeToReason(int statusCode, Reason reason) {
         CloudApiException exception = ApiExceptions.from(new ApiException(statusCode, "failed"));

@@ -1,25 +1,24 @@
 package app.simplecloud.api.internal.cache;
 
+import static org.junit.jupiter.api.Assertions.assertEquals;
+import static org.junit.jupiter.api.Assertions.assertInstanceOf;
+import static org.junit.jupiter.api.Assertions.assertNull;
+import static org.junit.jupiter.api.Assertions.assertSame;
+import static org.junit.jupiter.api.Assertions.assertThrows;
+
 import app.simplecloud.api.CloudApiException;
 import app.simplecloud.api.cache.CacheConfig;
 import app.simplecloud.api.cache.EntityCacheConfig;
 import app.simplecloud.api.cache.EntityType;
 import app.simplecloud.api.cache.QueryKey;
 import app.simplecloud.api.support.Await;
-import org.junit.jupiter.api.AfterEach;
-import org.junit.jupiter.api.Test;
-
 import java.time.Duration;
 import java.util.Objects;
 import java.util.concurrent.CompletableFuture;
 import java.util.concurrent.CompletionException;
 import java.util.concurrent.atomic.AtomicInteger;
-
-import static org.junit.jupiter.api.Assertions.assertEquals;
-import static org.junit.jupiter.api.Assertions.assertInstanceOf;
-import static org.junit.jupiter.api.Assertions.assertNull;
-import static org.junit.jupiter.api.Assertions.assertSame;
-import static org.junit.jupiter.api.Assertions.assertThrows;
+import org.junit.jupiter.api.AfterEach;
+import org.junit.jupiter.api.Test;
 
 class QueryCacheImplTest {
 
@@ -62,7 +61,8 @@ class QueryCacheImplTest {
 
     @Test
     void doesNotCacheFailures() {
-        CompletableFuture<String> failed = cache.fetch(KEY, () -> CompletableFuture.failedFuture(new IllegalStateException("down")));
+        CompletableFuture<String> failed =
+                cache.fetch(KEY, () -> CompletableFuture.failedFuture(new IllegalStateException("down")));
 
         assertThrows(CompletionException.class, failed::join);
         assertEquals("value", cache.fetch(KEY, () -> fetch("value")).join());
@@ -83,7 +83,8 @@ class QueryCacheImplTest {
         cache.shutdown();
         cache = new QueryCacheImpl(CacheConfig.DEFAULT, Duration.ofMillis(100));
 
-        CompletionException failure = assertThrows(CompletionException.class,
+        CompletionException failure = assertThrows(
+                CompletionException.class,
                 () -> cache.fetch(KEY, CompletableFuture::new).join());
 
         CloudApiException exception = assertInstanceOf(CloudApiException.class, failure.getCause());
@@ -118,7 +119,9 @@ class QueryCacheImplTest {
     void entityTypeWithDisabledCachingAlwaysFetches() {
         cache.shutdown();
         cache = new QueryCacheImpl(CacheConfig.builder()
-                .entityConfig(EntityType.GROUP, EntityCacheConfig.builder().enabled(false).build())
+                .entityConfig(
+                        EntityType.GROUP,
+                        EntityCacheConfig.builder().enabled(false).build())
                 .build());
         QueryKey key = QueryKey.of("groups");
 
@@ -134,12 +137,12 @@ class QueryCacheImplTest {
         AtomicInteger calls = new AtomicInteger();
 
         String result = cache.fetchWithTransientMissRecovery(
-                KEY,
-                () -> CompletableFuture.completedFuture(calls.incrementAndGet() < 3 ? null : "value"),
-                Objects::isNull,
-                Duration.ZERO,
-                2
-        ).join();
+                        KEY,
+                        () -> CompletableFuture.completedFuture(calls.incrementAndGet() < 3 ? null : "value"),
+                        Objects::isNull,
+                        Duration.ZERO,
+                        2)
+                .join();
 
         assertEquals("value", result);
         assertEquals("value", cache.get(KEY).getData());
@@ -148,12 +151,8 @@ class QueryCacheImplTest {
     @Test
     void doesNotKeepMissAfterRetriesAreUsedUp() {
         String result = cache.fetchWithTransientMissRecovery(
-                KEY,
-                () -> CompletableFuture.<String>completedFuture(null),
-                Objects::isNull,
-                Duration.ZERO,
-                1
-        ).join();
+                        KEY, () -> CompletableFuture.<String>completedFuture(null), Objects::isNull, Duration.ZERO, 1)
+                .join();
 
         assertNull(result);
         assertNull(cache.get(KEY));

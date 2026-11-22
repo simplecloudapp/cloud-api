@@ -6,7 +6,6 @@ import app.simplecloud.api.internal.integration.player.PlayerSessionReporter;
 import app.simplecloud.api.internal.integration.presence.ProxyPresenceTracker;
 import app.simplecloud.api.platform.shared.luckperms.LuckPermsSynchronizer;
 import app.simplecloud.api.player.PlayerClientSettings;
-
 import java.time.Duration;
 import java.util.UUID;
 import java.util.concurrent.CompletableFuture;
@@ -33,8 +32,7 @@ public final class ProxyPlayerSessions {
             PlayerSessionReporter sessionReporter,
             ProxyPresenceTracker presenceTracker,
             String proxyName,
-            LuckPermsSynchronizer luckPermsSynchronizer
-    ) {
+            LuckPermsSynchronizer luckPermsSynchronizer) {
         this(sessionReporter, presenceTracker, proxyName, luckPermsSynchronizer, LOGIN_WAIT);
     }
 
@@ -43,8 +41,7 @@ public final class ProxyPlayerSessions {
             ProxyPresenceTracker presenceTracker,
             String proxyName,
             LuckPermsSynchronizer luckPermsSynchronizer,
-            Duration loginWait
-    ) {
+            Duration loginWait) {
         this.sessionReporter = sessionReporter;
         this.presenceTracker = presenceTracker;
         this.proxyName = proxyName != null && !proxyName.isBlank() ? proxyName : "unknown";
@@ -107,11 +104,11 @@ public final class ProxyPlayerSessions {
                 player.locale() != null ? player.locale().toString() : "en_US",
                 player.protocolVersion(),
                 player.onlineMode(),
-                player.texture()
-        );
+                player.texture());
     }
 
-    private void applyLoginResult(ConnectingPlayer player, LoginResult result, Supplier<PlayerClientSettings> clientSettings) {
+    private void applyLoginResult(
+            ConnectingPlayer player, LoginResult result, Supplier<PlayerClientSettings> clientSettings) {
         if (!result.success()) {
             LOGGER.warning("Login failed for " + player.name() + ": " + result.errorMessage());
             return;

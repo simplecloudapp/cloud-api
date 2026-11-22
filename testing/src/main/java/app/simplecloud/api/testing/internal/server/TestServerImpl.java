@@ -9,11 +9,10 @@ import app.simplecloud.api.testing.internal.group.TestGroupImpl;
 import app.simplecloud.api.testing.internal.persistentserver.TestPersistentServerImpl;
 import app.simplecloud.api.testing.persistentserver.TestPersistentServer;
 import app.simplecloud.api.testing.server.TestServer;
-import org.jetbrains.annotations.Nullable;
-
 import java.util.Collections;
 import java.util.List;
 import java.util.Objects;
+import org.jetbrains.annotations.Nullable;
 
 public final class TestServerImpl extends ServerImpl implements TestServer {
 
@@ -21,8 +20,11 @@ public final class TestServerImpl extends ServerImpl implements TestServer {
     private final @Nullable TestGroupImpl group;
     private final @Nullable TestPersistentServerImpl persistentServer;
 
-    public TestServerImpl(CloudState cloud, ServerData data, @Nullable TestGroupImpl group,
-                          @Nullable TestPersistentServerImpl persistentServer) {
+    public TestServerImpl(
+            CloudState cloud,
+            ServerData data,
+            @Nullable TestGroupImpl group,
+            @Nullable TestPersistentServerImpl persistentServer) {
         super(data, group, persistentServer);
         this.cloud = cloud;
         this.group = group;

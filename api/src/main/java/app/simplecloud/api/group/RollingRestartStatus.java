@@ -9,5 +9,5 @@ import org.jetbrains.annotations.Nullable;
  * @param active        whether a rolling restart is running
  * @param timestamp     the controller timestamp of the running rolling restart, or null if none is running
  */
-public record RollingRestartStatus(String serverGroupId, boolean active, @Nullable String timestamp) {
-}
+public record RollingRestartStatus(
+        String serverGroupId, boolean active, @Nullable String timestamp) {}

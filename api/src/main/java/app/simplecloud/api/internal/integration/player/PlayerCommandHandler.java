@@ -7,14 +7,13 @@ import build.buf.gen.simplecloud.player.v2.*;
 import io.nats.client.Connection;
 import io.nats.client.Dispatcher;
 import io.nats.client.Message;
-import net.kyori.adventure.text.Component;
-import net.kyori.adventure.text.serializer.gson.GsonComponentSerializer;
-
 import java.util.Optional;
 import java.util.UUID;
 import java.util.concurrent.CompletableFuture;
 import java.util.concurrent.Executor;
 import java.util.concurrent.atomic.AtomicBoolean;
+import net.kyori.adventure.text.Component;
+import net.kyori.adventure.text.serializer.gson.GsonComponentSerializer;
 
 /**
  * Handles kick requests from the controller and connect requests from the controller or {@code connectDirect}
@@ -40,7 +39,7 @@ public class PlayerCommandHandler {
         this.executor = executor;
         this.proxyPlayers = proxyPlayers;
     }
-    
+
     public void start() {
         if (!running.compareAndSet(false, true)) return;
 
@@ -66,7 +65,8 @@ public class PlayerCommandHandler {
             if (player.isEmpty()) return;
 
             Component reason = parseKickReason(request);
-            CompletableFuture<Void> kick = CompletableFuture.runAsync(() -> player.get().kick(reason), executor);
+            CompletableFuture<Void> kick =
+                    CompletableFuture.runAsync(() -> player.get().kick(reason), executor);
             kick.whenComplete((ignored, failure) -> sendKickResponse(msg, failure == null));
         } catch (Exception e) {
             sendKickResponse(msg, false);
@@ -84,7 +84,8 @@ public class PlayerCommandHandler {
     private void sendKickResponse(Message msg, boolean success) {
         if (msg.getReplyTo() != null) {
             try {
-                KickPlayerResponse response = KickPlayerResponse.newBuilder().setSuccess(success).build();
+                KickPlayerResponse response =
+                        KickPlayerResponse.newBuilder().setSuccess(success).build();
                 natsConnection.publish(msg.getReplyTo(), response.toByteArray());
             } catch (Exception ignored) {
             }
@@ -106,7 +107,8 @@ public class PlayerCommandHandler {
 
             CompletableFuture<CloudPlayer.ConnectResult> connect = player.get().connect(proxyServerName.get());
             connect.whenComplete((result, failure) -> {
-                CloudPlayer.ConnectResult reply = failure == null ? result : CloudPlayer.ConnectResult.CONNECTION_FAILED;
+                CloudPlayer.ConnectResult reply =
+                        failure == null ? result : CloudPlayer.ConnectResult.CONNECTION_FAILED;
                 sendConnectResponse(msg, reply);
             });
         } catch (Exception e) {

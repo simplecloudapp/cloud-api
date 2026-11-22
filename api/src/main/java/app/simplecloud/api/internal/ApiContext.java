@@ -5,7 +5,6 @@ import app.simplecloud.api.cache.QueryCache;
 import app.simplecloud.api.cache.QueryKey;
 import app.simplecloud.api.internal.web.ApiClientFactory;
 import app.simplecloud.api.web.ApiClient;
-
 import java.time.Duration;
 import java.util.concurrent.CompletableFuture;
 import java.util.concurrent.Executor;
@@ -31,15 +30,9 @@ public record ApiContext(CloudApiOptions options, QueryCache cache, ApiClient cl
         return factory.apply(client);
     }
 
-    public <T> CompletableFuture<T> fetchWithTransientMissRecovery(QueryKey key,
-                                                                   Supplier<CompletableFuture<T>> fetcher,
-                                                                   Predicate<T> isTransientMiss) {
+    public <T> CompletableFuture<T> fetchWithTransientMissRecovery(
+            QueryKey key, Supplier<CompletableFuture<T>> fetcher, Predicate<T> isTransientMiss) {
         return cache.fetchWithTransientMissRecovery(
-                key,
-                fetcher,
-                isTransientMiss,
-                TRANSIENT_MISS_RETRY_DELAY,
-                TRANSIENT_MISS_MAX_RETRIES
-        );
+                key, fetcher, isTransientMiss, TRANSIENT_MISS_RETRY_DELAY, TRANSIENT_MISS_MAX_RETRIES);
     }
 }

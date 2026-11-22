@@ -1,21 +1,20 @@
 package app.simplecloud.api.player;
 
-import org.jetbrains.annotations.Nullable;
-
 import java.util.List;
+import org.jetbrains.annotations.Nullable;
 
 public class PlayerClientSettings {
     private ChatMode chatMode = ChatMode.UNKNOWN;
-    @Nullable
-    private String locale;
+
+    @Nullable private String locale;
+
     private MainHand mainHand = MainHand.UNKNOWN;
     private int viewDistance;
     private boolean chatColors;
     private boolean clientListingAllowed;
     private List<String> skinParts = List.of();
 
-    public PlayerClientSettings() {
-    }
+    public PlayerClientSettings() {}
 
     public ChatMode getChatMode() {
         return chatMode;
@@ -25,8 +24,7 @@ public class PlayerClientSettings {
         this.chatMode = chatMode != null ? chatMode : ChatMode.UNKNOWN;
     }
 
-    @Nullable
-    public String getLocale() {
+    @Nullable public String getLocale() {
         return locale;
     }
 

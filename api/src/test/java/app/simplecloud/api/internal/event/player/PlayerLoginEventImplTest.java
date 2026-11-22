@@ -1,14 +1,13 @@
 package app.simplecloud.api.internal.event.player;
 
-import build.buf.gen.simplecloud.player.v2.PlayerConfig;
-import build.buf.gen.simplecloud.player.v2.PlayerLoginEvent;
-import org.junit.jupiter.api.Test;
-
-import java.util.UUID;
-
 import static org.junit.jupiter.api.Assertions.assertEquals;
 import static org.junit.jupiter.api.Assertions.assertNull;
 import static org.junit.jupiter.api.Assertions.assertTrue;
+
+import build.buf.gen.simplecloud.player.v2.PlayerConfig;
+import build.buf.gen.simplecloud.player.v2.PlayerLoginEvent;
+import java.util.UUID;
+import org.junit.jupiter.api.Test;
 
 class PlayerLoginEventImplTest {
 

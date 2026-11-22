@@ -1,9 +1,8 @@
 package app.simplecloud.api.event.player;
 
 import app.simplecloud.api.player.CloudPlayer;
-import org.jetbrains.annotations.Nullable;
-
 import java.util.UUID;
+import org.jetbrains.annotations.Nullable;
 
 /**
  * Event fired when a player logs into the network.
@@ -29,16 +28,14 @@ public interface PlayerLoginEvent {
      *
      * @return the proxy name, or null if unavailable
      */
-    @Nullable
-    String getProxyName();
+    @Nullable String getProxyName();
 
     /**
      * Returns the ID of the session started by this login.
      *
      * @return the session ID, or null if unavailable
      */
-    @Nullable
-    String getSessionId();
+    @Nullable String getSessionId();
 
     /**
      * Returns whether this is the player's first login on this network.
@@ -59,8 +56,7 @@ public interface PlayerLoginEvent {
      *
      * @return the player, or null if the controller sent no player data
      */
-    @Nullable
-    CloudPlayer getPlayer();
+    @Nullable CloudPlayer getPlayer();
 
     /**
      * Returns the timestamp when this event occurred (ISO 8601 format).

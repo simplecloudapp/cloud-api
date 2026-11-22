@@ -1,14 +1,14 @@
 package app.simplecloud.api.group;
 
-import org.jetbrains.annotations.Nullable;
-
 import java.util.List;
 import java.util.Map;
+import org.jetbrains.annotations.Nullable;
 
 public class UpdateGroupRequest {
     private String name;
-    @Nullable
-    private GroupServerType type;
+
+    @Nullable private GroupServerType type;
+
     private Integer minMemory;
     private Integer maxMemory;
     private Integer maxPlayers;
@@ -21,15 +21,13 @@ public class UpdateGroupRequest {
     private Map<String, Object> properties;
     private List<String> tags;
 
-    public UpdateGroupRequest() {
-    }
+    public UpdateGroupRequest() {}
 
     public static Builder builder() {
         return new Builder();
     }
 
-    @Nullable
-    public String getName() {
+    @Nullable public String getName() {
         return name;
     }
 
@@ -38,8 +36,7 @@ public class UpdateGroupRequest {
         return this;
     }
 
-    @Nullable
-    public GroupServerType getType() {
+    @Nullable public GroupServerType getType() {
         return type;
     }
 
@@ -48,8 +45,7 @@ public class UpdateGroupRequest {
         return this;
     }
 
-    @Nullable
-    public Integer getMinMemory() {
+    @Nullable public Integer getMinMemory() {
         return minMemory;
     }
 
@@ -58,8 +54,7 @@ public class UpdateGroupRequest {
         return this;
     }
 
-    @Nullable
-    public Integer getMaxMemory() {
+    @Nullable public Integer getMaxMemory() {
         return maxMemory;
     }
 
@@ -68,8 +63,7 @@ public class UpdateGroupRequest {
         return this;
     }
 
-    @Nullable
-    public Integer getMaxPlayers() {
+    @Nullable public Integer getMaxPlayers() {
         return maxPlayers;
     }
 
@@ -78,8 +72,7 @@ public class UpdateGroupRequest {
         return this;
     }
 
-    @Nullable
-    public Boolean getActive() {
+    @Nullable public Boolean getActive() {
         return active;
     }
 
@@ -88,8 +81,7 @@ public class UpdateGroupRequest {
         return this;
     }
 
-    @Nullable
-    public Integer getPriority() {
+    @Nullable public Integer getPriority() {
         return priority;
     }
 
@@ -98,8 +90,7 @@ public class UpdateGroupRequest {
         return this;
     }
 
-    @Nullable
-    public DeploymentConfig getDeployment() {
+    @Nullable public DeploymentConfig getDeployment() {
         return deployment;
     }
 
@@ -108,8 +99,7 @@ public class UpdateGroupRequest {
         return this;
     }
 
-    @Nullable
-    public ScalingConfig getScaling() {
+    @Nullable public ScalingConfig getScaling() {
         return scaling;
     }
 
@@ -118,8 +108,7 @@ public class UpdateGroupRequest {
         return this;
     }
 
-    @Nullable
-    public SourceConfig getSource() {
+    @Nullable public SourceConfig getSource() {
         return source;
     }
 
@@ -128,8 +117,7 @@ public class UpdateGroupRequest {
         return this;
     }
 
-    @Nullable
-    public WorkflowsConfig getWorkflows() {
+    @Nullable public WorkflowsConfig getWorkflows() {
         return workflows;
     }
 
@@ -138,8 +126,7 @@ public class UpdateGroupRequest {
         return this;
     }
 
-    @Nullable
-    public Map<String, Object> getProperties() {
+    @Nullable public Map<String, Object> getProperties() {
         return properties;
     }
 
@@ -148,8 +135,7 @@ public class UpdateGroupRequest {
         return this;
     }
 
-    @Nullable
-    public List<String> getTags() {
+    @Nullable public List<String> getTags() {
         return tags;
     }
 

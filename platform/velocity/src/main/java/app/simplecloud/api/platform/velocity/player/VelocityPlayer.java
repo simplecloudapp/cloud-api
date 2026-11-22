@@ -6,10 +6,9 @@ import com.velocitypowered.api.proxy.ConnectionRequestBuilder;
 import com.velocitypowered.api.proxy.Player;
 import com.velocitypowered.api.proxy.ProxyServer;
 import com.velocitypowered.api.proxy.server.RegisteredServer;
-import net.kyori.adventure.text.Component;
-
 import java.util.Optional;
 import java.util.concurrent.CompletableFuture;
+import net.kyori.adventure.text.Component;
 
 final class VelocityPlayer implements ProxyPlayer {
 
@@ -29,7 +28,9 @@ final class VelocityPlayer implements ProxyPlayer {
     @Override
     public CompletableFuture<CloudPlayer.ConnectResult> connect(String proxyServerName) {
         Optional<RegisteredServer> registeredServer = proxyServer.getServer(proxyServerName);
-        return registeredServer.map(this::connectTo).orElseGet(() -> CompletableFuture.completedFuture(CloudPlayer.ConnectResult.SERVER_NOT_FOUND));
+        return registeredServer
+                .map(this::connectTo)
+                .orElseGet(() -> CompletableFuture.completedFuture(CloudPlayer.ConnectResult.SERVER_NOT_FOUND));
     }
 
     private CompletableFuture<CloudPlayer.ConnectResult> connectTo(RegisteredServer registeredServer) {

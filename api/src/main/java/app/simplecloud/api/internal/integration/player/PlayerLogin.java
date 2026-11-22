@@ -1,8 +1,7 @@
 package app.simplecloud.api.internal.integration.player;
 
-import org.jetbrains.annotations.Nullable;
-
 import java.util.UUID;
+import org.jetbrains.annotations.Nullable;
 
 /**
  * What a proxy reports to the controller when a player logs in.
@@ -16,6 +15,4 @@ public record PlayerLogin(
         String clientLanguage,
         int clientVersion,
         boolean onlineMode,
-        @Nullable String texture
-) {
-}
+        @Nullable String texture) {}

@@ -3,11 +3,6 @@ package app.simplecloud.api.platform.shared.luckperms;
 import app.simplecloud.api.CloudApi;
 import app.simplecloud.api.platform.shared.player.OnlinePlayers;
 import app.simplecloud.api.player.CloudPlayer;
-import net.luckperms.api.LuckPerms;
-import net.luckperms.api.event.EventSubscription;
-import net.luckperms.api.event.user.UserDataRecalculateEvent;
-import net.luckperms.api.model.user.User;
-
 import java.util.Map;
 import java.util.Optional;
 import java.util.Set;
@@ -16,6 +11,10 @@ import java.util.concurrent.CompletableFuture;
 import java.util.concurrent.ConcurrentHashMap;
 import java.util.logging.Level;
 import java.util.logging.Logger;
+import net.luckperms.api.LuckPerms;
+import net.luckperms.api.event.EventSubscription;
+import net.luckperms.api.event.user.UserDataRecalculateEvent;
+import net.luckperms.api.model.user.User;
 
 /**
  * Stores each player's LuckPerms primary group in their {@value #PRIMARY_GROUP_PROPERTY} cloud property
@@ -41,11 +40,7 @@ public final class LuckPermsPrimaryGroupSynchronizer implements LuckPermsSynchro
     private volatile boolean running;
 
     public LuckPermsPrimaryGroupSynchronizer(
-            CloudApi cloudApi,
-            LuckPerms luckPerms,
-            Object eventSubscriber,
-            OnlinePlayers onlinePlayers
-    ) {
+            CloudApi cloudApi, LuckPerms luckPerms, Object eventSubscriber, OnlinePlayers onlinePlayers) {
         this.cloudApi = cloudApi;
         this.luckPerms = luckPerms;
         this.eventSubscriber = eventSubscriber;
@@ -56,11 +51,9 @@ public final class LuckPermsPrimaryGroupSynchronizer implements LuckPermsSynchro
         if (subscription != null) {
             return;
         }
-        subscription = luckPerms.getEventBus().subscribe(
-                eventSubscriber,
-                UserDataRecalculateEvent.class,
-                event -> synchronize(event.getUser())
-        );
+        subscription = luckPerms
+                .getEventBus()
+                .subscribe(eventSubscriber, UserDataRecalculateEvent.class, event -> synchronize(event.getUser()));
         running = true;
     }
 
@@ -135,7 +128,8 @@ public final class LuckPermsPrimaryGroupSynchronizer implements LuckPermsSynchro
         });
     }
 
-    private CompletableFuture<Boolean> storePrimaryGroupIfChanged(UUID playerId, CloudPlayer cloudPlayer, String primaryGroup) {
+    private CompletableFuture<Boolean> storePrimaryGroupIfChanged(
+            UUID playerId, CloudPlayer cloudPlayer, String primaryGroup) {
         String propertyValue = cloudPlayer.getProperties().get(PRIMARY_GROUP_PROPERTY);
         if (primaryGroup.equals(propertyValue)) {
             return CompletableFuture.completedFuture(true);

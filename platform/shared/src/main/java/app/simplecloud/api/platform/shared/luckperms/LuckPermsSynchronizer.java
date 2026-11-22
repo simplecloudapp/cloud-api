@@ -12,16 +12,13 @@ public interface LuckPermsSynchronizer {
      */
     LuckPermsSynchronizer DISABLED = new LuckPermsSynchronizer() {
         @Override
-        public void synchronize(UUID playerId) {
-        }
+        public void synchronize(UUID playerId) {}
 
         @Override
-        public void forget(UUID playerId) {
-        }
+        public void forget(UUID playerId) {}
 
         @Override
-        public void stop() {
-        }
+        public void stop() {}
     };
 
     /**

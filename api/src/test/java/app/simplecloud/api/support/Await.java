@@ -1,14 +1,13 @@
 package app.simplecloud.api.support;
 
+import static org.junit.jupiter.api.Assertions.fail;
+
 import java.time.Duration;
 import java.util.function.BooleanSupplier;
 
-import static org.junit.jupiter.api.Assertions.fail;
-
 public final class Await {
 
-    private Await() {
-    }
+    private Await() {}
 
     public static void until(BooleanSupplier condition, String description) throws InterruptedException {
         long deadline = System.nanoTime() + Duration.ofSeconds(5).toNanos();

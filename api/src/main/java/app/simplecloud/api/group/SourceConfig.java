@@ -3,22 +3,19 @@ package app.simplecloud.api.group;
 import org.jetbrains.annotations.Nullable;
 
 public class SourceConfig {
-    @Nullable
-    private SourceType type;
-    @Nullable
-    private String blueprint;
-    @Nullable
-    private String image;
+    @Nullable private SourceType type;
 
-    public SourceConfig() {
-    }
+    @Nullable private String blueprint;
+
+    @Nullable private String image;
+
+    public SourceConfig() {}
 
     public static Builder builder() {
         return new Builder();
     }
 
-    @Nullable
-    public SourceType getType() {
+    @Nullable public SourceType getType() {
         return type;
     }
 
@@ -26,8 +23,7 @@ public class SourceConfig {
         this.type = type;
     }
 
-    @Nullable
-    public String getBlueprint() {
+    @Nullable public String getBlueprint() {
         return blueprint;
     }
 
@@ -35,8 +31,7 @@ public class SourceConfig {
         this.blueprint = blueprint;
     }
 
-    @Nullable
-    public String getImage() {
+    @Nullable public String getImage() {
         return image;
     }
 

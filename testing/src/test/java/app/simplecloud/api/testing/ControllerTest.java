@@ -1,15 +1,14 @@
 package app.simplecloud.api.testing;
 
+import static org.junit.jupiter.api.Assertions.assertEquals;
+import static org.junit.jupiter.api.Assertions.assertTrue;
+
 import app.simplecloud.api.group.GroupStartQueue;
 import app.simplecloud.api.group.GroupStartQueueItemStatus;
 import app.simplecloud.api.testing.group.TestGroup;
 import app.simplecloud.api.testing.server.TestServer;
-import org.junit.jupiter.api.Test;
-
 import java.util.List;
-
-import static org.junit.jupiter.api.Assertions.assertEquals;
-import static org.junit.jupiter.api.Assertions.assertTrue;
+import org.junit.jupiter.api.Test;
 
 @CloudTest
 class ControllerTest {
@@ -53,7 +52,9 @@ class ControllerTest {
 
         GroupStartQueue queue = cloud.controller().startQueue();
         assertEquals(1, queue.failedStarts());
-        assertEquals(GroupStartQueueItemStatus.FAILED, queue.items().getFirst().starts().getFirst().status());
+        assertEquals(
+                GroupStartQueueItemStatus.FAILED,
+                queue.items().getFirst().starts().getFirst().status());
         assertTrue(lobby.getServers().isEmpty());
     }
 

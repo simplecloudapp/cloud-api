@@ -1,8 +1,7 @@
 package app.simplecloud.api.blueprint;
 
-import org.jetbrains.annotations.Nullable;
-
 import java.util.List;
+import org.jetbrains.annotations.Nullable;
 
 /**
  * Request object for creating a new blueprint.
@@ -20,15 +19,13 @@ public class CreateBlueprintRequest {
     private String softwareVersion;
     private List<String> workflowSteps;
 
-    public CreateBlueprintRequest() {
-    }
+    public CreateBlueprintRequest() {}
 
     public static Builder builder() {
         return new Builder();
     }
 
-    @Nullable
-    public String getName() {
+    @Nullable public String getName() {
         return name;
     }
 
@@ -37,8 +34,7 @@ public class CreateBlueprintRequest {
         return this;
     }
 
-    @Nullable
-    public String getConfigurator() {
+    @Nullable public String getConfigurator() {
         return configurator;
     }
 
@@ -47,8 +43,7 @@ public class CreateBlueprintRequest {
         return this;
     }
 
-    @Nullable
-    public String getMinecraftVersion() {
+    @Nullable public String getMinecraftVersion() {
         return minecraftVersion;
     }
 
@@ -57,8 +52,7 @@ public class CreateBlueprintRequest {
         return this;
     }
 
-    @Nullable
-    public RuntimeConfig getRuntimeConfig() {
+    @Nullable public RuntimeConfig getRuntimeConfig() {
         return runtimeConfig;
     }
 
@@ -67,8 +61,7 @@ public class CreateBlueprintRequest {
         return this;
     }
 
-    @Nullable
-    public String getServerSoftware() {
+    @Nullable public String getServerSoftware() {
         return serverSoftware;
     }
 
@@ -77,8 +70,7 @@ public class CreateBlueprintRequest {
         return this;
     }
 
-    @Nullable
-    public String getServerUrl() {
+    @Nullable public String getServerUrl() {
         return serverUrl;
     }
 
@@ -87,8 +79,7 @@ public class CreateBlueprintRequest {
         return this;
     }
 
-    @Nullable
-    public String getSoftwareVersion() {
+    @Nullable public String getSoftwareVersion() {
         return softwareVersion;
     }
 
@@ -97,8 +88,7 @@ public class CreateBlueprintRequest {
         return this;
     }
 
-    @Nullable
-    public List<String> getWorkflowSteps() {
+    @Nullable public List<String> getWorkflowSteps() {
         return workflowSteps;
     }
 

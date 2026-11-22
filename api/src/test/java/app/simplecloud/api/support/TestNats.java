@@ -1,22 +1,20 @@
 package app.simplecloud.api.support;
 
+import static org.junit.jupiter.api.Assertions.assertNotNull;
+
 import io.nats.client.Connection;
 import io.nats.client.Message;
 import io.nats.client.Nats;
-
 import java.time.Duration;
 import java.util.UUID;
 import java.util.concurrent.BlockingQueue;
 import java.util.concurrent.TimeUnit;
 
-import static org.junit.jupiter.api.Assertions.assertNotNull;
-
 public final class TestNats {
 
     public static final Duration TIMEOUT = Duration.ofSeconds(5);
 
-    private TestNats() {
-    }
+    private TestNats() {}
 
     public static String url() {
         String url = System.getProperty("simplecloud.test.natsUrl");

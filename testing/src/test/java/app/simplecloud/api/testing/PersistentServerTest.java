@@ -1,5 +1,13 @@
 package app.simplecloud.api.testing;
 
+import static org.junit.jupiter.api.Assertions.assertEquals;
+import static org.junit.jupiter.api.Assertions.assertFalse;
+import static org.junit.jupiter.api.Assertions.assertInstanceOf;
+import static org.junit.jupiter.api.Assertions.assertNull;
+import static org.junit.jupiter.api.Assertions.assertSame;
+import static org.junit.jupiter.api.Assertions.assertThrows;
+import static org.junit.jupiter.api.Assertions.assertTrue;
+
 import app.simplecloud.api.CloudApiException;
 import app.simplecloud.api.event.persistentserver.PersistentServerCreatedEvent;
 import app.simplecloud.api.event.persistentserver.PersistentServerDeletedEvent;
@@ -16,18 +24,9 @@ import app.simplecloud.api.server.ServerQuery;
 import app.simplecloud.api.testing.persistentserver.TestPersistentServer;
 import app.simplecloud.api.testing.player.TestPlayer;
 import app.simplecloud.api.testing.server.TestServer;
-import org.junit.jupiter.api.Test;
-
 import java.util.List;
 import java.util.concurrent.CompletionException;
-
-import static org.junit.jupiter.api.Assertions.assertEquals;
-import static org.junit.jupiter.api.Assertions.assertFalse;
-import static org.junit.jupiter.api.Assertions.assertInstanceOf;
-import static org.junit.jupiter.api.Assertions.assertNull;
-import static org.junit.jupiter.api.Assertions.assertSame;
-import static org.junit.jupiter.api.Assertions.assertThrows;
-import static org.junit.jupiter.api.Assertions.assertTrue;
+import org.junit.jupiter.api.Test;
 
 @CloudTest
 class PersistentServerTest {
@@ -42,7 +41,10 @@ class PersistentServerTest {
                 .tags(List.of("smp"))
                 .build());
 
-        PersistentServer fetched = cloud.api().persistentServer().getPersistentServerByName("survival").join();
+        PersistentServer fetched = cloud.api()
+                .persistentServer()
+                .getPersistentServerByName("survival")
+                .join();
         assertEquals(survival.getPersistentServerId(), fetched.getPersistentServerId());
         assertEquals(100, fetched.getMaxPlayers());
         assertTrue(fetched.isPersistentServer());
@@ -54,8 +56,8 @@ class PersistentServerTest {
     void duplicateNameFailsWithConflict(TestCloud cloud) {
         cloud.createPersistentServer("survival");
 
-        CloudApiException exception = assertThrows(CloudApiException.class,
-                () -> cloud.createPersistentServer("survival"));
+        CloudApiException exception =
+                assertThrows(CloudApiException.class, () -> cloud.createPersistentServer("survival"));
 
         assertEquals(CloudApiException.Reason.CONFLICT, exception.getReason());
     }
@@ -105,10 +107,14 @@ class PersistentServerTest {
         survival.start();
         cloud.createGroup("lobby").startServer();
 
-        List<Server> servers = cloud.api().server().getAllServers(ServerQuery.create()
-                .filterByPersistentServerId(survival.getPersistentServerId())).join();
+        List<Server> servers = cloud.api()
+                .server()
+                .getAllServers(ServerQuery.create().filterByPersistentServerId(survival.getPersistentServerId()))
+                .join();
 
-        assertEquals(List.of("survival"), servers.stream().map(server -> server.getServerBase().getName()).toList());
+        assertEquals(
+                List.of("survival"),
+                servers.stream().map(server -> server.getServerBase().getName()).toList());
     }
 
     @Test
@@ -116,7 +122,8 @@ class PersistentServerTest {
         TestPersistentServer survival = cloud.createPersistentServer("survival");
         var updated = cloud.track(PersistentServerUpdatedEvent.class);
 
-        survival.update(UpdatePersistentServerRequest.builder().maxPlayers(64).build()).setProperty("motd", "hi");
+        survival.update(UpdatePersistentServerRequest.builder().maxPlayers(64).build())
+                .setProperty("motd", "hi");
 
         assertEquals(64, survival.getMaxPlayers());
         assertEquals("hi", survival.getProperties().get("motd"));
@@ -130,7 +137,10 @@ class PersistentServerTest {
         var stopped = cloud.track(PersistentServerStoppedEvent.class);
         var deleted = cloud.track(PersistentServerDeletedEvent.class);
 
-        cloud.api().persistentServer().deletePersistentServer(survival.getPersistentServerId()).join();
+        cloud.api()
+                .persistentServer()
+                .deletePersistentServer(survival.getPersistentServerId())
+                .join();
 
         assertEquals(1, stopped.count());
         assertEquals("survival", deleted.single().getName());
@@ -140,16 +150,29 @@ class PersistentServerTest {
 
     @Test
     void queryFiltersByActiveAndTags(TestCloud cloud) {
-        cloud.createPersistentServer(CreatePersistentServerRequest.builder().name("survival").tags(List.of("smp")).build());
-        cloud.createPersistentServer(CreatePersistentServerRequest.builder().name("creative").active(false).build());
+        cloud.createPersistentServer(CreatePersistentServerRequest.builder()
+                .name("survival")
+                .tags(List.of("smp"))
+                .build());
+        cloud.createPersistentServer(CreatePersistentServerRequest.builder()
+                .name("creative")
+                .active(false)
+                .build());
 
-        List<PersistentServer> active = cloud.api().persistentServer()
-                .getAllPersistentServers(PersistentServerQuery.create().filterByActive(true)).join();
-        List<PersistentServer> smp = cloud.api().persistentServer()
-                .getAllPersistentServers(PersistentServerQuery.create().filterByTags("smp")).join();
+        List<PersistentServer> active = cloud.api()
+                .persistentServer()
+                .getAllPersistentServers(PersistentServerQuery.create().filterByActive(true))
+                .join();
+        List<PersistentServer> smp = cloud.api()
+                .persistentServer()
+                .getAllPersistentServers(PersistentServerQuery.create().filterByTags("smp"))
+                .join();
 
-        assertEquals(List.of("survival"), active.stream().map(PersistentServer::getName).toList());
-        assertEquals(List.of("survival"), smp.stream().map(PersistentServer::getName).toList());
+        assertEquals(
+                List.of("survival"),
+                active.stream().map(PersistentServer::getName).toList());
+        assertEquals(
+                List.of("survival"), smp.stream().map(PersistentServer::getName).toList());
     }
 
     @Test
@@ -171,20 +194,29 @@ class PersistentServerTest {
         TestPersistentServer survival = cloud.createPersistentServer("survival");
         TestPlayer steve = cloud.createPlayer("Steve").login();
 
-        assertEquals(ConnectResult.SERVER_NOT_FOUND,
-                steve.connectToPersistentServer(survival.getPersistentServerId()).join());
+        assertEquals(
+                ConnectResult.SERVER_NOT_FOUND,
+                steve.connectToPersistentServer(survival.getPersistentServerId())
+                        .join());
 
         survival.start();
 
-        assertEquals(ConnectResult.SUCCESS, steve.connectToPersistentServer(survival.getPersistentServerId()).join());
+        assertEquals(
+                ConnectResult.SUCCESS,
+                steve.connectToPersistentServer(survival.getPersistentServerId())
+                        .join());
         assertEquals("survival", steve.getConnectedServerName());
         assertEquals(1, survival.getPlayerCount());
     }
 
     @Test
     void unknownPersistentServerFailsWithNotFound(TestCloud cloud) {
-        CompletionException exception = assertThrows(CompletionException.class,
-                () -> cloud.api().persistentServer().getPersistentServerById("missing").join());
+        CompletionException exception = assertThrows(
+                CompletionException.class,
+                () -> cloud.api()
+                        .persistentServer()
+                        .getPersistentServerById("missing")
+                        .join());
 
         CloudApiException cause = assertInstanceOf(CloudApiException.class, exception.getCause());
         assertEquals(CloudApiException.Reason.NOT_FOUND, cause.getReason());

@@ -1,20 +1,19 @@
 package app.simplecloud.api.internal.player;
 
+import static org.junit.jupiter.api.Assertions.assertEquals;
+import static org.junit.jupiter.api.Assertions.assertFalse;
+import static org.junit.jupiter.api.Assertions.assertTrue;
+
 import app.simplecloud.api.internal.ApiContext;
 import app.simplecloud.api.player.CloudPlayer;
 import app.simplecloud.api.player.CloudPlayer.ConnectResult;
 import app.simplecloud.api.support.ControllerServer;
 import app.simplecloud.api.support.TestContexts;
 import app.simplecloud.api.web.apis.PlayersApi;
-import org.junit.jupiter.api.AfterEach;
-import org.junit.jupiter.api.Test;
-
 import java.util.Optional;
 import java.util.UUID;
-
-import static org.junit.jupiter.api.Assertions.assertEquals;
-import static org.junit.jupiter.api.Assertions.assertFalse;
-import static org.junit.jupiter.api.Assertions.assertTrue;
+import org.junit.jupiter.api.AfterEach;
+import org.junit.jupiter.api.Test;
 
 class PlayerApiImplTest {
 
@@ -68,7 +67,8 @@ class PlayerApiImplTest {
 
     @Test
     void connectReportsPlayerAlreadyOnTheServer() {
-        controller.on("POST", CONNECT, "{\"success\":false,\"message\":\"Player is already connected to this server\"}");
+        controller.on(
+                "POST", CONNECT, "{\"success\":false,\"message\":\"Player is already connected to this server\"}");
 
         assertEquals(ConnectResult.ALREADY_CONNECTED, connectToLobby());
     }

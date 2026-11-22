@@ -9,8 +9,7 @@ final class NatsContainer {
     private static final int CLIENT_PORT = 4222;
     private static GenericContainer<?> container;
 
-    private NatsContainer() {
-    }
+    private NatsContainer() {}
 
     static synchronized String url() {
         if (container == null) {

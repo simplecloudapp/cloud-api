@@ -1,8 +1,7 @@
 package app.simplecloud.api.group;
 
-import org.jetbrains.annotations.Nullable;
-
 import java.util.List;
+import org.jetbrains.annotations.Nullable;
 
 /**
  * Manual server-start queue state for one server group.
@@ -13,8 +12,7 @@ public record GroupStartQueueEntry(
         @Nullable String serverGroupId,
         @Nullable String serverGroupName,
         List<GroupStartQueueItem> starts,
-        int totalStarts
-) {
+        int totalStarts) {
 
     public GroupStartQueueEntry {
         starts = List.copyOf(starts);
@@ -40,8 +38,7 @@ public record GroupStartQueueEntry(
      * @deprecated use {@link #serverGroupId()}; will be removed in 1.0.0
      */
     @Deprecated(forRemoval = true)
-    @Nullable
-    public String getServerGroupId() {
+    @Nullable public String getServerGroupId() {
         return serverGroupId;
     }
 
@@ -49,8 +46,7 @@ public record GroupStartQueueEntry(
      * @deprecated use {@link #serverGroupName()}; will be removed in 1.0.0
      */
     @Deprecated(forRemoval = true)
-    @Nullable
-    public String getServerGroupName() {
+    @Nullable public String getServerGroupName() {
         return serverGroupName;
     }
 

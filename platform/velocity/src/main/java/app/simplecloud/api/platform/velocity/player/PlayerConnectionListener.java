@@ -13,7 +13,6 @@ import com.velocitypowered.api.proxy.Player;
 import com.velocitypowered.api.proxy.player.PlayerSettings;
 import com.velocitypowered.api.proxy.player.SkinParts;
 import com.velocitypowered.api.util.GameProfile;
-
 import java.util.ArrayList;
 import java.util.List;
 
@@ -30,8 +29,7 @@ public class PlayerConnectionListener {
         Player player = event.getPlayer();
         return EventTask.resumeWhenComplete(sessions.login(
                 toConnectingPlayer(player),
-                () -> player.hasSentPlayerSettings() ? toClientSettings(player.getPlayerSettings()) : null
-        ));
+                () -> player.hasSentPlayerSettings() ? toClientSettings(player.getPlayerSettings()) : null));
     }
 
     @Subscribe
@@ -43,13 +41,17 @@ public class PlayerConnectionListener {
     @Subscribe
     public void onPlayerSettingsChanged(PlayerSettingsChangedEvent event) {
         Player player = event.getPlayer();
-        sessions.clientSettingsChanged(player.getUniqueId(), player.getUsername(), toClientSettings(event.getPlayerSettings()));
+        sessions.clientSettingsChanged(
+                player.getUniqueId(), player.getUsername(), toClientSettings(event.getPlayerSettings()));
     }
 
     @Subscribe
     public void onServerConnected(ServerConnectedEvent event) {
         Player player = event.getPlayer();
-        sessions.serverSwitched(player.getUniqueId(), player.getUsername(), event.getServer().getServerInfo().getName());
+        sessions.serverSwitched(
+                player.getUniqueId(),
+                player.getUsername(),
+                event.getServer().getServerInfo().getName());
     }
 
     static ConnectingPlayer toConnectingPlayer(Player player) {
@@ -61,8 +63,7 @@ public class PlayerConnectionListener {
                 player.getEffectiveLocale(),
                 player.getProtocolVersion().getProtocol(),
                 player.isOnlineMode(),
-                texture(player.getGameProfile())
-        );
+                texture(player.getGameProfile()));
     }
 
     private static String texture(GameProfile profile) {
@@ -75,15 +76,17 @@ public class PlayerConnectionListener {
 
     static PlayerClientSettings toClientSettings(PlayerSettings settings) {
         PlayerClientSettings result = new PlayerClientSettings();
-        result.setChatMode(switch (settings.getChatMode()) {
-            case SHOWN -> PlayerClientSettings.ChatMode.ENABLED;
-            case COMMANDS_ONLY -> PlayerClientSettings.ChatMode.COMMANDS_ONLY;
-            case HIDDEN -> PlayerClientSettings.ChatMode.HIDDEN;
-        });
+        result.setChatMode(
+                switch (settings.getChatMode()) {
+                    case SHOWN -> PlayerClientSettings.ChatMode.ENABLED;
+                    case COMMANDS_ONLY -> PlayerClientSettings.ChatMode.COMMANDS_ONLY;
+                    case HIDDEN -> PlayerClientSettings.ChatMode.HIDDEN;
+                });
         result.setLocale(settings.getLocale() != null ? settings.getLocale().toString() : null);
-        result.setMainHand(settings.getMainHand() == PlayerSettings.MainHand.LEFT
-                ? PlayerClientSettings.MainHand.LEFT
-                : PlayerClientSettings.MainHand.RIGHT);
+        result.setMainHand(
+                settings.getMainHand() == PlayerSettings.MainHand.LEFT
+                        ? PlayerClientSettings.MainHand.LEFT
+                        : PlayerClientSettings.MainHand.RIGHT);
         result.setViewDistance(settings.getViewDistance());
         result.setChatColors(settings.hasChatColors());
         result.setClientListingAllowed(settings.isClientListingAllowed());

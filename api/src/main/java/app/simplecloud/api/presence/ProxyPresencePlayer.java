@@ -15,8 +15,7 @@ public record ProxyPresencePlayer(
         String clientLanguage,
         int clientVersion,
         boolean onlineMode,
-        String sessionId
-) {
+        String sessionId) {
 
     public ProxyPresencePlayer {
         playerId = normalize(playerId);

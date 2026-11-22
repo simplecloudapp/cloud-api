@@ -1,9 +1,8 @@
 package app.simplecloud.api.event.player;
 
 import app.simplecloud.api.player.CloudPlayer;
-import org.jetbrains.annotations.Nullable;
-
 import java.util.UUID;
+import org.jetbrains.annotations.Nullable;
 
 /**
  * Event fired when a player disconnects from the network.
@@ -29,16 +28,14 @@ public interface PlayerDisconnectEvent {
      *
      * @return the proxy name, or null if unavailable
      */
-    @Nullable
-    String getProxyName();
+    @Nullable String getProxyName();
 
     /**
      * Returns the name of the server the player was on when disconnecting.
      *
      * @return the server name, or null if unavailable
      */
-    @Nullable
-    String getServerName();
+    @Nullable String getServerName();
 
     /**
      * Returns how long the ended session lasted.
@@ -52,8 +49,7 @@ public interface PlayerDisconnectEvent {
      *
      * @return the player, or null if the controller sent no player data
      */
-    @Nullable
-    CloudPlayer getPlayer();
+    @Nullable CloudPlayer getPlayer();
 
     /**
      * Returns the timestamp when this event occurred (ISO 8601 format).

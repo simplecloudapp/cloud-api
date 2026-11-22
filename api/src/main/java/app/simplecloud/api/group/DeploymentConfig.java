@@ -5,8 +5,8 @@ import org.jetbrains.annotations.Nullable;
 public class DeploymentConfig {
     private DeploymentHost[] hosts;
     private boolean hostsSet;
-    @Nullable
-    private DeploymentStrategy strategy;
+
+    @Nullable private DeploymentStrategy strategy;
 
     public DeploymentConfig() {
         this.hosts = new DeploymentHost[0];
@@ -29,8 +29,7 @@ public class DeploymentConfig {
         return hostsSet;
     }
 
-    @Nullable
-    public DeploymentStrategy getStrategy() {
+    @Nullable public DeploymentStrategy getStrategy() {
         return strategy;
     }
 
@@ -64,4 +63,3 @@ public class DeploymentConfig {
         }
     }
 }
-

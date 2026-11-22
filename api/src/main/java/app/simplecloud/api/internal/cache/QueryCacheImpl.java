@@ -1,20 +1,31 @@
 package app.simplecloud.api.internal.cache;
 
 import app.simplecloud.api.CloudApiException;
-import app.simplecloud.api.cache.*;
+import app.simplecloud.api.cache.CacheConfig;
+import app.simplecloud.api.cache.CacheEntry;
+import app.simplecloud.api.cache.CacheStats;
+import app.simplecloud.api.cache.EntityCacheConfig;
+import app.simplecloud.api.cache.EntityType;
+import app.simplecloud.api.cache.QueryCache;
+import app.simplecloud.api.cache.QueryKey;
 import com.github.benmanes.caffeine.cache.Cache;
 import com.github.benmanes.caffeine.cache.Caffeine;
 import com.github.benmanes.caffeine.cache.Expiry;
-import org.jspecify.annotations.NonNull;
-
 import java.time.Duration;
 import java.time.Instant;
 import java.util.Set;
-import java.util.concurrent.*;
+import java.util.concurrent.CompletableFuture;
+import java.util.concurrent.ConcurrentHashMap;
+import java.util.concurrent.ConcurrentMap;
+import java.util.concurrent.ExecutorService;
+import java.util.concurrent.Executors;
+import java.util.concurrent.RejectedExecutionException;
+import java.util.concurrent.TimeUnit;
 import java.util.concurrent.atomic.AtomicLong;
 import java.util.function.Supplier;
 import java.util.logging.Level;
 import java.util.logging.Logger;
+import org.jspecify.annotations.NonNull;
 
 public class QueryCacheImpl implements QueryCache {
 
@@ -51,17 +62,26 @@ public class QueryCacheImpl implements QueryCache {
                 .maximumSize(config.getMaxEntries())
                 .expireAfter(new Expiry<QueryKey, CacheEntry<?>>() {
                     @Override
-                    public long expireAfterCreate(@NonNull QueryKey key, @NonNull CacheEntry<?> value, long currentTime) {
+                    public long expireAfterCreate(
+                            @NonNull QueryKey key, @NonNull CacheEntry<?> value, long currentTime) {
                         return remainingNanos(value);
                     }
 
                     @Override
-                    public long expireAfterUpdate(@NonNull QueryKey key, @NonNull CacheEntry<?> value, long currentTime, long currentDuration) {
+                    public long expireAfterUpdate(
+                            @NonNull QueryKey key,
+                            @NonNull CacheEntry<?> value,
+                            long currentTime,
+                            long currentDuration) {
                         return remainingNanos(value);
                     }
 
                     @Override
-                    public long expireAfterRead(@NonNull QueryKey key, @NonNull CacheEntry<?> value, long currentTime, long currentDuration) {
+                    public long expireAfterRead(
+                            @NonNull QueryKey key,
+                            @NonNull CacheEntry<?> value,
+                            long currentTime,
+                            long currentDuration) {
                         return currentDuration;
                     }
                 })
@@ -124,8 +144,7 @@ public class QueryCacheImpl implements QueryCache {
         CompletableFuture.delayedExecutor(inFlightTimeout.toMillis(), TimeUnit.MILLISECONDS)
                 .execute(() -> result.completeExceptionally(new CloudApiException(
                         CloudApiException.Reason.UNAVAILABLE,
-                        "Controller did not respond within " + inFlightTimeout.toMillis() + " ms"
-                )));
+                        "Controller did not respond within " + inFlightTimeout.toMillis() + " ms")));
 
         CompletableFuture<T> source;
         try {
@@ -156,10 +175,11 @@ public class QueryCacheImpl implements QueryCache {
         }
 
         try {
-            revalidationExecutor.execute(() -> fetchWithDeduplication(key, fetcher).exceptionally(e -> {
-                LOGGER.log(Level.WARNING, "Background revalidation failed for " + key, e);
-                return null;
-            }));
+            revalidationExecutor.execute(() -> fetchWithDeduplication(key, fetcher)
+                    .exceptionally(e -> {
+                        LOGGER.log(Level.WARNING, "Background revalidation failed for " + key, e);
+                        return null;
+                    }));
         } catch (RejectedExecutionException e) {
             LOGGER.log(Level.FINE, "Skipping background revalidation for " + key + " after shutdown", e);
         }
@@ -233,14 +253,7 @@ public class QueryCacheImpl implements QueryCache {
         long total = hits + staleHits + misses;
         double hitRate = total > 0 ? (double) (hits + staleHits) / total : 0.0;
 
-        return new CacheStats(
-                hits,
-                misses,
-                staleHits,
-                evictionCount.get(),
-                cache.estimatedSize(),
-                hitRate
-        );
+        return new CacheStats(hits, misses, staleHits, evictionCount.get(), cache.estimatedSize(), hitRate);
     }
 
     @Override

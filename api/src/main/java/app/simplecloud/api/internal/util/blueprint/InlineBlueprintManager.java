@@ -13,10 +13,9 @@ import app.simplecloud.api.web.apis.BlueprintsApi;
 import app.simplecloud.api.web.models.ModelsCreateBlueprintRequest;
 import app.simplecloud.api.web.models.ModelsCreateBlueprintResponse;
 import app.simplecloud.api.web.models.ModelsSourceConfig;
-import org.jetbrains.annotations.Nullable;
-
 import java.util.logging.Level;
 import java.util.logging.Logger;
+import org.jetbrains.annotations.Nullable;
 
 /**
  * Shared support for resources that create or delete a referenced blueprint as part of their lifecycle.
@@ -32,22 +31,22 @@ public final class InlineBlueprintManager {
         this(options, blueprintsApi, new ManifestServerUrlResolver(options));
     }
 
-    public InlineBlueprintManager(CloudApiOptions options,
-                                  BlueprintsApi blueprintsApi,
-                                  ServerUrlResolver serverUrlResolver) {
+    public InlineBlueprintManager(
+            CloudApiOptions options, BlueprintsApi blueprintsApi, ServerUrlResolver serverUrlResolver) {
         this.options = options;
         this.blueprintsApi = blueprintsApi;
         this.requestMapper = new BlueprintRequestMapper(serverUrlResolver);
     }
 
-    public void validateInlineBlueprintSource(@Nullable CreateBlueprintRequest createBlueprint,
-                                              @Nullable SourceConfig requestedSource) {
+    public void validateInlineBlueprintSource(
+            @Nullable CreateBlueprintRequest createBlueprint, @Nullable SourceConfig requestedSource) {
         if (createBlueprint == null || requestedSource == null) {
             return;
         }
 
         if (requestedSource.getType() != null && requestedSource.getType() != SourceType.BLUEPRINT) {
-            throw new IllegalArgumentException("createBlueprint requires source.type to be BLUEPRINT when source is provided");
+            throw new IllegalArgumentException(
+                    "createBlueprint requires source.type to be BLUEPRINT when source is provided");
         }
         if (hasText(requestedSource.getBlueprint())) {
             throw new IllegalArgumentException("createBlueprint cannot be combined with source.blueprint");
@@ -57,8 +56,7 @@ public final class InlineBlueprintManager {
         }
     }
 
-    @Nullable
-    public String createBlueprint(String blueprintName, @Nullable CreateBlueprintRequest request) throws ApiException {
+    @Nullable public String createBlueprint(String blueprintName, @Nullable CreateBlueprintRequest request) throws ApiException {
         if (request == null) {
             return null;
         }
@@ -71,15 +69,18 @@ public final class InlineBlueprintManager {
             response = blueprintsApi.createBlueprint(options.getNetworkId(), apiRequest);
         } catch (ApiException e) {
             if (e.getCode() == 409) {
-                throw ApiExceptions.from("Blueprint '" + effectiveName
-                        + "' already exists, set another name with CreateBlueprintRequest.name", e);
+                throw ApiExceptions.from(
+                        "Blueprint '" + effectiveName
+                                + "' already exists, set another name with CreateBlueprintRequest.name",
+                        e);
             }
             throw e;
         }
 
         String blueprintId = response.getBlueprintId();
         if (blueprintId == null || blueprintId.isBlank()) {
-            throw new CloudApiException(CloudApiException.Reason.UNKNOWN, "Controller returned blueprint without a blueprint ID");
+            throw new CloudApiException(
+                    CloudApiException.Reason.UNKNOWN, "Controller returned blueprint without a blueprint ID");
         }
         return blueprintId;
     }
@@ -98,8 +99,7 @@ public final class InlineBlueprintManager {
         return source;
     }
 
-    @Nullable
-    public String getReferencedBlueprintId(@Nullable ModelsSourceConfig source) {
+    @Nullable public String getReferencedBlueprintId(@Nullable ModelsSourceConfig source) {
         return source == null ? null : normalize(source.getBlueprint());
     }
 
@@ -113,7 +113,6 @@ public final class InlineBlueprintManager {
         }
         return ApiExceptions.from(createFailure);
     }
-
 
     public void deleteBlueprintOfDeletedResource(@Nullable String blueprintId) {
         try {

@@ -1,5 +1,12 @@
 package app.simplecloud.api.testing;
 
+import static org.junit.jupiter.api.Assertions.assertEquals;
+import static org.junit.jupiter.api.Assertions.assertFalse;
+import static org.junit.jupiter.api.Assertions.assertInstanceOf;
+import static org.junit.jupiter.api.Assertions.assertSame;
+import static org.junit.jupiter.api.Assertions.assertThrows;
+import static org.junit.jupiter.api.Assertions.assertTrue;
+
 import app.simplecloud.api.CloudApi;
 import app.simplecloud.api.CloudApiException;
 import app.simplecloud.api.event.server.ServerStartedEvent;
@@ -11,18 +18,10 @@ import app.simplecloud.api.server.ServerState;
 import app.simplecloud.api.server.UpdateServerRequest;
 import app.simplecloud.api.testing.group.TestGroup;
 import app.simplecloud.api.testing.server.TestServer;
-import org.junit.jupiter.api.Test;
-
 import java.time.Duration;
 import java.util.List;
 import java.util.concurrent.CompletionException;
-
-import static org.junit.jupiter.api.Assertions.assertEquals;
-import static org.junit.jupiter.api.Assertions.assertFalse;
-import static org.junit.jupiter.api.Assertions.assertInstanceOf;
-import static org.junit.jupiter.api.Assertions.assertSame;
-import static org.junit.jupiter.api.Assertions.assertThrows;
-import static org.junit.jupiter.api.Assertions.assertTrue;
+import org.junit.jupiter.api.Test;
 
 @CloudTest
 class ServerTest {
@@ -63,17 +62,24 @@ class ServerTest {
         ServerStateChangedEvent change = changes.single();
         assertEquals(ServerState.AVAILABLE, change.getOldState());
         assertEquals(ServerState.INGAME, change.getNewState());
-        assertEquals(ServerState.INGAME, cloud.api().server().getServerById(server.getServerId()).join().getState());
+        assertEquals(
+                ServerState.INGAME,
+                cloud.api().server().getServerById(server.getServerId()).join().getState());
     }
 
     @Test
     void updateThroughApiChangesHandle(TestCloud cloud) {
         TestServer server = cloud.createGroup("lobby").startServer();
 
-        cloud.api().server().updateServer(server.getServerId(), UpdateServerRequest.builder()
-                .state(ServerState.INGAME)
-                .maxPlayers(64)
-                .build()).join();
+        cloud.api()
+                .server()
+                .updateServer(
+                        server.getServerId(),
+                        UpdateServerRequest.builder()
+                                .state(ServerState.INGAME)
+                                .maxPlayers(64)
+                                .build())
+                .join();
 
         assertEquals(ServerState.INGAME, server.getState());
         assertEquals(64, server.getMaxPlayers());
@@ -90,7 +96,9 @@ class ServerTest {
                 .build());
 
         assertEquals(ServerState.INGAME, changes.single().getNewState());
-        assertEquals(16, cloud.api().server().getServerById(server.getServerId()).join().getMaxPlayers());
+        assertEquals(
+                16,
+                cloud.api().server().getServerById(server.getServerId()).join().getMaxPlayers());
     }
 
     @Test
@@ -100,9 +108,11 @@ class ServerTest {
         lobby.startServer().setState(ServerState.INGAME);
         cloud.createGroup("bedwars").startServer();
 
-        List<Server> available = cloud.api().server().getAllServers(ServerQuery.create()
-                .filterByServerGroupName("lobby")
-                .filterByState(ServerState.AVAILABLE)).join();
+        List<Server> available = cloud.api()
+                .server()
+                .getAllServers(
+                        ServerQuery.create().filterByServerGroupName("lobby").filterByState(ServerState.AVAILABLE))
+                .join();
 
         assertEquals(1, available.size());
         assertEquals(1, available.getFirst().getNumericalId());
@@ -120,7 +130,8 @@ class ServerTest {
         assertTrue(event.getCrashed());
         assertEquals(137, event.getExitCode());
         assertFalse(server.isRunning());
-        assertTrue(cloud.api().server().findServerById(server.getServerId()).join().isEmpty());
+        assertTrue(
+                cloud.api().server().findServerById(server.getServerId()).join().isEmpty());
     }
 
     @Test
@@ -131,13 +142,17 @@ class ServerTest {
 
         cloud.runAs(lobby);
 
-        assertEquals(lobby.getServerId(), cloud.api().server().getCurrentServer().join().getServerId());
-        assertEquals(game.getServerId(), gameApi.server().getCurrentServer().join().getServerId());
+        assertEquals(
+                lobby.getServerId(),
+                cloud.api().server().getCurrentServer().join().getServerId());
+        assertEquals(
+                game.getServerId(), gameApi.server().getCurrentServer().join().getServerId());
     }
 
     @Test
     void currentServerFailsWithoutRunAs(TestCloud cloud) {
-        assertThrows(Exception.class, () -> cloud.api().server().getCurrentServer().join());
+        assertThrows(
+                Exception.class, () -> cloud.api().server().getCurrentServer().join());
     }
 
     @Test
@@ -165,11 +180,15 @@ class ServerTest {
         lobby.startServer();
         lobby.startServer();
 
-        List<Server> servers = cloud.api().server().getAllServers(ServerQuery.create()
-                .sortBy(ServerQuery.SortField.NUMERICAL_ID)
-                .sortOrder(ServerQuery.SortOrder.DESC)).join();
+        List<Server> servers = cloud.api()
+                .server()
+                .getAllServers(ServerQuery.create()
+                        .sortBy(ServerQuery.SortField.NUMERICAL_ID)
+                        .sortOrder(ServerQuery.SortOrder.DESC))
+                .join();
 
-        assertEquals(List.of(3, 2, 1), servers.stream().map(Server::getNumericalId).toList());
+        assertEquals(
+                List.of(3, 2, 1), servers.stream().map(Server::getNumericalId).toList());
     }
 
     @Test
@@ -178,15 +197,24 @@ class ServerTest {
         cloud.advanceTime(Duration.ofSeconds(1));
         cloud.createGroup("a").startServer();
 
-        List<Server> servers = cloud.api().server().getAllServers(ServerQuery.create().sortBy(ServerQuery.SortField.CREATED_AT)).join();
+        List<Server> servers = cloud.api()
+                .server()
+                .getAllServers(ServerQuery.create().sortBy(ServerQuery.SortField.CREATED_AT))
+                .join();
 
-        assertEquals(List.of("b", "a"), servers.stream().map(server -> server.getGroup().getName()).toList());
+        assertEquals(
+                List.of("b", "a"),
+                servers.stream().map(server -> server.getGroup().getName()).toList());
     }
 
     @Test
     void unknownSortFieldFailsWithInvalidRequest(TestCloud cloud) {
-        CompletionException exception = assertThrows(CompletionException.class,
-                () -> cloud.api().server().getAllServers(ServerQuery.create().sortBy("name")).join());
+        CompletionException exception = assertThrows(
+                CompletionException.class,
+                () -> cloud.api()
+                        .server()
+                        .getAllServers(ServerQuery.create().sortBy("name"))
+                        .join());
 
         CloudApiException cause = assertInstanceOf(CloudApiException.class, exception.getCause());
         assertEquals(CloudApiException.Reason.INVALID_REQUEST, cause.getReason());

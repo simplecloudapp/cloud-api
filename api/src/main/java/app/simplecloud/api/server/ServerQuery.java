@@ -1,11 +1,10 @@
 package app.simplecloud.api.server;
 
 import app.simplecloud.api.group.GroupServerType;
-import org.jetbrains.annotations.Nullable;
-
 import java.util.ArrayList;
 import java.util.Arrays;
 import java.util.List;
+import org.jetbrains.annotations.Nullable;
 
 /**
  * Query parameters for filtering and sorting server lists.
@@ -32,11 +31,9 @@ public class ServerQuery {
     private String sortBy;
     private String sortOrder;
 
-    public ServerQuery() {
-    }
+    public ServerQuery() {}
 
-    @Nullable
-    public List<String> getServerGroupIds() {
+    @Nullable public List<String> getServerGroupIds() {
         return serverGroupIds;
     }
 
@@ -54,8 +51,7 @@ public class ServerQuery {
         return this;
     }
 
-    @Nullable
-    public List<ServerState> getStates() {
+    @Nullable public List<ServerState> getStates() {
         return states;
     }
 
@@ -73,8 +69,7 @@ public class ServerQuery {
         return this;
     }
 
-    @Nullable
-    public String getServerhostId() {
+    @Nullable public String getServerhostId() {
         return serverhostId;
     }
 
@@ -89,8 +84,7 @@ public class ServerQuery {
         return this;
     }
 
-    @Nullable
-    public String getPersistentServerId() {
+    @Nullable public String getPersistentServerId() {
         return persistentServerId;
     }
 
@@ -105,8 +99,7 @@ public class ServerQuery {
         return this;
     }
 
-    @Nullable
-    public List<GroupServerType> getServerGroupTypes() {
+    @Nullable public List<GroupServerType> getServerGroupTypes() {
         return serverGroupTypes;
     }
 
@@ -124,8 +117,7 @@ public class ServerQuery {
         return this;
     }
 
-    @Nullable
-    public List<String> getServerGroupNames() {
+    @Nullable public List<String> getServerGroupNames() {
         return serverGroupNames;
     }
 
@@ -143,8 +135,7 @@ public class ServerQuery {
         return this;
     }
 
-    @Nullable
-    public List<String> getServerGroupTags() {
+    @Nullable public List<String> getServerGroupTags() {
         return serverGroupTags;
     }
 
@@ -162,8 +153,7 @@ public class ServerQuery {
         return this;
     }
 
-    @Nullable
-    public List<Integer> getNumericalIds() {
+    @Nullable public List<Integer> getNumericalIds() {
         return numericalIds;
     }
 
@@ -186,8 +176,7 @@ public class ServerQuery {
      *
      * @return the sort field value, or null if not set
      */
-    @Nullable
-    public String getSortBy() {
+    @Nullable public String getSortBy() {
         return sortBy;
     }
 
@@ -220,8 +209,7 @@ public class ServerQuery {
      *
      * @return the sort order value, or null if not set
      */
-    @Nullable
-    public String getSortOrder() {
+    @Nullable public String getSortOrder() {
         return sortOrder;
     }
 

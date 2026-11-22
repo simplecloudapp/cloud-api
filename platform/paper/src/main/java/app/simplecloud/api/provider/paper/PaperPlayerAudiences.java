@@ -1,12 +1,11 @@
 package app.simplecloud.api.provider.paper;
 
 import app.simplecloud.api.internal.integration.adventure.PlayerAudiences;
+import java.util.List;
+import java.util.UUID;
 import org.bukkit.Bukkit;
 import org.bukkit.entity.Player;
 import org.bukkit.plugin.Plugin;
-
-import java.util.List;
-import java.util.UUID;
 
 final class PaperPlayerAudiences implements PlayerAudiences {
 

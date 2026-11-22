@@ -1,16 +1,15 @@
 package app.simplecloud.api.testing;
 
+import static org.junit.jupiter.api.Assertions.assertEquals;
+import static org.junit.jupiter.api.Assertions.assertTrue;
+
 import app.simplecloud.api.group.CreateGroupRequest;
 import app.simplecloud.api.group.ScalingConfig;
 import app.simplecloud.api.group.ScalingMode;
 import app.simplecloud.api.testing.group.TestGroup;
 import app.simplecloud.api.testing.server.TestServer;
-import org.junit.jupiter.api.Test;
-
 import java.util.List;
-
-import static org.junit.jupiter.api.Assertions.assertEquals;
-import static org.junit.jupiter.api.Assertions.assertTrue;
+import org.junit.jupiter.api.Test;
 
 @CloudTest
 class ScalingTest {

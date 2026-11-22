@@ -4,11 +4,10 @@ import app.simplecloud.api.CloudApiException;
 import app.simplecloud.api.player.CloudPlayer;
 import app.simplecloud.api.player.PlayerApi;
 import app.simplecloud.api.player.ServerSelectionMode;
+import java.util.concurrent.CompletableFuture;
 import net.kyori.adventure.chat.ChatType;
 import net.kyori.adventure.text.Component;
 import net.kyori.adventure.title.Title;
-
-import java.util.concurrent.CompletableFuture;
 
 public abstract class AbstractPlayer implements CloudPlayer {
 
@@ -44,8 +43,8 @@ public abstract class AbstractPlayer implements CloudPlayer {
     public CompletableFuture<Void> kick(Component reason) {
         return api.kick(getUniqueId(), reason).thenApply(success -> {
             if (!Boolean.TRUE.equals(success)) {
-                throw new CloudApiException(CloudApiException.Reason.UNKNOWN,
-                        "Player '" + getUniqueId() + "' could not be kicked");
+                throw new CloudApiException(
+                        CloudApiException.Reason.UNKNOWN, "Player '" + getUniqueId() + "' could not be kicked");
             }
             return null;
         });

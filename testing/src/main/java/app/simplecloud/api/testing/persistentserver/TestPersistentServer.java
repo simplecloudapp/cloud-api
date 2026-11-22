@@ -3,7 +3,6 @@ package app.simplecloud.api.testing.persistentserver;
 import app.simplecloud.api.persistentserver.PersistentServer;
 import app.simplecloud.api.persistentserver.UpdatePersistentServerRequest;
 import app.simplecloud.api.testing.server.TestServer;
-
 import java.util.Optional;
 
 /**

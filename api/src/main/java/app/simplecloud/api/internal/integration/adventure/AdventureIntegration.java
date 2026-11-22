@@ -27,6 +27,14 @@ import io.nats.client.Connection;
 import io.nats.client.Dispatcher;
 import io.nats.client.Message;
 import io.nats.client.MessageHandler;
+import java.time.Duration;
+import java.util.HashMap;
+import java.util.List;
+import java.util.Map;
+import java.util.UUID;
+import java.util.concurrent.ConcurrentHashMap;
+import java.util.concurrent.atomic.AtomicBoolean;
+import java.util.concurrent.atomic.AtomicReference;
 import net.kyori.adventure.bossbar.BossBar;
 import net.kyori.adventure.inventory.Book;
 import net.kyori.adventure.key.Key;
@@ -36,15 +44,6 @@ import net.kyori.adventure.text.Component;
 import net.kyori.adventure.text.serializer.gson.GsonComponentSerializer;
 import net.kyori.adventure.title.Title;
 import net.kyori.adventure.title.TitlePart;
-
-import java.time.Duration;
-import java.util.HashMap;
-import java.util.List;
-import java.util.Map;
-import java.util.UUID;
-import java.util.concurrent.ConcurrentHashMap;
-import java.util.concurrent.atomic.AtomicBoolean;
-import java.util.concurrent.atomic.AtomicReference;
 
 public class AdventureIntegration {
 
@@ -62,8 +61,7 @@ public class AdventureIntegration {
             "bossbar",
             "bossbar-remove",
             "player-list",
-            "open-book"
-    );
+            "open-book");
 
     private final Connection natsConnection;
     private final String networkId;
@@ -76,12 +74,17 @@ public class AdventureIntegration {
 
     private Dispatcher dispatcher;
 
-    public AdventureIntegration(CloudApiImpl cloudApi, PlayerAudiences playerAudiences, String serverId, String groupName) {
+    public AdventureIntegration(
+            CloudApiImpl cloudApi, PlayerAudiences playerAudiences, String serverId, String groupName) {
         this(cloudApi.getNatsConnection(), cloudApi.getNetworkId(), playerAudiences, serverId, groupName);
     }
 
-    AdventureIntegration(Connection natsConnection, String networkId, PlayerAudiences playerAudiences,
-                         String serverId, String groupName) {
+    AdventureIntegration(
+            Connection natsConnection,
+            String networkId,
+            PlayerAudiences playerAudiences,
+            String serverId,
+            String groupName) {
         this.natsConnection = natsConnection;
         this.networkId = networkId;
         this.playerAudiences = playerAudiences;
@@ -174,38 +177,44 @@ public class AdventureIntegration {
         try {
             return switch (action) {
                 case "message" -> {
-                    Component message = deserialize(SendMessageRequest.parseFrom(msg.getData()).getMessage());
+                    Component message = deserialize(
+                            SendMessageRequest.parseFrom(msg.getData()).getMessage());
                     yield (playerId, player) -> player.sendMessage(message);
                 }
                 case "actionbar" -> {
-                    Component message = deserialize(SendActionbarRequest.parseFrom(msg.getData()).getMessage());
+                    Component message = deserialize(
+                            SendActionbarRequest.parseFrom(msg.getData()).getMessage());
                     yield (playerId, player) -> player.sendActionBar(message);
                 }
                 case "title" -> {
-                    Component title = deserialize(SendTitleRequest.parseFrom(msg.getData()).getTitle());
+                    Component title = deserialize(
+                            SendTitleRequest.parseFrom(msg.getData()).getTitle());
                     yield (playerId, player) -> player.sendTitlePart(TitlePart.TITLE, title);
                 }
                 case "subtitle" -> {
-                    Component subtitle = deserialize(SendSubtitleRequest.parseFrom(msg.getData()).getSubtitle());
+                    Component subtitle = deserialize(
+                            SendSubtitleRequest.parseFrom(msg.getData()).getSubtitle());
                     yield (playerId, player) -> player.sendTitlePart(TitlePart.SUBTITLE, subtitle);
                 }
                 case "title-times" -> {
-                    TitleTimes times = SendTitleTimesRequest.parseFrom(msg.getData()).getTimes();
+                    TitleTimes times =
+                            SendTitleTimesRequest.parseFrom(msg.getData()).getTimes();
                     Title.Times titleTimes = Title.Times.times(
                             Duration.ofMillis(times.getFadeInMs()),
                             Duration.ofMillis(times.getStayMs()),
-                            Duration.ofMillis(times.getFadeOutMs())
-                    );
+                            Duration.ofMillis(times.getFadeOutMs()));
                     yield (playerId, player) -> player.sendTitlePart(TitlePart.TIMES, titleTimes);
                 }
                 case "clear-title" -> (playerId, player) -> player.clearTitle();
                 case "reset-title" -> (playerId, player) -> player.resetTitle();
                 case "sound" -> {
-                    Sound sound = convertSound(SendPlaySoundRequest.parseFrom(msg.getData()).getSound());
+                    Sound sound = convertSound(
+                            SendPlaySoundRequest.parseFrom(msg.getData()).getSound());
                     yield (playerId, player) -> player.playSound(sound);
                 }
                 case "sound-at" -> {
-                    SendPlaySoundAtCoordinatesRequest request = SendPlaySoundAtCoordinatesRequest.parseFrom(msg.getData());
+                    SendPlaySoundAtCoordinatesRequest request =
+                            SendPlaySoundAtCoordinatesRequest.parseFrom(msg.getData());
                     Sound sound = convertSound(request.getSound());
                     SoundCoordinates coords = request.getCoordinates();
                     yield (playerId, player) -> player.playSound(sound, coords.getX(), coords.getY(), coords.getZ());
@@ -217,13 +226,15 @@ public class AdventureIntegration {
                 case "bossbar" -> prepareBossBar(SendBossBarRequest.parseFrom(msg.getData()));
                 case "bossbar-remove" -> prepareBossBarRemove(SendBossBarRemoveRequest.parseFrom(msg.getData()));
                 case "player-list" -> {
-                    SendPlayerListHeaderAndFooterRequest request = SendPlayerListHeaderAndFooterRequest.parseFrom(msg.getData());
+                    SendPlayerListHeaderAndFooterRequest request =
+                            SendPlayerListHeaderAndFooterRequest.parseFrom(msg.getData());
                     Component header = deserialize(request.getHeader());
                     Component footer = deserialize(request.getFooter());
                     yield (playerId, player) -> player.sendPlayerListHeaderAndFooter(header, footer);
                 }
                 case "open-book" -> {
-                    Book book = convertBook(SendOpenBookRequest.parseFrom(msg.getData()).getBook());
+                    Book book = convertBook(
+                            SendOpenBookRequest.parseFrom(msg.getData()).getBook());
                     yield (playerId, player) -> player.openBook(book);
                 }
                 default -> null;
@@ -239,8 +250,7 @@ public class AdventureIntegration {
                 deserialize(config.getTitle()),
                 config.getProgress(),
                 convertBossBarColor(config.getColor()),
-                convertBossBarOverlay(config.getOverlay())
-        );
+                convertBossBarOverlay(config.getOverlay()));
 
         return (playerId, player) -> {
             BossBar oldBar = trackBossBar(config.getId(), playerId, bossBar);
@@ -281,9 +291,8 @@ public class AdventureIntegration {
     }
 
     private Book convertBook(AdventureBook bookConfig) {
-        Book.Builder bookBuilder = Book.builder()
-                .title(deserialize(bookConfig.getTitle()))
-                .author(deserialize(bookConfig.getAuthor()));
+        Book.Builder bookBuilder =
+                Book.builder().title(deserialize(bookConfig.getTitle())).author(deserialize(bookConfig.getAuthor()));
 
         for (AdventureComponent page : bookConfig.getPagesList()) {
             bookBuilder.addPage(deserialize(page));
@@ -301,8 +310,7 @@ public class AdventureIntegration {
                 Key.key(protoSound.getSound()),
                 convertSoundSource(protoSound.getSource()),
                 protoSound.getVolume(),
-                protoSound.getPitch()
-        );
+                protoSound.getPitch());
     }
 
     private SoundStop convertSoundStop(SendStopSoundRequest request) {

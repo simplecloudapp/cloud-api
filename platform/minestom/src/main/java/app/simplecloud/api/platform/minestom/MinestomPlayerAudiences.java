@@ -1,10 +1,9 @@
 package app.simplecloud.api.platform.minestom;
 
 import app.simplecloud.api.internal.integration.adventure.PlayerAudiences;
+import java.util.UUID;
 import net.minestom.server.MinecraftServer;
 import net.minestom.server.entity.Player;
-
-import java.util.UUID;
 
 final class MinestomPlayerAudiences implements PlayerAudiences {
 

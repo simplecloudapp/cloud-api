@@ -4,7 +4,6 @@ import app.simplecloud.api.internal.integration.player.ProxyPlayer;
 import app.simplecloud.api.internal.integration.player.ProxyPlayers;
 import com.velocitypowered.api.proxy.Player;
 import com.velocitypowered.api.proxy.ProxyServer;
-
 import java.util.Optional;
 import java.util.UUID;
 

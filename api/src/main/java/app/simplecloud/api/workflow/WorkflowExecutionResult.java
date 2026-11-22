@@ -16,8 +16,7 @@ public record WorkflowExecutionResult(
         int totalServers,
         List<String> succeededServerIds,
         List<String> skippedServerIds,
-        List<WorkflowFailure> failedServers
-) {
+        List<WorkflowFailure> failedServers) {
     public WorkflowExecutionResult {
         succeededServerIds = List.copyOf(succeededServerIds);
         skippedServerIds = List.copyOf(skippedServerIds);

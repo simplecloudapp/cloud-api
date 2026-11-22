@@ -21,20 +21,18 @@ import app.simplecloud.api.web.models.ModelsWorkflowWhen;
 import app.simplecloud.api.web.models.ModelsWorkflowsConfig;
 import app.simplecloud.api.workflow.WorkflowExecutionResult;
 import app.simplecloud.api.workflow.WorkflowFailure;
-import org.jetbrains.annotations.Nullable;
-
 import java.math.BigDecimal;
 import java.util.List;
 import java.util.Locale;
 import java.util.Objects;
+import org.jetbrains.annotations.Nullable;
 
 /**
  * Converts shared group and persistent server types between the API and the generated REST models.
  */
 public final class ModelConversionUtil {
 
-    private ModelConversionUtil() {
-    }
+    private ModelConversionUtil() {}
 
     public static @Nullable ModelsSourceConfig toModel(@Nullable SourceConfig config) {
         if (config == null) {
@@ -185,9 +183,10 @@ public final class ModelConversionUtil {
         return switch (strategy) {
             case WHITELIST -> "whitelist";
             case BLACKLIST -> "blacklist";
-            case RANDOM, PRIORITY, ROUND_ROBIN -> throw new IllegalArgumentException(
-                    "DeploymentStrategy." + strategy.name() + " is not supported by the controller REST API. Supported strategies are WHITELIST and BLACKLIST."
-            );
+            case RANDOM, PRIORITY, ROUND_ROBIN ->
+                throw new IllegalArgumentException(
+                        "DeploymentStrategy." + strategy.name()
+                                + " is not supported by the controller REST API. Supported strategies are WHITELIST and BLACKLIST.");
         };
     }
 
@@ -195,9 +194,9 @@ public final class ModelConversionUtil {
         return switch (scalingMode) {
             case SLOTS -> ModelsScalingMode.fromValue("SLOTS");
             case PLAYERS -> ModelsScalingMode.fromValue("SERVERS");
-            case MANUAL -> throw new IllegalArgumentException(
-                    "ScalingMode.MANUAL is not supported by the controller REST API. Supported modes are SLOTS and PLAYERS."
-            );
+            case MANUAL ->
+                throw new IllegalArgumentException(
+                        "ScalingMode.MANUAL is not supported by the controller REST API. Supported modes are SLOTS and PLAYERS.");
         };
     }
 
@@ -217,23 +216,24 @@ public final class ModelConversionUtil {
         }
     }
 
-    public static WorkflowExecutionResult toWorkflowExecutionResult(String requestedWorkflowId,
-                                                                     @Nullable String workflowId,
-                                                                     @Nullable Integer totalServers,
-                                                                     @Nullable List<String> succeededServerIds,
-                                                                     @Nullable List<String> skippedServerIds,
-                                                                     @Nullable List<ModelsExecuteManualWorkflowFailure> failedServers) {
-        List<WorkflowFailure> failures = Objects.requireNonNullElse(failedServers, List.<ModelsExecuteManualWorkflowFailure>of())
-                .stream()
-                .map(failure -> new WorkflowFailure(Objects.requireNonNullElse(failure.getServerId(), ""), failure.getErrorMessage()))
-                .toList();
+    public static WorkflowExecutionResult toWorkflowExecutionResult(
+            String requestedWorkflowId,
+            @Nullable String workflowId,
+            @Nullable Integer totalServers,
+            @Nullable List<String> succeededServerIds,
+            @Nullable List<String> skippedServerIds,
+            @Nullable List<ModelsExecuteManualWorkflowFailure> failedServers) {
+        List<WorkflowFailure> failures =
+                Objects.requireNonNullElse(failedServers, List.<ModelsExecuteManualWorkflowFailure>of()).stream()
+                        .map(failure -> new WorkflowFailure(
+                                Objects.requireNonNullElse(failure.getServerId(), ""), failure.getErrorMessage()))
+                        .toList();
         return new WorkflowExecutionResult(
                 Objects.requireNonNullElse(workflowId, requestedWorkflowId),
                 totalServers != null ? totalServers : 0,
                 Objects.requireNonNullElse(succeededServerIds, List.of()),
                 Objects.requireNonNullElse(skippedServerIds, List.of()),
-                failures
-        );
+                failures);
     }
 
     private static int orZero(@Nullable Integer value) {

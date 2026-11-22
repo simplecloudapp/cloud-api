@@ -1,20 +1,18 @@
 package app.simplecloud.api.player;
 
-import org.jetbrains.annotations.Nullable;
-
 import java.util.UUID;
+import org.jetbrains.annotations.Nullable;
 
 public class PlayerProfile {
     private String id;
     private UUID playerId;
     private String name;
-    @Nullable
-    private String texture;
-    @Nullable
-    private String createdAt;
 
-    public PlayerProfile() {
-    }
+    @Nullable private String texture;
+
+    @Nullable private String createdAt;
+
+    public PlayerProfile() {}
 
     public String getId() {
         return id;
@@ -40,8 +38,7 @@ public class PlayerProfile {
         this.name = name;
     }
 
-    @Nullable
-    public String getTexture() {
+    @Nullable public String getTexture() {
         return texture;
     }
 
@@ -49,8 +46,7 @@ public class PlayerProfile {
         this.texture = texture;
     }
 
-    @Nullable
-    public String getCreatedAt() {
+    @Nullable public String getCreatedAt() {
         return createdAt;
     }
 

@@ -1,10 +1,9 @@
 package app.simplecloud.api.testing.internal.player;
 
-import net.kyori.adventure.text.Component;
-import net.kyori.adventure.title.Title;
-
 import java.util.ArrayList;
 import java.util.List;
+import net.kyori.adventure.text.Component;
+import net.kyori.adventure.title.Title;
 
 public final class Inbox {
 

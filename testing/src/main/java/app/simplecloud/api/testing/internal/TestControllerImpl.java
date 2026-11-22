@@ -5,7 +5,6 @@ import app.simplecloud.api.server.ServerState;
 import app.simplecloud.api.testing.controller.TestController;
 import app.simplecloud.api.testing.internal.server.ServerData;
 import app.simplecloud.api.testing.server.TestServer;
-
 import java.util.List;
 
 final class TestControllerImpl implements TestController {
@@ -70,8 +69,6 @@ final class TestControllerImpl implements TestController {
     }
 
     private List<TestServer> handles(List<ServerData> servers) {
-        return servers.stream()
-                .<TestServer>map(cloud::handle)
-                .toList();
+        return servers.stream().<TestServer>map(cloud::handle).toList();
     }
 }

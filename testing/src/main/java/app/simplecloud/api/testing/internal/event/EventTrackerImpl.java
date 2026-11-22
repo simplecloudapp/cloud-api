@@ -2,7 +2,6 @@ package app.simplecloud.api.testing.internal.event;
 
 import app.simplecloud.api.event.Subscription;
 import app.simplecloud.api.testing.event.EventTracker;
-
 import java.time.Duration;
 import java.util.ArrayList;
 import java.util.List;
@@ -12,8 +11,7 @@ public final class EventTrackerImpl<E> implements EventTracker<E> {
 
     private final Class<E> type;
     private final List<E> events = new ArrayList<>();
-    private Subscription subscription = () -> {
-    };
+    private Subscription subscription = () -> {};
 
     private EventTrackerImpl(Class<E> type) {
         this.type = type;

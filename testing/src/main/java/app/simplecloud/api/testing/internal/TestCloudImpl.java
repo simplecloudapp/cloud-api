@@ -17,8 +17,6 @@ import app.simplecloud.api.testing.network.TestNetwork;
 import app.simplecloud.api.testing.persistentserver.TestPersistentServer;
 import app.simplecloud.api.testing.player.TestPlayer;
 import app.simplecloud.api.testing.server.TestServer;
-import org.jetbrains.annotations.Nullable;
-
 import java.nio.charset.StandardCharsets;
 import java.time.Duration;
 import java.time.Instant;
@@ -27,6 +25,7 @@ import java.util.Objects;
 import java.util.Optional;
 import java.util.UUID;
 import java.util.function.Predicate;
+import org.jetbrains.annotations.Nullable;
 
 public final class TestCloudImpl implements TestCloud {
 
@@ -85,9 +84,8 @@ public final class TestCloudImpl implements TestCloud {
 
     @Override
     public List<TestGroup> groups() {
-        return cloud.read(() -> cloud.groups(null).stream()
-                .<TestGroup>map(cloud::handle)
-                .toList());
+        return cloud.read(
+                () -> cloud.groups(null).stream().<TestGroup>map(cloud::handle).toList());
     }
 
     @Override
@@ -97,14 +95,14 @@ public final class TestCloudImpl implements TestCloud {
 
     @Override
     public List<TestServer> servers() {
-        return cloud.read(() -> cloud.servers(null).stream()
-                .<TestServer>map(cloud::handle)
-                .toList());
+        return cloud.read(() ->
+                cloud.servers(null).stream().<TestServer>map(cloud::handle).toList());
     }
 
     @Override
     public TestPersistentServer createPersistentServer(String name) {
-        return createPersistentServer(CreatePersistentServerRequest.builder().name(name).build());
+        return createPersistentServer(
+                CreatePersistentServerRequest.builder().name(name).build());
     }
 
     @Override
@@ -148,9 +146,8 @@ public final class TestCloudImpl implements TestCloud {
 
     @Override
     public List<Blueprint> blueprints() {
-        return cloud.read(() -> cloud.blueprints().stream()
-                .map(BlueprintData::snapshot)
-                .toList());
+        return cloud.read(
+                () -> cloud.blueprints().stream().map(BlueprintData::snapshot).toList());
     }
 
     @Override
@@ -176,9 +173,8 @@ public final class TestCloudImpl implements TestCloud {
 
     @Override
     public List<TestPlayer> players() {
-        return cloud.read(() -> cloud.players(null).stream()
-                .<TestPlayer>map(cloud::handle)
-                .toList());
+        return cloud.read(() ->
+                cloud.players(null).stream().<TestPlayer>map(cloud::handle).toList());
     }
 
     @Override

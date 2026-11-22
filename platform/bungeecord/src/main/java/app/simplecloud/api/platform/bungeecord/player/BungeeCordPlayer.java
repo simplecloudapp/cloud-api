@@ -2,6 +2,7 @@ package app.simplecloud.api.platform.bungeecord.player;
 
 import app.simplecloud.api.internal.integration.player.ProxyPlayer;
 import app.simplecloud.api.player.CloudPlayer;
+import java.util.concurrent.CompletableFuture;
 import net.kyori.adventure.text.Component;
 import net.kyori.adventure.text.serializer.bungeecord.BungeeComponentSerializer;
 import net.md_5.bungee.api.ProxyServer;
@@ -9,8 +10,6 @@ import net.md_5.bungee.api.chat.BaseComponent;
 import net.md_5.bungee.api.config.ServerInfo;
 import net.md_5.bungee.api.connection.ProxiedPlayer;
 import net.md_5.bungee.api.connection.Server;
-
-import java.util.concurrent.CompletableFuture;
 
 final class BungeeCordPlayer implements ProxyPlayer {
 

@@ -1,10 +1,9 @@
 package app.simplecloud.api.testing.internal.player;
 
 import app.simplecloud.api.player.PlayerApi;
-import org.jetbrains.annotations.Nullable;
-
 import java.util.Map;
 import java.util.UUID;
+import org.jetbrains.annotations.Nullable;
 
 public final class PlayerImpl extends AbstractPlayer {
 
@@ -20,9 +19,20 @@ public final class PlayerImpl extends AbstractPlayer {
     private final String lastSeen;
     private final Map<String, String> properties;
 
-    public PlayerImpl(PlayerApi api, Inbox inbox, UUID uniqueId, String name, String displayName,
-                      @Nullable String proxyName, @Nullable String serverName, boolean online, long onlineTimeSeconds,
-                      @Nullable String sessionId, String firstSeen, String lastSeen, Map<String, String> properties) {
+    public PlayerImpl(
+            PlayerApi api,
+            Inbox inbox,
+            UUID uniqueId,
+            String name,
+            String displayName,
+            @Nullable String proxyName,
+            @Nullable String serverName,
+            boolean online,
+            long onlineTimeSeconds,
+            @Nullable String sessionId,
+            String firstSeen,
+            String lastSeen,
+            Map<String, String> properties) {
         super(api, inbox);
         this.uniqueId = uniqueId;
         this.name = name;

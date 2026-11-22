@@ -2,11 +2,10 @@ package app.simplecloud.api.testing.internal.player;
 
 import app.simplecloud.api.player.PlayerClientSettings;
 import app.simplecloud.api.player.PlayerSession;
-import org.jetbrains.annotations.Nullable;
-
 import java.time.Duration;
 import java.time.Instant;
 import java.util.UUID;
+import org.jetbrains.annotations.Nullable;
 
 public final class SessionData {
 
@@ -26,7 +25,8 @@ public final class SessionData {
     }
 
     public long durationSeconds(Instant now) {
-        return Duration.between(loginTime, logoutTime == null ? now : logoutTime).getSeconds();
+        return Duration.between(loginTime, logoutTime == null ? now : logoutTime)
+                .getSeconds();
     }
 
     public PlayerSession toSession(String networkId, UUID playerId, @Nullable PlayerClientSettings settings) {

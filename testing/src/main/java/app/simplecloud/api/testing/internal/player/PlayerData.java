@@ -4,8 +4,6 @@ import app.simplecloud.api.player.CloudPlayer;
 import app.simplecloud.api.player.PlayerApi;
 import app.simplecloud.api.player.PlayerClientSettings;
 import app.simplecloud.api.testing.internal.server.ServerData;
-import org.jetbrains.annotations.Nullable;
-
 import java.time.Duration;
 import java.time.Instant;
 import java.util.ArrayList;
@@ -13,6 +11,7 @@ import java.util.LinkedHashMap;
 import java.util.List;
 import java.util.Map;
 import java.util.UUID;
+import org.jetbrains.annotations.Nullable;
 
 public final class PlayerData {
 
@@ -82,8 +81,20 @@ public final class PlayerData {
     }
 
     public CloudPlayer snapshot(PlayerApi api, Instant now) {
-        return new PlayerImpl(api, inbox, id, name, displayName, proxyName(), serverName(), online(),
-                onlineTimeSeconds(now), sessionId(), firstSeen.toString(), lastSeen.toString(), Map.copyOf(properties));
+        return new PlayerImpl(
+                api,
+                inbox,
+                id,
+                name,
+                displayName,
+                proxyName(),
+                serverName(),
+                online(),
+                onlineTimeSeconds(now),
+                sessionId(),
+                firstSeen.toString(),
+                lastSeen.toString(),
+                Map.copyOf(properties));
     }
 
     public static PlayerClientSettings copy(PlayerClientSettings settings) {

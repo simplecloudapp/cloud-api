@@ -1,7 +1,6 @@
 package app.simplecloud.api.internal.web;
 
 import app.simplecloud.api.web.ApiException;
-
 import java.util.concurrent.CompletableFuture;
 import java.util.concurrent.Executor;
 
@@ -10,8 +9,7 @@ import java.util.concurrent.Executor;
  */
 public final class ApiCalls {
 
-    private ApiCalls() {
-    }
+    private ApiCalls() {}
 
     public static <T> CompletableFuture<T> supplyAsync(Call<T> call, Executor executor) {
         return CompletableFuture.supplyAsync(() -> call(call), executor);

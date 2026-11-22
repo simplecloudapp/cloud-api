@@ -4,13 +4,7 @@ package app.simplecloud.api.cache;
  * Cache statistics for monitoring and debugging.
  */
 public record CacheStats(
-        long hitCount,
-        long missCount,
-        long staleHitCount,
-        long evictionCount,
-        long entryCount,
-        double hitRate
-) {
+        long hitCount, long missCount, long staleHitCount, long evictionCount, long entryCount, double hitRate) {
 
     /**
      * @deprecated use {@link #hitCount()}; will be removed in 1.0.0
@@ -64,7 +58,6 @@ public record CacheStats(
     public String toString() {
         return String.format(
                 "CacheStats[hits=%d, misses=%d, staleHits=%d, evictions=%d, entries=%d, hitRate=%.2f%%]",
-                hitCount, missCount, staleHitCount, evictionCount, entryCount, hitRate * 100
-        );
+                hitCount, missCount, staleHitCount, evictionCount, entryCount, hitRate * 100);
     }
 }

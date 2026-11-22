@@ -65,4 +65,3 @@ public interface ServerStoppedEvent {
      */
     String getTimestamp();
 }
-

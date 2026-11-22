@@ -1,11 +1,10 @@
 package app.simplecloud.api.player;
 
-import net.kyori.adventure.audience.Audience;
-import net.kyori.adventure.text.Component;
-
 import java.util.Map;
 import java.util.UUID;
 import java.util.concurrent.CompletableFuture;
+import net.kyori.adventure.audience.Audience;
+import net.kyori.adventure.text.Component;
 
 /**
  * Represents a player connected to the cloud network.

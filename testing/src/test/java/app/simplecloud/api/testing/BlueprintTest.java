@@ -1,5 +1,13 @@
 package app.simplecloud.api.testing;
 
+import static org.junit.jupiter.api.Assertions.assertEquals;
+import static org.junit.jupiter.api.Assertions.assertFalse;
+import static org.junit.jupiter.api.Assertions.assertInstanceOf;
+import static org.junit.jupiter.api.Assertions.assertNotNull;
+import static org.junit.jupiter.api.Assertions.assertNull;
+import static org.junit.jupiter.api.Assertions.assertThrows;
+import static org.junit.jupiter.api.Assertions.assertTrue;
+
 import app.simplecloud.api.CloudApiException;
 import app.simplecloud.api.blueprint.Blueprint;
 import app.simplecloud.api.blueprint.CreateBlueprintRequest;
@@ -15,19 +23,10 @@ import app.simplecloud.api.group.SourceType;
 import app.simplecloud.api.server.Server;
 import app.simplecloud.api.testing.group.TestGroup;
 import app.simplecloud.api.testing.server.TestServer;
-import org.junit.jupiter.api.Test;
-
 import java.util.List;
 import java.util.Map;
 import java.util.concurrent.CompletionException;
-
-import static org.junit.jupiter.api.Assertions.assertEquals;
-import static org.junit.jupiter.api.Assertions.assertFalse;
-import static org.junit.jupiter.api.Assertions.assertInstanceOf;
-import static org.junit.jupiter.api.Assertions.assertNotNull;
-import static org.junit.jupiter.api.Assertions.assertNull;
-import static org.junit.jupiter.api.Assertions.assertThrows;
-import static org.junit.jupiter.api.Assertions.assertTrue;
+import org.junit.jupiter.api.Test;
 
 @CloudTest
 class BlueprintTest {
@@ -45,15 +44,22 @@ class BlueprintTest {
         assertEquals(RuntimeType.JAVA, fetched.getRuntimeConfig().getType());
         assertEquals(List.of("internal/setup"), fetched.getWorkflowSteps());
         assertEquals(paper.getBlueprintId(), created.single().getBlueprint().getBlueprintId());
-        assertEquals(List.of(fetched.getBlueprintId()),
-                cloud.api().blueprint().getAllBlueprints().join().stream().map(Blueprint::getBlueprintId).toList());
+        assertEquals(
+                List.of(fetched.getBlueprintId()),
+                cloud.api().blueprint().getAllBlueprints().join().stream()
+                        .map(Blueprint::getBlueprintId)
+                        .toList());
     }
 
     @Test
     void createWithoutRequiredFieldsFailsWithInvalidRequest(TestCloud cloud) {
-        CompletionException exception = assertThrows(CompletionException.class, () -> cloud.api().blueprint()
-                .createBlueprint(CreateBlueprintRequest.builder().name("broken").build())
-                .join());
+        CompletionException exception = assertThrows(
+                CompletionException.class,
+                () -> cloud.api()
+                        .blueprint()
+                        .createBlueprint(
+                                CreateBlueprintRequest.builder().name("broken").build())
+                        .join());
 
         CloudApiException cause = assertInstanceOf(CloudApiException.class, exception.getCause());
         assertEquals(CloudApiException.Reason.INVALID_REQUEST, cause.getReason());
@@ -81,9 +87,14 @@ class BlueprintTest {
                 .build());
         var updated = cloud.track(BlueprintUpdatedEvent.class);
 
-        Blueprint result = cloud.api().blueprint().updateBlueprint(paper.getBlueprintId(), UpdateBlueprintRequest.builder()
-                .minecraftVersion("1.21.5")
-                .build()).join();
+        Blueprint result = cloud.api()
+                .blueprint()
+                .updateBlueprint(
+                        paper.getBlueprintId(),
+                        UpdateBlueprintRequest.builder()
+                                .minecraftVersion("1.21.5")
+                                .build())
+                .join();
 
         assertEquals("1.21.5", result.getMinecraftVersion());
         assertEquals("1.21.4", result.getSoftwareVersion());
@@ -96,11 +107,18 @@ class BlueprintTest {
         Blueprint paper = cloud.createBlueprint("paper");
         cloud.createGroup(CreateGroupRequest.builder()
                 .name("lobby")
-                .source(SourceConfig.builder().type(SourceType.BLUEPRINT).blueprint(paper.getBlueprintId()).build())
+                .source(SourceConfig.builder()
+                        .type(SourceType.BLUEPRINT)
+                        .blueprint(paper.getBlueprintId())
+                        .build())
                 .build());
 
-        CompletionException exception = assertThrows(CompletionException.class,
-                () -> cloud.api().blueprint().deleteBlueprint(paper.getBlueprintId()).join());
+        CompletionException exception = assertThrows(
+                CompletionException.class,
+                () -> cloud.api()
+                        .blueprint()
+                        .deleteBlueprint(paper.getBlueprintId())
+                        .join());
 
         CloudApiException cause = assertInstanceOf(CloudApiException.class, exception.getCause());
         assertEquals(CloudApiException.Reason.CONFLICT, cause.getReason());
@@ -121,9 +139,13 @@ class BlueprintTest {
     void serverReturnsBlueprintOfItsGroup(TestCloud cloud) {
         Blueprint paper = cloud.createBlueprint("paper");
         TestServer lobby = cloud.createGroup(CreateGroupRequest.builder()
-                .name("lobby")
-                .source(SourceConfig.builder().type(SourceType.BLUEPRINT).blueprint(paper.getBlueprintId()).build())
-                .build()).startServer();
+                        .name("lobby")
+                        .source(SourceConfig.builder()
+                                .type(SourceType.BLUEPRINT)
+                                .blueprint(paper.getBlueprintId())
+                                .build())
+                        .build())
+                .startServer();
 
         Server fetched = cloud.api().server().getServerById(lobby.getServerId()).join();
 
@@ -154,10 +176,15 @@ class BlueprintTest {
 
     @Test
     void unknownSourceBlueprintFailsWithNotFound(TestCloud cloud) {
-        CloudApiException exception = assertThrows(CloudApiException.class, () -> cloud.createGroup(CreateGroupRequest.builder()
-                .name("lobby")
-                .source(SourceConfig.builder().type(SourceType.BLUEPRINT).blueprint("unknown").build())
-                .build()));
+        CloudApiException exception = assertThrows(
+                CloudApiException.class,
+                () -> cloud.createGroup(CreateGroupRequest.builder()
+                        .name("lobby")
+                        .source(SourceConfig.builder()
+                                .type(SourceType.BLUEPRINT)
+                                .blueprint("unknown")
+                                .build())
+                        .build()));
 
         assertEquals(CloudApiException.Reason.NOT_FOUND, exception.getReason());
     }
@@ -166,11 +193,18 @@ class BlueprintTest {
     void updateRuntimeConfigWithoutTypeFails(TestCloud cloud) {
         Blueprint paper = cloud.createBlueprint("paper");
 
-        CompletionException exception = assertThrows(CompletionException.class, () -> cloud.api().blueprint()
-                .updateBlueprint(paper.getBlueprintId(), UpdateBlueprintRequest.builder()
-                        .runtimeConfig(RuntimeConfig.builder().with(Map.of("version", "17")).build())
-                        .build())
-                .join());
+        CompletionException exception = assertThrows(
+                CompletionException.class,
+                () -> cloud.api()
+                        .blueprint()
+                        .updateBlueprint(
+                                paper.getBlueprintId(),
+                                UpdateBlueprintRequest.builder()
+                                        .runtimeConfig(RuntimeConfig.builder()
+                                                .with(Map.of("version", "17"))
+                                                .build())
+                                        .build())
+                        .join());
 
         CloudApiException cause = assertInstanceOf(CloudApiException.class, exception.getCause());
         assertEquals(CloudApiException.Reason.INVALID_REQUEST, cause.getReason());

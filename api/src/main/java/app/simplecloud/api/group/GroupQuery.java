@@ -3,18 +3,16 @@ package app.simplecloud.api.group;
 import org.jetbrains.annotations.Nullable;
 
 public class GroupQuery {
-    @Nullable
-    private GroupServerType type;
+    @Nullable private GroupServerType type;
+
     private String tag;
     private String sortBy;
     private String sortOrder;
     private Integer limit;
 
-    public GroupQuery() {
-    }
+    public GroupQuery() {}
 
-    @Nullable
-    public GroupServerType getType() {
+    @Nullable public GroupServerType getType() {
         return type;
     }
 
@@ -23,8 +21,7 @@ public class GroupQuery {
         return this;
     }
 
-    @Nullable
-    public String getTag() {
+    @Nullable public String getTag() {
         return tag;
     }
 
@@ -37,8 +34,7 @@ public class GroupQuery {
      * @deprecated the controller does not support sorting groups, this value is ignored; will be removed in 1.0.0
      */
     @Deprecated(forRemoval = true)
-    @Nullable
-    public String getSortBy() {
+    @Nullable public String getSortBy() {
         return sortBy;
     }
 
@@ -55,8 +51,7 @@ public class GroupQuery {
      * @deprecated the controller does not support sorting groups, this value is ignored; will be removed in 1.0.0
      */
     @Deprecated(forRemoval = true)
-    @Nullable
-    public String getSortOrder() {
+    @Nullable public String getSortOrder() {
         return sortOrder;
     }
 
@@ -69,8 +64,7 @@ public class GroupQuery {
         return this;
     }
 
-    @Nullable
-    public Integer getLimit() {
+    @Nullable public Integer getLimit() {
         return limit;
     }
 

@@ -9,10 +9,9 @@ import app.simplecloud.api.web.models.ModelsCreatePersistentServerResponse;
 import app.simplecloud.api.web.models.ModelsPersistentServerInfo;
 import app.simplecloud.api.web.models.ModelsPersistentServerSummary;
 import app.simplecloud.api.web.models.ModelsUpdatePersistentServerResponse;
-import org.jetbrains.annotations.Nullable;
-
 import java.util.List;
 import java.util.Map;
+import org.jetbrains.annotations.Nullable;
 
 public record PersistentServerImpl(
         @Nullable String persistentServerId,
@@ -30,8 +29,8 @@ public record PersistentServerImpl(
         @Nullable Map<String, Object> properties,
         @Nullable List<String> tags,
         @Nullable String createdAt,
-        @Nullable String updatedAt
-) implements PersistentServer {
+        @Nullable String updatedAt)
+        implements PersistentServer {
 
     public static PersistentServerImpl from(ModelsPersistentServerSummary summary) {
         return new PersistentServerImpl(
@@ -50,8 +49,7 @@ public record PersistentServerImpl(
                 summary.getProperties(),
                 summary.getTags(),
                 summary.getCreatedAt(),
-                summary.getUpdatedAt()
-        );
+                summary.getUpdatedAt());
     }
 
     public static PersistentServerImpl from(ModelsCreatePersistentServerResponse response) {
@@ -71,8 +69,7 @@ public record PersistentServerImpl(
                 response.getProperties(),
                 response.getTags(),
                 response.getCreatedAt(),
-                response.getUpdatedAt()
-        );
+                response.getUpdatedAt());
     }
 
     public static PersistentServerImpl from(ModelsUpdatePersistentServerResponse response) {
@@ -92,8 +89,7 @@ public record PersistentServerImpl(
                 response.getProperties(),
                 response.getTags(),
                 response.getCreatedAt(),
-                response.getUpdatedAt()
-        );
+                response.getUpdatedAt());
     }
 
     public static PersistentServerImpl from(ModelsPersistentServerInfo info, int playerCount) {
@@ -113,8 +109,7 @@ public record PersistentServerImpl(
                 info.getProperties(),
                 info.getTags(),
                 info.getCreatedAt(),
-                info.getUpdatedAt()
-        );
+                info.getUpdatedAt());
     }
 
     @Override

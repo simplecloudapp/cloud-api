@@ -15,6 +15,4 @@ public record ConnectingPlayer(
         Locale locale,
         int protocolVersion,
         boolean onlineMode,
-        String texture
-) {
-}
+        String texture) {}

@@ -10,8 +10,7 @@ import org.jetbrains.annotations.Nullable;
 
 public final class ConfigMergeUtil {
 
-    private ConfigMergeUtil() {
-    }
+    private ConfigMergeUtil() {}
 
     public static @Nullable ScalingConfig merge(@Nullable ScalingConfig current, @Nullable ScalingConfig update) {
         if (update == null) {
@@ -20,7 +19,8 @@ public final class ConfigMergeUtil {
         ScalingConfig base = current != null ? current : new ScalingConfig();
         ScalingConfig result = new ScalingConfig();
         if (update.hasAvailableSlots() || base.hasAvailableSlots()) {
-            result.setAvailableSlots(update.hasAvailableSlots() ? update.getAvailableSlots() : base.getAvailableSlots());
+            result.setAvailableSlots(
+                    update.hasAvailableSlots() ? update.getAvailableSlots() : base.getAvailableSlots());
         }
         if (update.hasMaxServers() || base.hasMaxServers()) {
             result.setMaxServers(update.hasMaxServers() ? update.getMaxServers() : base.getMaxServers());
@@ -29,14 +29,16 @@ public final class ConfigMergeUtil {
             result.setMinServers(update.hasMinServers() ? update.getMinServers() : base.getMinServers());
         }
         if (update.hasPlayerThreshold() || base.hasPlayerThreshold()) {
-            result.setPlayerThreshold(update.hasPlayerThreshold() ? update.getPlayerThreshold() : base.getPlayerThreshold());
+            result.setPlayerThreshold(
+                    update.hasPlayerThreshold() ? update.getPlayerThreshold() : base.getPlayerThreshold());
         }
         result.setScalingMode(update.getScalingMode() != null ? update.getScalingMode() : base.getScalingMode());
         result.setScaleDown(merge(base.getScaleDown(), update.getScaleDown()));
         return result;
     }
 
-    private static @Nullable ScaleDownConfig merge(@Nullable ScaleDownConfig current, @Nullable ScaleDownConfig update) {
+    private static @Nullable ScaleDownConfig merge(
+            @Nullable ScaleDownConfig current, @Nullable ScaleDownConfig update) {
         if (update == null) {
             return current;
         }
@@ -65,12 +67,14 @@ public final class ConfigMergeUtil {
         WorkflowWhen when = null;
         if (currentWhen != null || updateWhen != null) {
             when = new WorkflowWhen();
-            when.setStart(updateWhen != null && updateWhen.getStart() != null
-                    ? updateWhen.getStart()
-                    : currentWhen != null ? currentWhen.getStart() : null);
-            when.setStop(updateWhen != null && updateWhen.getStop() != null
-                    ? updateWhen.getStop()
-                    : currentWhen != null ? currentWhen.getStop() : null);
+            when.setStart(
+                    updateWhen != null && updateWhen.getStart() != null
+                            ? updateWhen.getStart()
+                            : currentWhen != null ? currentWhen.getStart() : null);
+            when.setStop(
+                    updateWhen != null && updateWhen.getStop() != null
+                            ? updateWhen.getStop()
+                            : currentWhen != null ? currentWhen.getStop() : null);
         }
 
         WorkflowsConfig result = new WorkflowsConfig();
@@ -79,7 +83,8 @@ public final class ConfigMergeUtil {
         return result;
     }
 
-    public static @Nullable DeploymentConfig merge(@Nullable DeploymentConfig current, @Nullable DeploymentConfig update) {
+    public static @Nullable DeploymentConfig merge(
+            @Nullable DeploymentConfig current, @Nullable DeploymentConfig update) {
         if (update == null) {
             return null;
         }

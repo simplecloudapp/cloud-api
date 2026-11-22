@@ -4,7 +4,6 @@ import app.simplecloud.api.event.server.ServerStateChangedEvent;
 import app.simplecloud.api.internal.util.ProtoConversionUtil;
 import app.simplecloud.api.server.Server;
 import app.simplecloud.api.server.ServerState;
-
 import java.time.Instant;
 
 class ServerStateChangedEventImpl implements ServerStateChangedEvent {
@@ -51,8 +50,7 @@ class ServerStateChangedEventImpl implements ServerStateChangedEvent {
                     delegate.getNewState(),
                     delegate.hasGroupConfig() ? delegate.getGroupConfig() : null,
                     delegate.hasPersistentServerConfig() ? delegate.getPersistentServerConfig() : null,
-                    delegate.getTimestamp()
-            );
+                    delegate.getTimestamp());
         }
         return server;
     }

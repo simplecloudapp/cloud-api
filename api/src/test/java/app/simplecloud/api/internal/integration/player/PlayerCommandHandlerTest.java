@@ -1,5 +1,9 @@
 package app.simplecloud.api.internal.integration.player;
 
+import static org.junit.jupiter.api.Assertions.assertEquals;
+import static org.junit.jupiter.api.Assertions.assertNull;
+import static org.junit.jupiter.api.Assertions.assertTrue;
+
 import app.simplecloud.api.internal.player.PlayerApiImpl;
 import app.simplecloud.api.player.CloudPlayer;
 import app.simplecloud.api.proxy.ProxyServerNames;
@@ -13,21 +17,16 @@ import build.buf.gen.simplecloud.player.v2.ConnectResult;
 import build.buf.gen.simplecloud.player.v2.KickPlayerRequest;
 import build.buf.gen.simplecloud.player.v2.KickPlayerResponse;
 import io.nats.client.Connection;
-import net.kyori.adventure.text.Component;
-import org.junit.jupiter.api.AfterEach;
-import org.junit.jupiter.api.BeforeEach;
-import org.junit.jupiter.api.Test;
-
 import java.time.Duration;
 import java.util.Optional;
 import java.util.UUID;
 import java.util.concurrent.BlockingQueue;
 import java.util.concurrent.CompletableFuture;
 import java.util.concurrent.LinkedBlockingQueue;
-
-import static org.junit.jupiter.api.Assertions.assertEquals;
-import static org.junit.jupiter.api.Assertions.assertNull;
-import static org.junit.jupiter.api.Assertions.assertTrue;
+import net.kyori.adventure.text.Component;
+import org.junit.jupiter.api.AfterEach;
+import org.junit.jupiter.api.BeforeEach;
+import org.junit.jupiter.api.Test;
 
 @NatsTest
 class PlayerCommandHandlerTest {
@@ -57,7 +56,10 @@ class PlayerCommandHandlerTest {
                 return CompletableFuture.completedFuture(CloudPlayer.ConnectResult.SUCCESS);
             }
         };
-        handler = new PlayerCommandHandler(proxyConnection, networkId, Runnable::run,
+        handler = new PlayerCommandHandler(
+                proxyConnection,
+                networkId,
+                Runnable::run,
                 playerId -> PLAYER_ID.equals(playerId) ? Optional.of(player) : Optional.empty());
         handler.start();
         proxyConnection.flush(TestNats.TIMEOUT);
@@ -74,7 +76,8 @@ class PlayerCommandHandlerTest {
     void connectDirectReachesThePlayersProxy() {
         PlayerApiImpl api = new PlayerApiImpl(TestContexts.forNetwork(networkId), controller);
 
-        CloudPlayer.ConnectResult result = api.connectDirect(PLAYER_ID, "lobby-1").join();
+        CloudPlayer.ConnectResult result =
+                api.connectDirect(PLAYER_ID, "lobby-1").join();
 
         assertEquals(CloudPlayer.ConnectResult.SUCCESS, result);
         assertEquals("lobby-1", connects.poll());
@@ -86,12 +89,15 @@ class PlayerCommandHandlerTest {
         proxyConnection.flush(TestNats.TIMEOUT);
         PlayerApiImpl api = new PlayerApiImpl(TestContexts.forNetwork(networkId), controller);
 
-        assertEquals(CloudPlayer.ConnectResult.CONNECTION_FAILED, api.connectDirect(PLAYER_ID, "lobby-1").join());
+        assertEquals(
+                CloudPlayer.ConnectResult.CONNECTION_FAILED,
+                api.connectDirect(PLAYER_ID, "lobby-1").join());
     }
 
     @Test
     void serverIdIsResolvedToTheProxyServerName() throws Exception {
-        try (ProxyServerNames.Registration ignored = ProxyServerNames.register(serverId -> Optional.of("lobby-" + serverId))) {
+        try (ProxyServerNames.Registration ignored =
+                ProxyServerNames.register(serverId -> Optional.of("lobby-" + serverId))) {
             ConnectPlayerResponse response = connect(ConnectPlayerRequest.newBuilder()
                     .setPlayerId(PLAYER_ID.toString())
                     .setServerId("abc"));
@@ -120,8 +126,9 @@ class PlayerCommandHandlerTest {
                 .setReason(AdventureComponent.newBuilder().setJson("{\"text\":\"bye\"}"))
                 .build();
 
-        KickPlayerResponse response = KickPlayerResponse.parseFrom(TestNats.request(
-                controller, networkId + ".player." + PLAYER_ID + ".kick", request.toByteArray()).getData());
+        KickPlayerResponse response = KickPlayerResponse.parseFrom(
+                TestNats.request(controller, networkId + ".player." + PLAYER_ID + ".kick", request.toByteArray())
+                        .getData());
 
         assertTrue(response.getSuccess());
         assertEquals(Component.text("bye"), kicks.poll());
@@ -130,13 +137,19 @@ class PlayerCommandHandlerTest {
     @Test
     void proxyWithoutThePlayerDoesNotReply() throws Exception {
         UUID otherPlayer = UUID.randomUUID();
-        KickPlayerRequest request = KickPlayerRequest.newBuilder().setPlayerId(otherPlayer.toString()).build();
+        KickPlayerRequest request = KickPlayerRequest.newBuilder()
+                .setPlayerId(otherPlayer.toString())
+                .build();
 
-        assertNull(controller.request(networkId + ".player." + otherPlayer + ".kick", request.toByteArray(), Duration.ofMillis(500)));
+        assertNull(controller.request(
+                networkId + ".player." + otherPlayer + ".kick", request.toByteArray(), Duration.ofMillis(500)));
     }
 
     private ConnectPlayerResponse connect(ConnectPlayerRequest.Builder request) throws Exception {
         return ConnectPlayerResponse.parseFrom(TestNats.request(
-                controller, networkId + ".player." + PLAYER_ID + ".connect", request.build().toByteArray()).getData());
+                        controller,
+                        networkId + ".player." + PLAYER_ID + ".connect",
+                        request.build().toByteArray())
+                .getData());
     }
 }

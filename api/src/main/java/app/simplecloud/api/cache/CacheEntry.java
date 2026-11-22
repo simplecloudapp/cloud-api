@@ -68,10 +68,9 @@ public final class CacheEntry<T> {
 
     @Override
     public String toString() {
-        return "CacheEntry{" +
-                "fetchedAt=" + fetchedAt +
-                ", expiresAt=" + expiresAt +
-                ", markedStale=" + markedStale +
-                '}';
+        return "CacheEntry{" + "fetchedAt="
+                + fetchedAt + ", expiresAt="
+                + expiresAt + ", markedStale="
+                + markedStale + '}';
     }
 }

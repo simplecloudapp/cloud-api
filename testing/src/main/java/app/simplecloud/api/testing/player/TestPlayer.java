@@ -3,11 +3,10 @@ package app.simplecloud.api.testing.player;
 import app.simplecloud.api.player.CloudPlayer;
 import app.simplecloud.api.player.UpdateClientSettingsRequest;
 import app.simplecloud.api.server.Server;
+import java.util.List;
 import net.kyori.adventure.text.Component;
 import net.kyori.adventure.title.Title;
 import org.jetbrains.annotations.Nullable;
-
-import java.util.List;
 
 /**
  * A player in the test cloud.

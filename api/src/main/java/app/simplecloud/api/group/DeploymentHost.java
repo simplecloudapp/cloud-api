@@ -3,19 +3,17 @@ package app.simplecloud.api.group;
 import org.jetbrains.annotations.Nullable;
 
 public class DeploymentHost {
-    @Nullable
-    private String name;
+    @Nullable private String name;
+
     private int priority;
 
-    public DeploymentHost() {
-    }
+    public DeploymentHost() {}
 
     public static Builder builder() {
         return new Builder();
     }
 
-    @Nullable
-    public String getName() {
+    @Nullable public String getName() {
         return name;
     }
 

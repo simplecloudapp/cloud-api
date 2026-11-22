@@ -13,10 +13,9 @@ import app.simplecloud.api.web.models.ModelsResourceStats;
 import app.simplecloud.api.web.models.ModelsServerStats;
 import app.simplecloud.api.web.models.ModelsServerhostStats;
 import app.simplecloud.api.web.models.ModelsServersByState;
-import org.jetbrains.annotations.Nullable;
-
 import java.math.BigDecimal;
 import java.util.concurrent.CompletableFuture;
+import org.jetbrains.annotations.Nullable;
 
 public class StatsApiImpl implements StatsApi {
     private final ApiContext context;
@@ -40,15 +39,15 @@ public class StatsApiImpl implements StatsApi {
                 convert(stats.getPersistentServers()),
                 convert(stats.getServerhosts()),
                 convert(stats.getResources()),
-                convert(stats.getHealth())
-        );
+                convert(stats.getHealth()));
     }
 
     private static CloudStats.ServerStats convert(@Nullable ModelsServerStats stats) {
         if (stats == null) {
             return new CloudStats.ServerStats(0, 0, convert((ModelsServersByState) null));
         }
-        return new CloudStats.ServerStats(intValue(stats.getTotal()), intValue(stats.getActive()), convert(stats.getByState()));
+        return new CloudStats.ServerStats(
+                intValue(stats.getTotal()), intValue(stats.getActive()), convert(stats.getByState()));
     }
 
     private static CloudStats.ServersByState convert(@Nullable ModelsServersByState byState) {
@@ -62,8 +61,7 @@ public class StatsApiImpl implements StatsApi {
                 intValue(byState.getAvailable()),
                 intValue(byState.getIngame()),
                 intValue(byState.getStopping()),
-                intValue(byState.getStopped())
-        );
+                intValue(byState.getStopped()));
     }
 
     private static CloudStats.PlayerStats convert(@Nullable ModelsPlayerStats stats) {
@@ -71,10 +69,7 @@ public class StatsApiImpl implements StatsApi {
             return new CloudStats.PlayerStats(0, 0, 0);
         }
         return new CloudStats.PlayerStats(
-                intValue(stats.getOnline()),
-                intValue(stats.getCapacity()),
-                doubleValue(stats.getUtilizationPercent())
-        );
+                intValue(stats.getOnline()), intValue(stats.getCapacity()), doubleValue(stats.getUtilizationPercent()));
     }
 
     private static CloudStats.CountStats convert(@Nullable ModelsGroupStats stats) {
@@ -94,10 +89,7 @@ public class StatsApiImpl implements StatsApi {
             return new CloudStats.ServerhostStats(0, 0, 0);
         }
         return new CloudStats.ServerhostStats(
-                intValue(stats.getTotal()),
-                intValue(stats.getActive()),
-                intValue(stats.getTotalMemoryCapacityMb())
-        );
+                intValue(stats.getTotal()), intValue(stats.getActive()), intValue(stats.getTotalMemoryCapacityMb()));
     }
 
     private static CloudStats.ResourceStats convert(@Nullable ModelsResourceStats stats) {
@@ -107,8 +99,7 @@ public class StatsApiImpl implements StatsApi {
         return new CloudStats.ResourceStats(
                 intValue(stats.getMemoryAllocatedMb()),
                 doubleValue(stats.getMemoryUsedMb()),
-                doubleValue(stats.getAverageCpuPercent())
-        );
+                doubleValue(stats.getAverageCpuPercent()));
     }
 
     private static CloudStats.HealthStats convert(@Nullable ModelsHealthStatus health) {
@@ -116,9 +107,7 @@ public class StatsApiImpl implements StatsApi {
             return new CloudStats.HealthStats("", 0);
         }
         return new CloudStats.HealthStats(
-                health.getStatus() != null ? health.getStatus() : "",
-                doubleValue(health.getHealthyServerPercent())
-        );
+                health.getStatus() != null ? health.getStatus() : "", doubleValue(health.getHealthyServerPercent()));
     }
 
     private static int intValue(@Nullable Integer value) {

@@ -2,7 +2,6 @@ package app.simplecloud.api.internal.event.server;
 
 import app.simplecloud.api.event.server.ServerStartedEvent;
 import app.simplecloud.api.server.Server;
-
 import java.time.Instant;
 
 class ServerStartedEventImpl implements ServerStartedEvent {
@@ -44,8 +43,7 @@ class ServerStartedEventImpl implements ServerStartedEvent {
                     delegate.getState(),
                     delegate.hasGroupConfig() ? delegate.getGroupConfig() : null,
                     delegate.hasPersistentServerConfig() ? delegate.getPersistentServerConfig() : null,
-                    delegate.getTimestamp()
-            );
+                    delegate.getTimestamp());
         }
         return server;
     }

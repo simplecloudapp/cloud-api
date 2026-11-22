@@ -1,7 +1,13 @@
 package app.simplecloud.api.platform.bungeecord.player;
 
+import static org.junit.jupiter.api.Assertions.assertEquals;
+import static org.junit.jupiter.api.Assertions.assertTrue;
+import static org.mockito.ArgumentMatchers.any;
+import static org.mockito.Mockito.*;
+
 import app.simplecloud.api.internal.integration.player.ProxyPlayer;
 import app.simplecloud.api.player.CloudPlayer;
+import java.util.UUID;
 import net.kyori.adventure.text.Component;
 import net.md_5.bungee.api.Callback;
 import net.md_5.bungee.api.ProxyServer;
@@ -12,13 +18,6 @@ import net.md_5.bungee.api.connection.ProxiedPlayer;
 import org.junit.jupiter.api.Test;
 import org.mockito.ArgumentCaptor;
 import org.mockito.ArgumentMatchers;
-
-import java.util.UUID;
-
-import static org.junit.jupiter.api.Assertions.assertEquals;
-import static org.junit.jupiter.api.Assertions.assertTrue;
-import static org.mockito.ArgumentMatchers.any;
-import static org.mockito.Mockito.*;
 
 class BungeeCordPlayersTest {
 
@@ -61,10 +60,12 @@ class BungeeCordPlayersTest {
         when(proxy.getPlayer(playerId)).thenReturn(player);
         when(proxy.getServerInfo("lobby-1")).thenReturn(lobby);
         doAnswer(invocation -> {
-            Callback<Boolean> callback = invocation.getArgument(1);
-            callback.done(true, null);
-            return null;
-        }).when(player).connect(eq(lobby), ArgumentMatchers.<Callback<Boolean>>any());
+                    Callback<Boolean> callback = invocation.getArgument(1);
+                    callback.done(true, null);
+                    return null;
+                })
+                .when(player)
+                .connect(eq(lobby), ArgumentMatchers.<Callback<Boolean>>any());
 
         ProxyPlayer proxyPlayer = players.findPlayer(playerId).orElseThrow();
         CloudPlayer.ConnectResult result = proxyPlayer.connect("lobby-1").join();

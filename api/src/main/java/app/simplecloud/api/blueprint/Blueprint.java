@@ -1,8 +1,7 @@
 package app.simplecloud.api.blueprint;
 
-import org.jetbrains.annotations.Nullable;
-
 import java.util.List;
+import org.jetbrains.annotations.Nullable;
 
 /**
  * Represents a server blueprint configuration.

@@ -5,7 +5,6 @@ import app.simplecloud.api.group.UpdateGroupRequest;
 import app.simplecloud.api.testing.group.TestGroup;
 import app.simplecloud.api.testing.internal.CloudState;
 import app.simplecloud.api.testing.server.TestServer;
-
 import java.util.Collections;
 import java.util.List;
 import java.util.Objects;
@@ -26,9 +25,8 @@ public final class TestGroupImpl extends GroupImpl implements TestGroup {
 
     @Override
     public List<TestServer> getServers() {
-        return cloud.read(() -> cloud.serversOf(data).stream()
-                .<TestServer>map(cloud::handle)
-                .toList());
+        return cloud.read(() ->
+                cloud.serversOf(data).stream().<TestServer>map(cloud::handle).toList());
     }
 
     @Override

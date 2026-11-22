@@ -1,5 +1,12 @@
 package app.simplecloud.api.testing;
 
+import static org.junit.jupiter.api.Assertions.assertEquals;
+import static org.junit.jupiter.api.Assertions.assertFalse;
+import static org.junit.jupiter.api.Assertions.assertInstanceOf;
+import static org.junit.jupiter.api.Assertions.assertNull;
+import static org.junit.jupiter.api.Assertions.assertThrows;
+import static org.junit.jupiter.api.Assertions.assertTrue;
+
 import app.simplecloud.api.CloudApiException;
 import app.simplecloud.api.event.player.PlayerClientSettingsUpdatedEvent;
 import app.simplecloud.api.event.player.PlayerDisconnectEvent;
@@ -19,21 +26,13 @@ import app.simplecloud.api.testing.event.TestEvents;
 import app.simplecloud.api.testing.group.TestGroup;
 import app.simplecloud.api.testing.player.TestPlayer;
 import app.simplecloud.api.testing.server.TestServer;
-import net.kyori.adventure.text.Component;
-import org.junit.jupiter.api.Test;
-
 import java.time.Duration;
 import java.util.List;
 import java.util.Map;
 import java.util.UUID;
 import java.util.concurrent.CompletionException;
-
-import static org.junit.jupiter.api.Assertions.assertEquals;
-import static org.junit.jupiter.api.Assertions.assertFalse;
-import static org.junit.jupiter.api.Assertions.assertInstanceOf;
-import static org.junit.jupiter.api.Assertions.assertNull;
-import static org.junit.jupiter.api.Assertions.assertThrows;
-import static org.junit.jupiter.api.Assertions.assertTrue;
+import net.kyori.adventure.text.Component;
+import org.junit.jupiter.api.Test;
 
 @CloudTest
 class PlayerTest {
@@ -54,8 +53,8 @@ class PlayerTest {
     void duplicatePlayerNameIsRejected(TestCloud cloud) {
         cloud.createPlayer("Steve");
 
-        CloudApiException exception = assertThrows(CloudApiException.class,
-                () -> cloud.createPlayer(UUID.randomUUID(), "steve"));
+        CloudApiException exception =
+                assertThrows(CloudApiException.class, () -> cloud.createPlayer(UUID.randomUUID(), "steve"));
 
         assertEquals(CloudApiException.Reason.CONFLICT, exception.getReason());
     }
@@ -109,9 +108,16 @@ class PlayerTest {
         assertEquals("lobby-1", event.getServerName());
         assertFalse(steve.isOnline());
         assertEquals(0, lobby.getPlayerCount());
-        assertEquals(300, cloud.api().player().getOnlineTimeSeconds(steve.getUniqueId()).join());
-        assertEquals(1, cloud.api().player().getSessions(steve.getUniqueId()).join().size());
-        assertTrue(cloud.api().player().findCurrentSession(steve.getUniqueId()).join().isEmpty());
+        assertEquals(
+                300,
+                cloud.api().player().getOnlineTimeSeconds(steve.getUniqueId()).join());
+        assertEquals(
+                1, cloud.api().player().getSessions(steve.getUniqueId()).join().size());
+        assertTrue(cloud.api()
+                .player()
+                .findCurrentSession(steve.getUniqueId())
+                .join()
+                .isEmpty());
     }
 
     @Test
@@ -136,7 +142,8 @@ class PlayerTest {
 
         assertEquals(2, players.getOnlinePlayerCount().join());
         assertEquals(List.of("Steve"), names(players.getOnlinePlayers("lobby-1").join()));
-        assertEquals(List.of("Alex", "Herobrine", "Steve"), names(players.list(null).join()));
+        assertEquals(
+                List.of("Alex", "Herobrine", "Steve"), names(players.list(null).join()));
     }
 
     @Test
@@ -146,11 +153,14 @@ class PlayerTest {
         cloud.createPlayer("Stella").login();
         cloud.createPlayer("Alex").login();
 
-        List<CloudPlayer> result = cloud.api().player().list(PlayerQuery.create()
-                .search("ste")
-                .sortBy(PlayerQuery.SortField.ONLINE_TIME)
-                .sortOrder(PlayerQuery.SortOrder.DESC)
-                .limit(1)).join();
+        List<CloudPlayer> result = cloud.api()
+                .player()
+                .list(PlayerQuery.create()
+                        .search("ste")
+                        .sortBy(PlayerQuery.SortField.ONLINE_TIME)
+                        .sortOrder(PlayerQuery.SortOrder.DESC)
+                        .limit(1))
+                .join();
 
         assertEquals(List.of("Steve"), names(result));
     }
@@ -186,13 +196,19 @@ class PlayerTest {
         TestPlayer steve = cloud.createPlayer("Steve").login();
         TestPlayer alex = cloud.createPlayer("Alex").login();
 
-        assertEquals(ConnectResult.SUCCESS, steve.connectToGroup("lobby", ServerSelectionMode.MIN_PLAYERS).join());
-        assertEquals(ConnectResult.SUCCESS, alex.connectToGroup("lobby", ServerSelectionMode.FIRST).join());
+        assertEquals(
+                ConnectResult.SUCCESS,
+                steve.connectToGroup("lobby", ServerSelectionMode.MIN_PLAYERS).join());
+        assertEquals(
+                ConnectResult.SUCCESS,
+                alex.connectToGroup("lobby", ServerSelectionMode.FIRST).join());
 
         assertEquals(second.getName(), steve.getConnectedServerName());
         assertEquals(first.getName(), alex.getConnectedServerName());
-        assertEquals(ConnectResult.ALREADY_CONNECTED, steve.connectToGroup("lobby").join());
-        assertEquals(ConnectResult.SERVER_NOT_FOUND, steve.connectToGroup("missing").join());
+        assertEquals(
+                ConnectResult.ALREADY_CONNECTED, steve.connectToGroup("lobby").join());
+        assertEquals(
+                ConnectResult.SERVER_NOT_FOUND, steve.connectToGroup("missing").join());
     }
 
     @Test
@@ -254,8 +270,15 @@ class PlayerTest {
         assertEquals("Steven", change.getNewProfile().getName());
         assertEquals("Steven", steve.getName());
         assertTrue(logins.single().isNameChanged());
-        assertEquals("texture", cloud.api().player().getLatestProfile(steve.getUniqueId()).join().getTexture());
-        assertEquals(2, cloud.api().player().getProfiles(steve.getUniqueId()).join().size());
+        assertEquals(
+                "texture",
+                cloud.api()
+                        .player()
+                        .getLatestProfile(steve.getUniqueId())
+                        .join()
+                        .getTexture());
+        assertEquals(
+                2, cloud.api().player().getProfiles(steve.getUniqueId()).join().size());
     }
 
     @Test
@@ -268,12 +291,19 @@ class PlayerTest {
                 .viewDistance(12)
                 .build());
 
-        PlayerClientSettings settings = cloud.api().player().getClientSettings(steve.getUniqueId()).join();
+        PlayerClientSettings settings =
+                cloud.api().player().getClientSettings(steve.getUniqueId()).join();
         assertEquals("de_DE", settings.getLocale());
         assertEquals(12, settings.getViewDistance());
         assertEquals(steve.getSessionId(), updates.single().getSessionId());
-        assertEquals("de_DE", cloud.api().player().getCurrentSession(steve.getUniqueId()).join()
-                .getClientSettings().getLocale());
+        assertEquals(
+                "de_DE",
+                cloud.api()
+                        .player()
+                        .getCurrentSession(steve.getUniqueId())
+                        .join()
+                        .getClientSettings()
+                        .getLocale());
     }
 
     @Test
@@ -298,7 +328,8 @@ class PlayerTest {
 
     @Test
     void unknownPlayerFailsWithNotFound(TestCloud cloud) {
-        CompletionException exception = assertThrows(CompletionException.class,
+        CompletionException exception = assertThrows(
+                CompletionException.class,
                 () -> cloud.api().player().get(UUID.randomUUID()).join());
 
         CloudApiException cause = assertInstanceOf(CloudApiException.class, exception.getCause());
@@ -324,8 +355,11 @@ class PlayerTest {
         TestPlayer steve = cloud.createPlayer("Steve");
         cloud.network().failNext(PlayerApi.class, "get");
 
-        assertThrows(CompletionException.class, () -> cloud.api().player().get(steve.getUniqueId()).join());
-        assertEquals("Steve", cloud.api().player().get(steve.getUniqueId()).join().getName());
+        assertThrows(
+                CompletionException.class,
+                () -> cloud.api().player().get(steve.getUniqueId()).join());
+        assertEquals(
+                "Steve", cloud.api().player().get(steve.getUniqueId()).join().getName());
     }
 
     private static List<String> names(List<CloudPlayer> players) {

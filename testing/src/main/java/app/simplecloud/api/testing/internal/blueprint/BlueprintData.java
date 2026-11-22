@@ -2,11 +2,10 @@ package app.simplecloud.api.testing.internal.blueprint;
 
 import app.simplecloud.api.blueprint.Blueprint;
 import app.simplecloud.api.blueprint.RuntimeConfig;
-import org.jetbrains.annotations.Nullable;
-
 import java.util.ArrayList;
 import java.util.LinkedHashMap;
 import java.util.List;
+import org.jetbrains.annotations.Nullable;
 
 public final class BlueprintData {
 
@@ -45,8 +44,18 @@ public final class BlueprintData {
     }
 
     public Blueprint snapshot() {
-        return new BlueprintImpl(id, name, configurator, minecraftVersion, serverSoftware, serverUrl, softwareVersion,
-                copy(runtimeConfig), List.copyOf(workflowSteps), createdAt, updatedAt);
+        return new BlueprintImpl(
+                id,
+                name,
+                configurator,
+                minecraftVersion,
+                serverSoftware,
+                serverUrl,
+                softwareVersion,
+                copy(runtimeConfig),
+                List.copyOf(workflowSteps),
+                createdAt,
+                updatedAt);
     }
 
     public static @Nullable RuntimeConfig copy(@Nullable RuntimeConfig config) {

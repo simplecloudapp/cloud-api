@@ -37,7 +37,7 @@ final class TestCloudApi implements CloudApi {
         this.serverApi = cloud.network().wrap(ServerApi.class, new TestServerApi(cloud, () -> this.currentServerId));
         this.persistentServerApi = cloud.network().wrap(PersistentServerApi.class, new TestPersistentServerApi(cloud));
         this.blueprintApi = cloud.network().wrap(BlueprintApi.class, new TestBlueprintApi(cloud));
-        this.playerApi = cloud.network().wrap(PlayerApi.class, new TestPlayerApi(cloud, () -> this.playerApi));
+        this.playerApi = cloud.network().wrap(PlayerApi.class, new TestPlayerApi(cloud, this::player));
         this.eventApi = new TestEventApi(cloud.bus());
     }
 

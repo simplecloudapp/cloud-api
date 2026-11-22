@@ -1,27 +1,34 @@
 package app.simplecloud.api.internal.integration.presence;
 
+import static org.junit.jupiter.api.Assertions.assertEquals;
+import static org.junit.jupiter.api.Assertions.assertFalse;
+import static org.junit.jupiter.api.Assertions.assertTrue;
+
 import app.simplecloud.api.presence.ProxyPresencePlayer;
 import app.simplecloud.api.support.NatsTest;
 import app.simplecloud.api.support.TestNats;
 import build.buf.gen.simplecloud.controller.v2.PresenceCompareRequest;
 import build.buf.gen.simplecloud.controller.v2.ProxyPresenceCompareResponse;
 import io.nats.client.Connection;
+import java.util.List;
 import org.junit.jupiter.api.AfterEach;
 import org.junit.jupiter.api.BeforeEach;
 import org.junit.jupiter.api.Test;
-
-import java.util.List;
-
-import static org.junit.jupiter.api.Assertions.assertEquals;
-import static org.junit.jupiter.api.Assertions.assertFalse;
-import static org.junit.jupiter.api.Assertions.assertTrue;
 
 @NatsTest
 class ProxyPresenceResponderTest {
 
     private static final List<ProxyPresencePlayer> PLAYERS = List.of(new ProxyPresencePlayer(
-            "11111111-1111-1111-1111-111111111111", "Steve", "Steve", "lobby-1", "proxy-1", 0, "en_us", 770, true, "session-1"
-    ));
+            "11111111-1111-1111-1111-111111111111",
+            "Steve",
+            "Steve",
+            "lobby-1",
+            "proxy-1",
+            0,
+            "en_us",
+            770,
+            true,
+            "session-1"));
 
     private final String networkId = TestNats.randomNetworkId();
     private Connection proxyConnection;
@@ -61,8 +68,10 @@ class ProxyPresenceResponderTest {
     }
 
     private ProxyPresenceCompareResponse compare(int hash) throws Exception {
-        byte[] request = PresenceCompareRequest.newBuilder().setHash(hash).build().toByteArray();
+        byte[] request =
+                PresenceCompareRequest.newBuilder().setHash(hash).build().toByteArray();
         return ProxyPresenceCompareResponse.parseFrom(
-                TestNats.request(controller, networkId + ".server.proxy-1.presence.compare", request).getData());
+                TestNats.request(controller, networkId + ".server.proxy-1.presence.compare", request)
+                        .getData());
     }
 }

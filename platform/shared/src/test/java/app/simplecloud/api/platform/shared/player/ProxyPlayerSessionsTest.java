@@ -1,23 +1,5 @@
 package app.simplecloud.api.platform.shared.player;
 
-import app.simplecloud.api.internal.integration.player.LoginResult;
-import app.simplecloud.api.internal.integration.player.PlayerLogin;
-import app.simplecloud.api.internal.integration.player.PlayerSessionReporter;
-import app.simplecloud.api.internal.integration.presence.ProxyPresenceTracker;
-import app.simplecloud.api.platform.shared.luckperms.LuckPermsSynchronizer;
-import app.simplecloud.api.player.PlayerClientSettings;
-import org.junit.jupiter.api.BeforeEach;
-import org.junit.jupiter.api.Test;
-import org.junit.jupiter.params.ParameterizedTest;
-import org.junit.jupiter.params.provider.ValueSource;
-
-import java.net.InetSocketAddress;
-import java.time.Duration;
-import java.util.Locale;
-import java.util.UUID;
-import java.util.concurrent.CompletableFuture;
-import java.util.concurrent.TimeUnit;
-
 import static org.junit.jupiter.api.Assertions.assertEquals;
 import static org.junit.jupiter.api.Assertions.assertFalse;
 import static org.junit.jupiter.api.Assertions.assertNull;
@@ -29,6 +11,23 @@ import static org.mockito.Mockito.never;
 import static org.mockito.Mockito.verify;
 import static org.mockito.Mockito.verifyNoInteractions;
 import static org.mockito.Mockito.when;
+
+import app.simplecloud.api.internal.integration.player.LoginResult;
+import app.simplecloud.api.internal.integration.player.PlayerLogin;
+import app.simplecloud.api.internal.integration.player.PlayerSessionReporter;
+import app.simplecloud.api.internal.integration.presence.ProxyPresenceTracker;
+import app.simplecloud.api.platform.shared.luckperms.LuckPermsSynchronizer;
+import app.simplecloud.api.player.PlayerClientSettings;
+import java.net.InetSocketAddress;
+import java.time.Duration;
+import java.util.Locale;
+import java.util.UUID;
+import java.util.concurrent.CompletableFuture;
+import java.util.concurrent.TimeUnit;
+import org.junit.jupiter.api.BeforeEach;
+import org.junit.jupiter.api.Test;
+import org.junit.jupiter.params.ParameterizedTest;
+import org.junit.jupiter.params.provider.ValueSource;
 
 class ProxyPlayerSessionsTest {
 
@@ -54,8 +53,17 @@ class ProxyPlayerSessionsTest {
     void loginReportsThePlayerOnThisProxy() {
         sessions.login(player(Locale.GERMANY), () -> null);
 
-        verify(reporter).reportLogin(new PlayerLogin(playerId, "Player", "Display", "proxy-1",
-                String.valueOf(ADDRESS.hashCode()), "de_DE", 767, true, "texture"));
+        verify(reporter)
+                .reportLogin(new PlayerLogin(
+                        playerId,
+                        "Player",
+                        "Display",
+                        "proxy-1",
+                        String.valueOf(ADDRESS.hashCode()),
+                        "de_DE",
+                        767,
+                        true,
+                        "texture"));
     }
 
     @ParameterizedTest
@@ -63,8 +71,17 @@ class ProxyPlayerSessionsTest {
     void loginWithoutLocaleOrProxyNameUsesDefaults(String proxyName) {
         sessions(proxyName, Duration.ofSeconds(5)).login(player(null), () -> null);
 
-        verify(reporter).reportLogin(new PlayerLogin(playerId, "Player", "Display", "unknown",
-                String.valueOf(ADDRESS.hashCode()), "en_US", 767, true, "texture"));
+        verify(reporter)
+                .reportLogin(new PlayerLogin(
+                        playerId,
+                        "Player",
+                        "Display",
+                        "unknown",
+                        String.valueOf(ADDRESS.hashCode()),
+                        "en_US",
+                        767,
+                        true,
+                        "texture"));
     }
 
     @Test
@@ -106,7 +123,8 @@ class ProxyPlayerSessionsTest {
 
     @Test
     void loginIsReleasedWhenTheControllerDoesNotAnswer() throws Exception {
-        CompletableFuture<Void> login = sessions("proxy-1", Duration.ofMillis(10)).login(player(Locale.GERMANY), () -> null);
+        CompletableFuture<Void> login =
+                sessions("proxy-1", Duration.ofMillis(10)).login(player(Locale.GERMANY), () -> null);
 
         login.get(1, TimeUnit.SECONDS);
 
@@ -161,7 +179,8 @@ class ProxyPlayerSessionsTest {
 
     @Test
     void failedDisconnectReportStillForgetsThePlayer() {
-        when(reporter.reportDisconnect(playerId)).thenReturn(CompletableFuture.failedFuture(new IllegalStateException()));
+        when(reporter.reportDisconnect(playerId))
+                .thenReturn(CompletableFuture.failedFuture(new IllegalStateException()));
 
         sessions.disconnect(playerId, "Player");
 

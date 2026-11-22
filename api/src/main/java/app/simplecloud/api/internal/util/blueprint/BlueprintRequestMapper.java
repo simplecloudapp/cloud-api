@@ -7,11 +7,10 @@ import app.simplecloud.api.web.models.ModelsCreateBlueprintRequest;
 import app.simplecloud.api.web.models.ModelsPatchBlueprintRequest;
 import app.simplecloud.api.web.models.ModelsRuntimeConfig;
 import app.simplecloud.api.web.models.ModelsUpdateBlueprintRequest;
-import org.jetbrains.annotations.Nullable;
-
 import java.util.ArrayList;
 import java.util.List;
 import java.util.Locale;
+import org.jetbrains.annotations.Nullable;
 
 public final class BlueprintRequestMapper {
 
@@ -90,8 +89,7 @@ public final class BlueprintRequestMapper {
         String resolvedServerUrl = normalize(serverUrlResolver.resolve(request));
         if (resolvedServerUrl == null) {
             throw new IllegalArgumentException(
-                    "No manifest download link found for software '" + software + "' and version '" + version + "'"
-            );
+                    "No manifest download link found for software '" + software + "' and version '" + version + "'");
         }
         return resolvedServerUrl;
     }

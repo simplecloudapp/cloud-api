@@ -1,5 +1,10 @@
 package app.simplecloud.api.internal.persistentserver;
 
+import static org.junit.jupiter.api.Assertions.assertEquals;
+import static org.junit.jupiter.api.Assertions.assertInstanceOf;
+import static org.junit.jupiter.api.Assertions.assertThrows;
+import static org.junit.jupiter.api.Assertions.assertTrue;
+
 import app.simplecloud.api.blueprint.CreateBlueprintRequest;
 import app.simplecloud.api.group.WorkflowWhen;
 import app.simplecloud.api.group.WorkflowsConfig;
@@ -14,16 +19,10 @@ import app.simplecloud.api.web.apis.BlueprintsApi;
 import app.simplecloud.api.web.apis.PersistentServersApi;
 import com.google.gson.JsonObject;
 import com.google.gson.JsonParser;
-import org.junit.jupiter.api.AfterEach;
-import org.junit.jupiter.api.Test;
-
 import java.util.List;
 import java.util.concurrent.CompletionException;
-
-import static org.junit.jupiter.api.Assertions.assertEquals;
-import static org.junit.jupiter.api.Assertions.assertInstanceOf;
-import static org.junit.jupiter.api.Assertions.assertThrows;
-import static org.junit.jupiter.api.Assertions.assertTrue;
+import org.junit.jupiter.api.AfterEach;
+import org.junit.jupiter.api.Test;
 
 class PersistentServerApiImplTest {
 
@@ -44,13 +43,18 @@ class PersistentServerApiImplTest {
         controller.on("POST", PERSISTENT_SERVERS, persistentServer());
 
         api().createPersistentServer(CreatePersistentServerRequest.builder()
-                .name("survival")
-                .serverhostId("host-1")
-                .createBlueprint(CreateBlueprintRequest.builder().serverUrl("https://example.com/paper.jar").build())
-                .build()).join();
+                        .name("survival")
+                        .serverhostId("host-1")
+                        .createBlueprint(CreateBlueprintRequest.builder()
+                                .serverUrl("https://example.com/paper.jar")
+                                .build())
+                        .build())
+                .join();
 
         List<Request> requests = controller.requests();
-        assertEquals(List.of(BLUEPRINTS, PERSISTENT_SERVERS), requests.stream().map(Request::path).toList());
+        assertEquals(
+                List.of(BLUEPRINTS, PERSISTENT_SERVERS),
+                requests.stream().map(Request::path).toList());
         JsonObject body = requests.get(1).json();
         assertEquals("host-1", body.get("serverhost_id").getAsString());
         assertEquals("bp-new", body.getAsJsonObject("source").get("blueprint").getAsString());
@@ -59,39 +63,65 @@ class PersistentServerApiImplTest {
 
     @Test
     void workflowUpdateKeepsTheCurrentStopWorkflows() {
-        controller.on("GET", PERSISTENT_SERVERS, "{\"persistent_servers\":[" + persistentServer(
-                "\"workflows\":{\"when\":{\"start\":[\"internal/setup\"],\"stop\":[\"internal/cleanup\"]}}") + "]}");
+        controller.on(
+                "GET",
+                PERSISTENT_SERVERS,
+                "{\"persistent_servers\":["
+                        + persistentServer(
+                                "\"workflows\":{\"when\":{\"start\":[\"internal/setup\"],\"stop\":[\"internal/cleanup\"]}}")
+                        + "]}");
         controller.on("PATCH", PERSISTENT_SERVERS, persistentServer());
 
-        api().updatePersistentServer(SERVER_ID, UpdatePersistentServerRequest.builder()
-                .workflows(WorkflowsConfig.builder().when(WorkflowWhen.builder().start(List.of("custom/setup")).build()).build())
-                .build()).join();
+        api().updatePersistentServer(
+                        SERVER_ID,
+                        UpdatePersistentServerRequest.builder()
+                                .workflows(WorkflowsConfig.builder()
+                                        .when(WorkflowWhen.builder()
+                                                .start(List.of("custom/setup"))
+                                                .build())
+                                        .build())
+                                .build())
+                .join();
 
-        JsonObject when = controller.onlyRequest("PATCH", PERSISTENT_SERVERS).json().getAsJsonObject("workflows").getAsJsonObject("when");
+        JsonObject when = controller
+                .onlyRequest("PATCH", PERSISTENT_SERVERS)
+                .json()
+                .getAsJsonObject("workflows")
+                .getAsJsonObject("when");
         assertEquals(JsonParser.parseString("[\"custom/setup\"]"), when.get("start"));
         assertEquals(JsonParser.parseString("[\"internal/cleanup\"]"), when.get("stop"));
     }
 
     @Test
     void deleteAlsoDeletesTheReferencedBlueprint() {
-        controller.on("GET", PERSISTENT_SERVERS, "{\"persistent_servers\":[" + persistentServer(
-                "\"source\":{\"type\":\"blueprint\",\"blueprint\":\"bp-1\"}") + "]}");
+        controller.on(
+                "GET",
+                PERSISTENT_SERVERS,
+                "{\"persistent_servers\":["
+                        + persistentServer("\"source\":{\"type\":\"blueprint\",\"blueprint\":\"bp-1\"}") + "]}");
         controller.on("DELETE", PERSISTENT_SERVERS, "{}");
         controller.on("DELETE", BLUEPRINTS, "{}");
 
         api().deletePersistentServer(SERVER_ID).join();
 
-        assertEquals(SERVER_ID, controller.onlyRequest("DELETE", PERSISTENT_SERVERS).query("persistent_server_id"));
+        assertEquals(
+                SERVER_ID, controller.onlyRequest("DELETE", PERSISTENT_SERVERS).query("persistent_server_id"));
         assertEquals("bp-1", controller.onlyRequest("DELETE", BLUEPRINTS).query("blueprint_id"));
     }
 
     @Test
     void replaceDoesNotSupportInlineBlueprints() {
-        CompletionException failure = assertThrows(CompletionException.class, () -> api().replacePersistentServer(SERVER_ID,
-                CreatePersistentServerRequest.builder()
-                        .name("survival")
-                        .createBlueprint(CreateBlueprintRequest.builder().serverUrl("https://example.com/paper.jar").build())
-                        .build()).join());
+        CompletionException failure = assertThrows(
+                CompletionException.class,
+                () -> api().replacePersistentServer(
+                                SERVER_ID,
+                                CreatePersistentServerRequest.builder()
+                                        .name("survival")
+                                        .createBlueprint(CreateBlueprintRequest.builder()
+                                                .serverUrl("https://example.com/paper.jar")
+                                                .build())
+                                        .build())
+                        .join());
 
         assertInstanceOf(IllegalArgumentException.class, failure.getCause());
         assertTrue(controller.requests().isEmpty());
@@ -100,10 +130,7 @@ class PersistentServerApiImplTest {
     private PersistentServerApiImpl api() {
         ApiContext context = TestContexts.create(controller);
         InlineBlueprintManager blueprints = new InlineBlueprintManager(
-                context.options(),
-                context.api(BlueprintsApi::new),
-                request -> "https://example.com/server.jar"
-        );
+                context.options(), context.api(BlueprintsApi::new), request -> "https://example.com/server.jar");
         return new PersistentServerApiImpl(context, context.api(PersistentServersApi::new), blueprints);
     }
 

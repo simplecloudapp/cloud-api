@@ -1,5 +1,14 @@
 package app.simplecloud.api.platform.velocity.player;
 
+import static org.junit.jupiter.api.Assertions.assertEquals;
+import static org.junit.jupiter.api.Assertions.assertFalse;
+import static org.junit.jupiter.api.Assertions.assertTrue;
+import static org.mockito.ArgumentMatchers.any;
+import static org.mockito.Mockito.mock;
+import static org.mockito.Mockito.verify;
+import static org.mockito.Mockito.verifyNoInteractions;
+import static org.mockito.Mockito.when;
+
 import app.simplecloud.api.platform.shared.player.ConnectingPlayer;
 import app.simplecloud.api.platform.shared.player.ProxyPlayerSessions;
 import app.simplecloud.api.player.PlayerClientSettings;
@@ -12,22 +21,12 @@ import com.velocitypowered.api.proxy.Player;
 import com.velocitypowered.api.proxy.player.PlayerSettings;
 import com.velocitypowered.api.proxy.player.SkinParts;
 import com.velocitypowered.api.util.GameProfile;
-import org.junit.jupiter.api.Test;
-
 import java.net.InetSocketAddress;
 import java.util.List;
 import java.util.Locale;
 import java.util.UUID;
 import java.util.concurrent.CompletableFuture;
-
-import static org.junit.jupiter.api.Assertions.assertEquals;
-import static org.junit.jupiter.api.Assertions.assertFalse;
-import static org.junit.jupiter.api.Assertions.assertTrue;
-import static org.mockito.ArgumentMatchers.any;
-import static org.mockito.Mockito.mock;
-import static org.mockito.Mockito.verify;
-import static org.mockito.Mockito.verifyNoInteractions;
-import static org.mockito.Mockito.when;
+import org.junit.jupiter.api.Test;
 
 class PlayerConnectionListenerTest {
 
@@ -64,8 +63,17 @@ class PlayerConnectionListenerTest {
 
         ConnectingPlayer result = PlayerConnectionListener.toConnectingPlayer(player(properties));
 
-        assertEquals(new ConnectingPlayer(playerId, "Player", "Player", new InetSocketAddress("127.0.0.1", 25565),
-                Locale.GERMANY, ProtocolVersion.MINECRAFT_1_21.getProtocol(), true, "texture-value"), result);
+        assertEquals(
+                new ConnectingPlayer(
+                        playerId,
+                        "Player",
+                        "Player",
+                        new InetSocketAddress("127.0.0.1", 25565),
+                        Locale.GERMANY,
+                        ProtocolVersion.MINECRAFT_1_21.getProtocol(),
+                        true,
+                        "texture-value"),
+                result);
     }
 
     @Test

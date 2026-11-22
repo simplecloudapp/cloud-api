@@ -55,6 +55,4 @@ public class EventApiImpl implements EventApi {
     public PlayerEventApi player() {
         return playerEventApi;
     }
-
 }
-

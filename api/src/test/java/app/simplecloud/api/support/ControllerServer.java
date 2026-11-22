@@ -1,11 +1,12 @@
 package app.simplecloud.api.support;
 
+import static org.junit.jupiter.api.Assertions.assertEquals;
+
 import com.google.gson.JsonObject;
 import com.google.gson.JsonParser;
 import com.sun.net.httpserver.Headers;
 import com.sun.net.httpserver.HttpExchange;
 import com.sun.net.httpserver.HttpServer;
-
 import java.io.IOException;
 import java.io.OutputStream;
 import java.net.InetSocketAddress;
@@ -18,8 +19,6 @@ import java.util.List;
 import java.util.Map;
 import java.util.concurrent.ConcurrentHashMap;
 import java.util.concurrent.CopyOnWriteArrayList;
-
-import static org.junit.jupiter.api.Assertions.assertEquals;
 
 public final class ControllerServer implements AutoCloseable {
 
@@ -52,7 +51,9 @@ public final class ControllerServer implements AutoCloseable {
     }
 
     public ControllerServer on(String method, String path, int status, String json) {
-        responses.computeIfAbsent(method + " " + path, key -> new ArrayDeque<>()).add(new Response(status, json));
+        responses
+                .computeIfAbsent(method + " " + path, key -> new ArrayDeque<>())
+                .add(new Response(status, json));
         return this;
     }
 
@@ -62,7 +63,8 @@ public final class ControllerServer implements AutoCloseable {
 
     public List<Request> requests(String method, String path) {
         return requests.stream()
-                .filter(request -> request.method().equals(method) && request.path().equals(path))
+                .filter(request ->
+                        request.method().equals(method) && request.path().equals(path))
                 .toList();
     }
 
@@ -81,7 +83,8 @@ public final class ControllerServer implements AutoCloseable {
         String method = exchange.getRequestMethod();
         String path = exchange.getRequestURI().getPath();
         String body = new String(exchange.getRequestBody().readAllBytes(), StandardCharsets.UTF_8);
-        requests.add(new Request(method, path, parseQuery(exchange.getRequestURI().getRawQuery()), exchange.getRequestHeaders(), body));
+        requests.add(new Request(
+                method, path, parseQuery(exchange.getRequestURI().getRawQuery()), exchange.getRequestHeaders(), body));
 
         Response response = nextResponse(method + " " + path);
         byte[] bytes = response.body().getBytes(StandardCharsets.UTF_8);
@@ -116,8 +119,7 @@ public final class ControllerServer implements AutoCloseable {
         return query;
     }
 
-    private record Response(int status, String body) {
-    }
+    private record Response(int status, String body) {}
 
     public record Request(String method, String path, Map<String, String> query, Headers headers, String body) {
 

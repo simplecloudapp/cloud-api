@@ -11,8 +11,7 @@ public final class TestContexts {
     public static final String NETWORK_ID = "network-1";
     public static final String NETWORK_SECRET = "secret";
 
-    private TestContexts() {
-    }
+    private TestContexts() {}
 
     public static ApiContext create(ControllerServer controller) {
         return create(controller, new NoOpQueryCache());

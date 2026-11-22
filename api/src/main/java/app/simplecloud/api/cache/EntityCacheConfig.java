@@ -5,7 +5,7 @@ import java.time.Duration;
 /**
  * Per-entity-type cache configuration overrides.
  */
-public class EntityCacheConfig {
+public final class EntityCacheConfig {
 
     private final Duration staleTime;
     private final Duration cacheTime;

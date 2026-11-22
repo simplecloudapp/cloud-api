@@ -5,14 +5,13 @@ import app.simplecloud.api.player.UpdateClientSettingsRequest;
 import app.simplecloud.api.server.Server;
 import app.simplecloud.api.testing.internal.CloudState;
 import app.simplecloud.api.testing.player.TestPlayer;
-import net.kyori.adventure.text.Component;
-import net.kyori.adventure.title.Title;
-import org.jetbrains.annotations.Nullable;
-
 import java.util.List;
 import java.util.Map;
 import java.util.Objects;
 import java.util.UUID;
+import net.kyori.adventure.text.Component;
+import net.kyori.adventure.title.Title;
+import org.jetbrains.annotations.Nullable;
 
 public final class TestPlayerImpl extends AbstractPlayer implements TestPlayer {
 

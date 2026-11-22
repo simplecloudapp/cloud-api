@@ -3,7 +3,6 @@ package app.simplecloud.api.internal.event.group;
 import app.simplecloud.api.event.group.GroupUpdatedEvent;
 import app.simplecloud.api.group.Group;
 import build.buf.gen.simplecloud.controller.v2.ServerGroupUpdatedEvent;
-
 import java.time.Instant;
 
 class GroupUpdatedEventImpl implements GroupUpdatedEvent {
@@ -25,7 +24,8 @@ class GroupUpdatedEventImpl implements GroupUpdatedEvent {
 
     @Override
     public Group getGroup() {
-        throw new IllegalStateException("Group data is not available in GroupUpdatedEvent. Use CloudApi.group().getGroup(serverGroupId) to fetch the group.");
+        throw new IllegalStateException(
+                "Group data is not available in GroupUpdatedEvent. Use CloudApi.group().getGroup(serverGroupId) to fetch the group.");
     }
 
     @Override
@@ -33,4 +33,3 @@ class GroupUpdatedEventImpl implements GroupUpdatedEvent {
         return Instant.ofEpochSecond(delegate.getTimestamp()).toString();
     }
 }
-

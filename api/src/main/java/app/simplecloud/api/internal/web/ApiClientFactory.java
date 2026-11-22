@@ -5,19 +5,17 @@ import app.simplecloud.api.web.ApiClient;
 import app.simplecloud.api.web.ApiException;
 import app.simplecloud.api.web.auth.ApiKeyAuth;
 import com.google.gson.JsonParseException;
-import okhttp3.Response;
-
 import java.lang.reflect.Type;
 import java.time.Duration;
+import okhttp3.Response;
 
 /**
  * Helpers for configuring the generated {@link ApiClient}.
  */
 public final class ApiClientFactory {
 
-    private ApiClientFactory() {
-    }
-    
+    private ApiClientFactory() {}
+
     public static ApiClient create(CloudApiOptions options) {
         ApiClient client = new ResponseValidatingApiClient();
         client.setBasePath(options.getControllerUrl());
@@ -64,8 +62,7 @@ public final class ApiClientFactory {
                         "Invalid controller response: " + e.getMessage(),
                         e,
                         response.code(),
-                        response.headers().toMultimap()
-                );
+                        response.headers().toMultimap());
             }
         }
     }

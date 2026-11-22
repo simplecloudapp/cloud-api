@@ -1,12 +1,12 @@
 package app.simplecloud.api.internal.stats;
 
+import static org.junit.jupiter.api.Assertions.assertEquals;
+
 import app.simplecloud.api.stats.CloudStats;
 import app.simplecloud.api.support.ControllerServer;
 import app.simplecloud.api.support.TestContexts;
 import org.junit.jupiter.api.AfterEach;
 import org.junit.jupiter.api.Test;
-
-import static org.junit.jupiter.api.Assertions.assertEquals;
 
 class StatsApiImplTest {
 
@@ -26,7 +26,8 @@ class StatsApiImplTest {
                 }
                 """);
 
-        CloudStats stats = new StatsApiImpl(TestContexts.create(controller)).getStats().join();
+        CloudStats stats =
+                new StatsApiImpl(TestContexts.create(controller)).getStats().join();
 
         assertEquals(3, stats.servers().total());
         assertEquals(2, stats.servers().byState().available());

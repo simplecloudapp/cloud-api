@@ -5,8 +5,7 @@ import java.util.function.Supplier;
 
 public final class Futures {
 
-    private Futures() {
-    }
+    private Futures() {}
 
     public static <T> CompletableFuture<T> call(Supplier<T> supplier) {
         try {

@@ -1,5 +1,11 @@
 package app.simplecloud.api.internal.integration.player;
 
+import static org.junit.jupiter.api.Assertions.assertEquals;
+import static org.junit.jupiter.api.Assertions.assertFalse;
+import static org.junit.jupiter.api.Assertions.assertInstanceOf;
+import static org.junit.jupiter.api.Assertions.assertThrows;
+import static org.junit.jupiter.api.Assertions.assertTrue;
+
 import app.simplecloud.api.support.NatsTest;
 import app.simplecloud.api.support.TestNats;
 import build.buf.gen.simplecloud.player.v2.PlayerDisconnectResponse;
@@ -7,20 +13,13 @@ import build.buf.gen.simplecloud.player.v2.PlayerLoginRequest;
 import build.buf.gen.simplecloud.player.v2.PlayerLoginResponse;
 import io.nats.client.Connection;
 import io.nats.client.MessageHandler;
-import org.junit.jupiter.api.AfterEach;
-import org.junit.jupiter.api.BeforeEach;
-import org.junit.jupiter.api.Test;
-
 import java.util.UUID;
 import java.util.concurrent.BlockingQueue;
 import java.util.concurrent.CompletionException;
 import java.util.concurrent.LinkedBlockingQueue;
-
-import static org.junit.jupiter.api.Assertions.assertEquals;
-import static org.junit.jupiter.api.Assertions.assertFalse;
-import static org.junit.jupiter.api.Assertions.assertInstanceOf;
-import static org.junit.jupiter.api.Assertions.assertThrows;
-import static org.junit.jupiter.api.Assertions.assertTrue;
+import org.junit.jupiter.api.AfterEach;
+import org.junit.jupiter.api.BeforeEach;
+import org.junit.jupiter.api.Test;
 
 @NatsTest
 class PlayerSessionReporterTest {
@@ -50,8 +49,13 @@ class PlayerSessionReporterTest {
         BlockingQueue<byte[]> requests = new LinkedBlockingQueue<>();
         answer("player.login", message -> {
             requests.add(message.getData());
-            controller.publish(message.getReplyTo(),
-                    PlayerLoginResponse.newBuilder().setSuccess(true).setSessionId("session-1").build().toByteArray());
+            controller.publish(
+                    message.getReplyTo(),
+                    PlayerLoginResponse.newBuilder()
+                            .setSuccess(true)
+                            .setSessionId("session-1")
+                            .build()
+                            .toByteArray());
         });
 
         LoginResult result = reporter.reportLogin(login()).join();
@@ -66,8 +70,15 @@ class PlayerSessionReporterTest {
 
     @Test
     void rejectedLoginCarriesTheControllerMessage() throws Exception {
-        answer("player.login", message -> controller.publish(message.getReplyTo(),
-                PlayerLoginResponse.newBuilder().setSuccess(false).setErrorMessage("network is full").build().toByteArray()));
+        answer(
+                "player.login",
+                message -> controller.publish(
+                        message.getReplyTo(),
+                        PlayerLoginResponse.newBuilder()
+                                .setSuccess(false)
+                                .setErrorMessage("network is full")
+                                .build()
+                                .toByteArray()));
 
         LoginResult result = reporter.reportLogin(login()).join();
 
@@ -77,10 +88,18 @@ class PlayerSessionReporterTest {
 
     @Test
     void rejectedDisconnectFailsTheFuture() throws Exception {
-        answer("player.disconnect", message -> controller.publish(message.getReplyTo(),
-                PlayerDisconnectResponse.newBuilder().setSuccess(false).build().toByteArray()));
+        answer(
+                "player.disconnect",
+                message -> controller.publish(
+                        message.getReplyTo(),
+                        PlayerDisconnectResponse.newBuilder()
+                                .setSuccess(false)
+                                .build()
+                                .toByteArray()));
 
-        CompletionException failure = assertThrows(CompletionException.class, () -> reporter.reportDisconnect(PLAYER_ID).join());
+        CompletionException failure = assertThrows(
+                CompletionException.class,
+                () -> reporter.reportDisconnect(PLAYER_ID).join());
 
         assertInstanceOf(IllegalStateException.class, failure.getCause());
     }

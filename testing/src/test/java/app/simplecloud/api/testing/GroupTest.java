@@ -1,5 +1,11 @@
 package app.simplecloud.api.testing;
 
+import static org.junit.jupiter.api.Assertions.assertEquals;
+import static org.junit.jupiter.api.Assertions.assertFalse;
+import static org.junit.jupiter.api.Assertions.assertInstanceOf;
+import static org.junit.jupiter.api.Assertions.assertThrows;
+import static org.junit.jupiter.api.Assertions.assertTrue;
+
 import app.simplecloud.api.CloudApiException;
 import app.simplecloud.api.event.group.GroupCreatedEvent;
 import app.simplecloud.api.event.group.GroupDeletedEvent;
@@ -10,16 +16,9 @@ import app.simplecloud.api.group.GroupQuery;
 import app.simplecloud.api.group.GroupServerType;
 import app.simplecloud.api.group.UpdateGroupRequest;
 import app.simplecloud.api.testing.group.TestGroup;
-import org.junit.jupiter.api.Test;
-
 import java.util.List;
 import java.util.concurrent.CompletionException;
-
-import static org.junit.jupiter.api.Assertions.assertEquals;
-import static org.junit.jupiter.api.Assertions.assertFalse;
-import static org.junit.jupiter.api.Assertions.assertInstanceOf;
-import static org.junit.jupiter.api.Assertions.assertThrows;
-import static org.junit.jupiter.api.Assertions.assertTrue;
+import org.junit.jupiter.api.Test;
 
 @CloudTest
 class GroupTest {
@@ -46,8 +45,12 @@ class GroupTest {
     void duplicateNameFailsWithConflict(TestCloud cloud) {
         cloud.createGroup("lobby");
 
-        CompletionException exception = assertThrows(CompletionException.class,
-                () -> cloud.api().group().createGroup(new CreateGroupRequest("lobby")).join());
+        CompletionException exception = assertThrows(
+                CompletionException.class,
+                () -> cloud.api()
+                        .group()
+                        .createGroup(new CreateGroupRequest("lobby"))
+                        .join());
 
         CloudApiException cause = assertInstanceOf(CloudApiException.class, exception.getCause());
         assertEquals(CloudApiException.Reason.CONFLICT, cause.getReason());
@@ -55,7 +58,8 @@ class GroupTest {
 
     @Test
     void missingGroupFailsWithNotFound(TestCloud cloud) {
-        CompletionException exception = assertThrows(CompletionException.class,
+        CompletionException exception = assertThrows(
+                CompletionException.class,
                 () -> cloud.api().group().getGroupByName("missing").join());
 
         CloudApiException cause = assertInstanceOf(CloudApiException.class, exception.getCause());
@@ -78,12 +82,22 @@ class GroupTest {
 
     @Test
     void queryFiltersByTypeAndTag(TestCloud cloud) {
-        cloud.createGroup(CreateGroupRequest.builder().name("proxy").type(GroupServerType.PROXY).build());
-        cloud.createGroup(CreateGroupRequest.builder().name("lobby").tags(List.of("hub")).build());
+        cloud.createGroup(CreateGroupRequest.builder()
+                .name("proxy")
+                .type(GroupServerType.PROXY)
+                .build());
+        cloud.createGroup(
+                CreateGroupRequest.builder().name("lobby").tags(List.of("hub")).build());
         cloud.createGroup("bedwars");
 
-        List<Group> proxies = cloud.api().group().getAllGroups(GroupQuery.create().filterByType(GroupServerType.PROXY)).join();
-        List<Group> hubs = cloud.api().group().getAllGroups(GroupQuery.create().filterByTag("hub")).join();
+        List<Group> proxies = cloud.api()
+                .group()
+                .getAllGroups(GroupQuery.create().filterByType(GroupServerType.PROXY))
+                .join();
+        List<Group> hubs = cloud.api()
+                .group()
+                .getAllGroups(GroupQuery.create().filterByTag("hub"))
+                .join();
 
         assertEquals(List.of("proxy"), proxies.stream().map(Group::getName).toList());
         assertEquals(List.of("lobby"), hubs.stream().map(Group::getName).toList());

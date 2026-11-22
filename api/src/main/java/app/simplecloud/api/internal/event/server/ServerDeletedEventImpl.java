@@ -2,7 +2,6 @@ package app.simplecloud.api.internal.event.server;
 
 import app.simplecloud.api.event.server.ServerDeletedEvent;
 import app.simplecloud.api.server.Server;
-
 import java.time.Instant;
 
 class ServerDeletedEventImpl implements ServerDeletedEvent {
@@ -44,8 +43,7 @@ class ServerDeletedEventImpl implements ServerDeletedEvent {
                     null,
                     delegate.hasGroupConfig() ? delegate.getGroupConfig() : null,
                     delegate.hasPersistentServerConfig() ? delegate.getPersistentServerConfig() : null,
-                    delegate.getTimestamp()
-            );
+                    delegate.getTimestamp());
         }
         return server;
     }

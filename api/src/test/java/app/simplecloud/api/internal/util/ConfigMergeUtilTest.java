@@ -1,5 +1,11 @@
 package app.simplecloud.api.internal.util;
 
+import static org.junit.jupiter.api.Assertions.assertEquals;
+import static org.junit.jupiter.api.Assertions.assertFalse;
+import static org.junit.jupiter.api.Assertions.assertNull;
+import static org.junit.jupiter.api.Assertions.assertSame;
+import static org.junit.jupiter.api.Assertions.assertTrue;
+
 import app.simplecloud.api.group.DeploymentConfig;
 import app.simplecloud.api.group.DeploymentHost;
 import app.simplecloud.api.group.DeploymentStrategy;
@@ -8,15 +14,8 @@ import app.simplecloud.api.group.ScalingConfig;
 import app.simplecloud.api.group.ScalingMode;
 import app.simplecloud.api.group.WorkflowWhen;
 import app.simplecloud.api.group.WorkflowsConfig;
-import org.junit.jupiter.api.Test;
-
 import java.util.List;
-
-import static org.junit.jupiter.api.Assertions.assertEquals;
-import static org.junit.jupiter.api.Assertions.assertFalse;
-import static org.junit.jupiter.api.Assertions.assertNull;
-import static org.junit.jupiter.api.Assertions.assertSame;
-import static org.junit.jupiter.api.Assertions.assertTrue;
+import org.junit.jupiter.api.Test;
 
 class ConfigMergeUtilTest {
 
@@ -27,7 +26,10 @@ class ConfigMergeUtilTest {
                 .maxServers(5)
                 .playerThreshold(0.5)
                 .scalingMode(ScalingMode.PLAYERS)
-                .scaleDown(ScaleDownConfig.builder().idleTime("10m").ignorePlayers(false).build())
+                .scaleDown(ScaleDownConfig.builder()
+                        .idleTime("10m")
+                        .ignorePlayers(false)
+                        .build())
                 .build();
         ScalingConfig update = ScalingConfig.builder()
                 .maxServers(10)
@@ -52,7 +54,8 @@ class ConfigMergeUtilTest {
 
     @Test
     void scalingFieldsMissingOnBothSidesStayUnset() {
-        ScalingConfig merged = ConfigMergeUtil.merge(null, ScalingConfig.builder().maxServers(2).build());
+        ScalingConfig merged = ConfigMergeUtil.merge(
+                null, ScalingConfig.builder().maxServers(2).build());
 
         assertTrue(merged.hasMaxServers());
         assertFalse(merged.hasMinServers());
@@ -61,7 +64,8 @@ class ConfigMergeUtilTest {
 
     @Test
     void deploymentKeepsCurrentHostsAndStrategyWhenUpdateOmitsThem() {
-        DeploymentHost host = DeploymentHost.builder().name("host-1").priority(1).build();
+        DeploymentHost host =
+                DeploymentHost.builder().name("host-1").priority(1).build();
         DeploymentConfig current = DeploymentConfig.builder()
                 .strategy(DeploymentStrategy.WHITELIST)
                 .hosts(host)
@@ -84,7 +88,10 @@ class ConfigMergeUtilTest {
     void workflowsMergeStartAndStopSeparately() {
         WorkflowsConfig current = WorkflowsConfig.builder()
                 .manual(List.of("default/backup"))
-                .when(WorkflowWhen.builder().start(List.of("internal/setup")).stop(List.of("internal/cleanup")).build())
+                .when(WorkflowWhen.builder()
+                        .start(List.of("internal/setup"))
+                        .stop(List.of("internal/cleanup"))
+                        .build())
                 .build();
         WorkflowsConfig update = WorkflowsConfig.builder()
                 .when(WorkflowWhen.builder().start(List.of("custom/setup")).build())

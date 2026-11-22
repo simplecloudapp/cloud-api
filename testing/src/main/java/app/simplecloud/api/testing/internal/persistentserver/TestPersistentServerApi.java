@@ -4,7 +4,6 @@ import app.simplecloud.api.group.DeploymentHost;
 import app.simplecloud.api.group.Group;
 import app.simplecloud.api.group.ScalingConfig;
 import app.simplecloud.api.persistentserver.CreatePersistentServerRequest;
-import app.simplecloud.api.workflow.WorkflowExecutionResult;
 import app.simplecloud.api.persistentserver.PersistentServer;
 import app.simplecloud.api.persistentserver.PersistentServerApi;
 import app.simplecloud.api.persistentserver.PersistentServerQuery;
@@ -12,12 +11,12 @@ import app.simplecloud.api.persistentserver.UpdatePersistentServerRequest;
 import app.simplecloud.api.testing.internal.CloudState;
 import app.simplecloud.api.testing.internal.Futures;
 import app.simplecloud.api.testing.internal.group.GroupData;
-import org.jetbrains.annotations.Nullable;
-
+import app.simplecloud.api.workflow.WorkflowExecutionResult;
 import java.util.List;
 import java.util.Map;
 import java.util.Optional;
 import java.util.concurrent.CompletableFuture;
+import org.jetbrains.annotations.Nullable;
 
 public final class TestPersistentServerApi implements PersistentServerApi {
 
@@ -40,8 +39,8 @@ public final class TestPersistentServerApi implements PersistentServerApi {
 
     @Override
     public CompletableFuture<PersistentServer> getPersistentServerByName(String name) {
-        return Futures.call(() -> findByName(name)
-                .orElseThrow(() -> CloudState.notFound("Persistent server '" + name + "' not found")));
+        return Futures.call(() ->
+                findByName(name).orElseThrow(() -> CloudState.notFound("Persistent server '" + name + "' not found")));
     }
 
     @Override
@@ -65,7 +64,8 @@ public final class TestPersistentServerApi implements PersistentServerApi {
     }
 
     @Override
-    public CompletableFuture<PersistentServer> updatePersistentServer(String id, UpdatePersistentServerRequest request) {
+    public CompletableFuture<PersistentServer> updatePersistentServer(
+            String id, UpdatePersistentServerRequest request) {
         return Futures.call(() -> {
             PersistentServerData server = cloud.updatePersistentServer(id, request);
             return cloud.read(server::snapshot);
@@ -78,12 +78,14 @@ public final class TestPersistentServerApi implements PersistentServerApi {
     }
 
     @Override
-    public CompletableFuture<Map<String, Object>> updatePersistentServerProperties(String id, Map<String, Object> properties) {
+    public CompletableFuture<Map<String, Object>> updatePersistentServerProperties(
+            String id, Map<String, Object> properties) {
         return Futures.call(() -> cloud.updatePersistentServerProperties(id, properties));
     }
 
     @Override
-    public CompletableFuture<PersistentServer> replacePersistentServer(String id, CreatePersistentServerRequest request) {
+    public CompletableFuture<PersistentServer> replacePersistentServer(
+            String id, CreatePersistentServerRequest request) {
         return Futures.call(() -> {
             PersistentServerData server = cloud.replacePersistentServer(id, request);
             return cloud.read(server::snapshot);
@@ -91,7 +93,8 @@ public final class TestPersistentServerApi implements PersistentServerApi {
     }
 
     @Override
-    public CompletableFuture<Map<String, Object>> setPersistentServerProperties(String id, Map<String, Object> properties) {
+    public CompletableFuture<Map<String, Object>> setPersistentServerProperties(
+            String id, Map<String, Object> properties) {
         return Futures.call(() -> cloud.setPersistentServerProperties(id, properties));
     }
 
@@ -101,7 +104,8 @@ public final class TestPersistentServerApi implements PersistentServerApi {
     }
 
     @Override
-    public CompletableFuture<Group> convertToGroup(String id, List<DeploymentHost> hosts, @Nullable ScalingConfig scaling) {
+    public CompletableFuture<Group> convertToGroup(
+            String id, List<DeploymentHost> hosts, @Nullable ScalingConfig scaling) {
         return Futures.call(() -> {
             GroupData group = cloud.convertPersistentServerToGroup(id, hosts, scaling);
             return cloud.read(group::snapshot);

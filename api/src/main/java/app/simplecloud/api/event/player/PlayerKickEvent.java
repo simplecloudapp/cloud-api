@@ -1,10 +1,9 @@
 package app.simplecloud.api.event.player;
 
 import app.simplecloud.api.player.CloudPlayer;
+import java.util.UUID;
 import net.kyori.adventure.text.Component;
 import org.jetbrains.annotations.Nullable;
-
-import java.util.UUID;
 
 /**
  * Event fired when a player is kicked from the network.
@@ -30,24 +29,21 @@ public interface PlayerKickEvent {
      *
      * @return the server name, or null if unavailable
      */
-    @Nullable
-    String getServerName();
+    @Nullable String getServerName();
 
     /**
      * Returns the kick reason.
      *
      * @return the reason, or null if none was given
      */
-    @Nullable
-    Component getReason();
+    @Nullable Component getReason();
 
     /**
      * Returns the player as reported by the controller with this event.
      *
      * @return the player, or null if the controller sent no player data
      */
-    @Nullable
-    CloudPlayer getPlayer();
+    @Nullable CloudPlayer getPlayer();
 
     /**
      * Returns the timestamp when this event occurred (ISO 8601 format).

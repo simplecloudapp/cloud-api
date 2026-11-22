@@ -4,16 +4,15 @@ import app.simplecloud.api.server.Server;
 import app.simplecloud.api.server.ServerApi;
 import app.simplecloud.api.server.ServerQuery;
 import app.simplecloud.api.server.UpdateServerRequest;
-import app.simplecloud.api.workflow.ServerWorkflowResult;
 import app.simplecloud.api.testing.internal.CloudState;
 import app.simplecloud.api.testing.internal.Futures;
-import org.jetbrains.annotations.Nullable;
-
+import app.simplecloud.api.workflow.ServerWorkflowResult;
 import java.util.List;
 import java.util.Map;
 import java.util.Optional;
 import java.util.concurrent.CompletableFuture;
 import java.util.function.Supplier;
+import org.jetbrains.annotations.Nullable;
 
 public final class TestServerApi implements ServerApi {
 
@@ -27,8 +26,8 @@ public final class TestServerApi implements ServerApi {
 
     @Override
     public CompletableFuture<Server> getServerById(String id) {
-        return Futures.call(() -> findById(id)
-                .orElseThrow(() -> CloudState.notFound("Server with ID '" + id + "' not found")));
+        return Futures.call(
+                () -> findById(id).orElseThrow(() -> CloudState.notFound("Server with ID '" + id + "' not found")));
     }
 
     @Override
@@ -54,9 +53,8 @@ public final class TestServerApi implements ServerApi {
 
     @Override
     public CompletableFuture<List<Server>> getAllServers(@Nullable ServerQuery query) {
-        return Futures.call(() -> cloud.read(() -> cloud.servers(query).stream()
-                .map(ServerData::snapshot)
-                .toList()));
+        return Futures.call(() -> cloud.read(
+                () -> cloud.servers(query).stream().map(ServerData::snapshot).toList()));
     }
 
     @Override
@@ -77,8 +75,7 @@ public final class TestServerApi implements ServerApi {
         String id = currentServerId.get();
         if (id == null) {
             return CompletableFuture.failedFuture(new IllegalStateException(
-                    "No current server set, use TestCloud.runAs(server) or TestCloud.newApi(server)"
-            ));
+                    "No current server set, use TestCloud.runAs(server) or TestCloud.newApi(server)"));
         }
         return getServerById(id);
     }
@@ -113,6 +110,7 @@ public final class TestServerApi implements ServerApi {
     }
 
     private Optional<Server> findByNumericalId(String groupName, int numericalId) {
-        return cloud.read(() -> cloud.serverByNumericalId(groupName, numericalId).map(ServerData::snapshot));
+        return cloud.read(
+                () -> cloud.serverByNumericalId(groupName, numericalId).map(ServerData::snapshot));
     }
 }

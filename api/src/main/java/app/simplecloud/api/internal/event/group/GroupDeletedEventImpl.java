@@ -2,9 +2,8 @@ package app.simplecloud.api.internal.event.group;
 
 import app.simplecloud.api.event.group.GroupDeletedEvent;
 import build.buf.gen.simplecloud.controller.v2.ServerGroupDeletedEvent;
-import org.jetbrains.annotations.Nullable;
-
 import java.time.Instant;
+import org.jetbrains.annotations.Nullable;
 
 class GroupDeletedEventImpl implements GroupDeletedEvent {
     private final ServerGroupDeletedEvent delegate;
@@ -24,8 +23,7 @@ class GroupDeletedEventImpl implements GroupDeletedEvent {
     }
 
     @Override
-    @Nullable
-    public String getName() {
+    @Nullable public String getName() {
         String name = delegate.getName();
         return name.isEmpty() ? null : name;
     }
@@ -35,4 +33,3 @@ class GroupDeletedEventImpl implements GroupDeletedEvent {
         return Instant.ofEpochSecond(delegate.getTimestamp()).toString();
     }
 }
-

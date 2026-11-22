@@ -10,9 +10,6 @@ import app.simplecloud.api.player.ServerSelectionMode;
 import app.simplecloud.api.player.UpdateClientSettingsRequest;
 import app.simplecloud.api.testing.internal.CloudState;
 import app.simplecloud.api.testing.internal.Futures;
-import net.kyori.adventure.text.Component;
-import org.jetbrains.annotations.Nullable;
-
 import java.util.List;
 import java.util.Map;
 import java.util.Objects;
@@ -20,6 +17,8 @@ import java.util.Optional;
 import java.util.UUID;
 import java.util.concurrent.CompletableFuture;
 import java.util.function.Supplier;
+import net.kyori.adventure.text.Component;
+import org.jetbrains.annotations.Nullable;
 
 public final class TestPlayerApi implements PlayerApi {
 
@@ -79,14 +78,14 @@ public final class TestPlayerApi implements PlayerApi {
 
     @Override
     public CompletableFuture<List<CloudPlayer>> list(@Nullable PlayerQuery query) {
-        return Futures.call(() -> cloud.read(() -> cloud.players(query).stream()
-                .map(this::snapshot)
-                .toList()));
+        return Futures.call(() -> cloud.read(
+                () -> cloud.players(query).stream().map(this::snapshot).toList()));
     }
 
     @Override
     public CompletableFuture<Integer> getOnlinePlayerCount() {
-        return Futures.call(() -> cloud.read(() -> cloud.players(PlayerQuery.create().filterByOnline(true)).size()));
+        return Futures.call(() -> cloud.read(
+                () -> cloud.players(PlayerQuery.create().filterByOnline(true)).size()));
     }
 
     @Override
@@ -125,7 +124,8 @@ public final class TestPlayerApi implements PlayerApi {
     }
 
     @Override
-    public CompletableFuture<Map<String, String>> updatePlayerProperties(UUID uniqueId, Map<String, String> properties) {
+    public CompletableFuture<Map<String, String>> updatePlayerProperties(
+            UUID uniqueId, Map<String, String> properties) {
         return Futures.call(() -> cloud.updatePlayerProperties(uniqueId, properties));
     }
 
@@ -146,15 +146,15 @@ public final class TestPlayerApi implements PlayerApi {
 
     @Override
     public CompletableFuture<PlayerProfile> getLatestProfile(UUID uniqueId) {
-        return findLatestProfile(uniqueId).thenApply(profile -> profile.orElseThrow(
-                () -> CloudState.notFound("No profile recorded for player '" + uniqueId + "'")));
+        return findLatestProfile(uniqueId)
+                .thenApply(profile -> profile.orElseThrow(
+                        () -> CloudState.notFound("No profile recorded for player '" + uniqueId + "'")));
     }
 
     @Override
     public CompletableFuture<Optional<PlayerProfile>> findLatestProfile(UUID uniqueId) {
-        return Futures.call(() -> cloud.read(() -> cloud.playerById(uniqueId)
-                .map(PlayerData::latestProfile)
-                .map(profile -> profile.toProfile(uniqueId))));
+        return Futures.call(() -> cloud.read(() ->
+                cloud.playerById(uniqueId).map(PlayerData::latestProfile).map(profile -> profile.toProfile(uniqueId))));
     }
 
     @Override
@@ -169,8 +169,9 @@ public final class TestPlayerApi implements PlayerApi {
 
     @Override
     public CompletableFuture<PlayerSession> getCurrentSession(UUID uniqueId) {
-        return findCurrentSession(uniqueId).thenApply(session -> session.orElseThrow(
-                () -> CloudState.notFound("Player '" + uniqueId + "' has no active session")));
+        return findCurrentSession(uniqueId)
+                .thenApply(session -> session.orElseThrow(
+                        () -> CloudState.notFound("Player '" + uniqueId + "' has no active session")));
     }
 
     @Override
@@ -184,8 +185,9 @@ public final class TestPlayerApi implements PlayerApi {
 
     @Override
     public CompletableFuture<PlayerClientSettings> getClientSettings(UUID uniqueId) {
-        return findClientSettings(uniqueId).thenApply(settings -> settings.orElseThrow(
-                () -> CloudState.notFound("No client settings for player '" + uniqueId + "'")));
+        return findClientSettings(uniqueId)
+                .thenApply(settings -> settings.orElseThrow(
+                        () -> CloudState.notFound("No client settings for player '" + uniqueId + "'")));
     }
 
     @Override
@@ -194,7 +196,8 @@ public final class TestPlayerApi implements PlayerApi {
     }
 
     @Override
-    public CompletableFuture<PlayerClientSettings> updateClientSettings(UUID uniqueId, UpdateClientSettingsRequest request) {
+    public CompletableFuture<PlayerClientSettings> updateClientSettings(
+            UUID uniqueId, UpdateClientSettingsRequest request) {
         return Futures.call(() -> {
             Objects.requireNonNull(request, "request");
             return cloud.updateClientSettings(uniqueId, request);
@@ -217,14 +220,15 @@ public final class TestPlayerApi implements PlayerApi {
     }
 
     @Override
-    public CompletableFuture<CloudPlayer.ConnectResult> connectToGroup(UUID uniqueId, String groupName,
-                                                                       ServerSelectionMode selectionMode) {
-        return Futures.call(() -> cloud.connectToGroup(uniqueId, groupName,
-                selectionMode == null ? ServerSelectionMode.RANDOM : selectionMode));
+    public CompletableFuture<CloudPlayer.ConnectResult> connectToGroup(
+            UUID uniqueId, String groupName, ServerSelectionMode selectionMode) {
+        return Futures.call(() -> cloud.connectToGroup(
+                uniqueId, groupName, selectionMode == null ? ServerSelectionMode.RANDOM : selectionMode));
     }
 
     @Override
-    public CompletableFuture<CloudPlayer.ConnectResult> connectToPersistentServer(UUID uniqueId, String persistentServerId) {
+    public CompletableFuture<CloudPlayer.ConnectResult> connectToPersistentServer(
+            UUID uniqueId, String persistentServerId) {
         return Futures.call(() -> cloud.connectToPersistentServer(uniqueId, persistentServerId));
     }
 

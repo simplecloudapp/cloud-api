@@ -1,24 +1,5 @@
 package app.simplecloud.api.platform.shared;
 
-import app.simplecloud.api.CloudApi;
-import app.simplecloud.api.platform.shared.luckperms.LuckPermsPrimaryGroupSynchronizer;
-import app.simplecloud.api.player.CloudPlayer;
-import app.simplecloud.api.player.PlayerApi;
-import net.luckperms.api.LuckPerms;
-import net.luckperms.api.event.EventBus;
-import net.luckperms.api.event.user.UserDataRecalculateEvent;
-import net.luckperms.api.model.user.User;
-import net.luckperms.api.model.user.UserManager;
-import org.junit.jupiter.api.BeforeEach;
-import org.junit.jupiter.api.Test;
-import org.mockito.ArgumentCaptor;
-
-import java.util.Map;
-import java.util.Optional;
-import java.util.UUID;
-import java.util.concurrent.CompletableFuture;
-import java.util.function.Consumer;
-
 import static app.simplecloud.api.platform.shared.luckperms.LuckPermsPrimaryGroupSynchronizer.PRIMARY_GROUP_PROPERTY;
 import static org.mockito.ArgumentMatchers.any;
 import static org.mockito.ArgumentMatchers.anyString;
@@ -29,6 +10,24 @@ import static org.mockito.Mockito.times;
 import static org.mockito.Mockito.verify;
 import static org.mockito.Mockito.verifyNoInteractions;
 import static org.mockito.Mockito.when;
+
+import app.simplecloud.api.CloudApi;
+import app.simplecloud.api.platform.shared.luckperms.LuckPermsPrimaryGroupSynchronizer;
+import app.simplecloud.api.player.CloudPlayer;
+import app.simplecloud.api.player.PlayerApi;
+import java.util.Map;
+import java.util.Optional;
+import java.util.UUID;
+import java.util.concurrent.CompletableFuture;
+import java.util.function.Consumer;
+import net.luckperms.api.LuckPerms;
+import net.luckperms.api.event.EventBus;
+import net.luckperms.api.event.user.UserDataRecalculateEvent;
+import net.luckperms.api.model.user.User;
+import net.luckperms.api.model.user.UserManager;
+import org.junit.jupiter.api.BeforeEach;
+import org.junit.jupiter.api.Test;
+import org.mockito.ArgumentCaptor;
 
 class LuckPermsPrimaryGroupSynchronizerTest {
 
@@ -149,9 +148,10 @@ class LuckPermsPrimaryGroupSynchronizerTest {
 
     @Test
     void failedStoreIsRetriedOnTheNextRecalculation() {
-        when(playerApi.find(playerId)).thenReturn(
-                CompletableFuture.failedFuture(new IllegalStateException("controller unavailable")),
-                CompletableFuture.completedFuture(Optional.of(cloudPlayer)));
+        when(playerApi.find(playerId))
+                .thenReturn(
+                        CompletableFuture.failedFuture(new IllegalStateException("controller unavailable")),
+                        CompletableFuture.completedFuture(Optional.of(cloudPlayer)));
         synchronizer.synchronize(playerId);
 
         recalculation.accept(recalculateEvent);
@@ -162,7 +162,8 @@ class LuckPermsPrimaryGroupSynchronizerTest {
     @Test
     void groupChangeDuringAFailedStoreIsStoredAfterIt() {
         CompletableFuture<Map<String, String>> failingStore = new CompletableFuture<>();
-        when(playerApi.updatePlayerProperty(playerId, PRIMARY_GROUP_PROPERTY, "default")).thenReturn(failingStore);
+        when(playerApi.updatePlayerProperty(playerId, PRIMARY_GROUP_PROPERTY, "default"))
+                .thenReturn(failingStore);
         synchronizer.synchronize(playerId);
 
         changeGroupTo("admin");
@@ -176,7 +177,8 @@ class LuckPermsPrimaryGroupSynchronizerTest {
     void groupChangedBackDuringAStoreIsStoredAgainAfterIt() {
         when(user.getPrimaryGroup()).thenReturn("admin");
         CompletableFuture<Map<String, String>> slowStore = new CompletableFuture<>();
-        when(playerApi.updatePlayerProperty(playerId, PRIMARY_GROUP_PROPERTY, "default")).thenReturn(slowStore);
+        when(playerApi.updatePlayerProperty(playerId, PRIMARY_GROUP_PROPERTY, "default"))
+                .thenReturn(slowStore);
         synchronizer.synchronize(playerId);
 
         changeGroupTo("default");

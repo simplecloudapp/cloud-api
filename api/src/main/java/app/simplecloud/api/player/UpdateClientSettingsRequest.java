@@ -1,34 +1,30 @@
 package app.simplecloud.api.player;
 
+import java.util.List;
 import org.jetbrains.annotations.Nullable;
 
-import java.util.List;
-
 public class UpdateClientSettingsRequest {
-    @Nullable
-    private PlayerClientSettings.ChatMode chatMode;
-    @Nullable
-    private String locale;
-    @Nullable
-    private PlayerClientSettings.MainHand mainHand;
-    @Nullable
-    private Integer viewDistance;
-    @Nullable
-    private Boolean chatColors;
-    @Nullable
-    private Boolean clientListingAllowed;
-    @Nullable
-    private List<String> skinParts;
+    @Nullable private PlayerClientSettings.ChatMode chatMode;
 
-    public UpdateClientSettingsRequest() {
-    }
+    @Nullable private String locale;
+
+    @Nullable private PlayerClientSettings.MainHand mainHand;
+
+    @Nullable private Integer viewDistance;
+
+    @Nullable private Boolean chatColors;
+
+    @Nullable private Boolean clientListingAllowed;
+
+    @Nullable private List<String> skinParts;
+
+    public UpdateClientSettingsRequest() {}
 
     public static Builder builder() {
         return new Builder();
     }
 
-    @Nullable
-    public PlayerClientSettings.ChatMode getChatMode() {
+    @Nullable public PlayerClientSettings.ChatMode getChatMode() {
         return chatMode;
     }
 
@@ -39,8 +35,7 @@ public class UpdateClientSettingsRequest {
         this.chatMode = chatMode;
     }
 
-    @Nullable
-    public String getLocale() {
+    @Nullable public String getLocale() {
         return locale;
     }
 
@@ -48,8 +43,7 @@ public class UpdateClientSettingsRequest {
         this.locale = locale;
     }
 
-    @Nullable
-    public PlayerClientSettings.MainHand getMainHand() {
+    @Nullable public PlayerClientSettings.MainHand getMainHand() {
         return mainHand;
     }
 
@@ -60,8 +54,7 @@ public class UpdateClientSettingsRequest {
         this.mainHand = mainHand;
     }
 
-    @Nullable
-    public Integer getViewDistance() {
+    @Nullable public Integer getViewDistance() {
         return viewDistance;
     }
 
@@ -69,8 +62,7 @@ public class UpdateClientSettingsRequest {
         this.viewDistance = viewDistance;
     }
 
-    @Nullable
-    public Boolean getChatColors() {
+    @Nullable public Boolean getChatColors() {
         return chatColors;
     }
 
@@ -78,8 +70,7 @@ public class UpdateClientSettingsRequest {
         this.chatColors = chatColors;
     }
 
-    @Nullable
-    public Boolean getClientListingAllowed() {
+    @Nullable public Boolean getClientListingAllowed() {
         return clientListingAllowed;
     }
 
@@ -87,8 +78,7 @@ public class UpdateClientSettingsRequest {
         this.clientListingAllowed = clientListingAllowed;
     }
 
-    @Nullable
-    public List<String> getSkinParts() {
+    @Nullable public List<String> getSkinParts() {
         return skinParts;
     }
 

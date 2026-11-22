@@ -6,10 +6,9 @@ import app.simplecloud.api.group.Group;
 import app.simplecloud.api.persistentserver.PersistentServer;
 import app.simplecloud.api.server.Server;
 import app.simplecloud.api.server.ServerState;
-import org.jetbrains.annotations.Nullable;
-
 import java.util.LinkedHashMap;
 import java.util.Map;
+import org.jetbrains.annotations.Nullable;
 
 public class ServerImpl implements Server {
 

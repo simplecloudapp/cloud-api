@@ -7,10 +7,9 @@ import app.simplecloud.api.testing.internal.group.GroupData;
 import app.simplecloud.api.testing.internal.group.GroupImpl;
 import app.simplecloud.api.testing.internal.persistentserver.PersistentServerData;
 import app.simplecloud.api.testing.internal.persistentserver.PersistentServerImpl;
-import org.jetbrains.annotations.Nullable;
-
 import java.util.LinkedHashMap;
 import java.util.Map;
+import org.jetbrains.annotations.Nullable;
 
 public final class ServerData {
 
@@ -34,8 +33,13 @@ public final class ServerData {
     public boolean running = true;
     public @Nullable TestServerImpl handle;
 
-    public ServerData(String id, String networkId, @Nullable GroupData group, @Nullable PersistentServerData persistent,
-                      int numericalId, String createdAt) {
+    public ServerData(
+            String id,
+            String networkId,
+            @Nullable GroupData group,
+            @Nullable PersistentServerData persistent,
+            int numericalId,
+            String createdAt) {
         if ((group == null) == (persistent == null)) {
             throw new IllegalArgumentException("A server belongs to exactly one group or persistent server");
         }
@@ -74,7 +78,8 @@ public final class ServerData {
     }
 
     public Server snapshot() {
-        return new ServerImpl(copy(),
+        return new ServerImpl(
+                copy(),
                 group == null ? null : new GroupImpl(group.copy()),
                 persistent == null ? null : new PersistentServerImpl(persistent.copy()));
     }

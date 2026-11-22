@@ -3,7 +3,6 @@ package app.simplecloud.api.internal.event;
 import app.simplecloud.api.event.Subscription;
 import io.nats.client.Connection;
 import io.nats.client.Dispatcher;
-
 import java.util.function.Consumer;
 import java.util.logging.Level;
 import java.util.logging.Logger;

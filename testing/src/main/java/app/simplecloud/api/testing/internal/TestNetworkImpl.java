@@ -2,8 +2,6 @@ package app.simplecloud.api.testing.internal;
 
 import app.simplecloud.api.CloudApiException;
 import app.simplecloud.api.testing.network.TestNetwork;
-import org.jetbrains.annotations.Nullable;
-
 import java.lang.reflect.InvocationTargetException;
 import java.lang.reflect.Method;
 import java.lang.reflect.Proxy;
@@ -14,6 +12,7 @@ import java.util.List;
 import java.util.Objects;
 import java.util.concurrent.CompletableFuture;
 import java.util.concurrent.TimeUnit;
+import org.jetbrains.annotations.Nullable;
 
 public final class TestNetworkImpl implements TestNetwork {
 
@@ -38,7 +37,8 @@ public final class TestNetworkImpl implements TestNetwork {
 
     @Override
     public TestNetwork failAlways(Class<?> api, String method, RuntimeException error) {
-        return add(new Rule(api, requireMethod(api, method), Objects.requireNonNull(error, "error"), Duration.ZERO, UNLIMITED));
+        return add(new Rule(
+                api, requireMethod(api, method), Objects.requireNonNull(error, "error"), Duration.ZERO, UNLIMITED));
     }
 
     @Override
@@ -57,33 +57,34 @@ public final class TestNetworkImpl implements TestNetwork {
     }
 
     public <T> T wrap(Class<T> type, T target) {
-        Object proxy = Proxy.newProxyInstance(type.getClassLoader(), new Class<?>[]{type}, (instance, method, args) -> {
-            if (method.getDeclaringClass() == Object.class) {
-                return invoke(target, method, args);
-            }
-            RuntimeException failure = consumeFailure(type, method.getName());
-            Duration delay = delayFor(type, method.getName());
-            boolean async = CompletableFuture.class.isAssignableFrom(method.getReturnType());
-            if (!async) {
-                if (failure != null) {
-                    throw failure;
-                }
-                return invoke(target, method, args);
-            }
-            if (delay.isZero()) {
-                return callAsync(target, method, args, failure);
-            }
-            return CompletableFuture
-                    .runAsync(() -> {
-                    }, CompletableFuture.delayedExecutor(delay.toMillis(), TimeUnit.MILLISECONDS))
-                    .thenCompose(ignored -> callAsync(target, method, args, failure));
-        });
+        Object proxy =
+                Proxy.newProxyInstance(type.getClassLoader(), new Class<?>[] {type}, (instance, method, args) -> {
+                    if (method.getDeclaringClass() == Object.class) {
+                        return invoke(target, method, args);
+                    }
+                    RuntimeException failure = consumeFailure(type, method.getName());
+                    Duration delay = delayFor(type, method.getName());
+                    boolean async = CompletableFuture.class.isAssignableFrom(method.getReturnType());
+                    if (!async) {
+                        if (failure != null) {
+                            throw failure;
+                        }
+                        return invoke(target, method, args);
+                    }
+                    if (delay.isZero()) {
+                        return callAsync(target, method, args, failure);
+                    }
+                    return CompletableFuture.runAsync(
+                                    () -> {},
+                                    CompletableFuture.delayedExecutor(delay.toMillis(), TimeUnit.MILLISECONDS))
+                            .thenCompose(ignored -> callAsync(target, method, args, failure));
+                });
         return type.cast(proxy);
     }
 
     @SuppressWarnings("unchecked")
-    private static CompletableFuture<Object> callAsync(Object target, Method method, Object[] args,
-                                                       @Nullable RuntimeException failure) {
+    private static CompletableFuture<Object> callAsync(
+            Object target, Method method, Object[] args, @Nullable RuntimeException failure) {
         if (failure != null) {
             return CompletableFuture.failedFuture(failure);
         }
@@ -135,7 +136,8 @@ public final class TestNetworkImpl implements TestNetwork {
     private static String requireMethod(Class<?> api, String method) {
         Objects.requireNonNull(api, "api");
         Objects.requireNonNull(method, "method");
-        boolean exists = Arrays.stream(api.getMethods()).anyMatch(candidate -> candidate.getName().equals(method));
+        boolean exists = Arrays.stream(api.getMethods())
+                .anyMatch(candidate -> candidate.getName().equals(method));
         if (!exists) {
             throw new IllegalArgumentException(api.getSimpleName() + " has no method '" + method + "'");
         }
@@ -151,8 +153,11 @@ public final class TestNetworkImpl implements TestNetwork {
     }
 
     private static CloudApiException injectedFailure(Class<?> api, String method) {
-        return new CloudApiException(CloudApiException.Reason.UNAVAILABLE, 503,
-                "Injected failure for " + api.getSimpleName() + "." + method, null);
+        return new CloudApiException(
+                CloudApiException.Reason.UNAVAILABLE,
+                503,
+                "Injected failure for " + api.getSimpleName() + "." + method,
+                null);
     }
 
     private static final class Rule {
@@ -163,8 +168,12 @@ public final class TestNetworkImpl implements TestNetwork {
         private final Duration delay;
         private int remaining;
 
-        private Rule(@Nullable Class<?> api, @Nullable String method, @Nullable RuntimeException error, Duration delay,
-                     int remaining) {
+        private Rule(
+                @Nullable Class<?> api,
+                @Nullable String method,
+                @Nullable RuntimeException error,
+                Duration delay,
+                int remaining) {
             this.api = api;
             this.method = method;
             this.error = error;

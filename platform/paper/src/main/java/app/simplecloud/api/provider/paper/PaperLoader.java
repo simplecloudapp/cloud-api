@@ -18,28 +18,13 @@ public class PaperLoader implements PluginLoader {
     public void classloader(@NonNull PluginClasspathBuilder classpathBuilder) {
         MavenLibraryResolver resolver = new MavenLibraryResolver();
         resolver.addRepository(
-            new RemoteRepository.Builder("central", "default", MAVEN_CENTRAL_DEFAULT_MIRROR).build()
-        );
+                new RemoteRepository.Builder("central", "default", MAVEN_CENTRAL_DEFAULT_MIRROR).build());
         resolver.addRepository(
-            new RemoteRepository.Builder(
-                "simplecloud",
-                "default",
-                "https://repo.simplecloud.app/snapshots"
-            ).build()
-        );
-        resolver.addRepository(
-            new RemoteRepository.Builder(
-                "buf",
-                "default",
-                "https://buf.build/gen/maven"
-            ).build()
-        );
+                new RemoteRepository.Builder("simplecloud", "default", "https://repo.simplecloud.app/snapshots")
+                        .build());
+        resolver.addRepository(new RemoteRepository.Builder("buf", "default", "https://buf.build/gen/maven").build());
         for (String artifact : SimpleCloudArtifacts.artifacts) {
-            resolver.addDependency(
-                new Dependency(
-                    new DefaultArtifact(artifact), null
-                )
-            );
+            resolver.addDependency(new Dependency(new DefaultArtifact(artifact), null));
         }
         classpathBuilder.addLibrary(resolver);
     }
@@ -55,4 +40,3 @@ public class PaperLoader implements PluginLoader {
         return central;
     }
 }
-

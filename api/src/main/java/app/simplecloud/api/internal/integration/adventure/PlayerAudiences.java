@@ -1,8 +1,7 @@
 package app.simplecloud.api.internal.integration.adventure;
 
-import net.kyori.adventure.audience.Audience;
-
 import java.util.UUID;
+import net.kyori.adventure.audience.Audience;
 
 /**
  * Runs adventure actions for the players on this server.

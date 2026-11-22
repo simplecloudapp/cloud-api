@@ -11,12 +11,11 @@ import app.simplecloud.api.web.models.ModelsUpdateBlueprintResponse;
 import build.buf.gen.simplecloud.controller.v2.BlueprintConfig;
 import com.google.gson.Gson;
 import com.google.gson.JsonParseException;
-import org.jetbrains.annotations.Nullable;
-
 import java.util.LinkedHashMap;
 import java.util.List;
 import java.util.Locale;
 import java.util.Map;
+import org.jetbrains.annotations.Nullable;
 
 public record BlueprintImpl(
         String blueprintId,
@@ -29,8 +28,8 @@ public record BlueprintImpl(
         @Nullable RuntimeConfig runtimeConfig,
         @Nullable List<String> workflowSteps,
         @Nullable String createdAt,
-        @Nullable String updatedAt
-) implements Blueprint {
+        @Nullable String updatedAt)
+        implements Blueprint {
 
     private static final Gson GSON = new Gson();
 
@@ -46,8 +45,7 @@ public record BlueprintImpl(
                 runtimeConfig(summary.getRuntimeConfig()),
                 copy(summary.getWorkflowSteps()),
                 summary.getCreatedAt(),
-                summary.getUpdatedAt()
-        );
+                summary.getUpdatedAt());
     }
 
     public static BlueprintImpl from(ModelsCreateBlueprintResponse response) {
@@ -62,8 +60,7 @@ public record BlueprintImpl(
                 runtimeConfig(response.getRuntimeConfig()),
                 copy(response.getWorkflowSteps()),
                 response.getCreatedAt(),
-                response.getUpdatedAt()
-        );
+                response.getUpdatedAt());
     }
 
     public static BlueprintImpl from(ModelsUpdateBlueprintResponse response) {
@@ -78,8 +75,7 @@ public record BlueprintImpl(
                 runtimeConfig(response.getRuntimeConfig()),
                 copy(response.getWorkflowSteps()),
                 response.getCreatedAt(),
-                response.getUpdatedAt()
-        );
+                response.getUpdatedAt());
     }
 
     public static BlueprintImpl from(ModelsBlueprintInfo info) {
@@ -94,8 +90,7 @@ public record BlueprintImpl(
                 runtimeConfig(info.getRuntimeConfig()),
                 copy(info.getWorkflowSteps()),
                 info.getCreatedAt(),
-                info.getUpdatedAt()
-        );
+                info.getUpdatedAt());
     }
 
     public static BlueprintImpl from(BlueprintConfig config, @Nullable String createdAt, @Nullable String updatedAt) {
@@ -110,8 +105,7 @@ public record BlueprintImpl(
                 config.hasRuntime() ? runtimeConfig(config.getRuntime()) : null,
                 List.copyOf(config.getWorkflowStepsList()),
                 createdAt,
-                updatedAt
-        );
+                updatedAt);
     }
 
     @Override
@@ -216,10 +210,7 @@ public record BlueprintImpl(
             case RUNTIME_TYPE_BINARY -> RuntimeType.BINARY;
             default -> null;
         };
-        return RuntimeConfig.builder()
-                .type(type)
-                .with(with)
-                .build();
+        return RuntimeConfig.builder().type(type).with(with).build();
     }
 
     private static Object decodeValue(String value) {

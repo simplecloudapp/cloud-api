@@ -1,13 +1,12 @@
 package app.simplecloud.api.testing;
 
 import app.simplecloud.api.testing.internal.CloudTestExtension;
-import org.junit.jupiter.api.extension.ExtendWith;
-
 import java.lang.annotation.Documented;
 import java.lang.annotation.ElementType;
 import java.lang.annotation.Retention;
 import java.lang.annotation.RetentionPolicy;
 import java.lang.annotation.Target;
+import org.junit.jupiter.api.extension.ExtendWith;
 
 /**
  * Enables the cloud test extension. Every test method gets a fresh {@link TestCloud} as parameter,
@@ -29,5 +28,4 @@ import java.lang.annotation.Target;
 @Target({ElementType.TYPE, ElementType.METHOD})
 @Retention(RetentionPolicy.RUNTIME)
 @ExtendWith(CloudTestExtension.class)
-public @interface CloudTest {
-}
+public @interface CloudTest {}

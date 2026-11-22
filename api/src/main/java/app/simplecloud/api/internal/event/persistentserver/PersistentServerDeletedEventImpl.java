@@ -1,9 +1,8 @@
 package app.simplecloud.api.internal.event.persistentserver;
 
 import app.simplecloud.api.event.persistentserver.PersistentServerDeletedEvent;
-import org.jetbrains.annotations.Nullable;
-
 import java.time.Instant;
+import org.jetbrains.annotations.Nullable;
 
 class PersistentServerDeletedEventImpl implements PersistentServerDeletedEvent {
     private final build.buf.gen.simplecloud.controller.v2.PersistentServerDeletedEvent delegate;
@@ -23,8 +22,7 @@ class PersistentServerDeletedEventImpl implements PersistentServerDeletedEvent {
     }
 
     @Override
-    @Nullable
-    public String getName() {
+    @Nullable public String getName() {
         String name = delegate.getName();
         return name.isEmpty() ? null : name;
     }
@@ -34,4 +32,3 @@ class PersistentServerDeletedEventImpl implements PersistentServerDeletedEvent {
         return Instant.ofEpochSecond(delegate.getTimestamp()).toString();
     }
 }
-

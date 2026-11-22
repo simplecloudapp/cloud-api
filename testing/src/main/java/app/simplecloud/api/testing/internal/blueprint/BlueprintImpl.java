@@ -2,9 +2,8 @@ package app.simplecloud.api.testing.internal.blueprint;
 
 import app.simplecloud.api.blueprint.Blueprint;
 import app.simplecloud.api.blueprint.RuntimeConfig;
-import org.jetbrains.annotations.Nullable;
-
 import java.util.List;
+import org.jetbrains.annotations.Nullable;
 
 public record BlueprintImpl(
         String blueprintId,
@@ -17,8 +16,8 @@ public record BlueprintImpl(
         @Nullable RuntimeConfig runtimeConfig,
         List<String> workflowSteps,
         String createdAt,
-        String updatedAt
-) implements Blueprint {
+        String updatedAt)
+        implements Blueprint {
 
     @Override
     public String getBlueprintId() {

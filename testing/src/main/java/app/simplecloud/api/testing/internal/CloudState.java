@@ -1,7 +1,5 @@
 package app.simplecloud.api.testing.internal;
 
-import app.simplecloud.api.workflow.ServerWorkflowResult;
-import app.simplecloud.api.workflow.WorkflowExecutionResult;
 import app.simplecloud.api.CloudApiException;
 import app.simplecloud.api.blueprint.CreateBlueprintRequest;
 import app.simplecloud.api.blueprint.UpdateBlueprintRequest;
@@ -9,13 +7,12 @@ import app.simplecloud.api.group.CreateGroupRequest;
 import app.simplecloud.api.group.DeploymentConfig;
 import app.simplecloud.api.group.DeploymentHost;
 import app.simplecloud.api.group.DeploymentStrategy;
-import app.simplecloud.api.group.RollingRestartStatus;
-import app.simplecloud.api.stats.CloudStats;
 import app.simplecloud.api.group.GroupQuery;
 import app.simplecloud.api.group.GroupServerType;
 import app.simplecloud.api.group.GroupStartQueue;
 import app.simplecloud.api.group.GroupStartQueueEntry;
 import app.simplecloud.api.group.GroupStartQueueItemStatus;
+import app.simplecloud.api.group.RollingRestartStatus;
 import app.simplecloud.api.group.ScalingConfig;
 import app.simplecloud.api.group.ScalingMode;
 import app.simplecloud.api.group.SourceConfig;
@@ -37,6 +34,7 @@ import app.simplecloud.api.server.Server;
 import app.simplecloud.api.server.ServerQuery;
 import app.simplecloud.api.server.ServerState;
 import app.simplecloud.api.server.UpdateServerRequest;
+import app.simplecloud.api.stats.CloudStats;
 import app.simplecloud.api.testing.internal.blueprint.BlueprintData;
 import app.simplecloud.api.testing.internal.event.EventBus;
 import app.simplecloud.api.testing.internal.event.SimulatedEvents.BlueprintCreated;
@@ -45,16 +43,16 @@ import app.simplecloud.api.testing.internal.event.SimulatedEvents.BlueprintUpdat
 import app.simplecloud.api.testing.internal.event.SimulatedEvents.GroupCreated;
 import app.simplecloud.api.testing.internal.event.SimulatedEvents.GroupDeleted;
 import app.simplecloud.api.testing.internal.event.SimulatedEvents.GroupUpdated;
-import app.simplecloud.api.testing.internal.event.SimulatedEvents.PlayerClientSettingsUpdated;
-import app.simplecloud.api.testing.internal.event.SimulatedEvents.PlayerDisconnect;
-import app.simplecloud.api.testing.internal.event.SimulatedEvents.PlayerKick;
-import app.simplecloud.api.testing.internal.event.SimulatedEvents.PlayerLogin;
-import app.simplecloud.api.testing.internal.event.SimulatedEvents.PlayerProfileChanged;
 import app.simplecloud.api.testing.internal.event.SimulatedEvents.PersistentServerCreated;
 import app.simplecloud.api.testing.internal.event.SimulatedEvents.PersistentServerDeleted;
 import app.simplecloud.api.testing.internal.event.SimulatedEvents.PersistentServerStarted;
 import app.simplecloud.api.testing.internal.event.SimulatedEvents.PersistentServerStopped;
 import app.simplecloud.api.testing.internal.event.SimulatedEvents.PersistentServerUpdated;
+import app.simplecloud.api.testing.internal.event.SimulatedEvents.PlayerClientSettingsUpdated;
+import app.simplecloud.api.testing.internal.event.SimulatedEvents.PlayerDisconnect;
+import app.simplecloud.api.testing.internal.event.SimulatedEvents.PlayerKick;
+import app.simplecloud.api.testing.internal.event.SimulatedEvents.PlayerLogin;
+import app.simplecloud.api.testing.internal.event.SimulatedEvents.PlayerProfileChanged;
 import app.simplecloud.api.testing.internal.event.SimulatedEvents.PlayerServerSwitch;
 import app.simplecloud.api.testing.internal.event.SimulatedEvents.ServerStarted;
 import app.simplecloud.api.testing.internal.event.SimulatedEvents.ServerStateChanged;
@@ -72,9 +70,8 @@ import app.simplecloud.api.testing.internal.player.TestPlayerApi;
 import app.simplecloud.api.testing.internal.player.TestPlayerImpl;
 import app.simplecloud.api.testing.internal.server.ServerData;
 import app.simplecloud.api.testing.internal.server.TestServerImpl;
-import net.kyori.adventure.text.Component;
-import org.jetbrains.annotations.Nullable;
-
+import app.simplecloud.api.workflow.ServerWorkflowResult;
+import app.simplecloud.api.workflow.WorkflowExecutionResult;
 import java.time.Duration;
 import java.time.Instant;
 import java.util.ArrayList;
@@ -94,6 +91,8 @@ import java.util.function.Function;
 import java.util.function.Supplier;
 import java.util.stream.Collectors;
 import java.util.stream.Stream;
+import net.kyori.adventure.text.Component;
+import org.jetbrains.annotations.Nullable;
 
 public final class CloudState {
 
@@ -195,7 +194,9 @@ public final class CloudState {
     public TestServerImpl handle(ServerData data) {
         synchronized (lock) {
             if (data.handle == null) {
-                data.handle = new TestServerImpl(this, data,
+                data.handle = new TestServerImpl(
+                        this,
+                        data,
                         data.group == null ? null : handle(data.group),
                         data.persistent == null ? null : handle(data.persistent));
             }
@@ -221,8 +222,8 @@ public final class CloudState {
             if (groupByName(name).isPresent()) {
                 throw conflict("Group '" + name + "' already exists");
             }
-            SourceConfig source = inlineSourceLocked(name, request.getCreateBlueprint(), request.getSource(),
-                    request.getWorkflows(), events);
+            SourceConfig source = inlineSourceLocked(
+                    name, request.getCreateBlueprint(), request.getSource(), request.getWorkflows(), events);
             String now = timestamp();
             GroupData group = new GroupData(UUID.randomUUID().toString(), name, now);
             if (request.getType() != null) {
@@ -331,7 +332,9 @@ public final class CloudState {
     public WorkflowExecutionResult executeGroupWorkflow(String id, String workflowId) {
         requireWorkflowId(workflowId);
         return read(() -> {
-            List<String> serverIds = serversOf(requireGroup(id)).stream().map(server -> server.id).toList();
+            List<String> serverIds = serversOf(requireGroup(id)).stream()
+                    .map(server -> server.id)
+                    .toList();
             return new WorkflowExecutionResult(workflowId, serverIds.size(), serverIds, List.of(), List.of());
         });
     }
@@ -418,7 +421,8 @@ public final class CloudState {
                 throw conflict("Persistent server '" + group.name + "' already exists");
             }
             String now = timestamp();
-            PersistentServerData server = new PersistentServerData(UUID.randomUUID().toString(), group.name, now);
+            PersistentServerData server =
+                    new PersistentServerData(UUID.randomUUID().toString(), group.name, now);
             server.type = group.type;
             server.active = Boolean.FALSE;
             server.minMemory = group.minMemory;
@@ -443,33 +447,40 @@ public final class CloudState {
     public CloudStats stats() {
         return read(() -> {
             List<ServerData> all = List.copyOf(servers.values());
-            List<ServerData> active = all.stream().filter(server -> server.state != ServerState.STOPPED).toList();
+            List<ServerData> active = all.stream()
+                    .filter(server -> server.state != ServerState.STOPPED)
+                    .toList();
             int healthy = (int) active.stream()
                     .filter(server -> server.state == ServerState.AVAILABLE || server.state == ServerState.INGAME)
                     .count();
             int capacity = active.stream().mapToInt(server -> server.maxPlayers).sum();
-            int online = (int) players.values().stream().filter(PlayerData::online).count();
+            int online =
+                    (int) players.values().stream().filter(PlayerData::online).count();
             double healthyPercent = active.isEmpty() ? 0 : healthy * 100.0 / active.size();
             String health = active.isEmpty() ? "down" : healthyPercent < 50 ? "degraded" : "operational";
             return new CloudStats(
-                    new CloudStats.ServerStats(all.size(), active.size(), new CloudStats.ServersByState(
-                            countState(all, ServerState.QUEUED),
-                            countState(all, ServerState.PREPARING),
-                            countState(all, ServerState.STARTING),
-                            countState(all, ServerState.AVAILABLE),
-                            countState(all, ServerState.INGAME),
-                            countState(all, ServerState.STOPPING),
-                            countState(all, ServerState.STOPPED)
-                    )),
+                    new CloudStats.ServerStats(
+                            all.size(),
+                            active.size(),
+                            new CloudStats.ServersByState(
+                                    countState(all, ServerState.QUEUED),
+                                    countState(all, ServerState.PREPARING),
+                                    countState(all, ServerState.STARTING),
+                                    countState(all, ServerState.AVAILABLE),
+                                    countState(all, ServerState.INGAME),
+                                    countState(all, ServerState.STOPPING),
+                                    countState(all, ServerState.STOPPED))),
                     new CloudStats.PlayerStats(online, capacity, capacity == 0 ? 0 : online * 100.0 / capacity),
-                    new CloudStats.CountStats(groups.size(),
-                            (int) groups.values().stream().filter(group -> Boolean.TRUE.equals(group.active)).count()),
-                    new CloudStats.CountStats(persistentServers.size(),
-                            (int) persistentServers.values().stream().filter(server -> Boolean.TRUE.equals(server.active)).count()),
+                    new CloudStats.CountStats(groups.size(), (int) groups.values().stream()
+                            .filter(group -> Boolean.TRUE.equals(group.active))
+                            .count()),
+                    new CloudStats.CountStats(persistentServers.size(), (int) persistentServers.values().stream()
+                            .filter(server -> Boolean.TRUE.equals(server.active))
+                            .count()),
                     new CloudStats.ServerhostStats(1, 1, 0),
-                    new CloudStats.ResourceStats(active.stream().mapToInt(server -> server.maxMemory).sum(), 0, 0),
-                    new CloudStats.HealthStats(health, healthyPercent)
-            );
+                    new CloudStats.ResourceStats(
+                            active.stream().mapToInt(server -> server.maxMemory).sum(), 0, 0),
+                    new CloudStats.HealthStats(health, healthyPercent));
         });
     }
 
@@ -512,9 +523,7 @@ public final class CloudState {
     }
 
     public Optional<GroupData> groupByName(String name) {
-        return groups.values().stream()
-                .filter(group -> group.name.equals(name))
-                .findFirst();
+        return groups.values().stream().filter(group -> group.name.equals(name)).findFirst();
     }
 
     public List<GroupData> groups(@Nullable GroupQuery query) {
@@ -543,8 +552,8 @@ public final class CloudState {
     }
 
     private ServerData startLocked(GroupData group, List<Object> events) {
-        ServerData server = new ServerData(UUID.randomUUID().toString(), networkId, group, null,
-                nextNumericalId(group), timestamp());
+        ServerData server = new ServerData(
+                UUID.randomUUID().toString(), networkId, group, null, nextNumericalId(group), timestamp());
         server.serverhostId = SERVERHOST_ID;
         server.blueprint = blueprintOf(group.source);
         return launchLocked(server, group.minMemory, group.maxMemory, group.maxPlayers, events);
@@ -560,8 +569,12 @@ public final class CloudState {
         return server;
     }
 
-    private ServerData launchLocked(ServerData server, @Nullable Integer minMemory, @Nullable Integer maxMemory,
-                                    @Nullable Integer maxPlayers, List<Object> events) {
+    private ServerData launchLocked(
+            ServerData server,
+            @Nullable Integer minMemory,
+            @Nullable Integer maxMemory,
+            @Nullable Integer maxPlayers,
+            List<Object> events) {
         server.ip = SERVER_IP;
         server.port = nextPort++;
         server.minMemory = minMemory == null ? DEFAULT_MIN_MEMORY : minMemory;
@@ -574,9 +587,8 @@ public final class CloudState {
     }
 
     private int nextNumericalId(GroupData group) {
-        Set<Integer> used = serversOf(group).stream()
-                .map(server -> server.numericalId)
-                .collect(Collectors.toSet());
+        Set<Integer> used =
+                serversOf(group).stream().map(server -> server.numericalId).collect(Collectors.toSet());
         int numericalId = 1;
         while (used.contains(numericalId)) {
             numericalId++;
@@ -663,8 +675,12 @@ public final class CloudState {
         });
     }
 
-    private void stopLocked(ServerData server, boolean crashed, @Nullable Integer exitCode, @Nullable String reason,
-                            List<Object> events) {
+    private void stopLocked(
+            ServerData server,
+            boolean crashed,
+            @Nullable Integer exitCode,
+            @Nullable String reason,
+            List<Object> events) {
         server.running = false;
         for (PlayerData player : List.copyOf(players.values())) {
             if (player.proxy == server) {
@@ -701,7 +717,9 @@ public final class CloudState {
 
     public Optional<ServerData> serverByNumericalId(String groupName, int numericalId) {
         return servers.values().stream()
-                .filter(server -> server.group != null && server.group.name.equals(groupName) && server.numericalId == numericalId)
+                .filter(server -> server.group != null
+                        && server.group.name.equals(groupName)
+                        && server.numericalId == numericalId)
                 .findFirst();
     }
 
@@ -753,10 +771,12 @@ public final class CloudState {
         }
         GroupData group = server.group;
         PersistentServerData persistent = server.persistent;
-        if (query.getServerGroupIds() != null && (group == null || !query.getServerGroupIds().contains(group.id))) {
+        if (query.getServerGroupIds() != null
+                && (group == null || !query.getServerGroupIds().contains(group.id))) {
             return false;
         }
-        if (query.getServerGroupNames() != null && (group == null || !query.getServerGroupNames().contains(group.name))) {
+        if (query.getServerGroupNames() != null
+                && (group == null || !query.getServerGroupNames().contains(group.name))) {
             return false;
         }
         GroupServerType type = group != null ? group.type : persistent.type;
@@ -764,7 +784,8 @@ public final class CloudState {
             return false;
         }
         List<String> tags = group != null ? group.tags : persistent.tags;
-        if (query.getServerGroupTags() != null && query.getServerGroupTags().stream().noneMatch(tags::contains)) {
+        if (query.getServerGroupTags() != null
+                && query.getServerGroupTags().stream().noneMatch(tags::contains)) {
             return false;
         }
         if (query.getStates() != null && !query.getStates().contains(server.state)) {
@@ -799,10 +820,11 @@ public final class CloudState {
             if (persistentServerByName(name).isPresent()) {
                 throw conflict("Persistent server '" + name + "' already exists");
             }
-            SourceConfig source = inlineSourceLocked(name, request.getCreateBlueprint(), request.getSource(),
-                    request.getWorkflows(), events);
+            SourceConfig source = inlineSourceLocked(
+                    name, request.getCreateBlueprint(), request.getSource(), request.getWorkflows(), events);
             String now = timestamp();
-            PersistentServerData server = new PersistentServerData(UUID.randomUUID().toString(), name, now);
+            PersistentServerData server =
+                    new PersistentServerData(UUID.randomUUID().toString(), name, now);
             if (request.getType() != null) {
                 server.type = request.getType();
             }
@@ -938,7 +960,8 @@ public final class CloudState {
         });
     }
 
-    public GroupData convertPersistentServerToGroup(String id, List<DeploymentHost> hosts, @Nullable ScalingConfig scaling) {
+    public GroupData convertPersistentServerToGroup(
+            String id, List<DeploymentHost> hosts, @Nullable ScalingConfig scaling) {
         Objects.requireNonNull(hosts, "hosts");
         return mutate(events -> {
             PersistentServerData server = requirePersistentServer(id);
@@ -1047,7 +1070,8 @@ public final class CloudState {
         if (query.getServerhostId() != null && !query.getServerhostId().equals(server.serverhostId)) {
             return false;
         }
-        return query.getTags() == null || query.getTags().isEmpty()
+        return query.getTags() == null
+                || query.getTags().isEmpty()
                 || query.getTags().stream().anyMatch(server.tags::contains);
     }
 
@@ -1168,9 +1192,12 @@ public final class CloudState {
         return new ArrayList<>(blueprints.values()).reversed();
     }
 
-    private @Nullable SourceConfig inlineSourceLocked(String resourceName, @Nullable CreateBlueprintRequest request,
-                                                     @Nullable SourceConfig source, @Nullable WorkflowsConfig workflows,
-                                                     List<Object> events) {
+    private @Nullable SourceConfig inlineSourceLocked(
+            String resourceName,
+            @Nullable CreateBlueprintRequest request,
+            @Nullable SourceConfig source,
+            @Nullable WorkflowsConfig workflows,
+            List<Object> events) {
         if (request == null) {
             if (source != null) {
                 requireSourceBlueprint(source);
@@ -1188,10 +1215,14 @@ public final class CloudState {
                 throw invalid("createBlueprint cannot be combined with source.image");
             }
         }
-        String name = request.getName() != null && !request.getName().isBlank() ? request.getName().trim() : resourceName;
-        CreateBlueprintRequest effective = defaults.defaultInlineBlueprint(request, defaults.defaultWorkflows(workflows));
+        String name = request.getName() != null && !request.getName().isBlank()
+                ? request.getName().trim()
+                : resourceName;
+        CreateBlueprintRequest effective =
+                defaults.defaultInlineBlueprint(request, defaults.defaultWorkflows(workflows));
         if (blueprintByName(name).isPresent()) {
-            throw conflict("Blueprint '" + name + "' already exists, set another name with CreateBlueprintRequest.name");
+            throw conflict(
+                    "Blueprint '" + name + "' already exists, set another name with CreateBlueprintRequest.name");
         }
         BlueprintData blueprint = createBlueprintLocked(name, effective, events);
         return SourceConfig.builder()
@@ -1299,7 +1330,6 @@ public final class CloudState {
         return blueprintById(id).orElseThrow(() -> notFound("Blueprint with ID '" + id + "' not found"));
     }
 
-
     public PlayerData createPlayer(UUID id, String name) {
         Objects.requireNonNull(id, "uniqueId");
         return mutate(events -> {
@@ -1377,7 +1407,9 @@ public final class CloudState {
             return false;
         }
         return query.getSearch() == null
-                || player.name.toLowerCase(Locale.ROOT).contains(query.getSearch().toLowerCase(Locale.ROOT));
+                || player.name
+                        .toLowerCase(Locale.ROOT)
+                        .contains(query.getSearch().toLowerCase(Locale.ROOT));
     }
 
     private static boolean within(Instant value, @Nullable Instant from, @Nullable Instant to) {
@@ -1391,10 +1423,15 @@ public final class CloudState {
         }
         Comparator<PlayerData> comparator = switch (query.getSortBy()) {
             case NAME -> byName;
-            case FIRST_SEEN -> Comparator.<PlayerData, Instant>comparing(player -> player.firstSeen).thenComparing(byName);
-            case LAST_SEEN -> Comparator.<PlayerData, Instant>comparing(player -> player.lastSeen).thenComparing(byName);
-            case ONLINE_TIME -> Comparator.<PlayerData>comparingLong(player -> player.onlineTimeSeconds(now))
-                    .thenComparing(byName);
+            case FIRST_SEEN ->
+                Comparator.<PlayerData, Instant>comparing(player -> player.firstSeen)
+                        .thenComparing(byName);
+            case LAST_SEEN ->
+                Comparator.<PlayerData, Instant>comparing(player -> player.lastSeen)
+                        .thenComparing(byName);
+            case ONLINE_TIME ->
+                Comparator.<PlayerData>comparingLong(player -> player.onlineTimeSeconds(now))
+                        .thenComparing(byName);
         };
         return query.getSortOrder() == PlayerQuery.SortOrder.DESC ? comparator.reversed() : comparator;
     }
@@ -1459,8 +1496,14 @@ public final class CloudState {
         player.lastSeen = now;
         player.lastLoginName = player.name;
         player.proxy = proxy;
-        events.add(new PlayerLogin(networkId, now.toString(), player.snapshot(playerApi, now), player.proxyName(),
-                session.id, newPlayer, nameChanged));
+        events.add(new PlayerLogin(
+                networkId,
+                now.toString(),
+                player.snapshot(playerApi, now),
+                player.proxyName(),
+                session.id,
+                newPlayer,
+                nameChanged));
         if (proxy != null) {
             addPlayerCount(proxy, 1, events);
         }
@@ -1483,8 +1526,12 @@ public final class CloudState {
     private void switchLocked(PlayerData player, ServerData target, List<Object> events) {
         ServerData previous = player.server;
         player.server = target;
-        events.add(new PlayerServerSwitch(networkId, now.toString(), player.snapshot(playerApi, now),
-                previous == null ? null : previous.name(), target.name()));
+        events.add(new PlayerServerSwitch(
+                networkId,
+                now.toString(),
+                player.snapshot(playerApi, now),
+                previous == null ? null : previous.name(),
+                target.name()));
         if (previous != null) {
             addPlayerCount(previous, -1, events);
         }
@@ -1521,8 +1568,13 @@ public final class CloudState {
         ServerData server = player.server;
         player.proxy = null;
         player.server = null;
-        events.add(new PlayerDisconnect(networkId, now.toString(), player.snapshot(playerApi, now),
-                proxy == null ? null : proxy.name(), server == null ? null : server.name(), session.durationSeconds(now)));
+        events.add(new PlayerDisconnect(
+                networkId,
+                now.toString(),
+                player.snapshot(playerApi, now),
+                proxy == null ? null : proxy.name(),
+                server == null ? null : server.name(),
+                session.durationSeconds(now)));
         if (server != null) {
             addPlayerCount(server, -1, events);
         }
@@ -1537,8 +1589,8 @@ public final class CloudState {
             if (player == null || !player.online()) {
                 return false;
             }
-            events.add(new PlayerKick(networkId, now.toString(), player.snapshot(playerApi, now), player.serverName(),
-                    reason));
+            events.add(new PlayerKick(
+                    networkId, now.toString(), player.snapshot(playerApi, now), player.serverName(), reason));
             disconnectLocked(player, events);
             return true;
         });
@@ -1575,16 +1627,21 @@ public final class CloudState {
             if (player.server != null && player.server.group == group.get()) {
                 return ConnectResult.ALREADY_CONNECTED;
             }
-            List<ServerData> candidates = serversOf(group.get()).stream()
-                    .filter(CloudState::joinable)
-                    .toList();
+            List<ServerData> candidates =
+                    serversOf(group.get()).stream().filter(CloudState::joinable).toList();
             if (candidates.isEmpty()) {
                 return ConnectResult.SERVER_NOT_FOUND;
             }
             ServerData target = switch (mode) {
                 case FIRST -> candidates.getFirst();
-                case MIN_PLAYERS -> candidates.stream().min(Comparator.comparingInt(server -> server.playerCount)).orElseThrow();
-                case MAX_PLAYERS -> candidates.stream().max(Comparator.comparingInt(server -> server.playerCount)).orElseThrow();
+                case MIN_PLAYERS ->
+                    candidates.stream()
+                            .min(Comparator.comparingInt(server -> server.playerCount))
+                            .orElseThrow();
+                case MAX_PLAYERS ->
+                    candidates.stream()
+                            .max(Comparator.comparingInt(server -> server.playerCount))
+                            .orElseThrow();
                 case RANDOM -> candidates.get(ThreadLocalRandom.current().nextInt(candidates.size()));
             };
             switchLocked(player, target, events);
@@ -1634,8 +1691,8 @@ public final class CloudState {
                 player.displayName = name;
             }
             player.name = name;
-            events.add(new PlayerProfileChanged(networkId, now.toString(), id, old == null ? null : old.toProfile(id),
-                    profile.toProfile(id)));
+            events.add(new PlayerProfileChanged(
+                    networkId, now.toString(), id, old == null ? null : old.toProfile(id), profile.toProfile(id)));
             return null;
         });
     }
@@ -1643,7 +1700,8 @@ public final class CloudState {
     public PlayerClientSettings updateClientSettings(UUID id, UpdateClientSettingsRequest request) {
         return mutate(events -> {
             PlayerData player = requirePlayer(id);
-            PlayerClientSettings settings = player.clientSettings == null ? new PlayerClientSettings() : player.clientSettings;
+            PlayerClientSettings settings =
+                    player.clientSettings == null ? new PlayerClientSettings() : player.clientSettings;
             if (request.getChatMode() != null) {
                 settings.setChatMode(request.getChatMode());
             }
@@ -1666,8 +1724,8 @@ public final class CloudState {
                 settings.setSkinParts(request.getSkinParts());
             }
             player.clientSettings = settings;
-            events.add(new PlayerClientSettingsUpdated(networkId, now.toString(), id, player.sessionId(),
-                    PlayerData.copy(settings)));
+            events.add(new PlayerClientSettingsUpdated(
+                    networkId, now.toString(), id, player.sessionId(), PlayerData.copy(settings)));
             return PlayerData.copy(settings);
         });
     }
@@ -1689,8 +1747,7 @@ public final class CloudState {
     public void startState(ServerState startState) {
         Objects.requireNonNull(startState, "startState");
         switch (startState) {
-            case QUEUED, PREPARING, STARTING, AVAILABLE, INGAME -> {
-            }
+            case QUEUED, PREPARING, STARTING, AVAILABLE, INGAME -> {}
             default -> throw new IllegalArgumentException("Servers cannot start in state " + startState);
         }
         synchronized (lock) {
@@ -1749,7 +1806,8 @@ public final class CloudState {
             return false;
         }
         if (config.getScalingMode() == ScalingMode.PLAYERS) {
-            double threshold = config.getPlayerThreshold() > 1 ? config.getPlayerThreshold() / 100 : config.getPlayerThreshold();
+            double threshold =
+                    config.getPlayerThreshold() > 1 ? config.getPlayerThreshold() / 100 : config.getPlayerThreshold();
             return config.hasPlayerThreshold() && running.stream().allMatch(server -> load(server) >= threshold);
         }
         return config.getAvailableSlots() > 0 && freeSlots(running) < config.getAvailableSlots();
@@ -1834,8 +1892,7 @@ public final class CloudState {
                         entry.getKey().id,
                         entry.getKey().name,
                         starts.stream().map(QueuedStart::toItem).toList(),
-                        starts.size()
-                ));
+                        starts.size()));
             }
             return new GroupStartQueue(entries.size(), failed, entries, queued, startQueue.size());
         });

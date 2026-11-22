@@ -4,11 +4,10 @@ import app.simplecloud.api.group.GroupServerType;
 import app.simplecloud.api.group.SourceConfig;
 import app.simplecloud.api.group.WorkflowsConfig;
 import app.simplecloud.api.persistentserver.PersistentServer;
-import org.jetbrains.annotations.Nullable;
-
 import java.util.LinkedHashMap;
 import java.util.List;
 import java.util.Map;
+import org.jetbrains.annotations.Nullable;
 
 public class PersistentServerImpl implements PersistentServer {
 

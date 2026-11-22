@@ -1,5 +1,9 @@
 package app.simplecloud.api.internal.nats;
 
+import static org.junit.jupiter.api.Assertions.assertEquals;
+import static org.junit.jupiter.api.Assertions.assertThrows;
+import static org.junit.jupiter.api.Assertions.assertTrue;
+
 import app.simplecloud.api.CloudApiException;
 import app.simplecloud.api.support.Await;
 import app.simplecloud.api.support.NatsTest;
@@ -8,17 +12,12 @@ import io.nats.client.Connection;
 import io.nats.client.Dispatcher;
 import io.nats.client.Message;
 import io.nats.client.Subscription;
-import org.junit.jupiter.api.AfterEach;
-import org.junit.jupiter.api.Test;
-
 import java.nio.charset.StandardCharsets;
 import java.time.Duration;
 import java.util.concurrent.BlockingQueue;
 import java.util.concurrent.LinkedBlockingQueue;
-
-import static org.junit.jupiter.api.Assertions.assertEquals;
-import static org.junit.jupiter.api.Assertions.assertThrows;
-import static org.junit.jupiter.api.Assertions.assertTrue;
+import org.junit.jupiter.api.AfterEach;
+import org.junit.jupiter.api.Test;
 
 class NatsFailoverConnectionManagerTest {
 
@@ -33,10 +32,11 @@ class NatsFailoverConnectionManagerTest {
 
     @Test
     void callsFailAsUnavailableWhileNotConnected() {
-        manager = new NatsFailoverConnectionManager("nats://127.0.0.1:1", "network-1", "secret", Duration.ofSeconds(30));
+        manager =
+                new NatsFailoverConnectionManager("nats://127.0.0.1:1", "network-1", "secret", Duration.ofSeconds(30));
 
-        CloudApiException exception = assertThrows(CloudApiException.class,
-                () -> manager.getConnection().publish("network-1.test", new byte[0]));
+        CloudApiException exception = assertThrows(
+                CloudApiException.class, () -> manager.getConnection().publish("network-1.test", new byte[0]));
 
         assertEquals(CloudApiException.Reason.UNAVAILABLE, exception.getReason());
         assertEquals(Connection.Status.DISCONNECTED, manager.getConnection().getStatus());
@@ -48,9 +48,10 @@ class NatsFailoverConnectionManagerTest {
         String networkId = TestNats.randomNetworkId();
         String subject = networkId + ".test.echo";
         try (Connection responder = TestNats.connect()) {
-            responder.createDispatcher(message -> responder.publish(
-                    message.getReplyTo(), message.getReplyTo().getBytes(StandardCharsets.UTF_8)
-            )).subscribe(subject);
+            responder
+                    .createDispatcher(message -> responder.publish(
+                            message.getReplyTo(), message.getReplyTo().getBytes(StandardCharsets.UTF_8)))
+                    .subscribe(subject);
             responder.flush(TestNats.TIMEOUT);
 
             manager = new NatsFailoverConnectionManager(TestNats.url(), networkId, "secret", Duration.ofSeconds(30));
@@ -75,10 +76,12 @@ class NatsFailoverConnectionManagerTest {
         manager.getConnection().createDispatcher(null).subscribe(subject, received::add);
 
         try (Connection publisher = TestNats.connect()) {
-            Await.until(() -> {
-                publisher.publish(subject, new byte[0]);
-                return !received.isEmpty();
-            }, "the early subscription receives messages");
+            Await.until(
+                    () -> {
+                        publisher.publish(subject, new byte[0]);
+                        return !received.isEmpty();
+                    },
+                    "the early subscription receives messages");
         }
     }
 
@@ -106,7 +109,8 @@ class NatsFailoverConnectionManagerTest {
         assertTrue(ended.isEmpty());
     }
 
-    private static void assertRepliesGoToNetworkInbox(Connection connection, String subject, String networkId) throws Exception {
+    private static void assertRepliesGoToNetworkInbox(Connection connection, String subject, String networkId)
+            throws Exception {
         assertTrue(connection.createInbox().startsWith(networkId + "._INBOX."));
         Message response = TestNats.request(connection, subject, new byte[0]);
         assertTrue(new String(response.getData(), StandardCharsets.UTF_8).startsWith(networkId + "._INBOX."));

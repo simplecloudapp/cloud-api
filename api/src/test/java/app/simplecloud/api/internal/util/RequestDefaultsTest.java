@@ -1,5 +1,11 @@
 package app.simplecloud.api.internal.util;
 
+import static org.junit.jupiter.api.Assertions.assertEquals;
+import static org.junit.jupiter.api.Assertions.assertFalse;
+import static org.junit.jupiter.api.Assertions.assertNull;
+import static org.junit.jupiter.api.Assertions.assertThrows;
+import static org.junit.jupiter.api.Assertions.assertTrue;
+
 import app.simplecloud.api.blueprint.CreateBlueprintRequest;
 import app.simplecloud.api.blueprint.RuntimeConfig;
 import app.simplecloud.api.blueprint.RuntimeType;
@@ -7,18 +13,11 @@ import app.simplecloud.api.group.ScaleDownConfig;
 import app.simplecloud.api.group.ScalingConfig;
 import app.simplecloud.api.group.ScalingMode;
 import app.simplecloud.api.group.WorkflowsConfig;
+import java.util.List;
+import java.util.Map;
 import org.junit.jupiter.api.Test;
 import org.junit.jupiter.params.ParameterizedTest;
 import org.junit.jupiter.params.provider.ValueSource;
-
-import java.util.List;
-import java.util.Map;
-
-import static org.junit.jupiter.api.Assertions.assertEquals;
-import static org.junit.jupiter.api.Assertions.assertFalse;
-import static org.junit.jupiter.api.Assertions.assertNull;
-import static org.junit.jupiter.api.Assertions.assertThrows;
-import static org.junit.jupiter.api.Assertions.assertTrue;
 
 class RequestDefaultsTest {
 
@@ -57,7 +56,8 @@ class RequestDefaultsTest {
     @ParameterizedTest
     @ValueSource(doubles = {0, -0.5, 1.01})
     void rejectsPlayerThresholdOutsideOfRange(double playerThreshold) {
-        ScalingConfig scaling = ScalingConfig.builder().playerThreshold(playerThreshold).build();
+        ScalingConfig scaling =
+                ScalingConfig.builder().playerThreshold(playerThreshold).build();
 
         assertThrows(IllegalArgumentException.class, () -> defaults.defaultGroupScaling(scaling));
     }
@@ -71,7 +71,8 @@ class RequestDefaultsTest {
 
     @Test
     void workflowsKeepExplicitManualWorkflowsAndDefaultTheRest() {
-        WorkflowsConfig workflows = defaults.defaultWorkflows(WorkflowsConfig.builder().manual(List.of("custom/restart")).build());
+        WorkflowsConfig workflows = defaults.defaultWorkflows(
+                WorkflowsConfig.builder().manual(List.of("custom/restart")).build());
 
         assertEquals(List.of("custom/restart"), workflows.getManual());
         assertEquals(List.of("internal/setup"), workflows.getWhen().getStart());
@@ -83,9 +84,7 @@ class RequestDefaultsTest {
         WorkflowsConfig workflows = defaults.defaultWorkflows(null);
 
         CreateBlueprintRequest blueprint = defaults.defaultInlineBlueprint(
-                CreateBlueprintRequest.builder().configurator("paper").build(),
-                workflows
-        );
+                CreateBlueprintRequest.builder().configurator("paper").build(), workflows);
 
         assertEquals(List.of("internal/setup"), blueprint.getWorkflowSteps());
         assertEquals(RuntimeType.JAVA, blueprint.getRuntimeConfig().getType());
@@ -96,7 +95,10 @@ class RequestDefaultsTest {
     @Test
     void explicitRuntimeValuesOverrideJavaDefaults() {
         CreateBlueprintRequest blueprint = defaults.defaultBlueprint(CreateBlueprintRequest.builder()
-                .runtimeConfig(RuntimeConfig.builder().type(RuntimeType.JAVA).with(Map.of("version", "25")).build())
+                .runtimeConfig(RuntimeConfig.builder()
+                        .type(RuntimeType.JAVA)
+                        .with(Map.of("version", "25"))
+                        .build())
                 .build());
 
         Map<String, Object> with = blueprint.getRuntimeConfig().getWith();

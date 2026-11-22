@@ -53,8 +53,7 @@ public interface QueryCache {
             Supplier<CompletableFuture<T>> fetcher,
             Predicate<T> isTransientMiss,
             Duration retryDelay,
-            int maxRetries
-    ) {
+            int maxRetries) {
         Objects.requireNonNull(key, "key");
         Objects.requireNonNull(fetcher, "fetcher");
         Objects.requireNonNull(isTransientMiss, "isTransientMiss");
@@ -68,14 +67,8 @@ public interface QueryCache {
         }
 
         return fetch(key, fetcher)
-                .thenCompose(result -> recoverTransientMiss(
-                        key,
-                        fetcher,
-                        isTransientMiss,
-                        retryDelay,
-                        maxRetries,
-                        result
-                ));
+                .thenCompose(
+                        result -> recoverTransientMiss(key, fetcher, isTransientMiss, retryDelay, maxRetries, result));
     }
 
     /**
@@ -150,8 +143,7 @@ public interface QueryCache {
             Predicate<T> isTransientMiss,
             Duration retryDelay,
             int retriesRemaining,
-            T result
-    ) {
+            T result) {
         if (!isTransientMiss.test(result)) {
             return CompletableFuture.completedFuture(result);
         }
@@ -161,11 +153,8 @@ public interface QueryCache {
             return CompletableFuture.completedFuture(result);
         }
 
-        return CompletableFuture
-                .supplyAsync(
-                        () -> null,
-                        CompletableFuture.delayedExecutor(retryDelay.toMillis(), TimeUnit.MILLISECONDS)
-                )
+        return CompletableFuture.supplyAsync(
+                        () -> null, CompletableFuture.delayedExecutor(retryDelay.toMillis(), TimeUnit.MILLISECONDS))
                 .thenCompose(ignored -> fetcher.get())
                 .thenCompose(retriedResult -> {
                     if (!isTransientMiss.test(retriedResult)) {
@@ -174,13 +163,7 @@ public interface QueryCache {
                     }
 
                     return recoverTransientMiss(
-                            key,
-                            fetcher,
-                            isTransientMiss,
-                            retryDelay,
-                            retriesRemaining - 1,
-                            retriedResult
-                    );
+                            key, fetcher, isTransientMiss, retryDelay, retriesRemaining - 1, retriedResult);
                 });
     }
 }

@@ -14,6 +14,4 @@ public record ServerWorkflowResult(
         String serverId,
         String workflowId,
         boolean success,
-        @Nullable String errorMessage
-) {
-}
+        @Nullable String errorMessage) {}

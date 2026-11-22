@@ -1,18 +1,17 @@
 package app.simplecloud.api.internal.util.blueprint;
 
+import static org.junit.jupiter.api.Assertions.assertEquals;
+import static org.junit.jupiter.api.Assertions.assertNull;
+import static org.junit.jupiter.api.Assertions.assertThrows;
+
 import app.simplecloud.api.CloudApiException;
 import app.simplecloud.api.blueprint.CreateBlueprintRequest;
 import app.simplecloud.api.support.ControllerServer;
 import com.google.gson.Gson;
+import java.time.Duration;
 import okhttp3.OkHttpClient;
 import org.junit.jupiter.api.AfterEach;
 import org.junit.jupiter.api.Test;
-
-import java.time.Duration;
-
-import static org.junit.jupiter.api.Assertions.assertEquals;
-import static org.junit.jupiter.api.Assertions.assertNull;
-import static org.junit.jupiter.api.Assertions.assertThrows;
 
 class ManifestServerUrlResolverTest {
 
@@ -31,8 +30,7 @@ class ManifestServerUrlResolverTest {
 
     private final ControllerServer server = ControllerServer.start();
     private final ManifestServerUrlResolver resolver = new ManifestServerUrlResolver(
-            server.url() + MANIFEST, new OkHttpClient(), Duration.ofSeconds(5), new Gson()
-    );
+            server.url() + MANIFEST, new OkHttpClient(), Duration.ofSeconds(5), new Gson());
 
     @AfterEach
     void stopServer() {
@@ -75,7 +73,8 @@ class ManifestServerUrlResolverTest {
     void failedFetchIsReportedAsUnavailable() {
         server.on("GET", MANIFEST, 500, "{}");
 
-        CloudApiException exception = assertThrows(CloudApiException.class, () -> resolver.resolve(request("paper", "1.21.4", null)));
+        CloudApiException exception =
+                assertThrows(CloudApiException.class, () -> resolver.resolve(request("paper", "1.21.4", null)));
 
         assertEquals(CloudApiException.Reason.UNAVAILABLE, exception.getReason());
     }
@@ -84,7 +83,8 @@ class ManifestServerUrlResolverTest {
     void oversizedManifestIsRejected() {
         server.on("GET", MANIFEST, "[" + " ".repeat((int) ManifestServerUrlResolver.MAX_MANIFEST_BYTES) + "]");
 
-        CloudApiException exception = assertThrows(CloudApiException.class, () -> resolver.resolve(request("paper", "1.21.4", null)));
+        CloudApiException exception =
+                assertThrows(CloudApiException.class, () -> resolver.resolve(request("paper", "1.21.4", null)));
 
         assertEquals(CloudApiException.Reason.UNAVAILABLE, exception.getReason());
     }

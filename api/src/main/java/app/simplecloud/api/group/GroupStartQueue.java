@@ -1,19 +1,13 @@
 package app.simplecloud.api.group;
 
-import org.jetbrains.annotations.Nullable;
-
 import java.util.List;
+import org.jetbrains.annotations.Nullable;
 
 /**
  * Aggregated manual server-start queue state across all server groups.
  */
 public record GroupStartQueue(
-        int count,
-        int failedStarts,
-        List<GroupStartQueueEntry> items,
-        int queuedStarts,
-        int totalStarts
-) {
+        int count, int failedStarts, List<GroupStartQueueEntry> items, int queuedStarts, int totalStarts) {
 
     public GroupStartQueue {
         items = List.copyOf(items);
@@ -59,8 +53,7 @@ public record GroupStartQueue(
         return totalStarts;
     }
 
-    @Nullable
-    public GroupStartQueueEntry findByServerGroupId(String serverGroupId) {
+    @Nullable public GroupStartQueueEntry findByServerGroupId(String serverGroupId) {
         for (GroupStartQueueEntry item : items) {
             if (serverGroupId.equals(item.serverGroupId())) {
                 return item;
@@ -69,8 +62,7 @@ public record GroupStartQueue(
         return null;
     }
 
-    @Nullable
-    public GroupStartQueueEntry findByServerGroupName(String serverGroupName) {
+    @Nullable public GroupStartQueueEntry findByServerGroupName(String serverGroupName) {
         for (GroupStartQueueEntry item : items) {
             if (serverGroupName.equals(item.serverGroupName())) {
                 return item;

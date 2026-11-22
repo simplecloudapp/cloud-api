@@ -1,7 +1,6 @@
 package app.simplecloud.api.blueprint;
 
 import app.simplecloud.api.CloudApiException;
-
 import java.util.List;
 import java.util.Optional;
 import java.util.concurrent.CompletableFuture;

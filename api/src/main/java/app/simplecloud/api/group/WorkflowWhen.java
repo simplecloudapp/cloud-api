@@ -1,24 +1,20 @@
 package app.simplecloud.api.group;
 
+import java.util.List;
 import org.jetbrains.annotations.Nullable;
 
-import java.util.List;
-
 public class WorkflowWhen {
-    @Nullable
-    private List<String> start;
-    @Nullable
-    private List<String> stop;
+    @Nullable private List<String> start;
 
-    public WorkflowWhen() {
-    }
+    @Nullable private List<String> stop;
+
+    public WorkflowWhen() {}
 
     public static Builder builder() {
         return new Builder();
     }
 
-    @Nullable
-    public List<String> getStart() {
+    @Nullable public List<String> getStart() {
         return start;
     }
 
@@ -26,8 +22,7 @@ public class WorkflowWhen {
         this.start = start;
     }
 
-    @Nullable
-    public List<String> getStop() {
+    @Nullable public List<String> getStop() {
         return stop;
     }
 

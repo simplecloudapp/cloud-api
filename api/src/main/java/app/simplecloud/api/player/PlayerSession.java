@@ -1,27 +1,26 @@
 package app.simplecloud.api.player;
 
-import org.jetbrains.annotations.Nullable;
-
 import java.util.UUID;
+import org.jetbrains.annotations.Nullable;
 
 public class PlayerSession {
     private String id;
     private String networkId;
     private UUID playerId;
-    @Nullable
-    private String addressHash;
+
+    @Nullable private String addressHash;
+
     private int clientVersion;
     private boolean onlineMode;
     private String loginTime;
-    @Nullable
-    private String logoutTime;
-    @Nullable
-    private Long durationSeconds;
-    @Nullable
-    private PlayerClientSettings clientSettings;
 
-    public PlayerSession() {
-    }
+    @Nullable private String logoutTime;
+
+    @Nullable private Long durationSeconds;
+
+    @Nullable private PlayerClientSettings clientSettings;
+
+    public PlayerSession() {}
 
     public String getId() {
         return id;
@@ -47,8 +46,7 @@ public class PlayerSession {
         this.playerId = playerId;
     }
 
-    @Nullable
-    public String getAddressHash() {
+    @Nullable public String getAddressHash() {
         return addressHash;
     }
 
@@ -80,8 +78,7 @@ public class PlayerSession {
         this.loginTime = loginTime;
     }
 
-    @Nullable
-    public String getLogoutTime() {
+    @Nullable public String getLogoutTime() {
         return logoutTime;
     }
 
@@ -89,8 +86,7 @@ public class PlayerSession {
         this.logoutTime = logoutTime;
     }
 
-    @Nullable
-    public Long getDurationSeconds() {
+    @Nullable public Long getDurationSeconds() {
         return durationSeconds;
     }
 
@@ -102,8 +98,7 @@ public class PlayerSession {
         return logoutTime == null;
     }
 
-    @Nullable
-    public PlayerClientSettings getClientSettings() {
+    @Nullable public PlayerClientSettings getClientSettings() {
         return clientSettings;
     }
 

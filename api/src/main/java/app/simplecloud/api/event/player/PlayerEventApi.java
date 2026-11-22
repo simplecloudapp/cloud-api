@@ -1,7 +1,6 @@
 package app.simplecloud.api.event.player;
 
 import app.simplecloud.api.event.Subscription;
-
 import java.util.function.Consumer;
 
 /**
@@ -56,5 +55,4 @@ public interface PlayerEventApi {
      * @return a subscription that can be closed to stop receiving events
      */
     Subscription onClientSettingsUpdated(Consumer<PlayerClientSettingsUpdatedEvent> handler);
-
 }

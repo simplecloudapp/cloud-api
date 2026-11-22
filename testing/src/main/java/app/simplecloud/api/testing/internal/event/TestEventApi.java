@@ -29,7 +29,6 @@ import app.simplecloud.api.event.server.ServerStartedEvent;
 import app.simplecloud.api.event.server.ServerStateChangedEvent;
 import app.simplecloud.api.event.server.ServerStoppedEvent;
 import app.simplecloud.api.event.server.ServerUpdatedEvent;
-
 import java.util.function.Consumer;
 
 public final class TestEventApi implements EventApi {

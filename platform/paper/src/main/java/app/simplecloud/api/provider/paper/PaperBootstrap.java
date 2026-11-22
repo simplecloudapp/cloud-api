@@ -7,16 +7,13 @@ import org.bukkit.plugin.java.JavaPlugin;
 import org.jspecify.annotations.NonNull;
 
 @SuppressWarnings("UnstableApiUsage")
-public class PaperBootstrap  implements PluginBootstrap {
+public class PaperBootstrap implements PluginBootstrap {
 
     @Override
-    public void bootstrap(@NonNull BootstrapContext context) {
-
-    }
+    public void bootstrap(@NonNull BootstrapContext context) {}
 
     @Override
     public @NonNull JavaPlugin createPlugin(@NonNull PluginProviderContext context) {
         return new PaperApiProvider();
     }
-
 }

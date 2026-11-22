@@ -9,15 +9,13 @@ public record GroupStartQueueItem(
         @Nullable String createdAt,
         @Nullable String failureReason,
         @Nullable String id,
-        GroupStartQueueItemStatus status
-) {
+        GroupStartQueueItemStatus status) {
 
     /**
      * @deprecated use {@link #createdAt()}; will be removed in 1.0.0
      */
     @Deprecated(forRemoval = true)
-    @Nullable
-    public String getCreatedAt() {
+    @Nullable public String getCreatedAt() {
         return createdAt;
     }
 
@@ -25,8 +23,7 @@ public record GroupStartQueueItem(
      * @deprecated use {@link #failureReason()}; will be removed in 1.0.0
      */
     @Deprecated(forRemoval = true)
-    @Nullable
-    public String getFailureReason() {
+    @Nullable public String getFailureReason() {
         return failureReason;
     }
 
@@ -34,8 +31,7 @@ public record GroupStartQueueItem(
      * @deprecated use {@link #id()}; will be removed in 1.0.0
      */
     @Deprecated(forRemoval = true)
-    @Nullable
-    public String getId() {
+    @Nullable public String getId() {
         return id;
     }
 

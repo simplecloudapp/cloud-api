@@ -1,19 +1,18 @@
 package app.simplecloud.api.testing;
 
+import static org.junit.jupiter.api.Assertions.assertEquals;
+import static org.junit.jupiter.api.Assertions.assertThrows;
+import static org.junit.jupiter.api.Assertions.assertTrue;
+
 import app.simplecloud.api.event.Subscription;
 import app.simplecloud.api.event.server.ServerDeletedEvent;
 import app.simplecloud.api.event.server.ServerStartedEvent;
 import app.simplecloud.api.testing.event.TestEvents;
 import app.simplecloud.api.testing.server.TestServer;
-import org.junit.jupiter.api.Test;
-
 import java.time.Duration;
 import java.util.ArrayList;
 import java.util.List;
-
-import static org.junit.jupiter.api.Assertions.assertEquals;
-import static org.junit.jupiter.api.Assertions.assertThrows;
-import static org.junit.jupiter.api.Assertions.assertTrue;
+import org.junit.jupiter.api.Test;
 
 @CloudTest
 class EventTest {
@@ -45,7 +44,8 @@ class EventTest {
 
     @Test
     void trackerFiltersEvents(TestCloud cloud) {
-        var lobbyStarts = cloud.track(ServerStartedEvent.class,
+        var lobbyStarts = cloud.track(
+                ServerStartedEvent.class,
                 event -> event.getServer().getGroup().getName().equals("lobby"));
 
         cloud.createGroup("lobby").startServer();
@@ -61,7 +61,9 @@ class EventTest {
 
         cloud.createGroup("lobby").startServer();
 
-        assertEquals("lobby", started.awaitFirst(Duration.ofSeconds(2)).getServer().getGroup().getName());
+        assertEquals(
+                "lobby",
+                started.awaitFirst(Duration.ofSeconds(2)).getServer().getGroup().getName());
     }
 
     @Test
@@ -70,7 +72,8 @@ class EventTest {
             throw new IllegalStateException("handler failed");
         });
 
-        assertThrows(IllegalStateException.class, () -> cloud.createGroup("lobby").startServer());
+        assertThrows(
+                IllegalStateException.class, () -> cloud.createGroup("lobby").startServer());
     }
 
     @Test

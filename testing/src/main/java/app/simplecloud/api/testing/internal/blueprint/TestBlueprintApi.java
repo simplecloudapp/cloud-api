@@ -6,7 +6,6 @@ import app.simplecloud.api.blueprint.CreateBlueprintRequest;
 import app.simplecloud.api.blueprint.UpdateBlueprintRequest;
 import app.simplecloud.api.testing.internal.CloudState;
 import app.simplecloud.api.testing.internal.Futures;
-
 import java.util.List;
 import java.util.Optional;
 import java.util.concurrent.CompletableFuture;
@@ -21,8 +20,8 @@ public final class TestBlueprintApi implements BlueprintApi {
 
     @Override
     public CompletableFuture<Blueprint> getBlueprintById(String id) {
-        return Futures.call(() -> findById(id)
-                .orElseThrow(() -> CloudState.notFound("Blueprint with ID '" + id + "' not found")));
+        return Futures.call(
+                () -> findById(id).orElseThrow(() -> CloudState.notFound("Blueprint with ID '" + id + "' not found")));
     }
 
     @Override
@@ -32,8 +31,8 @@ public final class TestBlueprintApi implements BlueprintApi {
 
     @Override
     public CompletableFuture<Blueprint> getBlueprintByName(String name) {
-        return Futures.call(() -> findByName(name)
-                .orElseThrow(() -> CloudState.notFound("Blueprint '" + name + "' not found")));
+        return Futures.call(
+                () -> findByName(name).orElseThrow(() -> CloudState.notFound("Blueprint '" + name + "' not found")));
     }
 
     @Override
@@ -43,9 +42,8 @@ public final class TestBlueprintApi implements BlueprintApi {
 
     @Override
     public CompletableFuture<List<Blueprint>> getAllBlueprints() {
-        return Futures.call(() -> cloud.read(() -> cloud.blueprints().stream()
-                .map(BlueprintData::snapshot)
-                .toList()));
+        return Futures.call(() -> cloud.read(
+                () -> cloud.blueprints().stream().map(BlueprintData::snapshot).toList()));
     }
 
     @Override

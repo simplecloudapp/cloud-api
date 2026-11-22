@@ -3,6 +3,9 @@ package app.simplecloud.api.platform.bungeecord.player;
 import app.simplecloud.api.platform.shared.player.ConnectingPlayer;
 import app.simplecloud.api.platform.shared.player.ProxyPlayerSessions;
 import app.simplecloud.api.player.PlayerClientSettings;
+import java.util.ArrayList;
+import java.util.List;
+import java.util.concurrent.CompletableFuture;
 import net.md_5.bungee.api.SkinConfiguration;
 import net.md_5.bungee.api.connection.PendingConnection;
 import net.md_5.bungee.api.connection.ProxiedPlayer;
@@ -14,10 +17,6 @@ import net.md_5.bungee.api.plugin.Listener;
 import net.md_5.bungee.api.plugin.Plugin;
 import net.md_5.bungee.event.EventHandler;
 import net.md_5.bungee.event.EventPriority;
-
-import java.util.ArrayList;
-import java.util.List;
-import java.util.concurrent.CompletableFuture;
 
 public class PlayerConnectionListener implements Listener {
 
@@ -33,9 +32,7 @@ public class PlayerConnectionListener implements Listener {
     public void onPlayerJoin(PostLoginEvent event) {
         ProxiedPlayer player = event.getPlayer();
         CompletableFuture<Void> login = sessions.login(
-                toConnectingPlayer(player),
-                () -> player.getLocale() != null ? toClientSettings(player) : null
-        );
+                toConnectingPlayer(player), () -> player.getLocale() != null ? toClientSettings(player) : null);
         event.registerIntent(plugin);
         login.whenComplete((ignored, failure) -> event.completeIntent(plugin));
     }
@@ -56,7 +53,10 @@ public class PlayerConnectionListener implements Listener {
     public void onServerSwitch(ServerSwitchEvent event) {
         ProxiedPlayer player = event.getPlayer();
         if (player.getServer() != null) {
-            sessions.serverSwitched(player.getUniqueId(), player.getName(), player.getServer().getInfo().getName());
+            sessions.serverSwitched(
+                    player.getUniqueId(),
+                    player.getName(),
+                    player.getServer().getInfo().getName());
         }
     }
 
@@ -70,24 +70,25 @@ public class PlayerConnectionListener implements Listener {
                 player.getLocale(),
                 connection.getVersion(),
                 connection.isOnlineMode(),
-                null
-        );
+                null);
     }
 
     static PlayerClientSettings toClientSettings(ProxiedPlayer player) {
         PlayerClientSettings result = new PlayerClientSettings();
         if (player.getChatMode() != null) {
-            result.setChatMode(switch (player.getChatMode()) {
-                case SHOWN -> PlayerClientSettings.ChatMode.ENABLED;
-                case COMMANDS_ONLY -> PlayerClientSettings.ChatMode.COMMANDS_ONLY;
-                case HIDDEN -> PlayerClientSettings.ChatMode.HIDDEN;
-            });
+            result.setChatMode(
+                    switch (player.getChatMode()) {
+                        case SHOWN -> PlayerClientSettings.ChatMode.ENABLED;
+                        case COMMANDS_ONLY -> PlayerClientSettings.ChatMode.COMMANDS_ONLY;
+                        case HIDDEN -> PlayerClientSettings.ChatMode.HIDDEN;
+                    });
         }
         result.setLocale(player.getLocale() != null ? player.getLocale().toString() : null);
         if (player.getMainHand() != null) {
-            result.setMainHand(player.getMainHand() == ProxiedPlayer.MainHand.LEFT
-                    ? PlayerClientSettings.MainHand.LEFT
-                    : PlayerClientSettings.MainHand.RIGHT);
+            result.setMainHand(
+                    player.getMainHand() == ProxiedPlayer.MainHand.LEFT
+                            ? PlayerClientSettings.MainHand.LEFT
+                            : PlayerClientSettings.MainHand.RIGHT);
         }
         result.setViewDistance(player.getViewDistance());
         result.setChatColors(player.hasChatColors());

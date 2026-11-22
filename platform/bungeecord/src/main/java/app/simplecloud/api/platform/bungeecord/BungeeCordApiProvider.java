@@ -6,21 +6,20 @@ import app.simplecloud.api.internal.integration.player.PlayerCommandHandler;
 import app.simplecloud.api.internal.integration.player.PlayerSessionReporter;
 import app.simplecloud.api.internal.integration.presence.ProxyPresenceResponder;
 import app.simplecloud.api.internal.integration.presence.ProxyPresenceTracker;
+import app.simplecloud.api.platform.bungeecord.player.BungeeCordPlayers;
+import app.simplecloud.api.platform.bungeecord.player.PlayerConnectionListener;
+import app.simplecloud.api.platform.shared.luckperms.LuckPermsPrimaryGroupSynchronizer;
+import app.simplecloud.api.platform.shared.luckperms.LuckPermsSynchronizer;
+import app.simplecloud.api.platform.shared.player.ProxyPlayerSessions;
 import app.simplecloud.api.presence.ProxyPresencePlayer;
 import app.simplecloud.api.presence.ProxyPresencePlayerProvider;
 import app.simplecloud.api.runtime.SimpleCloudRuntime;
-import app.simplecloud.api.platform.shared.luckperms.LuckPermsPrimaryGroupSynchronizer;
-import app.simplecloud.api.platform.shared.luckperms.LuckPermsSynchronizer;
-import app.simplecloud.api.platform.bungeecord.player.BungeeCordPlayers;
-import app.simplecloud.api.platform.bungeecord.player.PlayerConnectionListener;
-import app.simplecloud.api.platform.shared.player.ProxyPlayerSessions;
-import net.kyori.adventure.platform.bungeecord.BungeeAudiences;
-import net.md_5.bungee.api.connection.ProxiedPlayer;
-import net.md_5.bungee.api.plugin.Plugin;
-import net.luckperms.api.LuckPermsProvider;
-
 import java.util.List;
 import java.util.Locale;
+import net.kyori.adventure.platform.bungeecord.BungeeAudiences;
+import net.luckperms.api.LuckPermsProvider;
+import net.md_5.bungee.api.connection.ProxiedPlayer;
+import net.md_5.bungee.api.plugin.Plugin;
 
 public class BungeeCordApiProvider extends Plugin implements ProxyPresencePlayerProvider {
 
@@ -41,24 +40,22 @@ public class BungeeCordApiProvider extends Plugin implements ProxyPresencePlayer
         this.playerCommandHandler = new PlayerCommandHandler(cloudApi, new BungeeCordPlayers(getProxy()));
         this.proxyPresenceTracker = new ProxyPresenceTracker(proxyName);
         this.proxyPresenceResponder = new ProxyPresenceResponder(
-                cloudApi.getNatsConnection(),
-                cloudApi.getNetworkId(),
-                SimpleCloudRuntime.serverId(),
-                this
-        );
+                cloudApi.getNatsConnection(), cloudApi.getNetworkId(), SimpleCloudRuntime.serverId(), this);
 
         this.bungeeAudiences = BungeeAudiences.create(this);
 
         getLogger().info("SimpleCloud v3 API provider initialized!");
-        getProxy().getPluginManager().registerListener(this, new PlayerConnectionListener(
-                this,
-                new ProxyPlayerSessions(
-                        playerSessionReporter,
-                        proxyPresenceTracker,
-                        proxyName,
-                        luckPermsSynchronizer
-                )
-        ));
+        getProxy()
+                .getPluginManager()
+                .registerListener(
+                        this,
+                        new PlayerConnectionListener(
+                                this,
+                                new ProxyPlayerSessions(
+                                        playerSessionReporter,
+                                        proxyPresenceTracker,
+                                        proxyName,
+                                        luckPermsSynchronizer)));
 
         playerCommandHandler.start();
         proxyPresenceResponder.start();
@@ -86,26 +83,28 @@ public class BungeeCordApiProvider extends Plugin implements ProxyPresencePlayer
                     cloudApi,
                     LuckPermsProvider.get(),
                     this,
-                    playerId -> getProxy().getPlayer(playerId) != null
-            );
+                    playerId -> getProxy().getPlayer(playerId) != null);
             primaryGroupSynchronizer.start();
             getLogger().info("LuckPerms primary group synchronization enabled");
             return primaryGroupSynchronizer;
         } catch (IllegalStateException exception) {
-            getLogger().log(java.util.logging.Level.WARNING, "LuckPerms is present but its API is not available", exception);
+            getLogger()
+                    .log(
+                            java.util.logging.Level.WARNING,
+                            "LuckPerms is present but its API is not available",
+                            exception);
             return LuckPermsSynchronizer.DISABLED;
         }
     }
 
     @Override
     public List<ProxyPresencePlayer> getProxyPresencePlayers() {
-        return getProxy().getPlayers().stream()
-                .map(this::toPresencePlayer)
-                .toList();
+        return getProxy().getPlayers().stream().map(this::toPresencePlayer).toList();
     }
 
     private ProxyPresencePlayer toPresencePlayer(ProxiedPlayer player) {
-        String connectedServerName = player.getServer() != null ? player.getServer().getInfo().getName() : "";
+        String connectedServerName =
+                player.getServer() != null ? player.getServer().getInfo().getName() : "";
         Locale locale = player.getLocale();
         var pendingConnection = player.getPendingConnection();
 
@@ -116,7 +115,6 @@ public class BungeeCordApiProvider extends Plugin implements ProxyPresencePlayer
                 connectedServerName,
                 locale != null ? locale.toString() : "en_US",
                 pendingConnection != null ? pendingConnection.getVersion() : 0,
-                pendingConnection != null && pendingConnection.isOnlineMode()
-        );
+                pendingConnection != null && pendingConnection.isOnlineMode());
     }
 }

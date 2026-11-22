@@ -12,12 +12,11 @@ import app.simplecloud.api.group.ScalingConfig;
 import app.simplecloud.api.group.ScalingMode;
 import app.simplecloud.api.group.WorkflowWhen;
 import app.simplecloud.api.group.WorkflowsConfig;
-import org.jetbrains.annotations.Nullable;
-
 import java.util.LinkedHashMap;
 import java.util.List;
 import java.util.Map;
 import java.util.Objects;
+import org.jetbrains.annotations.Nullable;
 
 /**
  * Applies dashboard defaults to create requests.
@@ -73,9 +72,10 @@ public final class RequestDefaults {
 
     public DeploymentConfig defaultDeployment(@Nullable DeploymentConfig deployment) {
         return DeploymentConfig.builder()
-                .strategy(deployment != null && deployment.getStrategy() != null
-                        ? deployment.getStrategy()
-                        : DeploymentStrategy.BLACKLIST)
+                .strategy(
+                        deployment != null && deployment.getStrategy() != null
+                                ? deployment.getStrategy()
+                                : DeploymentStrategy.BLACKLIST)
                 .hosts(copyHosts(deployment != null ? deployment.getHosts() : null))
                 .build();
     }
@@ -91,9 +91,7 @@ public final class RequestDefaults {
                     .build();
         }
 
-        double playerThreshold = scaling.hasPlayerThreshold()
-                ? scaling.getPlayerThreshold()
-                : DEFAULT_PLAYER_THRESHOLD;
+        double playerThreshold = scaling.hasPlayerThreshold() ? scaling.getPlayerThreshold() : DEFAULT_PLAYER_THRESHOLD;
         if (scaling.hasPlayerThreshold() && (playerThreshold <= 0 || playerThreshold > 1)) {
             throw new IllegalArgumentException("playerThreshold must be greater than 0 and at most 1");
         }
@@ -108,9 +106,8 @@ public final class RequestDefaults {
                 .build();
     }
 
-    @Nullable
-    public CreateBlueprintRequest defaultInlineBlueprint(@Nullable CreateBlueprintRequest createBlueprint,
-                                                         WorkflowsConfig workflows) {
+    @Nullable public CreateBlueprintRequest defaultInlineBlueprint(
+            @Nullable CreateBlueprintRequest createBlueprint, WorkflowsConfig workflows) {
         if (createBlueprint == null) {
             return null;
         }
@@ -123,9 +120,11 @@ public final class RequestDefaults {
                 .serverSoftware(createBlueprint.getServerSoftware())
                 .serverUrl(createBlueprint.getServerUrl())
                 .softwareVersion(createBlueprint.getSoftwareVersion())
-                .workflowSteps(createBlueprint.getWorkflowSteps() != null
-                        ? List.copyOf(createBlueprint.getWorkflowSteps())
-                        : List.copyOf(Objects.requireNonNull(Objects.requireNonNull(workflows.getWhen()).getStart())))
+                .workflowSteps(
+                        createBlueprint.getWorkflowSteps() != null
+                                ? List.copyOf(createBlueprint.getWorkflowSteps())
+                                : List.copyOf(Objects.requireNonNull(Objects.requireNonNull(workflows.getWhen())
+                                        .getStart())))
                 .build();
     }
 
@@ -138,25 +137,26 @@ public final class RequestDefaults {
                 .serverSoftware(blueprint.getServerSoftware())
                 .serverUrl(blueprint.getServerUrl())
                 .softwareVersion(blueprint.getSoftwareVersion())
-                .workflowSteps(blueprint.getWorkflowSteps() != null
-                        ? List.copyOf(blueprint.getWorkflowSteps())
-                        : DEFAULT_WORKFLOW_START)
+                .workflowSteps(
+                        blueprint.getWorkflowSteps() != null
+                                ? List.copyOf(blueprint.getWorkflowSteps())
+                                : DEFAULT_WORKFLOW_START)
                 .build();
     }
 
     private ScaleDownConfig defaultScaleDown(@Nullable ScaleDownConfig scaleDown) {
         return ScaleDownConfig.builder()
-                .idleTime(scaleDown != null && scaleDown.getIdleTime() != null
-                        ? scaleDown.getIdleTime()
-                        : DEFAULT_SCALE_DOWN_IDLE_TIME)
+                .idleTime(
+                        scaleDown != null && scaleDown.getIdleTime() != null
+                                ? scaleDown.getIdleTime()
+                                : DEFAULT_SCALE_DOWN_IDLE_TIME)
                 .ignorePlayers(scaleDown == null || !scaleDown.hasIgnorePlayers() || scaleDown.isIgnorePlayers())
                 .build();
     }
 
     private RuntimeConfig defaultRuntimeConfig(@Nullable RuntimeConfig runtimeConfig) {
-        RuntimeType effectiveType = runtimeConfig != null && runtimeConfig.getType() != null
-                ? runtimeConfig.getType()
-                : RuntimeType.JAVA;
+        RuntimeType effectiveType =
+                runtimeConfig != null && runtimeConfig.getType() != null ? runtimeConfig.getType() : RuntimeType.JAVA;
 
         Map<String, Object> runtimeWith = new LinkedHashMap<>();
         if (effectiveType == RuntimeType.JAVA) {

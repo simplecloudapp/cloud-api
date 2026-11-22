@@ -7,7 +7,8 @@ import org.junit.jupiter.api.extension.ParameterResolver;
 
 public final class CloudTestExtension implements ParameterResolver {
 
-    private static final ExtensionContext.Namespace NAMESPACE = ExtensionContext.Namespace.create(CloudTestExtension.class);
+    private static final ExtensionContext.Namespace NAMESPACE =
+            ExtensionContext.Namespace.create(CloudTestExtension.class);
 
     @Override
     public boolean supportsParameter(ParameterContext parameterContext, ExtensionContext extensionContext) {
@@ -16,7 +17,8 @@ public final class CloudTestExtension implements ParameterResolver {
 
     @Override
     public Object resolveParameter(ParameterContext parameterContext, ExtensionContext extensionContext) {
-        return extensionContext.getStore(NAMESPACE)
+        return extensionContext
+                .getStore(NAMESPACE)
                 .computeIfAbsent(TestCloud.class, key -> TestCloud.create(), TestCloud.class);
     }
 }

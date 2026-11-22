@@ -4,9 +4,8 @@ import app.simplecloud.api.base.ServerBase;
 import app.simplecloud.api.blueprint.Blueprint;
 import app.simplecloud.api.group.Group;
 import app.simplecloud.api.persistentserver.PersistentServer;
-import org.jetbrains.annotations.Nullable;
-
 import java.util.Map;
+import org.jetbrains.annotations.Nullable;
 
 /**
  * Represents a running server instance.
@@ -218,7 +217,8 @@ public interface Server {
     default Group getServerGroup() {
         Group group = getGroup();
         if (group == null) {
-            throw new IllegalStateException("Server was spawned from a persistent server, not a group. Use getGroup() or getPersistentServer() instead.");
+            throw new IllegalStateException(
+                    "Server was spawned from a persistent server, not a group. Use getGroup() or getPersistentServer() instead.");
         }
         return group;
     }

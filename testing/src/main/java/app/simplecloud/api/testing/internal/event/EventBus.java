@@ -1,8 +1,6 @@
 package app.simplecloud.api.testing.internal.event;
 
 import app.simplecloud.api.event.Subscription;
-import org.jetbrains.annotations.Nullable;
-
 import java.util.ArrayList;
 import java.util.List;
 import java.util.Objects;
@@ -11,6 +9,7 @@ import java.util.concurrent.ExecutorService;
 import java.util.concurrent.Executors;
 import java.util.concurrent.TimeUnit;
 import java.util.function.Consumer;
+import org.jetbrains.annotations.Nullable;
 
 public final class EventBus implements AutoCloseable {
 
@@ -19,10 +18,8 @@ public final class EventBus implements AutoCloseable {
     private volatile @Nullable ExecutorService asyncExecutor;
 
     public <E> Subscription subscribe(Class<E> type, Consumer<? super E> handler) {
-        Registration<E> registration = new Registration<>(
-                Objects.requireNonNull(type, "type"),
-                Objects.requireNonNull(handler, "handler")
-        );
+        Registration<E> registration =
+                new Registration<>(Objects.requireNonNull(type, "type"), Objects.requireNonNull(handler, "handler"));
         registrations.add(registration);
         return () -> registrations.remove(registration);
     }
@@ -41,7 +38,8 @@ public final class EventBus implements AutoCloseable {
 
     public synchronized void async(boolean async) {
         if (async && asyncExecutor == null) {
-            asyncExecutor = Executors.newSingleThreadExecutor(Thread.ofVirtual().name("test-cloud-events").factory());
+            asyncExecutor = Executors.newSingleThreadExecutor(
+                    Thread.ofVirtual().name("test-cloud-events").factory());
         } else if (!async && asyncExecutor != null) {
             drain(asyncExecutor);
             asyncExecutor = null;

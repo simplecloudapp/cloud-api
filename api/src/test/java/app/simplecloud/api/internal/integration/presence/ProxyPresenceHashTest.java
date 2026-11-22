@@ -1,19 +1,16 @@
 package app.simplecloud.api.internal.integration.presence;
 
-import app.simplecloud.api.presence.ProxyPresencePlayer;
-import org.junit.jupiter.api.Test;
-
-import java.util.List;
-
 import static org.junit.jupiter.api.Assertions.assertEquals;
 import static org.junit.jupiter.api.Assertions.assertNotEquals;
 
+import app.simplecloud.api.presence.ProxyPresencePlayer;
+import java.util.List;
+import org.junit.jupiter.api.Test;
+
 class ProxyPresenceHashTest {
 
-    private static final ProxyPresencePlayer LOBBY_PLAYER =
-            player("11111111-1111-1111-1111-111111111111", "lobby-1");
-    private static final ProxyPresencePlayer GAME_PLAYER =
-            player("22222222-2222-2222-2222-222222222222", "game-1");
+    private static final ProxyPresencePlayer LOBBY_PLAYER = player("11111111-1111-1111-1111-111111111111", "lobby-1");
+    private static final ProxyPresencePlayer GAME_PLAYER = player("22222222-2222-2222-2222-222222222222", "game-1");
 
     @Test
     void emptyProxyHashesToZero() {
@@ -32,11 +29,11 @@ class ProxyPresenceHashTest {
 
         assertNotEquals(
                 ProxyPresenceResponder.computeHash(List.of(LOBBY_PLAYER)),
-                ProxyPresenceResponder.computeHash(List.of(switched))
-        );
+                ProxyPresenceResponder.computeHash(List.of(switched)));
     }
 
     private static ProxyPresencePlayer player(String playerId, String serverName) {
-        return new ProxyPresencePlayer(playerId, "Player", null, serverName, "proxy-1", 0, "en_us", 770, true, "session");
+        return new ProxyPresencePlayer(
+                playerId, "Player", null, serverName, "proxy-1", 0, "en_us", 770, true, "session");
     }
 }

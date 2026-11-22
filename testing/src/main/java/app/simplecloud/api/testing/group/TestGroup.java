@@ -3,7 +3,6 @@ package app.simplecloud.api.testing.group;
 import app.simplecloud.api.group.Group;
 import app.simplecloud.api.group.UpdateGroupRequest;
 import app.simplecloud.api.testing.server.TestServer;
-
 import java.util.List;
 
 /**

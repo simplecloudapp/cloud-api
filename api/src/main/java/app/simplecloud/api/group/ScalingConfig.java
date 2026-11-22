@@ -11,13 +11,12 @@ public class ScalingConfig {
     private boolean minServersSet;
     private double playerThreshold;
     private boolean playerThresholdSet;
-    @Nullable
-    private ScaleDownConfig scaleDown;
-    @Nullable
-    private ScalingMode scalingMode;
 
-    public ScalingConfig() {
-    }
+    @Nullable private ScaleDownConfig scaleDown;
+
+    @Nullable private ScalingMode scalingMode;
+
+    public ScalingConfig() {}
 
     public static Builder builder() {
         return new Builder();
@@ -75,8 +74,7 @@ public class ScalingConfig {
         return playerThresholdSet;
     }
 
-    @Nullable
-    public ScaleDownConfig getScaleDown() {
+    @Nullable public ScaleDownConfig getScaleDown() {
         return scaleDown;
     }
 
@@ -84,8 +82,7 @@ public class ScalingConfig {
         this.scaleDown = scaleDown;
     }
 
-    @Nullable
-    public ScalingMode getScalingMode() {
+    @Nullable public ScalingMode getScalingMode() {
         return scalingMode;
     }
 

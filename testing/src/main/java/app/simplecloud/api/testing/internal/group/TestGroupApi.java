@@ -6,18 +6,17 @@ import app.simplecloud.api.group.GroupApi;
 import app.simplecloud.api.group.GroupQuery;
 import app.simplecloud.api.group.GroupStartQueue;
 import app.simplecloud.api.group.RollingRestartStatus;
-import app.simplecloud.api.persistentserver.PersistentServer;
-import app.simplecloud.api.workflow.WorkflowExecutionResult;
 import app.simplecloud.api.group.UpdateGroupRequest;
+import app.simplecloud.api.persistentserver.PersistentServer;
 import app.simplecloud.api.testing.internal.CloudState;
 import app.simplecloud.api.testing.internal.Futures;
 import app.simplecloud.api.testing.internal.persistentserver.PersistentServerData;
-import org.jetbrains.annotations.Nullable;
-
+import app.simplecloud.api.workflow.WorkflowExecutionResult;
 import java.util.List;
 import java.util.Map;
 import java.util.Optional;
 import java.util.concurrent.CompletableFuture;
+import org.jetbrains.annotations.Nullable;
 
 public final class TestGroupApi implements GroupApi {
 
@@ -44,8 +43,8 @@ public final class TestGroupApi implements GroupApi {
 
     @Override
     public CompletableFuture<Group> getGroupByName(String name) {
-        return Futures.call(() -> findByName(name)
-                .orElseThrow(() -> CloudState.notFound("Group '" + name + "' not found")));
+        return Futures.call(
+                () -> findByName(name).orElseThrow(() -> CloudState.notFound("Group '" + name + "' not found")));
     }
 
     @Override
@@ -55,8 +54,8 @@ public final class TestGroupApi implements GroupApi {
 
     @Override
     public CompletableFuture<Group> getGroupById(String id) {
-        return Futures.call(() -> findById(id)
-                .orElseThrow(() -> CloudState.notFound("Group with ID '" + id + "' not found")));
+        return Futures.call(
+                () -> findById(id).orElseThrow(() -> CloudState.notFound("Group with ID '" + id + "' not found")));
     }
 
     @Override
@@ -66,9 +65,8 @@ public final class TestGroupApi implements GroupApi {
 
     @Override
     public CompletableFuture<List<Group>> getAllGroups(@Nullable GroupQuery query) {
-        return Futures.call(() -> cloud.read(() -> cloud.groups(query).stream()
-                .map(GroupData::snapshot)
-                .toList()));
+        return Futures.call(() -> cloud.read(
+                () -> cloud.groups(query).stream().map(GroupData::snapshot).toList()));
     }
 
     @Override

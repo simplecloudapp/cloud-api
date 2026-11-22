@@ -1,24 +1,20 @@
 package app.simplecloud.api.blueprint;
 
+import java.util.Map;
 import org.jetbrains.annotations.Nullable;
 
-import java.util.Map;
-
 public class RuntimeConfig {
-    @Nullable
-    private RuntimeType type;
-    @Nullable
-    private Map<String, Object> with;
+    @Nullable private RuntimeType type;
 
-    public RuntimeConfig() {
-    }
+    @Nullable private Map<String, Object> with;
+
+    public RuntimeConfig() {}
 
     public static Builder builder() {
         return new Builder();
     }
 
-    @Nullable
-    public RuntimeType getType() {
+    @Nullable public RuntimeType getType() {
         return type;
     }
 
@@ -26,8 +22,7 @@ public class RuntimeConfig {
         this.type = type;
     }
 
-    @Nullable
-    public Map<String, Object> getWith() {
+    @Nullable public Map<String, Object> getWith() {
         return with;
     }
 

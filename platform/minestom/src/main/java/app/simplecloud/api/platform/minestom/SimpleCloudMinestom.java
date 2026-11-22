@@ -30,8 +30,7 @@ public final class SimpleCloudMinestom {
                 cloudApi,
                 new MinestomPlayerAudiences(),
                 serverId,
-                groupName == null || groupName.isBlank() ? serverId : groupName
-        );
+                groupName == null || groupName.isBlank() ? serverId : groupName);
     }
 
     public static synchronized CloudApi init() {
@@ -81,7 +80,8 @@ public final class SimpleCloudMinestom {
 
     private void start() {
         adventureIntegration.start();
-        node.addListener(PlayerDisconnectEvent.class,
+        node.addListener(
+                PlayerDisconnectEvent.class,
                 event -> adventureIntegration.forgetPlayer(event.getPlayer().getUuid()));
         MinecraftServer.getGlobalEventHandler().addChild(node);
     }

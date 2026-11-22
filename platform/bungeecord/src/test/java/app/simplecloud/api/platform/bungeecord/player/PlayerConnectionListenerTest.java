@@ -1,8 +1,21 @@
 package app.simplecloud.api.platform.bungeecord.player;
 
+import static org.junit.jupiter.api.Assertions.assertEquals;
+import static org.junit.jupiter.api.Assertions.assertTrue;
+import static org.mockito.ArgumentMatchers.any;
+import static org.mockito.Mockito.mock;
+import static org.mockito.Mockito.verify;
+import static org.mockito.Mockito.verifyNoInteractions;
+import static org.mockito.Mockito.when;
+
 import app.simplecloud.api.platform.shared.player.ConnectingPlayer;
 import app.simplecloud.api.platform.shared.player.ProxyPlayerSessions;
 import app.simplecloud.api.player.PlayerClientSettings;
+import java.net.InetSocketAddress;
+import java.util.List;
+import java.util.Locale;
+import java.util.UUID;
+import java.util.concurrent.CompletableFuture;
 import net.md_5.bungee.api.Callback;
 import net.md_5.bungee.api.SkinConfiguration;
 import net.md_5.bungee.api.connection.PendingConnection;
@@ -11,20 +24,6 @@ import net.md_5.bungee.api.event.PlayerDisconnectEvent;
 import net.md_5.bungee.api.event.PostLoginEvent;
 import net.md_5.bungee.api.plugin.Plugin;
 import org.junit.jupiter.api.Test;
-
-import java.net.InetSocketAddress;
-import java.util.List;
-import java.util.Locale;
-import java.util.UUID;
-import java.util.concurrent.CompletableFuture;
-
-import static org.junit.jupiter.api.Assertions.assertEquals;
-import static org.junit.jupiter.api.Assertions.assertTrue;
-import static org.mockito.ArgumentMatchers.any;
-import static org.mockito.Mockito.mock;
-import static org.mockito.Mockito.verify;
-import static org.mockito.Mockito.verifyNoInteractions;
-import static org.mockito.Mockito.when;
 
 class PlayerConnectionListenerTest {
 
@@ -59,8 +58,17 @@ class PlayerConnectionListenerTest {
     void connectingPlayerIsReadFromThePlayerAndItsConnection() {
         ConnectingPlayer result = PlayerConnectionListener.toConnectingPlayer(player());
 
-        assertEquals(new ConnectingPlayer(playerId, "Player", "Display",
-                new InetSocketAddress("127.0.0.1", 25565), Locale.GERMANY, 767, true, null), result);
+        assertEquals(
+                new ConnectingPlayer(
+                        playerId,
+                        "Player",
+                        "Display",
+                        new InetSocketAddress("127.0.0.1", 25565),
+                        Locale.GERMANY,
+                        767,
+                        true,
+                        null),
+                result);
     }
 
     @Test

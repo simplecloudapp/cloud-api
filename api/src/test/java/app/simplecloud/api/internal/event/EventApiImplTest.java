@@ -1,5 +1,8 @@
 package app.simplecloud.api.internal.event;
 
+import static org.junit.jupiter.api.Assertions.assertEquals;
+import static org.junit.jupiter.api.Assertions.assertTrue;
+
 import app.simplecloud.api.event.Subscription;
 import app.simplecloud.api.event.group.GroupUpdatedEvent;
 import app.simplecloud.api.event.server.ServerStateChangedEvent;
@@ -8,15 +11,11 @@ import app.simplecloud.api.support.NatsTest;
 import app.simplecloud.api.support.TestNats;
 import build.buf.gen.simplecloud.controller.v2.ServerGroupUpdatedEvent;
 import io.nats.client.Connection;
+import java.util.concurrent.BlockingQueue;
+import java.util.concurrent.LinkedBlockingQueue;
 import org.junit.jupiter.api.AfterEach;
 import org.junit.jupiter.api.BeforeEach;
 import org.junit.jupiter.api.Test;
-
-import java.util.concurrent.BlockingQueue;
-import java.util.concurrent.LinkedBlockingQueue;
-
-import static org.junit.jupiter.api.Assertions.assertEquals;
-import static org.junit.jupiter.api.Assertions.assertTrue;
 
 @NatsTest
 class EventApiImplTest {
@@ -45,11 +44,14 @@ class EventApiImplTest {
         events.server().onStateChanged(received::add);
         flush();
 
-        publish(networkId, "server.state-changed", build.buf.gen.simplecloud.controller.v2.ServerStateChangedEvent.newBuilder()
-                .setServerId("server-1")
-                .setNewState(build.buf.gen.simplecloud.controller.v2.ServerState.SERVER_STATE_AVAILABLE)
-                .build()
-                .toByteArray());
+        publish(
+                networkId,
+                "server.state-changed",
+                build.buf.gen.simplecloud.controller.v2.ServerStateChangedEvent.newBuilder()
+                        .setServerId("server-1")
+                        .setNewState(build.buf.gen.simplecloud.controller.v2.ServerState.SERVER_STATE_AVAILABLE)
+                        .build()
+                        .toByteArray());
 
         ServerStateChangedEvent event = TestNats.next(received);
         assertEquals("server-1", event.getServerId());
@@ -90,7 +92,7 @@ class EventApiImplTest {
         events.group().onUpdated(received::add);
         flush();
 
-        publish(networkId, "group.updated", new byte[]{(byte) 0xFF});
+        publish(networkId, "group.updated", new byte[] {(byte) 0xFF});
         publish(networkId, "group.updated", groupUpdated("group-1"));
 
         assertEquals("group-1", TestNats.next(received).getServerGroupId());
@@ -105,6 +107,9 @@ class EventApiImplTest {
     }
 
     private static byte[] groupUpdated(String groupId) {
-        return ServerGroupUpdatedEvent.newBuilder().setServerGroupId(groupId).build().toByteArray();
+        return ServerGroupUpdatedEvent.newBuilder()
+                .setServerGroupId(groupId)
+                .build()
+                .toByteArray();
     }
 }

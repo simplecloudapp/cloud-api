@@ -1,21 +1,20 @@
 package app.simplecloud.api.platform.velocity.player;
 
+import static org.junit.jupiter.api.Assertions.assertEquals;
+import static org.junit.jupiter.api.Assertions.assertTrue;
+import static org.mockito.Mockito.*;
+
 import app.simplecloud.api.internal.integration.player.ProxyPlayer;
 import app.simplecloud.api.player.CloudPlayer;
 import com.velocitypowered.api.proxy.ConnectionRequestBuilder;
 import com.velocitypowered.api.proxy.Player;
 import com.velocitypowered.api.proxy.ProxyServer;
 import com.velocitypowered.api.proxy.server.RegisteredServer;
-import net.kyori.adventure.text.Component;
-import org.junit.jupiter.api.Test;
-
 import java.util.Optional;
 import java.util.UUID;
 import java.util.concurrent.CompletableFuture;
-
-import static org.junit.jupiter.api.Assertions.assertEquals;
-import static org.junit.jupiter.api.Assertions.assertTrue;
-import static org.mockito.Mockito.*;
+import net.kyori.adventure.text.Component;
+import org.junit.jupiter.api.Test;
 
 class VelocityPlayersTest {
 

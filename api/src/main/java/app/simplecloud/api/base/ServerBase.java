@@ -3,10 +3,9 @@ package app.simplecloud.api.base;
 import app.simplecloud.api.group.GroupServerType;
 import app.simplecloud.api.group.SourceConfig;
 import app.simplecloud.api.group.WorkflowsConfig;
-import org.jetbrains.annotations.Nullable;
-
 import java.util.List;
 import java.util.Map;
+import org.jetbrains.annotations.Nullable;
 
 /**
  * Common base interface for server configurations.
@@ -115,4 +114,3 @@ public interface ServerBase {
         return this instanceof app.simplecloud.api.persistentserver.PersistentServer;
     }
 }
-

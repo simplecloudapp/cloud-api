@@ -5,12 +5,11 @@ import app.simplecloud.api.group.SourceConfig;
 import app.simplecloud.api.group.WorkflowsConfig;
 import app.simplecloud.api.persistentserver.PersistentServer;
 import app.simplecloud.api.testing.internal.server.ServerData;
-import org.jetbrains.annotations.Nullable;
-
 import java.util.ArrayList;
 import java.util.LinkedHashMap;
 import java.util.List;
 import java.util.Map;
+import org.jetbrains.annotations.Nullable;
 
 public final class PersistentServerData {
 

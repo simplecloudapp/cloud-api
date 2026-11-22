@@ -1,16 +1,16 @@
 package app.simplecloud.api.proxy;
 
-import org.junit.jupiter.api.Test;
+import static org.junit.jupiter.api.Assertions.assertEquals;
 
 import java.util.Optional;
-
-import static org.junit.jupiter.api.Assertions.assertEquals;
+import org.junit.jupiter.api.Test;
 
 class ProxyServerNamesTest {
 
     @Test
     void resolvesNamesThroughTheRegisteredLookup() {
-        try (ProxyServerNames.Registration ignored = ProxyServerNames.register(serverId -> Optional.of("proxy-" + serverId))) {
+        try (ProxyServerNames.Registration ignored =
+                ProxyServerNames.register(serverId -> Optional.of("proxy-" + serverId))) {
             assertEquals(Optional.of("proxy-server-1"), ProxyServerNames.proxyNameOf("server-1"));
         }
 
