@@ -69,7 +69,8 @@ publishing {
     repositories {
         maven {
             name = "simplecloud"
-            url = uri("https://repo.simplecloud.app/snapshots/")
+            val repository = providers.environmentVariable("SIMPLECLOUD_REPOSITORY").getOrElse("snapshots")
+            url = uri("https://repo.simplecloud.app/$repository/")
             credentials {
                 username = providers.environmentVariable("SIMPLECLOUD_USERNAME").orNull
                 password = providers.environmentVariable("SIMPLECLOUD_PASSWORD").orNull
