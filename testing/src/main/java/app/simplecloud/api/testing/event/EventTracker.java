@@ -9,7 +9,7 @@ import java.util.List;
  * <pre>{@code
  * var stopped = cloud.track(ServerStoppedEvent.class);
  * server.crash(137, "out of memory");
- * assertTrue(stopped.single().getCrashed());
+ * assertTrue(stopped.single().isCrashed());
  * }</pre>
  *
  * <p>Closing the tracker stops recording.

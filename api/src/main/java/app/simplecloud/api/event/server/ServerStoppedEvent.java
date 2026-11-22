@@ -1,6 +1,7 @@
 package app.simplecloud.api.event.server;
 
 import app.simplecloud.api.server.Server;
+import org.jetbrains.annotations.ApiStatus;
 import org.jetbrains.annotations.Nullable;
 
 /**
@@ -42,7 +43,19 @@ public interface ServerStoppedEvent {
      *
      * @return true if the server crashed, false if it stopped normally
      */
-    boolean getCrashed();
+    boolean isCrashed();
+
+    /**
+     * Returns whether the server crashed (stopped unexpectedly).
+     *
+     * @return true if the server crashed, false if it stopped normally
+     * @deprecated use {@link #isCrashed()}; will be removed in 1.0.0
+     */
+    @Deprecated(forRemoval = true)
+    @ApiStatus.ScheduledForRemoval(inVersion = "1.0.0")
+    default boolean getCrashed() {
+        return isCrashed();
+    }
 
     /**
      * Returns the exit code of the server process.

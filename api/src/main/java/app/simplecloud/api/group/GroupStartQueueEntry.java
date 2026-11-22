@@ -1,6 +1,7 @@
 package app.simplecloud.api.group;
 
 import java.util.List;
+import org.jetbrains.annotations.ApiStatus;
 import org.jetbrains.annotations.Nullable;
 
 /**
@@ -22,6 +23,7 @@ public record GroupStartQueueEntry(
      * @deprecated use {@link #failedStarts()}; will be removed in 1.0.0
      */
     @Deprecated(forRemoval = true)
+    @ApiStatus.ScheduledForRemoval(inVersion = "1.0.0")
     public int getFailedStarts() {
         return failedStarts;
     }
@@ -30,6 +32,7 @@ public record GroupStartQueueEntry(
      * @deprecated use {@link #queuedStarts()}; will be removed in 1.0.0
      */
     @Deprecated(forRemoval = true)
+    @ApiStatus.ScheduledForRemoval(inVersion = "1.0.0")
     public int getQueuedStarts() {
         return queuedStarts;
     }
@@ -38,6 +41,7 @@ public record GroupStartQueueEntry(
      * @deprecated use {@link #serverGroupId()}; will be removed in 1.0.0
      */
     @Deprecated(forRemoval = true)
+    @ApiStatus.ScheduledForRemoval(inVersion = "1.0.0")
     @Nullable public String getServerGroupId() {
         return serverGroupId;
     }
@@ -46,6 +50,7 @@ public record GroupStartQueueEntry(
      * @deprecated use {@link #serverGroupName()}; will be removed in 1.0.0
      */
     @Deprecated(forRemoval = true)
+    @ApiStatus.ScheduledForRemoval(inVersion = "1.0.0")
     @Nullable public String getServerGroupName() {
         return serverGroupName;
     }
@@ -54,6 +59,7 @@ public record GroupStartQueueEntry(
      * @deprecated use {@link #starts()}; will be removed in 1.0.0
      */
     @Deprecated(forRemoval = true)
+    @ApiStatus.ScheduledForRemoval(inVersion = "1.0.0")
     public List<GroupStartQueueItem> getStarts() {
         return starts;
     }
@@ -62,6 +68,7 @@ public record GroupStartQueueEntry(
      * @deprecated use {@link #totalStarts()}; will be removed in 1.0.0
      */
     @Deprecated(forRemoval = true)
+    @ApiStatus.ScheduledForRemoval(inVersion = "1.0.0")
     public int getTotalStarts() {
         return totalStarts;
     }

@@ -274,7 +274,7 @@ public final class SimulatedEvents {
         }
 
         @Override
-        public boolean getCrashed() {
+        public boolean isCrashed() {
             return crashed;
         }
 

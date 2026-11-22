@@ -32,7 +32,7 @@ import org.jetbrains.annotations.Nullable;
  *
  * var started = cloud.track(ServerStartedEvent.class);
  * TestServer lobby = cloud.createGroup("lobby").startServer();
- * cloud.createPlayer("Steve").join(lobby);
+ * cloud.createPlayer("jskrsh").join(lobby);
  *
  * assertEquals(1, started.count());
  * }</pre>

@@ -1,5 +1,6 @@
 package app.simplecloud.api.group;
 
+import org.jetbrains.annotations.ApiStatus;
 import org.jetbrains.annotations.Nullable;
 
 /**
@@ -15,6 +16,7 @@ public record GroupStartQueueItem(
      * @deprecated use {@link #createdAt()}; will be removed in 1.0.0
      */
     @Deprecated(forRemoval = true)
+    @ApiStatus.ScheduledForRemoval(inVersion = "1.0.0")
     @Nullable public String getCreatedAt() {
         return createdAt;
     }
@@ -23,6 +25,7 @@ public record GroupStartQueueItem(
      * @deprecated use {@link #failureReason()}; will be removed in 1.0.0
      */
     @Deprecated(forRemoval = true)
+    @ApiStatus.ScheduledForRemoval(inVersion = "1.0.0")
     @Nullable public String getFailureReason() {
         return failureReason;
     }
@@ -31,6 +34,7 @@ public record GroupStartQueueItem(
      * @deprecated use {@link #id()}; will be removed in 1.0.0
      */
     @Deprecated(forRemoval = true)
+    @ApiStatus.ScheduledForRemoval(inVersion = "1.0.0")
     @Nullable public String getId() {
         return id;
     }
@@ -39,6 +43,7 @@ public record GroupStartQueueItem(
      * @deprecated use {@link #status()}; will be removed in 1.0.0
      */
     @Deprecated(forRemoval = true)
+    @ApiStatus.ScheduledForRemoval(inVersion = "1.0.0")
     public GroupStartQueueItemStatus getStatus() {
         return status;
     }

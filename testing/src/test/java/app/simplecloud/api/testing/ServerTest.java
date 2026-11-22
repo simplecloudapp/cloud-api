@@ -127,7 +127,7 @@ class ServerTest {
         server.crash(137, "out of memory");
 
         ServerStoppedEvent event = stopped.single();
-        assertTrue(event.getCrashed());
+        assertTrue(event.isCrashed());
         assertEquals(137, event.getExitCode());
         assertFalse(server.isRunning());
         assertTrue(

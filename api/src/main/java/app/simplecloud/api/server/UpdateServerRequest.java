@@ -1,6 +1,7 @@
 package app.simplecloud.api.server;
 
 import java.util.Map;
+import org.jetbrains.annotations.ApiStatus;
 import org.jetbrains.annotations.Nullable;
 
 /**
@@ -30,6 +31,7 @@ public class UpdateServerRequest {
      *             server's status ping, so this field has no effect. Will be removed in 1.0.0.
      */
     @Deprecated(forRemoval = true)
+    @ApiStatus.ScheduledForRemoval(inVersion = "1.0.0")
     @Nullable public Integer getPlayerCount() {
         return playerCount;
     }
@@ -39,6 +41,7 @@ public class UpdateServerRequest {
      *             server's status ping, so this field has no effect. Will be removed in 1.0.0.
      */
     @Deprecated(forRemoval = true)
+    @ApiStatus.ScheduledForRemoval(inVersion = "1.0.0")
     public void setPlayerCount(@Nullable Integer playerCount) {
         this.playerCount = playerCount;
     }
@@ -96,6 +99,7 @@ public class UpdateServerRequest {
          *             server's status ping, so this field has no effect. Will be removed in 1.0.0.
          */
         @Deprecated(forRemoval = true)
+        @ApiStatus.ScheduledForRemoval(inVersion = "1.0.0")
         public Builder playerCount(Integer playerCount) {
             this.playerCount = playerCount;
             return this;

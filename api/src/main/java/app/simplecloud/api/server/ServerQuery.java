@@ -4,6 +4,7 @@ import app.simplecloud.api.group.GroupServerType;
 import java.util.ArrayList;
 import java.util.Arrays;
 import java.util.List;
+import org.jetbrains.annotations.ApiStatus;
 import org.jetbrains.annotations.Nullable;
 
 /**
@@ -199,6 +200,7 @@ public class ServerQuery {
      * @deprecated use {@link #sortBy(SortField)}; will be removed in 1.0.0
      */
     @Deprecated(forRemoval = true)
+    @ApiStatus.ScheduledForRemoval(inVersion = "1.0.0")
     public ServerQuery sortBy(String sortBy) {
         this.sortBy = sortBy;
         return this;
@@ -232,6 +234,7 @@ public class ServerQuery {
      * @deprecated use {@link #sortOrder(SortOrder)}; will be removed in 1.0.0
      */
     @Deprecated(forRemoval = true)
+    @ApiStatus.ScheduledForRemoval(inVersion = "1.0.0")
     public ServerQuery sortOrder(String sortOrder) {
         this.sortOrder = sortOrder;
         return this;

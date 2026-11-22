@@ -5,6 +5,7 @@ import app.simplecloud.api.blueprint.Blueprint;
 import app.simplecloud.api.group.Group;
 import app.simplecloud.api.persistentserver.PersistentServer;
 import java.util.Map;
+import org.jetbrains.annotations.ApiStatus;
 import org.jetbrains.annotations.Nullable;
 
 /**
@@ -214,6 +215,7 @@ public interface Server {
      *             was spawned from a persistent server. Will be removed in 1.0.0.
      */
     @Deprecated(forRemoval = true)
+    @ApiStatus.ScheduledForRemoval(inVersion = "1.0.0")
     default Group getServerGroup() {
         Group group = getGroup();
         if (group == null) {

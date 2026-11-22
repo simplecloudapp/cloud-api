@@ -1,5 +1,7 @@
 package app.simplecloud.api.cache;
 
+import org.jetbrains.annotations.ApiStatus;
+
 /**
  * Cache statistics for monitoring and debugging.
  */
@@ -10,6 +12,7 @@ public record CacheStats(
      * @deprecated use {@link #hitCount()}; will be removed in 1.0.0
      */
     @Deprecated(forRemoval = true)
+    @ApiStatus.ScheduledForRemoval(inVersion = "1.0.0")
     public long getHitCount() {
         return hitCount;
     }
@@ -18,6 +21,7 @@ public record CacheStats(
      * @deprecated use {@link #missCount()}; will be removed in 1.0.0
      */
     @Deprecated(forRemoval = true)
+    @ApiStatus.ScheduledForRemoval(inVersion = "1.0.0")
     public long getMissCount() {
         return missCount;
     }
@@ -26,6 +30,7 @@ public record CacheStats(
      * @deprecated use {@link #staleHitCount()}; will be removed in 1.0.0
      */
     @Deprecated(forRemoval = true)
+    @ApiStatus.ScheduledForRemoval(inVersion = "1.0.0")
     public long getStaleHitCount() {
         return staleHitCount;
     }
@@ -34,6 +39,7 @@ public record CacheStats(
      * @deprecated use {@link #evictionCount()}; will be removed in 1.0.0
      */
     @Deprecated(forRemoval = true)
+    @ApiStatus.ScheduledForRemoval(inVersion = "1.0.0")
     public long getEvictionCount() {
         return evictionCount;
     }
@@ -42,6 +48,7 @@ public record CacheStats(
      * @deprecated use {@link #entryCount()}; will be removed in 1.0.0
      */
     @Deprecated(forRemoval = true)
+    @ApiStatus.ScheduledForRemoval(inVersion = "1.0.0")
     public long getEntryCount() {
         return entryCount;
     }
@@ -50,6 +57,7 @@ public record CacheStats(
      * @deprecated use {@link #hitRate()}; will be removed in 1.0.0
      */
     @Deprecated(forRemoval = true)
+    @ApiStatus.ScheduledForRemoval(inVersion = "1.0.0")
     public double getHitRate() {
         return hitRate;
     }

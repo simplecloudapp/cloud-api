@@ -1,6 +1,7 @@
 package app.simplecloud.api.presence;
 
 import build.buf.gen.simplecloud.controller.v2.ProxyPresencePlayerSnapshot;
+import org.jetbrains.annotations.ApiStatus;
 
 /**
  * Immutable player snapshot used for proxy presence reconciliation.
@@ -35,6 +36,7 @@ public record ProxyPresencePlayer(
      * @deprecated use {@link #playerId()}; will be removed in 1.0.0
      */
     @Deprecated(forRemoval = true)
+    @ApiStatus.ScheduledForRemoval(inVersion = "1.0.0")
     public String getPlayerId() {
         return playerId;
     }
@@ -43,6 +45,7 @@ public record ProxyPresencePlayer(
      * @deprecated use {@link #name()}; will be removed in 1.0.0
      */
     @Deprecated(forRemoval = true)
+    @ApiStatus.ScheduledForRemoval(inVersion = "1.0.0")
     public String getName() {
         return name;
     }
@@ -51,6 +54,7 @@ public record ProxyPresencePlayer(
      * @deprecated use {@link #connectedServerName()}; will be removed in 1.0.0
      */
     @Deprecated(forRemoval = true)
+    @ApiStatus.ScheduledForRemoval(inVersion = "1.0.0")
     public String getConnectedServerName() {
         return connectedServerName;
     }

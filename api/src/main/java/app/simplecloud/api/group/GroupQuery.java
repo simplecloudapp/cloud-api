@@ -1,5 +1,6 @@
 package app.simplecloud.api.group;
 
+import org.jetbrains.annotations.ApiStatus;
 import org.jetbrains.annotations.Nullable;
 
 public class GroupQuery {
@@ -34,6 +35,7 @@ public class GroupQuery {
      * @deprecated the controller does not support sorting groups, this value is ignored; will be removed in 1.0.0
      */
     @Deprecated(forRemoval = true)
+    @ApiStatus.ScheduledForRemoval(inVersion = "1.0.0")
     @Nullable public String getSortBy() {
         return sortBy;
     }
@@ -42,6 +44,7 @@ public class GroupQuery {
      * @deprecated the controller does not support sorting groups, this value is ignored; will be removed in 1.0.0
      */
     @Deprecated(forRemoval = true)
+    @ApiStatus.ScheduledForRemoval(inVersion = "1.0.0")
     public GroupQuery sortBy(String sortBy) {
         this.sortBy = sortBy;
         return this;
@@ -51,6 +54,7 @@ public class GroupQuery {
      * @deprecated the controller does not support sorting groups, this value is ignored; will be removed in 1.0.0
      */
     @Deprecated(forRemoval = true)
+    @ApiStatus.ScheduledForRemoval(inVersion = "1.0.0")
     @Nullable public String getSortOrder() {
         return sortOrder;
     }
@@ -59,6 +63,7 @@ public class GroupQuery {
      * @deprecated the controller does not support sorting groups, this value is ignored; will be removed in 1.0.0
      */
     @Deprecated(forRemoval = true)
+    @ApiStatus.ScheduledForRemoval(inVersion = "1.0.0")
     public GroupQuery sortOrder(String sortOrder) {
         this.sortOrder = sortOrder;
         return this;

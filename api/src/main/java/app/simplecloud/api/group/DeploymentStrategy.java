@@ -1,5 +1,7 @@
 package app.simplecloud.api.group;
 
+import org.jetbrains.annotations.ApiStatus;
+
 /**
  * Represents the strategy for deploying servers to hosts.
  */
@@ -20,6 +22,7 @@ public enum DeploymentStrategy {
      * @deprecated not supported by the controller; will be removed in 1.0.0
      */
     @Deprecated(forRemoval = true)
+    @ApiStatus.ScheduledForRemoval(inVersion = "1.0.0")
     RANDOM,
 
     /**
@@ -28,6 +31,7 @@ public enum DeploymentStrategy {
      * @deprecated not supported by the controller; will be removed in 1.0.0
      */
     @Deprecated(forRemoval = true)
+    @ApiStatus.ScheduledForRemoval(inVersion = "1.0.0")
     PRIORITY,
 
     /**
@@ -36,5 +40,6 @@ public enum DeploymentStrategy {
      * @deprecated not supported by the controller; will be removed in 1.0.0
      */
     @Deprecated(forRemoval = true)
+    @ApiStatus.ScheduledForRemoval(inVersion = "1.0.0")
     ROUND_ROBIN
 }
