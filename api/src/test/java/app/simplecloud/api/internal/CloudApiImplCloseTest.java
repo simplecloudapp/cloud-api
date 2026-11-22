@@ -1,13 +1,12 @@
 package app.simplecloud.api.internal;
 
-import app.simplecloud.api.CloudApiOptions;
-import org.junit.jupiter.api.Test;
+import static org.junit.jupiter.api.Assertions.assertTrue;
 
+import app.simplecloud.api.CloudApiOptions;
 import java.time.Duration;
 import java.util.concurrent.CountDownLatch;
 import java.util.concurrent.TimeUnit;
-
-import static org.junit.jupiter.api.Assertions.assertTrue;
+import org.junit.jupiter.api.Test;
 
 class CloudApiImplCloseTest {
 
