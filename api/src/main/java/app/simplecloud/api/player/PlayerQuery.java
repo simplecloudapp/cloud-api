@@ -1,12 +1,11 @@
 package app.simplecloud.api.player;
 
-import org.jetbrains.annotations.Nullable;
-
 import java.time.Instant;
 import java.util.ArrayList;
 import java.util.Arrays;
 import java.util.List;
 import java.util.UUID;
+import org.jetbrains.annotations.Nullable;
 
 public class PlayerQuery {
 
@@ -28,8 +27,7 @@ public class PlayerQuery {
     private Integer limit;
     private Integer offset;
 
-    public PlayerQuery() {
-    }
+    public PlayerQuery() {}
 
     public static PlayerQuery create() {
         return new PlayerQuery();
@@ -110,78 +108,63 @@ public class PlayerQuery {
         return this;
     }
 
-    @Nullable
-    public Boolean getOnline() {
+    @Nullable public Boolean getOnline() {
         return online;
     }
 
-    @Nullable
-    public String getServerName() {
+    @Nullable public String getServerName() {
         return serverName;
     }
 
-    @Nullable
-    public String getProxyName() {
+    @Nullable public String getProxyName() {
         return proxyName;
     }
 
-    @Nullable
-    public List<UUID> getPlayerIds() {
+    @Nullable public List<UUID> getPlayerIds() {
         return playerIds;
     }
 
-    @Nullable
-    public Instant getFirstSeenFrom() {
+    @Nullable public Instant getFirstSeenFrom() {
         return firstSeenFrom;
     }
 
-    @Nullable
-    public Instant getFirstSeenTo() {
+    @Nullable public Instant getFirstSeenTo() {
         return firstSeenTo;
     }
 
-    @Nullable
-    public Instant getLastSeenFrom() {
+    @Nullable public Instant getLastSeenFrom() {
         return lastSeenFrom;
     }
 
-    @Nullable
-    public Instant getLastSeenTo() {
+    @Nullable public Instant getLastSeenTo() {
         return lastSeenTo;
     }
 
-    @Nullable
-    public Long getOnlineTimeSecondsMin() {
+    @Nullable public Long getOnlineTimeSecondsMin() {
         return onlineTimeSecondsMin;
     }
 
-    @Nullable
-    public Long getOnlineTimeSecondsMax() {
+    @Nullable public Long getOnlineTimeSecondsMax() {
         return onlineTimeSecondsMax;
     }
 
-    @Nullable
-    public String getSearch() {
+    @Nullable public String getSearch() {
         return search;
     }
 
-    @Nullable
-    public SortField getSortBy() {
+    @Nullable public SortField getSortBy() {
         return sortBy;
     }
 
-    @Nullable
-    public SortOrder getSortOrder() {
+    @Nullable public SortOrder getSortOrder() {
         return sortOrder;
     }
 
-    @Nullable
-    public Integer getLimit() {
+    @Nullable public Integer getLimit() {
         return limit;
     }
 
-    @Nullable
-    public Integer getOffset() {
+    @Nullable public Integer getOffset() {
         return offset;
     }
 

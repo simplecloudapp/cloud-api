@@ -6,6 +6,8 @@ plugins {
     id("java-library")
     id("maven-publish")
     id("com.gradleup.shadow")
+    id("com.diffplug.spotless")
+    checkstyle
 }
 
 val libs = the<LibrariesForLibs>()
@@ -16,6 +18,9 @@ repositories {
     maven("https://repo.papermc.io/repository/maven-public")
     maven("https://repo.simplecloud.app/snapshots")
     maven("https://buf.build/gen/maven")
+    maven("https://central.sonatype.com/repository/maven-snapshots/") {
+        mavenContent { snapshotsOnly() }
+    }
 }
 
 java {
@@ -25,6 +30,27 @@ java {
 dependencies {
     testImplementation(libs.junit.jupiter)
     testRuntimeOnly("org.junit.platform:junit-platform-launcher")
+}
+
+spotless {
+    java {
+        target("src/*/java/**/*.java")
+        palantirJavaFormat(libs.versions.palantir.java.format.get())
+        formatAnnotations()
+        trimTrailingWhitespace()
+        endWithNewline()
+    }
+}
+
+checkstyle {
+    toolVersion = libs.versions.checkstyle.get()
+    configDirectory = isolated.rootProject.projectDirectory.dir(".checkstyle")
+    maxWarnings = 0
+}
+
+tasks.withType<Checkstyle>().configureEach {
+    val generatedSources = layout.buildDirectory.get().asFile
+    exclude { it.file.startsWith(generatedSources) }
 }
 
 tasks.withType<Test>().configureEach {

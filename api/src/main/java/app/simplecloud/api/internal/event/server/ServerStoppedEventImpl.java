@@ -2,9 +2,8 @@ package app.simplecloud.api.internal.event.server;
 
 import app.simplecloud.api.event.server.ServerStoppedEvent;
 import app.simplecloud.api.server.Server;
-import org.jetbrains.annotations.Nullable;
-
 import java.time.Instant;
+import org.jetbrains.annotations.Nullable;
 
 class ServerStoppedEventImpl implements ServerStoppedEvent {
     private final build.buf.gen.simplecloud.controller.v2.ServerStoppedEvent delegate;
@@ -45,27 +44,24 @@ class ServerStoppedEventImpl implements ServerStoppedEvent {
                     null,
                     delegate.hasGroupConfig() ? delegate.getGroupConfig() : null,
                     delegate.hasPersistentServerConfig() ? delegate.getPersistentServerConfig() : null,
-                    delegate.getTimestamp()
-            );
+                    delegate.getTimestamp());
         }
         return server;
     }
 
     @Override
-    public boolean getCrashed() {
+    public boolean isCrashed() {
         return delegate.getCrashed();
     }
 
     @Override
-    @Nullable
-    public Integer getExitCode() {
+    @Nullable public Integer getExitCode() {
         int exitCode = delegate.getExitCode();
         return exitCode != 0 ? exitCode : null;
     }
 
     @Override
-    @Nullable
-    public String getReason() {
+    @Nullable public String getReason() {
         String reason = delegate.getReason();
         return reason.isEmpty() ? null : reason;
     }

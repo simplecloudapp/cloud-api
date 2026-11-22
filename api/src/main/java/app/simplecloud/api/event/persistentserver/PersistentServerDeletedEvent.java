@@ -35,4 +35,3 @@ public interface PersistentServerDeletedEvent {
      */
     String getTimestamp();
 }
-

@@ -1,0 +1,1921 @@
+package app.simplecloud.api.testing.internal;
+
+import app.simplecloud.api.CloudApiException;
+import app.simplecloud.api.blueprint.CreateBlueprintRequest;
+import app.simplecloud.api.blueprint.UpdateBlueprintRequest;
+import app.simplecloud.api.group.CreateGroupRequest;
+import app.simplecloud.api.group.DeploymentConfig;
+import app.simplecloud.api.group.DeploymentHost;
+import app.simplecloud.api.group.DeploymentStrategy;
+import app.simplecloud.api.group.GroupQuery;
+import app.simplecloud.api.group.GroupServerType;
+import app.simplecloud.api.group.GroupStartQueue;
+import app.simplecloud.api.group.GroupStartQueueEntry;
+import app.simplecloud.api.group.GroupStartQueueItemStatus;
+import app.simplecloud.api.group.RollingRestartStatus;
+import app.simplecloud.api.group.ScalingConfig;
+import app.simplecloud.api.group.ScalingMode;
+import app.simplecloud.api.group.SourceConfig;
+import app.simplecloud.api.group.SourceType;
+import app.simplecloud.api.group.UpdateGroupRequest;
+import app.simplecloud.api.group.WorkflowsConfig;
+import app.simplecloud.api.internal.util.RequestDefaults;
+import app.simplecloud.api.persistentserver.CreatePersistentServerRequest;
+import app.simplecloud.api.persistentserver.PersistentServerQuery;
+import app.simplecloud.api.persistentserver.UpdatePersistentServerRequest;
+import app.simplecloud.api.player.CloudPlayer;
+import app.simplecloud.api.player.CloudPlayer.ConnectResult;
+import app.simplecloud.api.player.PlayerApi;
+import app.simplecloud.api.player.PlayerClientSettings;
+import app.simplecloud.api.player.PlayerQuery;
+import app.simplecloud.api.player.ServerSelectionMode;
+import app.simplecloud.api.player.UpdateClientSettingsRequest;
+import app.simplecloud.api.server.Server;
+import app.simplecloud.api.server.ServerQuery;
+import app.simplecloud.api.server.ServerState;
+import app.simplecloud.api.server.UpdateServerRequest;
+import app.simplecloud.api.stats.CloudStats;
+import app.simplecloud.api.testing.internal.blueprint.BlueprintData;
+import app.simplecloud.api.testing.internal.event.EventBus;
+import app.simplecloud.api.testing.internal.event.SimulatedEvents.BlueprintCreated;
+import app.simplecloud.api.testing.internal.event.SimulatedEvents.BlueprintDeleted;
+import app.simplecloud.api.testing.internal.event.SimulatedEvents.BlueprintUpdated;
+import app.simplecloud.api.testing.internal.event.SimulatedEvents.GroupCreated;
+import app.simplecloud.api.testing.internal.event.SimulatedEvents.GroupDeleted;
+import app.simplecloud.api.testing.internal.event.SimulatedEvents.GroupUpdated;
+import app.simplecloud.api.testing.internal.event.SimulatedEvents.PersistentServerCreated;
+import app.simplecloud.api.testing.internal.event.SimulatedEvents.PersistentServerDeleted;
+import app.simplecloud.api.testing.internal.event.SimulatedEvents.PersistentServerStarted;
+import app.simplecloud.api.testing.internal.event.SimulatedEvents.PersistentServerStopped;
+import app.simplecloud.api.testing.internal.event.SimulatedEvents.PersistentServerUpdated;
+import app.simplecloud.api.testing.internal.event.SimulatedEvents.PlayerClientSettingsUpdated;
+import app.simplecloud.api.testing.internal.event.SimulatedEvents.PlayerDisconnect;
+import app.simplecloud.api.testing.internal.event.SimulatedEvents.PlayerKick;
+import app.simplecloud.api.testing.internal.event.SimulatedEvents.PlayerLogin;
+import app.simplecloud.api.testing.internal.event.SimulatedEvents.PlayerProfileChanged;
+import app.simplecloud.api.testing.internal.event.SimulatedEvents.PlayerServerSwitch;
+import app.simplecloud.api.testing.internal.event.SimulatedEvents.ServerStarted;
+import app.simplecloud.api.testing.internal.event.SimulatedEvents.ServerStateChanged;
+import app.simplecloud.api.testing.internal.event.SimulatedEvents.ServerStopped;
+import app.simplecloud.api.testing.internal.event.SimulatedEvents.ServerUpdated;
+import app.simplecloud.api.testing.internal.group.GroupData;
+import app.simplecloud.api.testing.internal.group.QueuedStart;
+import app.simplecloud.api.testing.internal.group.TestGroupImpl;
+import app.simplecloud.api.testing.internal.persistentserver.PersistentServerData;
+import app.simplecloud.api.testing.internal.persistentserver.TestPersistentServerImpl;
+import app.simplecloud.api.testing.internal.player.PlayerData;
+import app.simplecloud.api.testing.internal.player.ProfileData;
+import app.simplecloud.api.testing.internal.player.SessionData;
+import app.simplecloud.api.testing.internal.player.TestPlayerApi;
+import app.simplecloud.api.testing.internal.player.TestPlayerImpl;
+import app.simplecloud.api.testing.internal.server.ServerData;
+import app.simplecloud.api.testing.internal.server.TestServerImpl;
+import app.simplecloud.api.workflow.ServerWorkflowResult;
+import app.simplecloud.api.workflow.WorkflowExecutionResult;
+import java.time.Duration;
+import java.time.Instant;
+import java.util.ArrayList;
+import java.util.Collection;
+import java.util.Comparator;
+import java.util.LinkedHashMap;
+import java.util.List;
+import java.util.Locale;
+import java.util.Map;
+import java.util.Objects;
+import java.util.Optional;
+import java.util.Set;
+import java.util.UUID;
+import java.util.concurrent.ThreadLocalRandom;
+import java.util.function.Consumer;
+import java.util.function.Function;
+import java.util.function.Supplier;
+import java.util.stream.Collectors;
+import java.util.stream.Stream;
+import net.kyori.adventure.text.Component;
+import org.jetbrains.annotations.Nullable;
+
+public final class CloudState {
+
+    private static final String SERVERHOST_ID = "test-serverhost";
+    private static final String SERVER_IP = "127.0.0.1";
+    private static final int FIRST_PORT = 25566;
+    private static final int DEFAULT_MIN_MEMORY = 512;
+    private static final int DEFAULT_MAX_MEMORY = 1024;
+    private static final int DEFAULT_MAX_PLAYERS = 20;
+    private static final int MAX_SCALE_STEPS = 100;
+    private static final int MAX_BLUEPRINT_NAME_LENGTH = 100;
+
+    private static final Instant START_TIME = Instant.parse("2026-01-01T00:00:00Z");
+
+    private final Object lock = new Object();
+    private final String networkId;
+    private final EventBus bus = new EventBus();
+    private final Map<String, GroupData> groups = new LinkedHashMap<>();
+    private final Map<String, ServerData> servers = new LinkedHashMap<>();
+    private final Map<String, PersistentServerData> persistentServers = new LinkedHashMap<>();
+    private final Map<String, BlueprintData> blueprints = new LinkedHashMap<>();
+    private final RequestDefaults defaults = new RequestDefaults();
+    private final Map<UUID, PlayerData> players = new LinkedHashMap<>();
+    private final List<QueuedStart> startQueue = new ArrayList<>();
+    private final TestNetworkImpl network = new TestNetworkImpl();
+    private final PlayerApi playerApi = new TestPlayerApi(this);
+    private Instant now = START_TIME;
+    private boolean autoStart = true;
+    private boolean scaling;
+    private ServerState startState = ServerState.AVAILABLE;
+    private int nextPort = FIRST_PORT;
+
+    public CloudState(String networkId) {
+        this.networkId = Objects.requireNonNull(networkId, "networkId");
+    }
+
+    public String networkId() {
+        return networkId;
+    }
+
+    public EventBus bus() {
+        return bus;
+    }
+
+    public TestNetworkImpl network() {
+        return network;
+    }
+
+    public PlayerApi playerApi() {
+        return playerApi;
+    }
+
+    public Instant now() {
+        return read(() -> now);
+    }
+
+    public String timestamp() {
+        return now().toString();
+    }
+
+    public void advanceTime(Duration duration) {
+        Objects.requireNonNull(duration, "duration");
+        if (duration.isNegative()) {
+            throw new IllegalArgumentException("duration must be >= 0");
+        }
+        synchronized (lock) {
+            now = now.plus(duration);
+        }
+    }
+
+    public <T> T read(Supplier<T> action) {
+        synchronized (lock) {
+            return action.get();
+        }
+    }
+
+    private <T> T mutate(Function<List<Object>, T> action) {
+        List<Object> events = new ArrayList<>();
+        T result;
+        synchronized (lock) {
+            result = action.apply(events);
+            if (scaling) {
+                scaleLocked(events);
+            }
+        }
+        events.forEach(bus::publish);
+        return result;
+    }
+
+    public TestGroupImpl handle(GroupData data) {
+        synchronized (lock) {
+            if (data.handle == null) {
+                data.handle = new TestGroupImpl(this, data);
+            }
+            return data.handle;
+        }
+    }
+
+    public TestServerImpl handle(ServerData data) {
+        synchronized (lock) {
+            if (data.handle == null) {
+                data.handle = new TestServerImpl(
+                        this,
+                        data,
+                        data.group == null ? null : handle(data.group),
+                        data.persistent == null ? null : handle(data.persistent));
+            }
+            return data.handle;
+        }
+    }
+
+    public TestPlayerImpl handle(PlayerData data) {
+        synchronized (lock) {
+            if (data.handle == null) {
+                data.handle = new TestPlayerImpl(this, data);
+            }
+            return data.handle;
+        }
+    }
+
+    public GroupData createGroup(CreateGroupRequest request) {
+        return mutate(events -> {
+            String name = request.getName();
+            if (name == null || name.isBlank()) {
+                throw invalid("Group name must not be blank");
+            }
+            if (groupByName(name).isPresent()) {
+                throw conflict("Group '" + name + "' already exists");
+            }
+            SourceConfig source = inlineSourceLocked(
+                    name, request.getCreateBlueprint(), request.getSource(), request.getWorkflows(), events);
+            String now = timestamp();
+            GroupData group = new GroupData(UUID.randomUUID().toString(), name, now);
+            if (request.getType() != null) {
+                group.type = request.getType();
+            }
+            if (request.getActive() != null) {
+                group.active = request.getActive();
+            }
+            group.minMemory = request.getMinMemory();
+            group.maxMemory = request.getMaxMemory();
+            group.maxPlayers = request.getMaxPlayers();
+            group.priority = request.getPriority();
+            group.deployment = request.getDeployment();
+            group.scaling = request.getScaling();
+            group.source = source;
+            group.workflows = request.getWorkflows();
+            if (request.getProperties() != null) {
+                group.properties.putAll(request.getProperties());
+            }
+            if (request.getTags() != null) {
+                group.tags.addAll(request.getTags());
+            }
+            groups.put(group.id, group);
+            events.add(new GroupCreated(networkId, now, group.snapshot()));
+            return group;
+        });
+    }
+
+    public GroupData updateGroup(String id, UpdateGroupRequest request) {
+        return modifyGroup(id, group -> {
+            String name = request.getName();
+            if (name != null && !name.equals(group.name)) {
+                if (name.isBlank()) {
+                    throw invalid("Group name must not be blank");
+                }
+                if (groupByName(name).isPresent()) {
+                    throw conflict("Group '" + name + "' already exists");
+                }
+                group.name = name;
+            }
+            if (request.getType() != null) {
+                group.type = request.getType();
+            }
+            if (request.getMinMemory() != null) {
+                group.minMemory = request.getMinMemory();
+            }
+            if (request.getMaxMemory() != null) {
+                group.maxMemory = request.getMaxMemory();
+            }
+            if (request.getMaxPlayers() != null) {
+                group.maxPlayers = request.getMaxPlayers();
+            }
+            if (request.getActive() != null) {
+                group.active = request.getActive();
+            }
+            if (request.getPriority() != null) {
+                group.priority = request.getPriority();
+            }
+            if (request.getDeployment() != null) {
+                group.deployment = request.getDeployment();
+            }
+            if (request.getScaling() != null) {
+                group.scaling = request.getScaling();
+            }
+            if (request.getSource() != null) {
+                requireSourceBlueprint(request.getSource());
+                group.source = request.getSource();
+            }
+            if (request.getWorkflows() != null) {
+                group.workflows = request.getWorkflows();
+            }
+            if (request.getProperties() != null) {
+                group.properties.clear();
+                group.properties.putAll(request.getProperties());
+            }
+            if (request.getTags() != null) {
+                group.tags.clear();
+                group.tags.addAll(request.getTags());
+            }
+        });
+    }
+
+    public Map<String, Object> updateGroupProperties(String id, Map<String, Object> properties) {
+        GroupData group = modifyGroup(id, data -> data.properties.putAll(properties));
+        return read(() -> new LinkedHashMap<>(group.properties));
+    }
+
+    public Map<String, Object> setGroupProperties(String id, Map<String, Object> properties) {
+        GroupData group = modifyGroup(id, data -> {
+            data.properties.clear();
+            data.properties.putAll(properties);
+        });
+        return read(() -> new LinkedHashMap<>(group.properties));
+    }
+
+    public int stopAllServers(String id) {
+        return mutate(events -> {
+            List<ServerData> running = serversOf(requireGroup(id));
+            for (ServerData server : running) {
+                stopLocked(server, false, null, "all servers of the group stopped", events);
+            }
+            return running.size();
+        });
+    }
+
+    public WorkflowExecutionResult executeGroupWorkflow(String id, String workflowId) {
+        requireWorkflowId(workflowId);
+        return read(() -> {
+            List<String> serverIds = serversOf(requireGroup(id)).stream()
+                    .map(server -> server.id)
+                    .toList();
+            return new WorkflowExecutionResult(workflowId, serverIds.size(), serverIds, List.of(), List.of());
+        });
+    }
+
+    public GroupData replaceGroup(String id, CreateGroupRequest request) {
+        Objects.requireNonNull(request, "request");
+        if (request.getCreateBlueprint() != null) {
+            throw invalid("createBlueprint is not supported when replacing a group");
+        }
+        return modifyGroup(id, group -> {
+            String name = request.getName();
+            if (name == null || name.isBlank()) {
+                throw invalid("Group name must not be blank");
+            }
+            if (!name.equals(group.name) && groupByName(name).isPresent()) {
+                throw conflict("Group '" + name + "' already exists");
+            }
+            if (request.getSource() != null) {
+                requireSourceBlueprint(request.getSource());
+            }
+            group.name = name;
+            group.type = request.getType() != null ? request.getType() : GroupServerType.SERVER;
+            group.active = request.getActive() != null ? request.getActive() : Boolean.TRUE;
+            group.minMemory = request.getMinMemory();
+            group.maxMemory = request.getMaxMemory();
+            group.maxPlayers = request.getMaxPlayers();
+            group.priority = request.getPriority();
+            group.deployment = request.getDeployment();
+            group.scaling = request.getScaling();
+            group.source = request.getSource();
+            group.workflows = request.getWorkflows();
+            group.properties.clear();
+            if (request.getProperties() != null) {
+                group.properties.putAll(request.getProperties());
+            }
+            group.tags.clear();
+            if (request.getTags() != null) {
+                group.tags.addAll(request.getTags());
+            }
+        });
+    }
+
+    public void startRollingRestart(String id) {
+        mutate(events -> {
+            GroupData group = requireGroup(id);
+            ScalingMode mode = group.scaling == null || group.scaling.scalingMode() == null
+                    ? ScalingMode.SLOTS
+                    : group.scaling.scalingMode();
+            if (mode != ScalingMode.SLOTS) {
+                throw invalid("Rolling restarts require SLOTS scaling mode");
+            }
+            for (ServerData server : serversOf(group)) {
+                stopLocked(server, false, null, "rolling restart", events);
+                startLocked(group, events);
+            }
+            return null;
+        });
+    }
+
+    public RollingRestartStatus rollingRestartStatus(String id) {
+        return read(() -> new RollingRestartStatus(requireGroup(id).id, false, null));
+    }
+
+    public void cancelRollingRestart(String id) {
+        read(() -> requireGroup(id));
+    }
+
+    public PersistentServerData convertGroupToPersistentServer(String id, String serverhostId) {
+        if (serverhostId == null || serverhostId.isBlank()) {
+            throw invalid("A valid serverhost_id is required");
+        }
+        return mutate(events -> {
+            GroupData group = requireGroup(id);
+            if (!Boolean.FALSE.equals(group.active)) {
+                throw conflict("Group '" + group.name + "' must be inactive to be converted");
+            }
+            if (!serversOf(group).isEmpty()) {
+                throw conflict("Group '" + group.name + "' still has servers");
+            }
+            if (startQueue.stream().anyMatch(start -> start.group == group)) {
+                throw conflict("Group '" + group.name + "' still has queued starts");
+            }
+            if (persistentServerByName(group.name).isPresent()) {
+                throw conflict("Persistent server '" + group.name + "' already exists");
+            }
+            String now = timestamp();
+            PersistentServerData server =
+                    new PersistentServerData(UUID.randomUUID().toString(), group.name, now);
+            server.type = group.type;
+            server.active = Boolean.FALSE;
+            server.minMemory = group.minMemory;
+            server.maxMemory = group.maxMemory;
+            server.maxPlayers = group.maxPlayers;
+            server.priority = group.priority;
+            server.serverhostId = serverhostId;
+            server.source = group.source;
+            server.workflows = group.workflows;
+            server.properties.putAll(group.properties);
+            server.tags.addAll(group.tags);
+
+            groups.remove(group.id);
+            group.deleted = true;
+            events.add(new GroupDeleted(networkId, now, group.id, group.name));
+            persistentServers.put(server.id, server);
+            events.add(new PersistentServerCreated(networkId, now, server.id, server.name));
+            return server;
+        });
+    }
+
+    public CloudStats stats() {
+        return read(() -> {
+            List<ServerData> all = List.copyOf(servers.values());
+            List<ServerData> active = all.stream()
+                    .filter(server -> server.state != ServerState.STOPPED)
+                    .toList();
+            int healthy = (int) active.stream()
+                    .filter(server -> server.state == ServerState.AVAILABLE || server.state == ServerState.INGAME)
+                    .count();
+            int capacity = active.stream().mapToInt(server -> server.maxPlayers).sum();
+            int online =
+                    (int) players.values().stream().filter(PlayerData::online).count();
+            double healthyPercent = active.isEmpty() ? 0 : healthy * 100.0 / active.size();
+            String health = active.isEmpty() ? "down" : healthyPercent < 50 ? "degraded" : "operational";
+            return new CloudStats(
+                    new CloudStats.ServerStats(
+                            all.size(),
+                            active.size(),
+                            new CloudStats.ServersByState(
+                                    countState(all, ServerState.QUEUED),
+                                    countState(all, ServerState.PREPARING),
+                                    countState(all, ServerState.STARTING),
+                                    countState(all, ServerState.AVAILABLE),
+                                    countState(all, ServerState.INGAME),
+                                    countState(all, ServerState.STOPPING),
+                                    countState(all, ServerState.STOPPED))),
+                    new CloudStats.PlayerStats(online, capacity, capacity == 0 ? 0 : online * 100.0 / capacity),
+                    new CloudStats.CountStats(groups.size(), (int) groups.values().stream()
+                            .filter(group -> Boolean.TRUE.equals(group.active))
+                            .count()),
+                    new CloudStats.CountStats(persistentServers.size(), (int) persistentServers.values().stream()
+                            .filter(server -> Boolean.TRUE.equals(server.active))
+                            .count()),
+                    new CloudStats.ServerhostStats(1, 1, 0),
+                    new CloudStats.ResourceStats(
+                            active.stream().mapToInt(server -> server.maxMemory).sum(), 0, 0),
+                    new CloudStats.HealthStats(health, healthyPercent));
+        });
+    }
+
+    private static int countState(List<ServerData> servers, ServerState state) {
+        return (int) servers.stream().filter(server -> server.state == state).count();
+    }
+
+    public Map<String, Object> deleteGroupProperties(String id, Collection<String> keys) {
+        GroupData group = modifyGroup(id, data -> keys.forEach(data.properties::remove));
+        return read(() -> new LinkedHashMap<>(group.properties));
+    }
+
+    private GroupData modifyGroup(String id, Consumer<GroupData> change) {
+        return mutate(events -> {
+            GroupData group = requireGroup(id);
+            change.accept(group);
+            group.updatedAt = timestamp();
+            events.add(new GroupUpdated(networkId, group.updatedAt, group.snapshot()));
+            return group;
+        });
+    }
+
+    public void deleteGroup(String id) {
+        mutate(events -> {
+            GroupData group = requireGroup(id);
+            for (ServerData server : serversOf(group)) {
+                stopLocked(server, false, null, "group deleted", events);
+            }
+            startQueue.removeIf(start -> start.group == group);
+            groups.remove(group.id);
+            group.deleted = true;
+            events.add(new GroupDeleted(networkId, timestamp(), group.id, group.name));
+            deleteUnusedBlueprintLocked(group.source, events);
+            return null;
+        });
+    }
+
+    public Optional<GroupData> groupById(String id) {
+        return Optional.ofNullable(groups.get(id));
+    }
+
+    public Optional<GroupData> groupByName(String name) {
+        return groups.values().stream().filter(group -> group.name.equals(name)).findFirst();
+    }
+
+    public List<GroupData> groups(@Nullable GroupQuery query) {
+        List<GroupData> result = groups.values().stream()
+                .filter(group -> matches(group, query))
+                .sorted(Comparator.comparing(group -> group.name))
+                .toList();
+        if (query != null && query.getLimit() != null && query.getLimit() >= 0 && query.getLimit() < result.size()) {
+            return result.subList(0, query.getLimit());
+        }
+        return result;
+    }
+
+    private static boolean matches(GroupData group, @Nullable GroupQuery query) {
+        if (query == null) {
+            return true;
+        }
+        if (query.getType() != null && query.getType() != group.type) {
+            return false;
+        }
+        return query.getTag() == null || group.tags.contains(query.getTag());
+    }
+
+    public ServerData startServer(String groupId) {
+        return mutate(events -> startLocked(requireGroup(groupId), events));
+    }
+
+    private ServerData startLocked(GroupData group, List<Object> events) {
+        ServerData server = new ServerData(
+                UUID.randomUUID().toString(), networkId, group, null, nextNumericalId(group), timestamp());
+        server.serverhostId = SERVERHOST_ID;
+        server.blueprint = blueprintOf(group.source);
+        return launchLocked(server, group.minMemory, group.maxMemory, group.maxPlayers, events);
+    }
+
+    private ServerData startLocked(PersistentServerData persistent, List<Object> events) {
+        ServerData server = new ServerData(UUID.randomUUID().toString(), networkId, null, persistent, 1, timestamp());
+        server.serverhostId = persistent.serverhostId == null ? SERVERHOST_ID : persistent.serverhostId;
+        server.blueprint = blueprintOf(persistent.source);
+        persistent.server = server;
+        launchLocked(server, persistent.minMemory, persistent.maxMemory, persistent.maxPlayers, events);
+        events.add(new PersistentServerStarted(networkId, server.createdAt, persistent.id, server.id));
+        return server;
+    }
+
+    private ServerData launchLocked(
+            ServerData server,
+            @Nullable Integer minMemory,
+            @Nullable Integer maxMemory,
+            @Nullable Integer maxPlayers,
+            List<Object> events) {
+        server.ip = SERVER_IP;
+        server.port = nextPort++;
+        server.minMemory = minMemory == null ? DEFAULT_MIN_MEMORY : minMemory;
+        server.maxMemory = maxMemory == null ? DEFAULT_MAX_MEMORY : maxMemory;
+        server.maxPlayers = maxPlayers == null ? DEFAULT_MAX_PLAYERS : maxPlayers;
+        server.state = startState;
+        servers.put(server.id, server);
+        events.add(new ServerStarted(networkId, server.createdAt, server.snapshot()));
+        return server;
+    }
+
+    private int nextNumericalId(GroupData group) {
+        Set<Integer> used =
+                serversOf(group).stream().map(server -> server.numericalId).collect(Collectors.toSet());
+        int numericalId = 1;
+        while (used.contains(numericalId)) {
+            numericalId++;
+        }
+        return numericalId;
+    }
+
+    public ServerData modifyServer(String id, Consumer<ServerData> change) {
+        return mutate(events -> modifyServerLocked(requireServer(id), change, events));
+    }
+
+    private ServerData modifyServerLocked(ServerData server, Consumer<ServerData> change, List<Object> events) {
+        ServerState oldState = server.state;
+        change.accept(server);
+        server.updatedAt = timestamp();
+        Server snapshot = server.snapshot();
+        if (oldState != server.state) {
+            events.add(new ServerStateChanged(networkId, server.updatedAt, snapshot, oldState, server.state));
+        }
+        events.add(new ServerUpdated(networkId, server.updatedAt, snapshot));
+        return server;
+    }
+
+    public ServerData updateServer(String id, UpdateServerRequest request) {
+        return modifyServer(id, server -> {
+            if (request.getState() != null) {
+                server.state = request.getState();
+            }
+            if (request.getProperties() != null) {
+                server.properties.putAll(request.getProperties());
+            }
+            if (request.getMinMemory() != null) {
+                server.minMemory = request.getMinMemory();
+            }
+            if (request.getMaxMemory() != null) {
+                server.maxMemory = request.getMaxMemory();
+            }
+            if (request.getMaxPlayers() != null) {
+                server.maxPlayers = request.getMaxPlayers();
+            }
+        });
+    }
+
+    public Map<String, Object> updateServerProperties(String id, Map<String, Object> properties) {
+        ServerData server = modifyServer(id, data -> data.properties.putAll(properties));
+        return read(() -> new LinkedHashMap<>(server.properties));
+    }
+
+    public Map<String, Object> setServerProperties(String id, Map<String, Object> properties) {
+        ServerData server = modifyServer(id, data -> {
+            data.properties.clear();
+            data.properties.putAll(properties);
+        });
+        return read(() -> new LinkedHashMap<>(server.properties));
+    }
+
+    public void sendCommand(String id, String command) {
+        if (command == null || command.isBlank()) {
+            throw invalid("command is required");
+        }
+        read(() -> requireServer(id));
+    }
+
+    public ServerWorkflowResult executeServerWorkflow(String id, String workflowId) {
+        requireWorkflowId(workflowId);
+        return read(() -> new ServerWorkflowResult(requireServer(id).id, workflowId, true, null));
+    }
+
+    private static void requireWorkflowId(String workflowId) {
+        if (workflowId == null || workflowId.isBlank()) {
+            throw invalid("workflow_id is required");
+        }
+    }
+
+    public Map<String, Object> deleteServerProperties(String id, Collection<String> keys) {
+        ServerData server = modifyServer(id, data -> keys.forEach(data.properties::remove));
+        return read(() -> new LinkedHashMap<>(server.properties));
+    }
+
+    public void stopServer(String id, boolean crashed, @Nullable Integer exitCode, @Nullable String reason) {
+        mutate(events -> {
+            stopLocked(requireServer(id), crashed, exitCode, reason, events);
+            return null;
+        });
+    }
+
+    private void stopLocked(
+            ServerData server,
+            boolean crashed,
+            @Nullable Integer exitCode,
+            @Nullable String reason,
+            List<Object> events) {
+        server.running = false;
+        for (PlayerData player : List.copyOf(players.values())) {
+            if (player.proxy == server) {
+                disconnectLocked(player, events);
+            } else if (player.server == server) {
+                player.server = null;
+            }
+        }
+        String now = timestamp();
+        ServerState oldState = server.state;
+        server.state = ServerState.STOPPED;
+        server.updatedAt = now;
+        servers.remove(server.id);
+        Server snapshot = server.snapshot();
+        if (oldState != ServerState.STOPPED) {
+            events.add(new ServerStateChanged(networkId, now, snapshot, oldState, ServerState.STOPPED));
+        }
+        events.add(new ServerStopped(networkId, now, snapshot, crashed, exitCode, reason));
+        if (server.persistent != null && server.persistent.server == server) {
+            server.persistent.server = null;
+            events.add(new PersistentServerStopped(networkId, now, server.persistent.id, server.id));
+        }
+    }
+
+    public Optional<ServerData> serverById(String id) {
+        return Optional.ofNullable(servers.get(id));
+    }
+
+    public Optional<ServerData> serverByName(String name) {
+        return servers.values().stream()
+                .filter(server -> server.name().equals(name))
+                .findFirst();
+    }
+
+    public Optional<ServerData> serverByNumericalId(String groupName, int numericalId) {
+        return servers.values().stream()
+                .filter(server -> server.group != null
+                        && server.group.name.equals(groupName)
+                        && server.numericalId == numericalId)
+                .findFirst();
+    }
+
+    public List<ServerData> serversOf(GroupData group) {
+        return servers.values().stream()
+                .filter(server -> server.group == group)
+                .sorted(Comparator.comparingInt(server -> server.numericalId))
+                .toList();
+    }
+
+    public List<ServerData> servers(@Nullable ServerQuery query) {
+        return servers.values().stream()
+                .filter(server -> matches(server, query))
+                .sorted(comparator(query))
+                .toList();
+    }
+
+    private static Comparator<ServerData> comparator(@Nullable ServerQuery query) {
+        Comparator<ServerData> natural = Comparator.<ServerData, String>comparing(ServerData::baseName)
+                .thenComparingInt(server -> server.numericalId);
+        if (query == null) {
+            return natural;
+        }
+        Comparator<ServerData> comparator = natural;
+        String sortBy = query.getSortBy();
+        if (sortBy != null && !sortBy.isBlank()) {
+            Comparator<ServerData> field = switch (sortBy.toLowerCase(Locale.ROOT)) {
+                case "created_at" -> Comparator.comparing((ServerData server) -> Instant.parse(server.createdAt));
+                case "updated_at" -> Comparator.comparing((ServerData server) -> Instant.parse(server.updatedAt));
+                case "numerical_id" -> Comparator.comparingInt((ServerData server) -> server.numericalId);
+                case "state" -> Comparator.comparing((ServerData server) -> server.state);
+                default -> throw invalid("Unsupported sort field '" + sortBy + "'");
+            };
+            comparator = field.thenComparing(natural);
+        }
+        String sortOrder = query.getSortOrder();
+        if (sortOrder == null || sortOrder.isBlank() || sortOrder.equalsIgnoreCase("asc")) {
+            return comparator;
+        }
+        if (sortOrder.equalsIgnoreCase("desc")) {
+            return comparator.reversed();
+        }
+        throw invalid("Unsupported sort order '" + sortOrder + "'");
+    }
+
+    private static boolean matches(ServerData server, @Nullable ServerQuery query) {
+        if (query == null) {
+            return true;
+        }
+        GroupData group = server.group;
+        PersistentServerData persistent = server.persistent;
+        if (query.getServerGroupIds() != null
+                && (group == null || !query.getServerGroupIds().contains(group.id))) {
+            return false;
+        }
+        if (query.getServerGroupNames() != null
+                && (group == null || !query.getServerGroupNames().contains(group.name))) {
+            return false;
+        }
+        GroupServerType type = group != null ? group.type : persistent.type;
+        if (query.getServerGroupTypes() != null && !query.getServerGroupTypes().contains(type)) {
+            return false;
+        }
+        List<String> tags = group != null ? group.tags : persistent.tags;
+        if (query.getServerGroupTags() != null
+                && query.getServerGroupTags().stream().noneMatch(tags::contains)) {
+            return false;
+        }
+        if (query.getStates() != null && !query.getStates().contains(server.state)) {
+            return false;
+        }
+        if (query.getNumericalIds() != null && !query.getNumericalIds().contains(server.numericalId)) {
+            return false;
+        }
+        if (query.getServerhostId() != null && !query.getServerhostId().equals(server.serverhostId)) {
+            return false;
+        }
+        return query.getPersistentServerId() == null
+                || (persistent != null && query.getPersistentServerId().equals(persistent.id));
+    }
+
+    public TestPersistentServerImpl handle(PersistentServerData data) {
+        synchronized (lock) {
+            if (data.handle == null) {
+                data.handle = new TestPersistentServerImpl(this, data);
+            }
+            return data.handle;
+        }
+    }
+
+    public PersistentServerData createPersistentServer(CreatePersistentServerRequest request) {
+        Objects.requireNonNull(request, "request");
+        return mutate(events -> {
+            String name = request.getName();
+            if (name == null || name.isBlank()) {
+                throw invalid("Persistent server name must not be blank");
+            }
+            if (persistentServerByName(name).isPresent()) {
+                throw conflict("Persistent server '" + name + "' already exists");
+            }
+            SourceConfig source = inlineSourceLocked(
+                    name, request.getCreateBlueprint(), request.getSource(), request.getWorkflows(), events);
+            String now = timestamp();
+            PersistentServerData server =
+                    new PersistentServerData(UUID.randomUUID().toString(), name, now);
+            if (request.getType() != null) {
+                server.type = request.getType();
+            }
+            if (request.getActive() != null) {
+                server.active = request.getActive();
+            }
+            server.minMemory = request.getMinMemory();
+            server.maxMemory = request.getMaxMemory();
+            server.maxPlayers = request.getMaxPlayers();
+            server.priority = request.getPriority();
+            server.serverhostId = request.getServerhostId();
+            server.source = source;
+            server.workflows = request.getWorkflows();
+            if (request.getProperties() != null) {
+                server.properties.putAll(request.getProperties());
+            }
+            if (request.getTags() != null) {
+                server.tags.addAll(request.getTags());
+            }
+            persistentServers.put(server.id, server);
+            events.add(new PersistentServerCreated(networkId, now, server.id, server.name));
+            return server;
+        });
+    }
+
+    public PersistentServerData updatePersistentServer(String id, UpdatePersistentServerRequest request) {
+        return modifyPersistentServer(id, server -> {
+            String name = request.getName();
+            if (name != null && !name.equals(server.name)) {
+                if (name.isBlank()) {
+                    throw invalid("Persistent server name must not be blank");
+                }
+                if (persistentServerByName(name).isPresent()) {
+                    throw conflict("Persistent server '" + name + "' already exists");
+                }
+                server.name = name;
+            }
+            if (request.getType() != null) {
+                server.type = request.getType();
+            }
+            if (request.getMinMemory() != null) {
+                server.minMemory = request.getMinMemory();
+            }
+            if (request.getMaxMemory() != null) {
+                server.maxMemory = request.getMaxMemory();
+            }
+            if (request.getMaxPlayers() != null) {
+                server.maxPlayers = request.getMaxPlayers();
+            }
+            if (request.getActive() != null) {
+                server.active = request.getActive();
+            }
+            if (request.getPriority() != null) {
+                server.priority = request.getPriority();
+            }
+            if (request.getServerhostId() != null) {
+                server.serverhostId = request.getServerhostId();
+            }
+            if (request.getSource() != null) {
+                requireSourceBlueprint(request.getSource());
+                server.source = request.getSource();
+            }
+            if (request.getWorkflows() != null) {
+                server.workflows = request.getWorkflows();
+            }
+            if (request.getProperties() != null) {
+                server.properties.clear();
+                server.properties.putAll(request.getProperties());
+            }
+            if (request.getTags() != null) {
+                server.tags.clear();
+                server.tags.addAll(request.getTags());
+            }
+        });
+    }
+
+    public Map<String, Object> updatePersistentServerProperties(String id, Map<String, Object> properties) {
+        PersistentServerData server = modifyPersistentServer(id, data -> data.properties.putAll(properties));
+        return read(() -> new LinkedHashMap<>(server.properties));
+    }
+
+    public Map<String, Object> setPersistentServerProperties(String id, Map<String, Object> properties) {
+        PersistentServerData server = modifyPersistentServer(id, data -> {
+            data.properties.clear();
+            data.properties.putAll(properties);
+        });
+        return read(() -> new LinkedHashMap<>(server.properties));
+    }
+
+    public WorkflowExecutionResult executePersistentServerWorkflow(String id, String workflowId) {
+        requireWorkflowId(workflowId);
+        return read(() -> {
+            ServerData running = requirePersistentServer(id).server;
+            List<String> serverIds = running == null ? List.of() : List.of(running.id);
+            return new WorkflowExecutionResult(workflowId, serverIds.size(), serverIds, List.of(), List.of());
+        });
+    }
+
+    public PersistentServerData replacePersistentServer(String id, CreatePersistentServerRequest request) {
+        Objects.requireNonNull(request, "request");
+        if (request.getCreateBlueprint() != null) {
+            throw invalid("createBlueprint is not supported when replacing a persistent server");
+        }
+        return modifyPersistentServer(id, server -> {
+            String name = request.getName();
+            if (name == null || name.isBlank()) {
+                throw invalid("Persistent server name must not be blank");
+            }
+            if (!name.equals(server.name) && persistentServerByName(name).isPresent()) {
+                throw conflict("Persistent server '" + name + "' already exists");
+            }
+            if (request.getSource() != null) {
+                requireSourceBlueprint(request.getSource());
+            }
+            server.name = name;
+            server.type = request.getType() != null ? request.getType() : GroupServerType.SERVER;
+            server.active = request.getActive() != null ? request.getActive() : Boolean.TRUE;
+            server.minMemory = request.getMinMemory();
+            server.maxMemory = request.getMaxMemory();
+            server.maxPlayers = request.getMaxPlayers();
+            server.priority = request.getPriority();
+            server.serverhostId = request.getServerhostId();
+            server.source = request.getSource();
+            server.workflows = request.getWorkflows();
+            server.properties.clear();
+            if (request.getProperties() != null) {
+                server.properties.putAll(request.getProperties());
+            }
+            server.tags.clear();
+            if (request.getTags() != null) {
+                server.tags.addAll(request.getTags());
+            }
+        });
+    }
+
+    public GroupData convertPersistentServerToGroup(
+            String id, List<DeploymentHost> hosts, @Nullable ScalingConfig scaling) {
+        Objects.requireNonNull(hosts, "hosts");
+        return mutate(events -> {
+            PersistentServerData server = requirePersistentServer(id);
+            if (!Boolean.FALSE.equals(server.active)) {
+                throw conflict("Persistent server '" + server.name + "' must be inactive to be converted");
+            }
+            if (server.server != null) {
+                throw conflict("Persistent server '" + server.name + "' still has a running server");
+            }
+            if (groupByName(server.name).isPresent()) {
+                throw conflict("Group '" + server.name + "' already exists");
+            }
+            String now = timestamp();
+            GroupData group = new GroupData(UUID.randomUUID().toString(), server.name, now);
+            group.type = server.type;
+            group.active = Boolean.FALSE;
+            group.minMemory = server.minMemory;
+            group.maxMemory = server.maxMemory;
+            group.maxPlayers = server.maxPlayers;
+            group.priority = server.priority;
+            group.deployment = DeploymentConfig.builder()
+                    .strategy(hosts.isEmpty() ? DeploymentStrategy.BLACKLIST : DeploymentStrategy.WHITELIST)
+                    .hosts(hosts)
+                    .build();
+            group.scaling = scaling;
+            group.source = server.source;
+            group.workflows = server.workflows;
+            group.properties.putAll(server.properties);
+            group.tags.addAll(server.tags);
+
+            persistentServers.remove(server.id);
+            server.deleted = true;
+            events.add(new PersistentServerDeleted(networkId, now, server.id, server.name));
+            groups.put(group.id, group);
+            events.add(new GroupCreated(networkId, now, group.snapshot()));
+            return group;
+        });
+    }
+
+    public Map<String, Object> deletePersistentServerProperties(String id, Collection<String> keys) {
+        PersistentServerData server = modifyPersistentServer(id, data -> keys.forEach(data.properties::remove));
+        return read(() -> new LinkedHashMap<>(server.properties));
+    }
+
+    private PersistentServerData modifyPersistentServer(String id, Consumer<PersistentServerData> change) {
+        return mutate(events -> {
+            PersistentServerData server = requirePersistentServer(id);
+            change.accept(server);
+            server.updatedAt = timestamp();
+            events.add(new PersistentServerUpdated(networkId, server.updatedAt, server.id, server.name));
+            return server;
+        });
+    }
+
+    public void deletePersistentServer(String id) {
+        mutate(events -> {
+            PersistentServerData server = requirePersistentServer(id);
+            if (server.server != null) {
+                stopLocked(server.server, false, null, "persistent server deleted", events);
+            }
+            persistentServers.remove(server.id);
+            server.deleted = true;
+            events.add(new PersistentServerDeleted(networkId, timestamp(), server.id, server.name));
+            deleteUnusedBlueprintLocked(server.source, events);
+            return null;
+        });
+    }
+
+    public ServerData startPersistentServer(String id) {
+        return mutate(events -> {
+            PersistentServerData server = requirePersistentServer(id);
+            if (server.server != null) {
+                throw conflict("Persistent server '" + server.name + "' is already running");
+            }
+            return startLocked(server, events);
+        });
+    }
+
+    public Optional<PersistentServerData> persistentServerById(String id) {
+        return Optional.ofNullable(persistentServers.get(id));
+    }
+
+    public Optional<PersistentServerData> persistentServerByName(String name) {
+        return persistentServers.values().stream()
+                .filter(server -> server.name.equals(name))
+                .findFirst();
+    }
+
+    public List<PersistentServerData> persistentServers(@Nullable PersistentServerQuery query) {
+        Stream<PersistentServerData> result = persistentServers.values().stream()
+                .filter(server -> matches(server, query))
+                .sorted(Comparator.comparing(server -> server.name));
+        if (query != null && query.getLimit() != null && query.getLimit() >= 0) {
+            result = result.limit(query.getLimit());
+        }
+        return result.toList();
+    }
+
+    private static boolean matches(PersistentServerData server, @Nullable PersistentServerQuery query) {
+        if (query == null) {
+            return true;
+        }
+        if (query.getActive() != null && !query.getActive().equals(server.active == null || server.active)) {
+            return false;
+        }
+        if (query.getServerhostId() != null && !query.getServerhostId().equals(server.serverhostId)) {
+            return false;
+        }
+        return query.getTags() == null
+                || query.getTags().isEmpty()
+                || query.getTags().stream().anyMatch(server.tags::contains);
+    }
+
+    private PersistentServerData requirePersistentServer(String id) {
+        return persistentServerById(id).orElseThrow(() -> notFound("Persistent server with ID '" + id + "' not found"));
+    }
+
+    public BlueprintData createBlueprint(CreateBlueprintRequest request) {
+        Objects.requireNonNull(request, "request");
+        return mutate(events -> {
+            String name = request.getName();
+            if (name == null || name.isBlank()) {
+                throw invalid("Blueprint name is required");
+            }
+            return createBlueprintLocked(name.trim(), request, events);
+        });
+    }
+
+    private BlueprintData createBlueprintLocked(String name, CreateBlueprintRequest request, List<Object> events) {
+        if (blueprintByName(name).isPresent()) {
+            throw conflict("Blueprint '" + name + "' already exists");
+        }
+        String now = timestamp();
+        BlueprintData blueprint = new BlueprintData(UUID.randomUUID().toString(), name, now);
+        apply(blueprint, fromRequest(blueprint, name, request));
+        blueprints.put(blueprint.id, blueprint);
+        events.add(new BlueprintCreated(networkId, now, blueprint.snapshot()));
+        return blueprint;
+    }
+
+    public BlueprintData replaceBlueprint(String id, CreateBlueprintRequest request) {
+        Objects.requireNonNull(request, "request");
+        return modifyBlueprint(id, blueprint -> {
+            String name = request.getName();
+            if (name == null || name.isBlank()) {
+                throw invalid("Blueprint name is required");
+            }
+            requireFreeBlueprintName(blueprint, name.trim());
+            apply(blueprint, fromRequest(blueprint, name.trim(), request));
+        });
+    }
+
+    public BlueprintData updateBlueprint(String id, UpdateBlueprintRequest request) {
+        Objects.requireNonNull(request, "request");
+        return modifyBlueprint(id, blueprint -> {
+            BlueprintData changed = blueprint.copy();
+            if (request.getName() != null) {
+                requireFreeBlueprintName(blueprint, request.getName());
+                changed.name = request.getName();
+            }
+            if (request.getConfigurator() != null) {
+                changed.configurator = request.getConfigurator();
+            }
+            if (request.getMinecraftVersion() != null) {
+                changed.minecraftVersion = request.getMinecraftVersion();
+            }
+            if (request.getServerSoftware() != null) {
+                changed.serverSoftware = request.getServerSoftware();
+            }
+            if (request.getServerUrl() != null) {
+                changed.serverUrl = request.getServerUrl();
+            }
+            if (request.getSoftwareVersion() != null) {
+                changed.softwareVersion = request.getSoftwareVersion();
+            }
+            if (request.getRuntimeConfig() != null) {
+                if (request.getRuntimeConfig().type() == null) {
+                    throw invalid("runtimeConfig.type is required when updating the runtime config");
+                }
+                changed.runtimeConfig = BlueprintData.copy(request.getRuntimeConfig());
+            }
+            if (request.getWorkflowSteps() != null) {
+                changed.workflowSteps.clear();
+                changed.workflowSteps.addAll(request.getWorkflowSteps());
+            }
+            apply(blueprint, changed);
+        });
+    }
+
+    private BlueprintData modifyBlueprint(String id, Consumer<BlueprintData> change) {
+        return mutate(events -> {
+            BlueprintData blueprint = requireBlueprint(id);
+            change.accept(blueprint);
+            blueprint.updatedAt = timestamp();
+            events.add(new BlueprintUpdated(networkId, blueprint.updatedAt, blueprint.snapshot()));
+            return blueprint;
+        });
+    }
+
+    public void deleteBlueprint(String id) {
+        mutate(events -> {
+            BlueprintData blueprint = requireBlueprint(id);
+            if (isBlueprintUsed(blueprint.id)) {
+                throw conflict("Blueprint '" + blueprint.name + "' is still used by a group or persistent server");
+            }
+            removeBlueprintLocked(blueprint, events);
+            return null;
+        });
+    }
+
+    private void removeBlueprintLocked(BlueprintData blueprint, List<Object> events) {
+        blueprints.remove(blueprint.id);
+        blueprint.deleted = true;
+        events.add(new BlueprintDeleted(networkId, timestamp(), blueprint.id, blueprint.name, blueprint.snapshot()));
+    }
+
+    public Optional<BlueprintData> blueprintById(String id) {
+        return Optional.ofNullable(blueprints.get(id));
+    }
+
+    public Optional<BlueprintData> blueprintByName(String name) {
+        return blueprints.values().stream()
+                .filter(blueprint -> blueprint.name.equals(name))
+                .findFirst();
+    }
+
+    public List<BlueprintData> blueprints() {
+        return new ArrayList<>(blueprints.values()).reversed();
+    }
+
+    private @Nullable SourceConfig inlineSourceLocked(
+            String resourceName,
+            @Nullable CreateBlueprintRequest request,
+            @Nullable SourceConfig source,
+            @Nullable WorkflowsConfig workflows,
+            List<Object> events) {
+        if (request == null) {
+            if (source != null) {
+                requireSourceBlueprint(source);
+            }
+            return source;
+        }
+        if (source != null) {
+            if (source.type() != null && source.type() != SourceType.BLUEPRINT) {
+                throw invalid("createBlueprint requires source.type to be BLUEPRINT when source is provided");
+            }
+            if (source.blueprint() != null && !source.blueprint().isBlank()) {
+                throw invalid("createBlueprint cannot be combined with source.blueprint");
+            }
+            if (source.image() != null && !source.image().isBlank()) {
+                throw invalid("createBlueprint cannot be combined with source.image");
+            }
+        }
+        String name = request.getName() != null && !request.getName().isBlank()
+                ? request.getName().trim()
+                : resourceName;
+        CreateBlueprintRequest effective =
+                defaults.defaultInlineBlueprint(request, defaults.defaultWorkflows(workflows));
+        if (blueprintByName(name).isPresent()) {
+            throw conflict(
+                    "Blueprint '" + name + "' already exists, set another name with CreateBlueprintRequest.name");
+        }
+        BlueprintData blueprint = createBlueprintLocked(name, effective, events);
+        return SourceConfig.builder()
+                .type(SourceType.BLUEPRINT)
+                .blueprint(blueprint.id)
+                .build();
+    }
+
+    private void requireSourceBlueprint(SourceConfig source) {
+        if (source.blueprint() != null && !blueprints.containsKey(source.blueprint())) {
+            throw notFound("Blueprint not found");
+        }
+    }
+
+    private void deleteUnusedBlueprintLocked(@Nullable SourceConfig source, List<Object> events) {
+        BlueprintData blueprint = blueprintOf(source);
+        if (blueprint != null && !isBlueprintUsed(blueprint.id)) {
+            removeBlueprintLocked(blueprint, events);
+        }
+    }
+
+    private @Nullable BlueprintData blueprintOf(@Nullable SourceConfig source) {
+        if (source == null || source.blueprint() == null) {
+            return null;
+        }
+        return blueprints.get(source.blueprint());
+    }
+
+    private boolean isBlueprintUsed(String blueprintId) {
+        return groups.values().stream().anyMatch(group -> usesBlueprint(group.source, blueprintId))
+                || persistentServers.values().stream().anyMatch(server -> usesBlueprint(server.source, blueprintId));
+    }
+
+    private static boolean usesBlueprint(@Nullable SourceConfig source, String blueprintId) {
+        return source != null && blueprintId.equals(source.blueprint());
+    }
+
+    private void requireFreeBlueprintName(BlueprintData blueprint, String name) {
+        if (!name.equals(blueprint.name) && blueprintByName(name).isPresent()) {
+            throw conflict("Blueprint '" + name + "' already exists");
+        }
+    }
+
+    private BlueprintData fromRequest(BlueprintData blueprint, String name, CreateBlueprintRequest request) {
+        CreateBlueprintRequest effective = defaults.defaultBlueprint(request);
+        BlueprintData changed = new BlueprintData(blueprint.id, name, blueprint.createdAt);
+        changed.configurator = orEmpty(effective.getConfigurator());
+        changed.minecraftVersion = orEmpty(effective.getMinecraftVersion());
+        changed.serverSoftware = orEmpty(effective.getServerSoftware());
+        changed.softwareVersion = orEmpty(effective.getSoftwareVersion());
+        changed.serverUrl = orEmpty(effective.getServerUrl());
+        String version = !changed.minecraftVersion.isBlank() ? changed.minecraftVersion : changed.softwareVersion;
+        if (changed.serverUrl.isBlank() && !changed.serverSoftware.isBlank() && !version.isBlank()) {
+            changed.serverUrl = "https://test.invalid/" + changed.serverSoftware + "/" + version + ".jar";
+        }
+        changed.runtimeConfig = BlueprintData.copy(effective.getRuntimeConfig());
+        if (effective.getWorkflowSteps() != null) {
+            changed.workflowSteps.addAll(effective.getWorkflowSteps());
+        }
+        return changed;
+    }
+
+    private static void apply(BlueprintData blueprint, BlueprintData changed) {
+        validateBlueprint(changed);
+        blueprint.name = changed.name;
+        blueprint.configurator = changed.configurator;
+        blueprint.minecraftVersion = changed.minecraftVersion;
+        blueprint.serverSoftware = changed.serverSoftware;
+        blueprint.serverUrl = changed.serverUrl;
+        blueprint.softwareVersion = changed.softwareVersion;
+        blueprint.runtimeConfig = changed.runtimeConfig;
+        blueprint.workflowSteps.clear();
+        blueprint.workflowSteps.addAll(changed.workflowSteps);
+    }
+
+    private static void validateBlueprint(BlueprintData blueprint) {
+        if (blueprint.name.isBlank()) {
+            throw invalid("Blueprint name is required");
+        }
+        if (blueprint.name.codePointCount(0, blueprint.name.length()) > MAX_BLUEPRINT_NAME_LENGTH) {
+            throw invalid("Blueprint name must be 100 characters or less");
+        }
+        if (blueprint.configurator.isBlank()) {
+            throw invalid("Configurator is required");
+        }
+        if (blueprint.minecraftVersion.isBlank()) {
+            throw invalid("Minecraft version is required");
+        }
+        if (blueprint.serverUrl.isBlank()) {
+            throw invalid("Server URL is required");
+        }
+        if (blueprint.serverSoftware.isBlank()) {
+            throw invalid("Server software is required");
+        }
+        if (blueprint.softwareVersion.isBlank()) {
+            throw invalid("Software version is required");
+        }
+    }
+
+    private static String orEmpty(@Nullable String value) {
+        return value == null ? "" : value.trim();
+    }
+
+    private BlueprintData requireBlueprint(String id) {
+        return blueprintById(id).orElseThrow(() -> notFound("Blueprint with ID '" + id + "' not found"));
+    }
+
+    public PlayerData createPlayer(UUID id, String name) {
+        Objects.requireNonNull(id, "uniqueId");
+        return mutate(events -> {
+            if (name == null || name.isBlank()) {
+                throw invalid("Player name must not be blank");
+            }
+            if (players.containsKey(id)) {
+                throw conflict("Player '" + id + "' already exists");
+            }
+            if (playerByName(name).isPresent()) {
+                throw conflict("Player '" + name + "' already exists");
+            }
+            PlayerData player = new PlayerData(id, name, now);
+            player.profiles.add(new ProfileData(UUID.randomUUID().toString(), name, null, now));
+            players.put(id, player);
+            return player;
+        });
+    }
+
+    public Optional<PlayerData> playerById(UUID id) {
+        return Optional.ofNullable(players.get(id));
+    }
+
+    public Optional<PlayerData> playerByName(@Nullable String name) {
+        if (name == null || name.isEmpty()) {
+            return Optional.empty();
+        }
+        return players.values().stream()
+                .filter(player -> player.name.equalsIgnoreCase(name))
+                .findFirst();
+    }
+
+    public PlayerData requirePlayer(UUID id) {
+        return playerById(id).orElseThrow(() -> notFound("Player '" + id + "' not found"));
+    }
+
+    public List<PlayerData> players(@Nullable PlayerQuery query) {
+        Stream<PlayerData> result = players.values().stream()
+                .filter(player -> matches(player, query))
+                .sorted(playerComparator(query));
+        if (query != null && query.getOffset() != null) {
+            result = result.skip(query.getOffset());
+        }
+        if (query != null && query.getLimit() != null) {
+            result = result.limit(query.getLimit());
+        }
+        return result.toList();
+    }
+
+    private boolean matches(PlayerData player, @Nullable PlayerQuery query) {
+        if (query == null) {
+            return true;
+        }
+        if (query.getOnline() != null && query.getOnline() != player.online()) {
+            return false;
+        }
+        if (query.getServerName() != null && !query.getServerName().equals(player.serverName())) {
+            return false;
+        }
+        if (query.getProxyName() != null && !query.getProxyName().equals(player.proxyName())) {
+            return false;
+        }
+        if (query.getPlayerIds() != null && !query.getPlayerIds().contains(player.id)) {
+            return false;
+        }
+        if (!within(player.firstSeen, query.getFirstSeenFrom(), query.getFirstSeenTo())
+                || !within(player.lastSeen, query.getLastSeenFrom(), query.getLastSeenTo())) {
+            return false;
+        }
+        long onlineTime = player.onlineTimeSeconds(now);
+        if (query.getOnlineTimeSecondsMin() != null && onlineTime < query.getOnlineTimeSecondsMin()) {
+            return false;
+        }
+        if (query.getOnlineTimeSecondsMax() != null && onlineTime > query.getOnlineTimeSecondsMax()) {
+            return false;
+        }
+        return query.getSearch() == null
+                || player.name
+                        .toLowerCase(Locale.ROOT)
+                        .contains(query.getSearch().toLowerCase(Locale.ROOT));
+    }
+
+    private static boolean within(Instant value, @Nullable Instant from, @Nullable Instant to) {
+        return (from == null || !value.isBefore(from)) && (to == null || !value.isAfter(to));
+    }
+
+    private Comparator<PlayerData> playerComparator(@Nullable PlayerQuery query) {
+        Comparator<PlayerData> byName = Comparator.comparing(player -> player.name.toLowerCase(Locale.ROOT));
+        if (query == null || query.getSortBy() == null) {
+            return query != null && query.getSortOrder() == PlayerQuery.SortOrder.DESC ? byName.reversed() : byName;
+        }
+        Comparator<PlayerData> comparator = switch (query.getSortBy()) {
+            case NAME -> byName;
+            case FIRST_SEEN ->
+                Comparator.<PlayerData, Instant>comparing(player -> player.firstSeen)
+                        .thenComparing(byName);
+            case LAST_SEEN ->
+                Comparator.<PlayerData, Instant>comparing(player -> player.lastSeen)
+                        .thenComparing(byName);
+            case ONLINE_TIME ->
+                Comparator.<PlayerData>comparingLong(player -> player.onlineTimeSeconds(now))
+                        .thenComparing(byName);
+        };
+        return query.getSortOrder() == PlayerQuery.SortOrder.DESC ? comparator.reversed() : comparator;
+    }
+
+    public CloudPlayer snapshot(PlayerData player, PlayerApi api) {
+        return read(() -> player.snapshot(api, now));
+    }
+
+    public PlayerData modifyPlayer(UUID id, Consumer<PlayerData> change) {
+        return mutate(events -> {
+            PlayerData player = requirePlayer(id);
+            change.accept(player);
+            return player;
+        });
+    }
+
+    public PlayerData setOnlineTime(UUID id, long seconds) {
+        return modifyPlayer(id, player -> {
+            player.onlineTimeSeconds = seconds;
+            if (player.onlineSince != null) {
+                player.onlineSince = now;
+            }
+        });
+    }
+
+    public Map<String, String> setPlayerProperties(UUID id, Map<String, String> properties) {
+        PlayerData player = modifyPlayer(id, data -> {
+            data.properties.clear();
+            data.properties.putAll(properties);
+        });
+        return read(() -> new LinkedHashMap<>(player.properties));
+    }
+
+    public Map<String, String> updatePlayerProperties(UUID id, Map<String, String> properties) {
+        PlayerData player = modifyPlayer(id, data -> data.properties.putAll(properties));
+        return read(() -> new LinkedHashMap<>(player.properties));
+    }
+
+    public Map<String, String> deletePlayerProperties(UUID id, Collection<String> keys) {
+        PlayerData player = modifyPlayer(id, data -> keys.forEach(data.properties::remove));
+        return read(() -> new LinkedHashMap<>(player.properties));
+    }
+
+    public void login(UUID id, @Nullable String proxyId) {
+        mutate(events -> {
+            PlayerData player = requirePlayer(id);
+            ServerData proxy = proxyId == null ? null : requireServer(proxyId);
+            if (player.online()) {
+                throw new IllegalStateException("Player '" + player.name + "' is already online");
+            }
+            loginLocked(player, proxy, events);
+            return null;
+        });
+    }
+
+    private void loginLocked(PlayerData player, @Nullable ServerData proxy, List<Object> events) {
+        boolean newPlayer = player.sessions.isEmpty();
+        boolean nameChanged = player.lastLoginName != null && !player.lastLoginName.equals(player.name);
+        SessionData session = new SessionData(UUID.randomUUID().toString(), now);
+        player.sessions.add(session);
+        player.onlineSince = now;
+        player.lastSeen = now;
+        player.lastLoginName = player.name;
+        player.proxy = proxy;
+        events.add(new PlayerLogin(
+                networkId,
+                now.toString(),
+                player.snapshot(playerApi, now),
+                player.proxyName(),
+                session.id,
+                newPlayer,
+                nameChanged));
+        if (proxy != null) {
+            addPlayerCount(proxy, 1, events);
+        }
+    }
+
+    public void join(UUID id, String serverId) {
+        mutate(events -> {
+            PlayerData player = requirePlayer(id);
+            ServerData server = requireServer(serverId);
+            if (!player.online()) {
+                loginLocked(player, null, events);
+            }
+            if (player.server != server) {
+                switchLocked(player, server, events);
+            }
+            return null;
+        });
+    }
+
+    private void switchLocked(PlayerData player, ServerData target, List<Object> events) {
+        ServerData previous = player.server;
+        player.server = target;
+        events.add(new PlayerServerSwitch(
+                networkId,
+                now.toString(),
+                player.snapshot(playerApi, now),
+                previous == null ? null : previous.name(),
+                target.name()));
+        if (previous != null) {
+            addPlayerCount(previous, -1, events);
+        }
+        addPlayerCount(target, 1, events);
+    }
+
+    private void addPlayerCount(ServerData server, int delta, List<Object> events) {
+        if (server.running) {
+            modifyServerLocked(server, data -> data.playerCount = Math.max(0, data.playerCount + delta), events);
+        }
+    }
+
+    public void disconnect(UUID id) {
+        mutate(events -> {
+            PlayerData player = requirePlayer(id);
+            if (!player.online()) {
+                throw new IllegalStateException("Player '" + player.name + "' is not online");
+            }
+            disconnectLocked(player, events);
+            return null;
+        });
+    }
+
+    private void disconnectLocked(PlayerData player, List<Object> events) {
+        SessionData session = player.currentSession();
+        if (session == null) {
+            return;
+        }
+        player.onlineTimeSeconds = player.onlineTimeSeconds(now);
+        player.onlineSince = null;
+        player.lastSeen = now;
+        session.logoutTime = now;
+        ServerData proxy = player.proxy;
+        ServerData server = player.server;
+        player.proxy = null;
+        player.server = null;
+        events.add(new PlayerDisconnect(
+                networkId,
+                now.toString(),
+                player.snapshot(playerApi, now),
+                proxy == null ? null : proxy.name(),
+                server == null ? null : server.name(),
+                session.durationSeconds(now)));
+        if (server != null) {
+            addPlayerCount(server, -1, events);
+        }
+        if (proxy != null) {
+            addPlayerCount(proxy, -1, events);
+        }
+    }
+
+    public boolean kick(UUID id, @Nullable Component reason) {
+        return mutate(events -> {
+            PlayerData player = players.get(id);
+            if (player == null || !player.online()) {
+                return false;
+            }
+            events.add(new PlayerKick(
+                    networkId, now.toString(), player.snapshot(playerApi, now), player.serverName(), reason));
+            disconnectLocked(player, events);
+            return true;
+        });
+    }
+
+    public ConnectResult connect(UUID id, String serverName) {
+        return mutate(events -> {
+            PlayerData player = players.get(id);
+            if (player == null || !player.online()) {
+                return ConnectResult.PLAYER_NOT_FOUND;
+            }
+            Optional<ServerData> target = serverByName(serverName);
+            if (target.isEmpty()) {
+                return ConnectResult.SERVER_NOT_FOUND;
+            }
+            if (player.server == target.get()) {
+                return ConnectResult.ALREADY_CONNECTED;
+            }
+            switchLocked(player, target.get(), events);
+            return ConnectResult.SUCCESS;
+        });
+    }
+
+    public ConnectResult connectToGroup(UUID id, String groupName, ServerSelectionMode mode) {
+        return mutate(events -> {
+            PlayerData player = players.get(id);
+            if (player == null || !player.online()) {
+                return ConnectResult.PLAYER_NOT_FOUND;
+            }
+            Optional<GroupData> group = groupByName(groupName).or(() -> groupById(groupName));
+            if (group.isEmpty()) {
+                return ConnectResult.SERVER_NOT_FOUND;
+            }
+            if (player.server != null && player.server.group == group.get()) {
+                return ConnectResult.ALREADY_CONNECTED;
+            }
+            List<ServerData> candidates =
+                    serversOf(group.get()).stream().filter(CloudState::joinable).toList();
+            if (candidates.isEmpty()) {
+                return ConnectResult.SERVER_NOT_FOUND;
+            }
+            ServerData target = switch (mode) {
+                case FIRST -> candidates.getFirst();
+                case MIN_PLAYERS ->
+                    candidates.stream()
+                            .min(Comparator.comparingInt(server -> server.playerCount))
+                            .orElseThrow();
+                case MAX_PLAYERS ->
+                    candidates.stream()
+                            .max(Comparator.comparingInt(server -> server.playerCount))
+                            .orElseThrow();
+                case RANDOM -> candidates.get(ThreadLocalRandom.current().nextInt(candidates.size()));
+            };
+            switchLocked(player, target, events);
+            return ConnectResult.SUCCESS;
+        });
+    }
+
+    public ConnectResult connectToPersistentServer(UUID id, String persistentServerId) {
+        return mutate(events -> {
+            PlayerData player = players.get(id);
+            if (player == null || !player.online()) {
+                return ConnectResult.PLAYER_NOT_FOUND;
+            }
+            ServerData target = persistentServerById(persistentServerId)
+                    .map(persistent -> persistent.server)
+                    .orElse(null);
+            if (target == null) {
+                return ConnectResult.SERVER_NOT_FOUND;
+            }
+            if (player.server == target) {
+                return ConnectResult.ALREADY_CONNECTED;
+            }
+            switchLocked(player, target, events);
+            return ConnectResult.SUCCESS;
+        });
+    }
+
+    private static boolean joinable(ServerData server) {
+        return server.state == ServerState.AVAILABLE
+                && (server.maxPlayers <= 0 || server.playerCount < server.maxPlayers);
+    }
+
+    public void changeProfile(UUID id, String name, @Nullable String texture) {
+        mutate(events -> {
+            PlayerData player = requirePlayer(id);
+            if (name == null || name.isBlank()) {
+                throw invalid("Player name must not be blank");
+            }
+            Optional<PlayerData> other = playerByName(name);
+            if (other.isPresent() && other.get() != player) {
+                throw conflict("Player '" + name + "' already exists");
+            }
+            ProfileData old = player.latestProfile();
+            ProfileData profile = new ProfileData(UUID.randomUUID().toString(), name, texture, now);
+            player.profiles.add(profile);
+            if (player.displayName.equals(player.name)) {
+                player.displayName = name;
+            }
+            player.name = name;
+            events.add(new PlayerProfileChanged(
+                    networkId, now.toString(), id, old == null ? null : old.toProfile(id), profile.toProfile(id)));
+            return null;
+        });
+    }
+
+    public PlayerClientSettings updateClientSettings(UUID id, UpdateClientSettingsRequest request) {
+        return mutate(events -> {
+            PlayerData player = requirePlayer(id);
+            PlayerClientSettings current = player.clientSettings != null
+                    ? player.clientSettings
+                    : new PlayerClientSettings(null, null, null, 0, false, false, null);
+            PlayerClientSettings settings = new PlayerClientSettings(
+                    request.getChatMode() != null ? request.getChatMode() : current.chatMode(),
+                    request.getLocale() != null ? request.getLocale() : current.locale(),
+                    request.getMainHand() != null ? request.getMainHand() : current.mainHand(),
+                    request.getViewDistance() != null ? request.getViewDistance() : current.viewDistance(),
+                    request.getChatColors() != null ? request.getChatColors() : current.chatColors(),
+                    request.getClientListingAllowed() != null
+                            ? request.getClientListingAllowed()
+                            : current.clientListingAllowed(),
+                    request.getSkinParts() != null ? request.getSkinParts() : current.skinParts());
+            player.clientSettings = settings;
+            events.add(new PlayerClientSettingsUpdated(networkId, now.toString(), id, player.sessionId(), settings));
+            return settings;
+        });
+    }
+
+    public boolean isAutoStart() {
+        return read(() -> autoStart);
+    }
+
+    public void autoStart(boolean autoStart) {
+        synchronized (lock) {
+            this.autoStart = autoStart;
+        }
+    }
+
+    public ServerState startState() {
+        return read(() -> startState);
+    }
+
+    public void startState(ServerState startState) {
+        Objects.requireNonNull(startState, "startState");
+        switch (startState) {
+            case QUEUED, PREPARING, STARTING, AVAILABLE, INGAME -> {}
+            default -> throw new IllegalArgumentException("Servers cannot start in state " + startState);
+        }
+        synchronized (lock) {
+            this.startState = startState;
+        }
+    }
+
+    public boolean isScaling() {
+        return read(() -> scaling);
+    }
+
+    public void scaling(boolean scaling) {
+        mutate(events -> {
+            this.scaling = scaling;
+            return null;
+        });
+    }
+
+    public List<ServerData> scale() {
+        return mutate(events -> scaleLocked(events));
+    }
+
+    private List<ServerData> scaleLocked(List<Object> events) {
+        List<ServerData> started = new ArrayList<>();
+        for (GroupData group : List.copyOf(groups.values())) {
+            ScalingConfig config = group.scaling;
+            if (config == null || Boolean.FALSE.equals(group.active) || config.scalingMode() == ScalingMode.MANUAL) {
+                continue;
+            }
+            int attempts = 0;
+            while (needsServer(group, config)) {
+                if (++attempts > MAX_SCALE_STEPS) {
+                    throw new IllegalStateException("Scaling of group '" + group.name + "' did not settle after "
+                            + MAX_SCALE_STEPS + " servers, check its scaling config");
+                }
+                started.add(startLocked(group, events));
+            }
+        }
+        for (PersistentServerData persistent : List.copyOf(persistentServers.values())) {
+            if (!Boolean.FALSE.equals(persistent.active) && persistent.server == null) {
+                started.add(startLocked(persistent, events));
+            }
+        }
+        return started;
+    }
+
+    private boolean needsServer(GroupData group, ScalingConfig config) {
+        List<ServerData> running = serversOf(group);
+        int maxServers = orZero(config.maxServers());
+        if (maxServers > 0 && running.size() >= maxServers) {
+            return false;
+        }
+        if (running.size() < orZero(config.minServers())) {
+            return true;
+        }
+        if (running.isEmpty()) {
+            return false;
+        }
+        if (config.scalingMode() == ScalingMode.PLAYERS) {
+            if (!config.hasPlayerThreshold()) {
+                return false;
+            }
+            double threshold = config.playerThreshold() > 1 ? config.playerThreshold() / 100 : config.playerThreshold();
+            return running.stream().allMatch(server -> load(server) >= threshold);
+        }
+        int availableSlots = orZero(config.availableSlots());
+        return availableSlots > 0 && freeSlots(running) < availableSlots;
+    }
+
+    private static int orZero(@Nullable Integer value) {
+        return value != null ? value : 0;
+    }
+
+    private static double load(ServerData server) {
+        return server.maxPlayers <= 0 ? 1 : (double) server.playerCount / server.maxPlayers;
+    }
+
+    private static int freeSlots(List<ServerData> servers) {
+        return servers.stream()
+                .filter(server -> switch (server.state) {
+                    case INGAME, STOPPING, CLEANUP, STOPPED -> false;
+                    default -> true;
+                })
+                .mapToInt(server -> Math.max(0, server.maxPlayers - server.playerCount))
+                .sum();
+    }
+
+    public Optional<ServerData> requestServerStart(String groupId) {
+        return mutate(events -> {
+            GroupData group = requireGroup(groupId);
+            if (autoStart) {
+                return Optional.of(startLocked(group, events));
+            }
+            startQueue.add(new QueuedStart(UUID.randomUUID().toString(), group, timestamp()));
+            return Optional.empty();
+        });
+    }
+
+    public void clearStartQueue(String groupId) {
+        mutate(events -> {
+            GroupData group = requireGroup(groupId);
+            startQueue.removeIf(start -> start.group == group);
+            return null;
+        });
+    }
+
+    public List<ServerData> processStartQueue() {
+        return mutate(events -> {
+            List<ServerData> started = new ArrayList<>();
+            for (QueuedStart start : List.copyOf(startQueue)) {
+                if (start.status != GroupStartQueueItemStatus.PENDING) {
+                    continue;
+                }
+                startQueue.remove(start);
+                started.add(startLocked(start.group, events));
+            }
+            return started;
+        });
+    }
+
+    public void failQueuedStarts(String groupName, String reason) {
+        mutate(events -> {
+            GroupData group = groupByName(groupName).orElseThrow(() -> notFound("Group '" + groupName + "' not found"));
+            for (QueuedStart start : startQueue) {
+                if (start.group == group && start.status == GroupStartQueueItemStatus.PENDING) {
+                    start.status = GroupStartQueueItemStatus.FAILED;
+                    start.failureReason = reason;
+                }
+            }
+            return null;
+        });
+    }
+
+    public GroupStartQueue startQueue() {
+        return read(() -> {
+            Map<GroupData, List<QueuedStart>> byGroup = startQueue.stream()
+                    .collect(Collectors.groupingBy(start -> start.group, LinkedHashMap::new, Collectors.toList()));
+            List<GroupStartQueueEntry> entries = new ArrayList<>();
+            int failed = 0;
+            int queued = 0;
+            for (Map.Entry<GroupData, List<QueuedStart>> entry : byGroup.entrySet()) {
+                List<QueuedStart> starts = entry.getValue();
+                int groupFailed = count(starts, GroupStartQueueItemStatus.FAILED);
+                int groupQueued = count(starts, GroupStartQueueItemStatus.PENDING);
+                failed += groupFailed;
+                queued += groupQueued;
+                entries.add(new GroupStartQueueEntry(
+                        groupFailed,
+                        groupQueued,
+                        entry.getKey().id,
+                        entry.getKey().name,
+                        starts.stream().map(QueuedStart::toItem).toList(),
+                        starts.size()));
+            }
+            return new GroupStartQueue(entries.size(), failed, entries, queued, startQueue.size());
+        });
+    }
+
+    private static int count(List<QueuedStart> starts, GroupStartQueueItemStatus status) {
+        return (int) starts.stream().filter(start -> start.status == status).count();
+    }
+
+    private GroupData requireGroup(String id) {
+        return groupById(id).orElseThrow(() -> notFound("Group with ID '" + id + "' not found"));
+    }
+
+    private ServerData requireServer(String id) {
+        return serverById(id).orElseThrow(() -> notFound("Server with ID '" + id + "' not found"));
+    }
+
+    public static CloudApiException notFound(String message) {
+        return new CloudApiException(CloudApiException.Reason.NOT_FOUND, 404, message, null);
+    }
+
+    private static CloudApiException conflict(String message) {
+        return new CloudApiException(CloudApiException.Reason.CONFLICT, 409, message, null);
+    }
+
+    private static CloudApiException invalid(String message) {
+        return new CloudApiException(CloudApiException.Reason.INVALID_REQUEST, 400, message, null);
+    }
+}

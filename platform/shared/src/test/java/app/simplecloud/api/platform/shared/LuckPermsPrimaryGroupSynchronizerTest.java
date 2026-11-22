@@ -1,175 +1,172 @@
 package app.simplecloud.api.platform.shared;
 
+import static app.simplecloud.api.platform.shared.luckperms.LuckPermsPrimaryGroupSynchronizer.PRIMARY_GROUP_PROPERTY;
+import static org.mockito.ArgumentMatchers.any;
+import static org.mockito.ArgumentMatchers.anyString;
+import static org.mockito.ArgumentMatchers.eq;
+import static org.mockito.Mockito.mock;
+import static org.mockito.Mockito.never;
+import static org.mockito.Mockito.times;
+import static org.mockito.Mockito.verify;
+import static org.mockito.Mockito.verifyNoInteractions;
+import static org.mockito.Mockito.when;
+
 import app.simplecloud.api.CloudApi;
+import app.simplecloud.api.platform.shared.luckperms.LuckPermsPrimaryGroupSynchronizer;
 import app.simplecloud.api.player.CloudPlayer;
 import app.simplecloud.api.player.PlayerApi;
-import net.luckperms.api.LuckPerms;
-import net.luckperms.api.event.EventBus;
-import net.luckperms.api.event.user.UserDataRecalculateEvent;
-import net.luckperms.api.model.user.User;
-import net.luckperms.api.model.user.UserManager;
-import org.junit.jupiter.api.Test;
-import org.mockito.ArgumentCaptor;
-
-import java.util.ArrayList;
-import java.util.List;
 import java.util.Map;
 import java.util.Optional;
 import java.util.UUID;
 import java.util.concurrent.CompletableFuture;
 import java.util.function.Consumer;
-
-import static app.simplecloud.api.platform.shared.LuckPermsPrimaryGroupSynchronizer.PRIMARY_GROUP_PROPERTY;
-import static org.junit.jupiter.api.Assertions.assertEquals;
-import static org.junit.jupiter.api.Assertions.assertSame;
-import static org.mockito.ArgumentMatchers.*;
-import static org.mockito.Mockito.*;
+import net.luckperms.api.LuckPerms;
+import net.luckperms.api.event.EventBus;
+import net.luckperms.api.event.user.UserDataRecalculateEvent;
+import net.luckperms.api.model.user.User;
+import net.luckperms.api.model.user.UserManager;
+import org.junit.jupiter.api.BeforeEach;
+import org.junit.jupiter.api.Test;
+import org.mockito.ArgumentCaptor;
 
 class LuckPermsPrimaryGroupSynchronizerTest {
 
-    @Test
-    @SuppressWarnings({"unchecked", "rawtypes"})
-    void recalculationWaitsForRegistrationAndStopsAfterDisconnect() {
-        UUID playerId = UUID.randomUUID();
+    private final UUID playerId = UUID.randomUUID();
+    private final PlayerApi playerApi = mock(PlayerApi.class);
+    private final LuckPerms luckPerms = mock(LuckPerms.class);
+    private final EventBus eventBus = mock(EventBus.class);
+    private final User user = mock(User.class);
+    private final CloudPlayer cloudPlayer = mock(CloudPlayer.class);
+    private final UserDataRecalculateEvent recalculateEvent = mock(UserDataRecalculateEvent.class);
+    private boolean online = true;
+    private LuckPermsPrimaryGroupSynchronizer synchronizer;
+    private Consumer<UserDataRecalculateEvent> recalculation;
+
+    @BeforeEach
+    @SuppressWarnings("unchecked")
+    void setUp() {
         CloudApi cloudApi = mock(CloudApi.class);
-        PlayerApi playerApi = mock(PlayerApi.class);
-        LuckPerms luckPerms = mock(LuckPerms.class);
-        EventBus eventBus = mock(EventBus.class);
         UserManager userManager = mock(UserManager.class);
-        User user = mock(User.class);
-        CloudPlayer player = mock(CloudPlayer.class);
-        UserDataRecalculateEvent event = mock(UserDataRecalculateEvent.class);
         when(cloudApi.player()).thenReturn(playerApi);
         when(luckPerms.getEventBus()).thenReturn(eventBus);
         when(luckPerms.getUserManager()).thenReturn(userManager);
         when(userManager.getUser(playerId)).thenReturn(user);
         when(user.getUniqueId()).thenReturn(playerId);
         when(user.getPrimaryGroup()).thenReturn("default");
-        when(event.getUser()).thenReturn(user);
-        when(player.getProperties()).thenReturn(Map.of());
-        when(playerApi.find(playerId)).thenReturn(CompletableFuture.completedFuture(Optional.of(player)));
+        when(recalculateEvent.getUser()).thenReturn(user);
+        when(cloudPlayer.getProperties()).thenReturn(Map.of());
+        when(playerApi.find(playerId)).thenReturn(CompletableFuture.completedFuture(Optional.of(cloudPlayer)));
         when(playerApi.updatePlayerProperty(eq(playerId), anyString(), anyString()))
                 .thenReturn(CompletableFuture.completedFuture(Map.of()));
-        OnlinePlayers everyoneOnline = ignored -> true;
-        FailureLog failOnFailure = (message, cause) -> {
-            throw new AssertionError(message, cause);
-        };
-        LuckPermsPrimaryGroupSynchronizer synchronizer = new LuckPermsPrimaryGroupSynchronizer(
-                cloudApi, luckPerms, this, everyoneOnline, failOnFailure);
-        synchronizer.start();
-        ArgumentCaptor<Consumer<UserDataRecalculateEvent>> callback = ArgumentCaptor.forClass(Consumer.class);
-        verify(eventBus).subscribe(eq(this), eq(UserDataRecalculateEvent.class), callback.capture());
 
-        callback.getValue().accept(event);
+        synchronizer = new LuckPermsPrimaryGroupSynchronizer(cloudApi, luckPerms, this, ignored -> online);
+        synchronizer.start();
+        ArgumentCaptor<Consumer<UserDataRecalculateEvent>> subscriber = ArgumentCaptor.forClass(Consumer.class);
+        verify(eventBus).subscribe(eq(this), eq(UserDataRecalculateEvent.class), subscriber.capture());
+        recalculation = subscriber.getValue();
+    }
+
+    @Test
+    void registeredPlayerHasThePrimaryGroupStored() {
+        synchronizer.synchronize(playerId);
+
+        verify(playerApi).updatePlayerProperty(playerId, PRIMARY_GROUP_PROPERTY, "default");
+    }
+
+    @Test
+    void recalculationBeforeTheRegistrationIsIgnored() {
+        recalculation.accept(recalculateEvent);
+
         verifyNoInteractions(playerApi);
+    }
 
+    @Test
+    void changedGroupIsStored() {
         synchronizer.synchronize(playerId);
+
+        changeGroupTo("admin");
+
+        verify(playerApi).updatePlayerProperty(playerId, PRIMARY_GROUP_PROPERTY, "admin");
+    }
+
+    @Test
+    void unchangedGroupIsNotStoredAgain() {
+        synchronizer.synchronize(playerId);
+
+        recalculation.accept(recalculateEvent);
+
         verify(playerApi).find(playerId);
-        verify(playerApi).updatePlayerProperty(playerId, "luckperms-primary-group", "default");
+    }
 
-        when(user.getPrimaryGroup()).thenReturn("admin");
-        callback.getValue().accept(event);
-        verify(playerApi, times(2)).find(playerId);
-        verify(playerApi).updatePlayerProperty(playerId, "luckperms-primary-group", "admin");
-
-        synchronizer.forget(playerId);
-        callback.getValue().accept(event);
-        verify(playerApi, times(2)).find(playerId);
+    @Test
+    void groupAlreadyInTheCloudPropertiesIsNotWrittenAgain() {
+        when(cloudPlayer.getProperties()).thenReturn(Map.of(PRIMARY_GROUP_PROPERTY, "default"));
 
         synchronizer.synchronize(playerId);
-        verify(playerApi, times(3)).find(playerId);
-        synchronizer.stop();
-        synchronizer.start();
-        callback.getValue().accept(event);
-        verify(playerApi, times(3)).find(playerId);
+
+        verify(playerApi, never()).updatePlayerProperty(any(), anyString(), anyString());
+    }
+
+    @Test
+    void playerUnknownToTheCloudIsNotWritten() {
+        when(playerApi.find(playerId)).thenReturn(CompletableFuture.completedFuture(Optional.empty()));
+
+        synchronizer.synchronize(playerId);
+
+        verify(playerApi, never()).updatePlayerProperty(any(), anyString(), anyString());
     }
 
     @Test
     void playerNotOnThisServerIsNotSynchronized() {
-        UUID playerId = UUID.randomUUID();
-        CloudApi cloudApi = mock(CloudApi.class);
-        PlayerApi playerApi = mock(PlayerApi.class);
-        when(cloudApi.player()).thenReturn(playerApi);
-        LuckPerms luckPerms = mock(LuckPerms.class);
-        when(luckPerms.getEventBus()).thenReturn(mock(EventBus.class));
-        OnlinePlayers nobodyOnline = ignored -> false;
-        LuckPermsPrimaryGroupSynchronizer synchronizer = new LuckPermsPrimaryGroupSynchronizer(
-                cloudApi, luckPerms, this, nobodyOnline, (message, cause) -> {});
-        synchronizer.start();
+        online = false;
 
         synchronizer.synchronize(playerId);
 
         verifyNoInteractions(playerApi);
-        verify(luckPerms, never()).getUserManager();
     }
 
     @Test
-    void failedSynchronizationIsWrittenToTheFailureLog() {
-        UUID playerId = UUID.randomUUID();
-        CloudApi cloudApi = mock(CloudApi.class);
-        PlayerApi playerApi = mock(PlayerApi.class);
-        LuckPerms luckPerms = mock(LuckPerms.class);
-        UserManager userManager = mock(UserManager.class);
-        User user = mock(User.class);
-        IllegalStateException controllerFailure = new IllegalStateException("controller unavailable");
-        when(cloudApi.player()).thenReturn(playerApi);
-        when(luckPerms.getEventBus()).thenReturn(mock(EventBus.class));
-        when(luckPerms.getUserManager()).thenReturn(userManager);
-        when(userManager.getUser(playerId)).thenReturn(user);
-        when(user.getUniqueId()).thenReturn(playerId);
-        when(user.getPrimaryGroup()).thenReturn("default");
-        when(playerApi.find(playerId)).thenReturn(CompletableFuture.failedFuture(controllerFailure));
-        List<String> loggedMessages = new ArrayList<>();
-        List<Throwable> loggedCauses = new ArrayList<>();
-        FailureLog failureLog = (message, cause) -> {
-            loggedMessages.add(message);
-            loggedCauses.add(cause);
-        };
-        LuckPermsPrimaryGroupSynchronizer synchronizer = new LuckPermsPrimaryGroupSynchronizer(
-                cloudApi, luckPerms, this, ignored -> true, failureLog);
+    void forgottenPlayerIsNoLongerSynchronized() {
+        synchronizer.synchronize(playerId);
+        synchronizer.forget(playerId);
+
+        changeGroupTo("admin");
+
+        verify(playerApi).find(playerId);
+    }
+
+    @Test
+    void stopForgetsAllPlayers() {
+        synchronizer.synchronize(playerId);
+        synchronizer.stop();
         synchronizer.start();
 
-        synchronizer.synchronize(playerId);
+        changeGroupTo("admin");
 
-        assertEquals(List.of("Failed to synchronize the LuckPerms primary group of " + playerId), loggedMessages);
-        // The failure arrives wrapped by the future chain.
-        assertSame(controllerFailure, loggedCauses.get(0).getCause());
+        verify(playerApi).find(playerId);
     }
 
     @Test
-    @SuppressWarnings("unchecked") // ArgumentCaptor.forClass(Consumer.class) captures a raw Consumer
-    void groupChangeDuringAFailedStore_isStoredAfterIt() {
-        UUID playerId = UUID.randomUUID();
-        CloudApi cloudApi = mock(CloudApi.class);
-        PlayerApi playerApi = mock(PlayerApi.class);
-        LuckPerms luckPerms = mock(LuckPerms.class);
-        EventBus eventBus = mock(EventBus.class);
-        UserManager userManager = mock(UserManager.class);
-        User user = mock(User.class);
-        CloudPlayer cloudPlayer = mock(CloudPlayer.class);
-        UserDataRecalculateEvent event = mock(UserDataRecalculateEvent.class);
+    void failedStoreIsRetriedOnTheNextRecalculation() {
+        when(playerApi.find(playerId))
+                .thenReturn(
+                        CompletableFuture.failedFuture(new IllegalStateException("controller unavailable")),
+                        CompletableFuture.completedFuture(Optional.of(cloudPlayer)));
+        synchronizer.synchronize(playerId);
+
+        recalculation.accept(recalculateEvent);
+
+        verify(playerApi).updatePlayerProperty(playerId, PRIMARY_GROUP_PROPERTY, "default");
+    }
+
+    @Test
+    void groupChangeDuringAFailedStoreIsStoredAfterIt() {
         CompletableFuture<Map<String, String>> failingStore = new CompletableFuture<>();
-        when(cloudApi.player()).thenReturn(playerApi);
-        when(luckPerms.getEventBus()).thenReturn(eventBus);
-        when(luckPerms.getUserManager()).thenReturn(userManager);
-        when(userManager.getUser(playerId)).thenReturn(user);
-        when(user.getUniqueId()).thenReturn(playerId);
-        when(user.getPrimaryGroup()).thenReturn("default");
-        when(event.getUser()).thenReturn(user);
-        when(cloudPlayer.getProperties()).thenReturn(Map.of());
-        when(playerApi.find(playerId)).thenReturn(CompletableFuture.completedFuture(Optional.of(cloudPlayer)));
-        when(playerApi.updatePlayerProperty(playerId, PRIMARY_GROUP_PROPERTY, "default")).thenReturn(failingStore);
-        when(playerApi.updatePlayerProperty(playerId, PRIMARY_GROUP_PROPERTY, "admin"))
-                .thenReturn(CompletableFuture.completedFuture(Map.of()));
-        LuckPermsPrimaryGroupSynchronizer synchronizer = new LuckPermsPrimaryGroupSynchronizer(
-                cloudApi, luckPerms, this, ignored -> true, (message, cause) -> {});
-        synchronizer.start();
-        ArgumentCaptor<Consumer<UserDataRecalculateEvent>> recalculation = ArgumentCaptor.forClass(Consumer.class);
-        verify(eventBus).subscribe(eq(this), eq(UserDataRecalculateEvent.class), recalculation.capture());
-
+        when(playerApi.updatePlayerProperty(playerId, PRIMARY_GROUP_PROPERTY, "default"))
+                .thenReturn(failingStore);
         synchronizer.synchronize(playerId);
-        when(user.getPrimaryGroup()).thenReturn("admin");
-        recalculation.getValue().accept(event);
+
+        changeGroupTo("admin");
         verify(playerApi, never()).updatePlayerProperty(playerId, PRIMARY_GROUP_PROPERTY, "admin");
         failingStore.completeExceptionally(new IllegalStateException("controller unavailable"));
 
@@ -177,44 +174,22 @@ class LuckPermsPrimaryGroupSynchronizerTest {
     }
 
     @Test
-    @SuppressWarnings("unchecked") // ArgumentCaptor.forClass(Consumer.class) captures a raw Consumer
-    void groupChangedBackDuringAStore_isStoredAgainAfterIt() {
-        UUID playerId = UUID.randomUUID();
-        CloudApi cloudApi = mock(CloudApi.class);
-        PlayerApi playerApi = mock(PlayerApi.class);
-        LuckPerms luckPerms = mock(LuckPerms.class);
-        EventBus eventBus = mock(EventBus.class);
-        UserManager userManager = mock(UserManager.class);
-        User user = mock(User.class);
-        CloudPlayer cloudPlayer = mock(CloudPlayer.class);
-        UserDataRecalculateEvent event = mock(UserDataRecalculateEvent.class);
+    void groupChangedBackDuringAStoreIsStoredAgainAfterIt() {
+        when(user.getPrimaryGroup()).thenReturn("admin");
         CompletableFuture<Map<String, String>> slowStore = new CompletableFuture<>();
-        when(cloudApi.player()).thenReturn(playerApi);
-        when(luckPerms.getEventBus()).thenReturn(eventBus);
-        when(luckPerms.getUserManager()).thenReturn(userManager);
-        when(userManager.getUser(playerId)).thenReturn(user);
-        when(user.getUniqueId()).thenReturn(playerId);
-        when(user.getPrimaryGroup()).thenReturn("admin");
-        when(event.getUser()).thenReturn(user);
-        when(cloudPlayer.getProperties()).thenReturn(Map.of());
-        when(playerApi.find(playerId)).thenReturn(CompletableFuture.completedFuture(Optional.of(cloudPlayer)));
-        when(playerApi.updatePlayerProperty(playerId, PRIMARY_GROUP_PROPERTY, "admin"))
-                .thenReturn(CompletableFuture.completedFuture(Map.of()));
-        when(playerApi.updatePlayerProperty(playerId, PRIMARY_GROUP_PROPERTY, "default")).thenReturn(slowStore);
-        LuckPermsPrimaryGroupSynchronizer synchronizer = new LuckPermsPrimaryGroupSynchronizer(
-                cloudApi, luckPerms, this, ignored -> true, (message, cause) -> {});
-        synchronizer.start();
-        ArgumentCaptor<Consumer<UserDataRecalculateEvent>> recalculation = ArgumentCaptor.forClass(Consumer.class);
-        verify(eventBus).subscribe(eq(this), eq(UserDataRecalculateEvent.class), recalculation.capture());
-
+        when(playerApi.updatePlayerProperty(playerId, PRIMARY_GROUP_PROPERTY, "default"))
+                .thenReturn(slowStore);
         synchronizer.synchronize(playerId);
-        when(user.getPrimaryGroup()).thenReturn("default");
-        recalculation.getValue().accept(event);
-        // Back to the group stored first: this change matches the old stored group and asks for no store.
-        when(user.getPrimaryGroup()).thenReturn("admin");
-        recalculation.getValue().accept(event);
+
+        changeGroupTo("default");
+        changeGroupTo("admin");
         slowStore.complete(Map.of());
 
         verify(playerApi, times(2)).updatePlayerProperty(playerId, PRIMARY_GROUP_PROPERTY, "admin");
+    }
+
+    private void changeGroupTo(String group) {
+        when(user.getPrimaryGroup()).thenReturn(group);
+        recalculation.accept(recalculateEvent);
     }
 }

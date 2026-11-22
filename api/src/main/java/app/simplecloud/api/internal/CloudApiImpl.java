@@ -2,10 +2,12 @@ package app.simplecloud.api.internal;
 
 import app.simplecloud.api.CloudApi;
 import app.simplecloud.api.CloudApiOptions;
+import app.simplecloud.api.blueprint.BlueprintApi;
 import app.simplecloud.api.cache.CacheConfig;
 import app.simplecloud.api.cache.QueryCache;
 import app.simplecloud.api.event.EventApi;
 import app.simplecloud.api.group.GroupApi;
+import app.simplecloud.api.internal.blueprint.BlueprintApiImpl;
 import app.simplecloud.api.internal.cache.CacheEventListener;
 import app.simplecloud.api.internal.cache.NoOpQueryCache;
 import app.simplecloud.api.internal.cache.QueryCacheImpl;
@@ -13,15 +15,17 @@ import app.simplecloud.api.internal.event.EventApiImpl;
 import app.simplecloud.api.internal.group.GroupApiImpl;
 import app.simplecloud.api.internal.nats.NatsFailoverConnectionManager;
 import app.simplecloud.api.internal.persistentserver.PersistentServerApiImpl;
-import app.simplecloud.api.internal.server.ServerApiImpl;
 import app.simplecloud.api.internal.player.PlayerApiImpl;
-import app.simplecloud.api.internal.web.ApiClients;
-import app.simplecloud.api.web.ApiClient;
+import app.simplecloud.api.internal.server.ServerApiImpl;
+import app.simplecloud.api.internal.stats.StatsApiImpl;
+import app.simplecloud.api.internal.util.blueprint.ManifestServerUrlResolver;
+import app.simplecloud.api.internal.web.ApiClientFactory;
 import app.simplecloud.api.persistentserver.PersistentServerApi;
 import app.simplecloud.api.player.PlayerApi;
 import app.simplecloud.api.server.ServerApi;
+import app.simplecloud.api.stats.StatsApi;
+import app.simplecloud.api.web.ApiClient;
 import io.nats.client.Connection;
-
 import java.time.Duration;
 import java.util.concurrent.Executor;
 import java.util.concurrent.ExecutorService;
@@ -46,8 +50,10 @@ public class CloudApiImpl implements CloudApi {
     private final ServerApi serverApi;
     private final GroupApi groupApi;
     private final PersistentServerApi persistentServerApi;
+    private final BlueprintApi blueprintApi;
     private final EventApi eventApi;
     private final PlayerApi playerApi;
+    private final StatsApi statsApi;
     private final ExecutorService executor = Executors.newVirtualThreadPerTaskExecutor();
     private final AtomicBoolean closed = new AtomicBoolean(false);
 
@@ -58,34 +64,34 @@ public class CloudApiImpl implements CloudApi {
                 options.getNatsUrl(),
                 options.getNetworkId(),
                 options.getNetworkSecret(),
-                options.getNatsFailoverReconnectAfter()
-        );
+                options.getNatsFailoverReconnectAfter());
         this.natsClient = natsConnectionManager.getConnection();
 
-        // Initialize cache
         CacheConfig cacheConfig = options.getCacheConfig();
         if (cacheConfig.isEnabled()) {
-            this.queryCache = new QueryCacheImpl(cacheConfig, ApiClients.maxRequestDuration(options));
+            this.queryCache = new QueryCacheImpl(cacheConfig, ApiClientFactory.maxRequestDuration(options));
         } else {
             this.queryCache = new NoOpQueryCache();
         }
 
-        // Initialize APIs with cache
-        this.httpClient = ApiClients.create(options);
-        this.playerApi = new PlayerApiImpl(options, natsClient, httpClient, executor);
+        this.httpClient = ApiClientFactory.create(options);
+        ApiContext context = new ApiContext(options, queryCache, httpClient, executor);
+        this.playerApi = new PlayerApiImpl(context, natsClient);
         this.eventApi = new EventApiImpl(natsClient, options.getNetworkId(), playerApi);
-        this.serverApi = new ServerApiImpl(options, queryCache, httpClient, executor);
-        this.groupApi = new GroupApiImpl(options, queryCache, httpClient, executor);
-        this.persistentServerApi = new PersistentServerApiImpl(options, queryCache, httpClient, executor);
+        this.serverApi = new ServerApiImpl(context);
+        ManifestServerUrlResolver serverUrlResolver =
+                new ManifestServerUrlResolver(options, httpClient.getHttpClient());
+        this.groupApi = new GroupApiImpl(context, serverUrlResolver);
+        this.persistentServerApi = new PersistentServerApiImpl(context, serverUrlResolver);
+        this.blueprintApi = new BlueprintApiImpl(context, serverUrlResolver);
+        this.statsApi = new StatsApiImpl(context);
 
-        // Setup event-based cache invalidation with debouncing
         if (cacheConfig.isEnabled() && cacheConfig.isAutoInvalidateOnEvents()) {
             long debounceMs = cacheConfig.getEventDebounceTime().toMillis();
             this.cacheEventListener = new CacheEventListener(queryCache, eventApi, debounceMs);
         } else {
             this.cacheEventListener = null;
         }
-
     }
 
     @Override
@@ -104,6 +110,11 @@ public class CloudApiImpl implements CloudApi {
     }
 
     @Override
+    public BlueprintApi blueprint() {
+        return blueprintApi;
+    }
+
+    @Override
     public EventApi event() {
         return eventApi;
     }
@@ -113,12 +124,11 @@ public class CloudApiImpl implements CloudApi {
         return playerApi;
     }
 
-    /**
-     * Returns the underlying NATS connection.
-     * This is for internal use by integration modules.
-     *
-     * @return the NATS connection
-     */
+    @Override
+    public StatsApi stats() {
+        return statsApi;
+    }
+
     public Connection getNatsConnection() {
         return natsClient;
     }
@@ -180,5 +190,4 @@ public class CloudApiImpl implements CloudApi {
         httpClient.getHttpClient().dispatcher().executorService().shutdown();
         httpClient.getHttpClient().connectionPool().evictAll();
     }
-
 }

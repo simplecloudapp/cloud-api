@@ -1,7 +1,10 @@
 package app.simplecloud.api.internal.cache;
 
-import app.simplecloud.api.cache.*;
-
+import app.simplecloud.api.cache.CacheEntry;
+import app.simplecloud.api.cache.CacheStats;
+import app.simplecloud.api.cache.EntityType;
+import app.simplecloud.api.cache.QueryCache;
+import app.simplecloud.api.cache.QueryKey;
 import java.util.Collections;
 import java.util.Set;
 import java.util.concurrent.CompletableFuture;
@@ -9,7 +12,6 @@ import java.util.function.Supplier;
 
 /**
  * A no-op cache implementation used when caching is disabled.
- * All operations pass through to the underlying fetcher without caching.
  */
 public class NoOpQueryCache implements QueryCache {
 
@@ -24,29 +26,19 @@ public class NoOpQueryCache implements QueryCache {
     }
 
     @Override
-    public <T> void set(QueryKey key, T data) {
-        // No-op
-    }
+    public <T> void set(QueryKey key, T data) {}
 
     @Override
-    public void invalidate(QueryKey key) {
-        // No-op
-    }
+    public void invalidate(QueryKey key) {}
 
     @Override
-    public void invalidateAll(QueryKey keyPattern) {
-        // No-op
-    }
+    public void invalidateAll(QueryKey keyPattern) {}
 
     @Override
-    public void invalidateByType(EntityType type) {
-        // No-op
-    }
+    public void invalidateByType(EntityType type) {}
 
     @Override
-    public void clear() {
-        // No-op
-    }
+    public void clear() {}
 
     @Override
     public CacheStats getStats() {

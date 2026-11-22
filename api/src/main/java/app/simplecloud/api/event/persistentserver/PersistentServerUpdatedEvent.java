@@ -35,4 +35,3 @@ public interface PersistentServerUpdatedEvent {
      */
     String getTimestamp();
 }
-

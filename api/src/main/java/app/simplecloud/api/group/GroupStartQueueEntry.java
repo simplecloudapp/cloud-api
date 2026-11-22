@@ -1,60 +1,74 @@
 package app.simplecloud.api.group;
 
-import org.jetbrains.annotations.Nullable;
-
 import java.util.List;
+import org.jetbrains.annotations.ApiStatus;
+import org.jetbrains.annotations.Nullable;
 
 /**
  * Manual server-start queue state for one server group.
  */
-public final class GroupStartQueueEntry {
-    private final int failedStarts;
-    private final int queuedStarts;
-    @Nullable
-    private final String serverGroupId;
-    @Nullable
-    private final String serverGroupName;
-    private final List<GroupStartQueueItem> starts;
-    private final int totalStarts;
+public record GroupStartQueueEntry(
+        int failedStarts,
+        int queuedStarts,
+        @Nullable String serverGroupId,
+        @Nullable String serverGroupName,
+        List<GroupStartQueueItem> starts,
+        int totalStarts) {
 
-    public GroupStartQueueEntry(
-            int failedStarts,
-            int queuedStarts,
-            @Nullable String serverGroupId,
-            @Nullable String serverGroupName,
-            List<GroupStartQueueItem> starts,
-            int totalStarts
-    ) {
-        this.failedStarts = failedStarts;
-        this.queuedStarts = queuedStarts;
-        this.serverGroupId = serverGroupId;
-        this.serverGroupName = serverGroupName;
-        this.starts = List.copyOf(starts);
-        this.totalStarts = totalStarts;
+    public GroupStartQueueEntry {
+        starts = List.copyOf(starts);
     }
 
+    /**
+     * @deprecated use {@link #failedStarts()}; will be removed in 1.0.0
+     */
+    @Deprecated(forRemoval = true)
+    @ApiStatus.ScheduledForRemoval(inVersion = "1.0.0")
     public int getFailedStarts() {
         return failedStarts;
     }
 
+    /**
+     * @deprecated use {@link #queuedStarts()}; will be removed in 1.0.0
+     */
+    @Deprecated(forRemoval = true)
+    @ApiStatus.ScheduledForRemoval(inVersion = "1.0.0")
     public int getQueuedStarts() {
         return queuedStarts;
     }
 
-    @Nullable
-    public String getServerGroupId() {
+    /**
+     * @deprecated use {@link #serverGroupId()}; will be removed in 1.0.0
+     */
+    @Deprecated(forRemoval = true)
+    @ApiStatus.ScheduledForRemoval(inVersion = "1.0.0")
+    @Nullable public String getServerGroupId() {
         return serverGroupId;
     }
 
-    @Nullable
-    public String getServerGroupName() {
+    /**
+     * @deprecated use {@link #serverGroupName()}; will be removed in 1.0.0
+     */
+    @Deprecated(forRemoval = true)
+    @ApiStatus.ScheduledForRemoval(inVersion = "1.0.0")
+    @Nullable public String getServerGroupName() {
         return serverGroupName;
     }
 
+    /**
+     * @deprecated use {@link #starts()}; will be removed in 1.0.0
+     */
+    @Deprecated(forRemoval = true)
+    @ApiStatus.ScheduledForRemoval(inVersion = "1.0.0")
     public List<GroupStartQueueItem> getStarts() {
         return starts;
     }
 
+    /**
+     * @deprecated use {@link #totalStarts()}; will be removed in 1.0.0
+     */
+    @Deprecated(forRemoval = true)
+    @ApiStatus.ScheduledForRemoval(inVersion = "1.0.0")
     public int getTotalStarts() {
         return totalStarts;
     }

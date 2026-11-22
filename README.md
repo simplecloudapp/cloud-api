@@ -36,7 +36,7 @@ The official SDK for the SimpleCloud controller. Manage groups, servers, persist
 
 ## Server Installation
 
-- Put the Spigot, Paper, Folia, BungeeCord, and Velocity JAR in the server's `plugins` directory.
+- Put the Spigot, Paper, BungeeCord, and Velocity JAR in the server's `plugins` directory.
 - Put the Fabric/Quilt or NeoForge JAR in the server's `mods` directory.
 - Fabric, Quilt, and NeoForge support is server-side only, targets Minecraft 26.2 to 26.3, and does not require clients to install the mod.
 

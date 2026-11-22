@@ -1,38 +1,32 @@
 package app.simplecloud.api.group;
 
+import java.util.List;
+import org.jetbrains.annotations.ApiStatus;
 import org.jetbrains.annotations.Nullable;
 
-import java.util.List;
+public record WorkflowWhen(
+        @Nullable List<String> start, @Nullable List<String> stop) {
 
-public class WorkflowWhen {
-    @Nullable
-    private List<String> start;
-    @Nullable
-    private List<String> stop;
+    /**
+     * @deprecated use {@link #start()}; will be removed in 1.0.0
+     */
+    @Deprecated(forRemoval = true)
+    @ApiStatus.ScheduledForRemoval(inVersion = "1.0.0")
+    @Nullable public List<String> getStart() {
+        return start;
+    }
 
-    public WorkflowWhen() {
+    /**
+     * @deprecated use {@link #stop()}; will be removed in 1.0.0
+     */
+    @Deprecated(forRemoval = true)
+    @ApiStatus.ScheduledForRemoval(inVersion = "1.0.0")
+    @Nullable public List<String> getStop() {
+        return stop;
     }
 
     public static Builder builder() {
         return new Builder();
-    }
-
-    @Nullable
-    public List<String> getStart() {
-        return start;
-    }
-
-    public void setStart(@Nullable List<String> start) {
-        this.start = start;
-    }
-
-    @Nullable
-    public List<String> getStop() {
-        return stop;
-    }
-
-    public void setStop(@Nullable List<String> stop) {
-        this.stop = stop;
     }
 
     public static class Builder {
@@ -50,10 +44,7 @@ public class WorkflowWhen {
         }
 
         public WorkflowWhen build() {
-            WorkflowWhen when = new WorkflowWhen();
-            when.setStart(start);
-            when.setStop(stop);
-            return when;
+            return new WorkflowWhen(start, stop);
         }
     }
 }

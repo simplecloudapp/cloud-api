@@ -50,8 +50,7 @@ public enum ServerState {
     /**
      * Server has been stopped.
      */
-    STOPPED
-    ;
+    STOPPED;
 
     public static ServerState parse(String state) {
         return ServerState.valueOf(state.toUpperCase().replace("SERVER_STATE_", ""));
@@ -64,6 +63,4 @@ public enum ServerState {
     public static ServerState parse(ModelsPatchServerRequest.StateEnum state) {
         return parse(state.toString());
     }
-
 }
-

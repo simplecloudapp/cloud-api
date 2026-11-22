@@ -1,5 +1,6 @@
 package app.simplecloud.api;
 
+import app.simplecloud.api.blueprint.BlueprintApi;
 import app.simplecloud.api.cache.QueryCache;
 import app.simplecloud.api.event.EventApi;
 import app.simplecloud.api.group.GroupApi;
@@ -7,6 +8,7 @@ import app.simplecloud.api.internal.CloudApiImpl;
 import app.simplecloud.api.persistentserver.PersistentServerApi;
 import app.simplecloud.api.player.PlayerApi;
 import app.simplecloud.api.server.ServerApi;
+import app.simplecloud.api.stats.StatsApi;
 
 /**
  * Main entry point for the SimpleCloud API.
@@ -96,6 +98,15 @@ public interface CloudApi extends AutoCloseable {
     PersistentServerApi persistentServer();
 
     /**
+     * Returns the blueprint management API.
+     *
+     * <p>Use this to create, read, update, and delete blueprints.
+     *
+     * @return the blueprint API
+     */
+    BlueprintApi blueprint();
+
+    /**
      * Returns the event subscription API.
      *
      * <p>Use this to subscribe to real-time events for groups, servers,
@@ -114,6 +125,13 @@ public interface CloudApi extends AutoCloseable {
      * @return the player API
      */
     PlayerApi player();
+
+    /**
+     * Returns the network statistics API.
+     *
+     * @return the stats API
+     */
+    StatsApi stats();
 
     /**
      * Returns the network ID this API is connected to.
@@ -135,7 +153,7 @@ public interface CloudApi extends AutoCloseable {
      *
      * // Get cache statistics
      * CacheStats stats = cloudApi.cache().getStats();
-     * System.out.println("Cache hit rate: " + stats.getHitRate());
+     * System.out.println("Cache hit rate: " + stats.hitRate());
      * }</pre>
      *
      * @return the query cache
@@ -143,7 +161,5 @@ public interface CloudApi extends AutoCloseable {
     QueryCache cache();
 
     @Override
-    default void close() {
-    }
-
+    default void close() {}
 }

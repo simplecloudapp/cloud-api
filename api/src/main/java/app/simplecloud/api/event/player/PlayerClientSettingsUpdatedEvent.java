@@ -1,9 +1,8 @@
 package app.simplecloud.api.event.player;
 
 import app.simplecloud.api.player.PlayerClientSettings;
-import org.jetbrains.annotations.Nullable;
-
 import java.util.UUID;
+import org.jetbrains.annotations.Nullable;
 
 /**
  * Event fired when a player's client settings are updated.
@@ -29,16 +28,14 @@ public interface PlayerClientSettingsUpdatedEvent {
      *
      * @return the session ID, or null if unavailable
      */
-    @Nullable
-    String getSessionId();
+    @Nullable String getSessionId();
 
     /**
      * Returns the updated client settings.
      *
      * @return the settings, or null if unavailable
      */
-    @Nullable
-    PlayerClientSettings getSettings();
+    @Nullable PlayerClientSettings getSettings();
 
     /**
      * Returns the timestamp when this event occurred (ISO 8601 format).

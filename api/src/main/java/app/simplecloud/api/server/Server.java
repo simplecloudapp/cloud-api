@@ -4,9 +4,9 @@ import app.simplecloud.api.base.ServerBase;
 import app.simplecloud.api.blueprint.Blueprint;
 import app.simplecloud.api.group.Group;
 import app.simplecloud.api.persistentserver.PersistentServer;
-import org.jetbrains.annotations.Nullable;
-
 import java.util.Map;
+import org.jetbrains.annotations.ApiStatus;
+import org.jetbrains.annotations.Nullable;
 
 /**
  * Represents a running server instance.
@@ -52,9 +52,9 @@ public interface Server {
     /**
      * Returns the ID of the host machine running this server.
      *
-     * @return the serverhost ID
+     * @return the serverhost ID, or null if the server is not placed on a host yet
      */
-    String getServerhostId();
+    @Nullable String getServerhostId();
 
     /**
      * Returns the network ID this server belongs to.
@@ -108,9 +108,9 @@ public interface Server {
     /**
      * Returns the current number of connected players.
      *
-     * @return the player count, or null if not available
+     * @return the player count, or 0 if not available
      */
-    @Nullable Integer getPlayerCount();
+    Integer getPlayerCount();
 
     /**
      * Returns the maximum number of players allowed on this server.
@@ -156,6 +156,9 @@ public interface Server {
 
     /**
      * Returns the blueprint this server was created from.
+     *
+     * <p>For persistent servers the controller only sends the blueprint in events. For servers fetched through
+     * {@code ServerApi} use {@code BlueprintApi.getBlueprintById} with the id from the persistent server source.
      *
      * @return the blueprint, or null if not available
      */
@@ -209,13 +212,15 @@ public interface Server {
      * @return the server group
      * @throws IllegalStateException if this server was spawned from a persistent server
      * @deprecated Use {@link #getGroup()} instead. This method throws if the server
-     *             was spawned from a persistent server.
+     *             was spawned from a persistent server. Will be removed in 1.0.0.
      */
-    @Deprecated
+    @Deprecated(forRemoval = true)
+    @ApiStatus.ScheduledForRemoval(inVersion = "1.0.0")
     default Group getServerGroup() {
         Group group = getGroup();
         if (group == null) {
-            throw new IllegalStateException("Server was spawned from a persistent server, not a group. Use getGroup() or getPersistentServer() instead.");
+            throw new IllegalStateException(
+                    "Server was spawned from a persistent server, not a group. Use getGroup() or getPersistentServer() instead.");
         }
         return group;
     }

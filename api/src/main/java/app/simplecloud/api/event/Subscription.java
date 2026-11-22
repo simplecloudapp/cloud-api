@@ -25,6 +25,4 @@ public interface Subscription extends AutoCloseable {
     default void close() {
         unsubscribe();
     }
-
 }
-

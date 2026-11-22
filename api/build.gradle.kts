@@ -1,5 +1,6 @@
 import app.simplecloud.gradle.AddProtoDependencyToPom
 import app.simplecloud.gradle.FixOpenApiGeneratedCode
+import app.simplecloud.gradle.GenerateNativeImageMetadata
 import com.github.jengelman.gradle.plugins.shadow.tasks.ShadowJar
 
 plugins {
@@ -27,8 +28,21 @@ dependencies {
     implementation(libs.adventure.gson)
     implementation(libs.caffeine)
 
-    testImplementation(libs.okhttp.mockwebserver)
-    testImplementation(libs.okhttp.tls)
+    testImplementation(libs.testcontainers)
+}
+
+val natsTestUrl = providers.gradleProperty("natsTestUrl").orElse(providers.environmentVariable("NATS_TEST_URL"))
+val natsTestContainer = providers.gradleProperty("nats")
+
+tasks.named<Test>("test") {
+    useJUnitPlatform {
+        if (!natsTestUrl.isPresent && !natsTestContainer.isPresent) {
+            excludeTags("nats")
+        }
+    }
+    if (natsTestUrl.isPresent) {
+        systemProperty("simplecloud.test.natsUrl", natsTestUrl.get())
+    }
 }
 
 tasks.named<ShadowJar>("shadowJar") {
@@ -107,6 +121,21 @@ val prepareGeneratedSources = tasks.register("prepareGeneratedSources") {
 
 tasks.compileJava {
     dependsOn(prepareGeneratedSources)
+}
+
+val generateNativeImageMetadata = tasks.register<GenerateNativeImageMetadata>("generateNativeImageMetadata") {
+    classesDirs.from(sourceSets.main.map { it.output.classesDirs })
+    dependencies.from(configurations.runtimeClasspath)
+    metadataPath = "META-INF/native-image/app.simplecloud.api/api"
+    reflectiveTypes.addAll(
+        "app.simplecloud.api.internal.util.blueprint.ManifestServerUrlResolver\$ManifestEntry",
+        "app.simplecloud.api.internal.util.blueprint.ManifestServerUrlResolver\$ManifestDownloadLink",
+    )
+    outputDir = layout.buildDirectory.dir("generated/native-image")
+}
+
+sourceSets.main {
+    resources.srcDir(generateNativeImageMetadata)
 }
 
 tasks.named<Javadoc>("javadoc") {

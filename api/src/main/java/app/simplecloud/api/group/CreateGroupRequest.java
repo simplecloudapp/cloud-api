@@ -1,18 +1,18 @@
 package app.simplecloud.api.group;
 
 import app.simplecloud.api.blueprint.CreateBlueprintRequest;
-import org.jetbrains.annotations.Nullable;
-
 import java.util.List;
 import java.util.Map;
+import org.jetbrains.annotations.Nullable;
 
 /**
  * Request object for creating a new server group.
  */
 public class CreateGroupRequest {
     private final String name;
-    @Nullable
-    private GroupServerType type;
+
+    @Nullable private GroupServerType type;
+
     private Integer minMemory;
     private Integer maxMemory;
     private Integer maxPlayers;
@@ -38,8 +38,7 @@ public class CreateGroupRequest {
         return name;
     }
 
-    @Nullable
-    public GroupServerType getType() {
+    @Nullable public GroupServerType getType() {
         return type;
     }
 
@@ -48,8 +47,7 @@ public class CreateGroupRequest {
         return this;
     }
 
-    @Nullable
-    public Integer getMinMemory() {
+    @Nullable public Integer getMinMemory() {
         return minMemory;
     }
 
@@ -58,8 +56,7 @@ public class CreateGroupRequest {
         return this;
     }
 
-    @Nullable
-    public Integer getMaxMemory() {
+    @Nullable public Integer getMaxMemory() {
         return maxMemory;
     }
 
@@ -68,8 +65,7 @@ public class CreateGroupRequest {
         return this;
     }
 
-    @Nullable
-    public Integer getMaxPlayers() {
+    @Nullable public Integer getMaxPlayers() {
         return maxPlayers;
     }
 
@@ -78,8 +74,7 @@ public class CreateGroupRequest {
         return this;
     }
 
-    @Nullable
-    public Boolean getActive() {
+    @Nullable public Boolean getActive() {
         return active;
     }
 
@@ -88,8 +83,7 @@ public class CreateGroupRequest {
         return this;
     }
 
-    @Nullable
-    public Integer getPriority() {
+    @Nullable public Integer getPriority() {
         return priority;
     }
 
@@ -98,8 +92,7 @@ public class CreateGroupRequest {
         return this;
     }
 
-    @Nullable
-    public DeploymentConfig getDeployment() {
+    @Nullable public DeploymentConfig getDeployment() {
         return deployment;
     }
 
@@ -108,8 +101,7 @@ public class CreateGroupRequest {
         return this;
     }
 
-    @Nullable
-    public ScalingConfig getScaling() {
+    @Nullable public ScalingConfig getScaling() {
         return scaling;
     }
 
@@ -118,8 +110,7 @@ public class CreateGroupRequest {
         return this;
     }
 
-    @Nullable
-    public SourceConfig getSource() {
+    @Nullable public SourceConfig getSource() {
         return source;
     }
 
@@ -128,8 +119,7 @@ public class CreateGroupRequest {
         return this;
     }
 
-    @Nullable
-    public CreateBlueprintRequest getCreateBlueprint() {
+    @Nullable public CreateBlueprintRequest getCreateBlueprint() {
         return createBlueprint;
     }
 
@@ -138,8 +128,7 @@ public class CreateGroupRequest {
         return this;
     }
 
-    @Nullable
-    public WorkflowsConfig getWorkflows() {
+    @Nullable public WorkflowsConfig getWorkflows() {
         return workflows;
     }
 
@@ -148,8 +137,7 @@ public class CreateGroupRequest {
         return this;
     }
 
-    @Nullable
-    public Map<String, Object> getProperties() {
+    @Nullable public Map<String, Object> getProperties() {
         return properties;
     }
 
@@ -158,8 +146,7 @@ public class CreateGroupRequest {
         return this;
     }
 
-    @Nullable
-    public List<String> getTags() {
+    @Nullable public List<String> getTags() {
         return tags;
     }
 

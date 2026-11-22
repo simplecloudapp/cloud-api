@@ -1,60 +1,58 @@
 package app.simplecloud.api.player;
 
+import java.util.UUID;
+import org.jetbrains.annotations.ApiStatus;
 import org.jetbrains.annotations.Nullable;
 
-import java.util.UUID;
+public record PlayerProfile(
+        String id,
+        UUID playerId,
+        String name,
+        @Nullable String texture,
+        @Nullable String createdAt) {
 
-public class PlayerProfile {
-    private String id;
-    private UUID playerId;
-    private String name;
-    @Nullable
-    private String texture;
-    @Nullable
-    private String createdAt;
-
-    public PlayerProfile() {
-    }
-
+    /**
+     * @deprecated use {@link #id()}; will be removed in 1.0.0
+     */
+    @Deprecated(forRemoval = true)
+    @ApiStatus.ScheduledForRemoval(inVersion = "1.0.0")
     public String getId() {
         return id;
     }
 
-    public void setId(String id) {
-        this.id = id;
-    }
-
+    /**
+     * @deprecated use {@link #playerId()}; will be removed in 1.0.0
+     */
+    @Deprecated(forRemoval = true)
+    @ApiStatus.ScheduledForRemoval(inVersion = "1.0.0")
     public UUID getPlayerId() {
         return playerId;
     }
 
-    public void setPlayerId(UUID playerId) {
-        this.playerId = playerId;
-    }
-
+    /**
+     * @deprecated use {@link #name()}; will be removed in 1.0.0
+     */
+    @Deprecated(forRemoval = true)
+    @ApiStatus.ScheduledForRemoval(inVersion = "1.0.0")
     public String getName() {
         return name;
     }
 
-    public void setName(String name) {
-        this.name = name;
-    }
-
-    @Nullable
-    public String getTexture() {
+    /**
+     * @deprecated use {@link #texture()}; will be removed in 1.0.0
+     */
+    @Deprecated(forRemoval = true)
+    @ApiStatus.ScheduledForRemoval(inVersion = "1.0.0")
+    @Nullable public String getTexture() {
         return texture;
     }
 
-    public void setTexture(@Nullable String texture) {
-        this.texture = texture;
-    }
-
-    @Nullable
-    public String getCreatedAt() {
+    /**
+     * @deprecated use {@link #createdAt()}; will be removed in 1.0.0
+     */
+    @Deprecated(forRemoval = true)
+    @ApiStatus.ScheduledForRemoval(inVersion = "1.0.0")
+    @Nullable public String getCreatedAt() {
         return createdAt;
-    }
-
-    public void setCreatedAt(@Nullable String createdAt) {
-        this.createdAt = createdAt;
     }
 }

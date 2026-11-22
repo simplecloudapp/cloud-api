@@ -2,14 +2,14 @@ package app.simplecloud.api.internal.event.player;
 
 import app.simplecloud.api.event.player.PlayerClientSettingsUpdatedEvent;
 import app.simplecloud.api.player.PlayerClientSettings;
-
 import java.time.Instant;
 import java.util.UUID;
 
 class PlayerClientSettingsUpdatedEventImpl implements PlayerClientSettingsUpdatedEvent {
     private final build.buf.gen.simplecloud.player.v2.PlayerClientSettingsUpdatedEvent delegate;
 
-    PlayerClientSettingsUpdatedEventImpl(build.buf.gen.simplecloud.player.v2.PlayerClientSettingsUpdatedEvent delegate) {
+    PlayerClientSettingsUpdatedEventImpl(
+            build.buf.gen.simplecloud.player.v2.PlayerClientSettingsUpdatedEvent delegate) {
         this.delegate = delegate;
     }
 

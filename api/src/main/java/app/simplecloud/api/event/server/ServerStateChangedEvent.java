@@ -53,4 +53,3 @@ public interface ServerStateChangedEvent {
      */
     String getTimestamp();
 }
-

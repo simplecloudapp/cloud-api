@@ -1,14 +1,13 @@
 package app.simplecloud.api.internal.nats;
 
-import io.nats.client.Connection;
-import org.junit.jupiter.api.Test;
+import static org.junit.jupiter.api.Assertions.assertDoesNotThrow;
+import static org.junit.jupiter.api.Assertions.assertEquals;
 
+import io.nats.client.Connection;
 import java.lang.reflect.Proxy;
 import java.util.concurrent.TimeoutException;
 import java.util.concurrent.atomic.AtomicInteger;
-
-import static org.junit.jupiter.api.Assertions.assertDoesNotThrow;
-import static org.junit.jupiter.api.Assertions.assertEquals;
+import org.junit.jupiter.api.Test;
 
 class FlushIfConnectedTest {
 
@@ -36,13 +35,12 @@ class FlushIfConnectedTest {
     void swallowsAFailedFlush() {
         Connection connection = (Connection) Proxy.newProxyInstance(
                 Connection.class.getClassLoader(),
-                new Class<?>[]{Connection.class},
+                new Class<?>[] {Connection.class},
                 (proxy, method, args) -> switch (method.getName()) {
                     case "getStatus" -> Connection.Status.CONNECTED;
                     case "flush" -> throw new TimeoutException("no pong");
                     default -> throw new UnsupportedOperationException(method.getName());
-                }
-        );
+                });
 
         assertDoesNotThrow(() -> NatsFailoverConnectionManager.flushIfConnected(connection));
     }
@@ -50,7 +48,7 @@ class FlushIfConnectedTest {
     private static Connection connectionWithStatus(Connection.Status status, AtomicInteger flushCalls) {
         return (Connection) Proxy.newProxyInstance(
                 Connection.class.getClassLoader(),
-                new Class<?>[]{Connection.class},
+                new Class<?>[] {Connection.class},
                 (proxy, method, args) -> switch (method.getName()) {
                     case "getStatus" -> status;
                     case "flush" -> {
@@ -58,7 +56,6 @@ class FlushIfConnectedTest {
                         yield null;
                     }
                     default -> throw new UnsupportedOperationException(method.getName());
-                }
-        );
+                });
     }
 }

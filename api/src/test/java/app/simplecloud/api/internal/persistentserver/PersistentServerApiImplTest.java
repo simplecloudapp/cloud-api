@@ -1,425 +1,147 @@
 package app.simplecloud.api.internal.persistentserver;
 
-import app.simplecloud.api.CloudApiOptions;
-import app.simplecloud.api.blueprint.CreateBlueprintRequest;
-import app.simplecloud.api.group.GroupServerType;
-import app.simplecloud.api.internal.cache.NoOpQueryCache;
-import app.simplecloud.api.persistentserver.CreatePersistentServerRequest;
-import app.simplecloud.api.persistentserver.PersistentServer;
-import app.simplecloud.api.persistentserver.UpdatePersistentServerRequest;
-import app.simplecloud.api.web.ApiException;
-import app.simplecloud.api.web.apis.BlueprintsApi;
-import app.simplecloud.api.web.apis.PersistentServersApi;
-import app.simplecloud.api.web.models.ModelsCreateBlueprintRequest;
-import app.simplecloud.api.web.models.ModelsCreateBlueprintResponse;
-import app.simplecloud.api.web.models.ModelsCreatePersistentServerRequest;
-import app.simplecloud.api.web.models.ModelsCreatePersistentServerResponse;
-import app.simplecloud.api.web.models.ModelsListPersistentServersResponse;
-import app.simplecloud.api.web.models.ModelsPatchPersistentServerRequest;
-import app.simplecloud.api.web.models.ModelsPersistentServerSummary;
-import app.simplecloud.api.web.models.ModelsSourceConfig;
-import app.simplecloud.api.web.models.ModelsUpdatePersistentServerRequest;
-import app.simplecloud.api.web.models.ModelsUpdatePersistentServerResponse;
-import org.junit.jupiter.api.Test;
-
-import java.util.ArrayList;
-import java.util.List;
-import java.util.Map;
-import java.util.concurrent.CompletionException;
-import java.util.concurrent.atomic.AtomicInteger;
-
-import static org.junit.jupiter.api.Assertions.assertArrayEquals;
 import static org.junit.jupiter.api.Assertions.assertEquals;
 import static org.junit.jupiter.api.Assertions.assertInstanceOf;
-import static org.junit.jupiter.api.Assertions.assertNotNull;
-import static org.junit.jupiter.api.Assertions.assertNull;
-import static org.junit.jupiter.api.Assertions.assertSame;
 import static org.junit.jupiter.api.Assertions.assertThrows;
 import static org.junit.jupiter.api.Assertions.assertTrue;
 
+import app.simplecloud.api.blueprint.CreateBlueprintRequest;
+import app.simplecloud.api.group.WorkflowWhen;
+import app.simplecloud.api.group.WorkflowsConfig;
+import app.simplecloud.api.internal.ApiContext;
+import app.simplecloud.api.internal.util.blueprint.InlineBlueprintManager;
+import app.simplecloud.api.persistentserver.CreatePersistentServerRequest;
+import app.simplecloud.api.persistentserver.UpdatePersistentServerRequest;
+import app.simplecloud.api.support.ControllerServer;
+import app.simplecloud.api.support.ControllerServer.Request;
+import app.simplecloud.api.support.TestContexts;
+import app.simplecloud.api.web.apis.BlueprintsApi;
+import app.simplecloud.api.web.apis.PersistentServersApi;
+import com.google.gson.JsonObject;
+import com.google.gson.JsonParser;
+import java.util.List;
+import java.util.concurrent.CompletionException;
+import org.junit.jupiter.api.AfterEach;
+import org.junit.jupiter.api.Test;
+
 class PersistentServerApiImplTest {
 
-    private static final String PERSISTENT_SERVER_ID = "6f1c2d3e-4a5b-4c6d-8e7f-901234567890";
+    private static final String SERVER_ID = "3c2b1a0f-9e8d-4c7b-a6f5-0123456789ab";
+    private static final String PERSISTENT_SERVERS = "/v0/persistent-servers";
+    private static final String BLUEPRINTS = "/v0/blueprints";
 
-    @Test
-    void getPersistentServerById_usesControllerIdFilter() {
-        AtomicInteger order = new AtomicInteger();
-        FakePersistentServersApi persistentServersApi = new FakePersistentServersApi(order);
-        PersistentServerApiImpl api = new PersistentServerApiImpl(options(), new NoOpQueryCache(), persistentServersApi, new FakeBlueprintsApi(order));
+    private final ControllerServer controller = ControllerServer.start();
 
-        api.getPersistentServerById(PERSISTENT_SERVER_ID).join();
-
-        assertEquals(PERSISTENT_SERVER_ID, persistentServersApi.lastPersistentServerId);
-        assertEquals(null, persistentServersApi.lastName);
+    @AfterEach
+    void stopController() {
+        controller.close();
     }
 
     @Test
-    void getPersistentServerByName_usesControllerNameFilter() {
-        AtomicInteger order = new AtomicInteger();
-        FakePersistentServersApi persistentServersApi = new FakePersistentServersApi(order);
-        PersistentServerApiImpl api = new PersistentServerApiImpl(options(), new NoOpQueryCache(), persistentServersApi, new FakeBlueprintsApi(order));
+    void createWithInlineBlueprintUsesItAsSource() {
+        controller.on("POST", BLUEPRINTS, "{\"blueprint_id\":\"bp-new\"}");
+        controller.on("POST", PERSISTENT_SERVERS, persistentServer());
 
-        api.getPersistentServerByName("Lobby-1").join();
-
-        assertEquals(null, persistentServersApi.lastPersistentServerId);
-        assertEquals("Lobby-1", persistentServersApi.lastName);
-    }
-
-    @Test
-    void createPersistentServer_inlineBlueprint_usesCreateResponseWithoutRefetch() {
-        AtomicInteger order = new AtomicInteger();
-        FakeBlueprintsApi blueprintsApi = new FakeBlueprintsApi(order);
-        FakePersistentServersApi persistentServersApi = new FakePersistentServersApi(order);
-        PersistentServerApiImpl api = new PersistentServerApiImpl(options(), new NoOpQueryCache(), persistentServersApi, blueprintsApi);
-
-        CreatePersistentServerRequest request = CreatePersistentServerRequest.builder()
-                .name("Lobby-1")
-                .serverhostId("host-1")
-                .type(GroupServerType.SERVER)
-                .createBlueprint(CreateBlueprintRequest.builder().build())
-                .build();
-
-        PersistentServer persistentServer = api.createPersistentServer(request).join();
-
-        assertEquals(1, blueprintsApi.postCalls);
-        assertEquals(1, persistentServersApi.postCalls);
-        assertTrue(blueprintsApi.postOrder < persistentServersApi.postOrder);
-        assertEquals(0, persistentServersApi.getCalls, "successful create should not do a follow-up GET");
-        assertEquals("Lobby-1", blueprintsApi.lastCreateRequest.getName());
-        assertEquals("bp-1", persistentServersApi.lastCreateRequest.getSource().getBlueprint());
-        assertEquals(ModelsSourceConfig.TypeEnum.BLUEPRINT, persistentServersApi.lastCreateRequest.getSource().getType());
-        assertNotNull(persistentServer.getSource());
-        assertEquals("bp-1", persistentServer.getSource().getBlueprint());
-    }
-
-    @Test
-    void createPersistentServer_appliesDashboardDefaults() {
-        AtomicInteger order = new AtomicInteger();
-        FakeBlueprintsApi blueprintsApi = new FakeBlueprintsApi(order);
-        FakePersistentServersApi persistentServersApi = new FakePersistentServersApi(order);
-        PersistentServerApiImpl api = new PersistentServerApiImpl(options(), new NoOpQueryCache(), persistentServersApi, blueprintsApi);
-
-        CreatePersistentServerRequest request = CreatePersistentServerRequest.builder()
-                .name("Proxy-1")
-                .createBlueprint(CreateBlueprintRequest.builder()
-                        .configurator("velocity")
-                        .serverSoftware("velocity")
+        api().createPersistentServer(CreatePersistentServerRequest.builder()
+                        .name("survival")
+                        .serverhostId("host-1")
+                        .createBlueprint(CreateBlueprintRequest.builder()
+                                .serverUrl("https://example.com/paper.jar")
+                                .build())
                         .build())
-                .build();
+                .join();
 
-        api.createPersistentServer(request).join();
-
-        assertEquals("Proxy-1", blueprintsApi.lastCreateRequest.getName());
-        assertEquals(List.of("internal/setup"), blueprintsApi.lastCreateRequest.getWorkflowSteps());
-        assertEquals("java", blueprintsApi.lastCreateRequest.getRuntimeConfig().getType());
-        assertEquals("21", blueprintsApi.lastCreateRequest.getRuntimeConfig().getWith().get("version"));
-        assertEquals(ModelsCreatePersistentServerRequest.TypeEnum.SERVER, persistentServersApi.lastCreateRequest.getType());
-        assertEquals(Integer.valueOf(50), persistentServersApi.lastCreateRequest.getMaxPlayers());
-        assertEquals(Boolean.TRUE, persistentServersApi.lastCreateRequest.getActive());
-        assertEquals(List.of("Proxy-1"), persistentServersApi.lastCreateRequest.getTags());
-        assertEquals(Map.of(), persistentServersApi.lastCreateRequest.getProperties());
-        assertEquals(List.of("internal/setup"), persistentServersApi.lastCreateRequest.getWorkflows().getWhen().getStart());
-        assertEquals(List.of("internal/cleanup"), persistentServersApi.lastCreateRequest.getWorkflows().getWhen().getStop());
-        assertEquals(List.of("default/backup", "default/copy-to-template"), persistentServersApi.lastCreateRequest.getWorkflows().getManual());
+        List<Request> requests = controller.requests();
+        assertEquals(
+                List.of(BLUEPRINTS, PERSISTENT_SERVERS),
+                requests.stream().map(Request::path).toList());
+        JsonObject body = requests.get(1).json();
+        assertEquals("host-1", body.get("serverhost_id").getAsString());
+        assertEquals("bp-new", body.getAsJsonObject("source").get("blueprint").getAsString());
+        assertEquals(JsonParser.parseString("[\"survival\"]"), body.get("tags"));
     }
 
     @Test
-    void createPersistentServer_inlineBlueprint_resolvesServerUrlFromManifest() {
-        AtomicInteger order = new AtomicInteger();
-        FakeBlueprintsApi blueprintsApi = new FakeBlueprintsApi(order);
-        FakePersistentServersApi persistentServersApi = new FakePersistentServersApi(order);
-        PersistentServerApiImpl api = new PersistentServerApiImpl(
-                options(),
-                new NoOpQueryCache(),
-                persistentServersApi,
-                blueprintsApi,
-                request -> {
-                    if ("velocity".equals(request.getServerSoftware()) && "3.4.0-SNAPSHOT".equals(request.getSoftwareVersion())) {
-                        return "https://example.com/velocity-3.4.0-SNAPSHOT.jar";
-                    }
-                    return null;
-                }
-        );
+    void workflowUpdateKeepsTheCurrentStopWorkflows() {
+        controller.on(
+                "GET",
+                PERSISTENT_SERVERS,
+                "{\"persistent_servers\":["
+                        + persistentServer(
+                                "\"workflows\":{\"when\":{\"start\":[\"internal/setup\"],\"stop\":[\"internal/cleanup\"]}}")
+                        + "]}");
+        controller.on("PATCH", PERSISTENT_SERVERS, persistentServer());
 
-        CreatePersistentServerRequest request = CreatePersistentServerRequest.builder()
-                .name("Proxy-1")
-                .createBlueprint(CreateBlueprintRequest.builder()
-                        .serverSoftware("velocity")
-                        .softwareVersion("3.4.0-SNAPSHOT")
-                        .build())
-                .build();
+        api().updatePersistentServer(
+                        SERVER_ID,
+                        UpdatePersistentServerRequest.builder()
+                                .workflows(WorkflowsConfig.builder()
+                                        .when(WorkflowWhen.builder()
+                                                .start(List.of("custom/setup"))
+                                                .build())
+                                        .build())
+                                .build())
+                .join();
 
-        api.createPersistentServer(request).join();
-
-        assertEquals("https://example.com/velocity-3.4.0-SNAPSHOT.jar", blueprintsApi.lastCreateRequest.getServerUrl());
+        JsonObject when = controller
+                .onlyRequest("PATCH", PERSISTENT_SERVERS)
+                .json()
+                .getAsJsonObject("workflows")
+                .getAsJsonObject("when");
+        assertEquals(JsonParser.parseString("[\"custom/setup\"]"), when.get("start"));
+        assertEquals(JsonParser.parseString("[\"internal/cleanup\"]"), when.get("stop"));
     }
 
     @Test
-    void createPersistentServer_httpFailure_rollsBackInlineBlueprint() {
-        AtomicInteger order = new AtomicInteger();
-        FakeBlueprintsApi blueprintsApi = new FakeBlueprintsApi(order);
-        FakePersistentServersApi persistentServersApi = new FakePersistentServersApi(order);
-        persistentServersApi.postFailure = new ApiException(400, "bad request");
+    void deleteAlsoDeletesTheReferencedBlueprint() {
+        controller.on(
+                "GET",
+                PERSISTENT_SERVERS,
+                "{\"persistent_servers\":["
+                        + persistentServer("\"source\":{\"type\":\"blueprint\",\"blueprint\":\"bp-1\"}") + "]}");
+        controller.on("DELETE", PERSISTENT_SERVERS, "{}");
+        controller.on("DELETE", BLUEPRINTS, "{}");
 
-        PersistentServerApiImpl api = new PersistentServerApiImpl(options(), new NoOpQueryCache(), persistentServersApi, blueprintsApi);
-        CreatePersistentServerRequest request = CreatePersistentServerRequest.builder()
-                .name("Lobby-1")
-                .createBlueprint(CreateBlueprintRequest.builder().build())
-                .build();
+        api().deletePersistentServer(SERVER_ID).join();
 
-        CompletionException failure = assertThrows(CompletionException.class, () -> api.createPersistentServer(request).join());
-
-        assertInstanceOf(RuntimeException.class, failure.getCause());
-        assertEquals(List.of("bp-1"), blueprintsApi.deletedBlueprintIds);
-        assertEquals(0, persistentServersApi.getCalls, "HTTP failures should roll back directly without reconciliation");
+        assertEquals(
+                SERVER_ID, controller.onlyRequest("DELETE", PERSISTENT_SERVERS).query("persistent_server_id"));
+        assertEquals("bp-1", controller.onlyRequest("DELETE", BLUEPRINTS).query("blueprint_id"));
     }
 
     @Test
-    void createPersistentServer_httpFailure_surfacesRollbackFailure() {
-        AtomicInteger order = new AtomicInteger();
-        FakeBlueprintsApi blueprintsApi = new FakeBlueprintsApi(order);
-        FakePersistentServersApi persistentServersApi = new FakePersistentServersApi(order);
-        persistentServersApi.postFailure = new ApiException(400, "bad request");
-        blueprintsApi.deleteFailure = new ApiException(403, "delete forbidden");
+    void replaceDoesNotSupportInlineBlueprints() {
+        CompletionException failure = assertThrows(
+                CompletionException.class,
+                () -> api().replacePersistentServer(
+                                SERVER_ID,
+                                CreatePersistentServerRequest.builder()
+                                        .name("survival")
+                                        .createBlueprint(CreateBlueprintRequest.builder()
+                                                .serverUrl("https://example.com/paper.jar")
+                                                .build())
+                                        .build())
+                        .join());
 
-        PersistentServerApiImpl api = new PersistentServerApiImpl(options(), new NoOpQueryCache(), persistentServersApi, blueprintsApi);
-        CreatePersistentServerRequest request = CreatePersistentServerRequest.builder()
-                .name("Lobby-1")
-                .createBlueprint(CreateBlueprintRequest.builder().build())
-                .build();
-
-        CompletionException failure = assertThrows(CompletionException.class, () -> api.createPersistentServer(request).join());
-
-        assertEquals("Failed to create persistent server and rollback inline blueprint bp-1", failure.getCause().getMessage());
-        assertSame(persistentServersApi.postFailure, failure.getCause().getCause());
-        assertArrayEquals(new Throwable[]{blueprintsApi.deleteFailure}, failure.getCause().getSuppressed());
-        assertArrayEquals(new Throwable[]{blueprintsApi.deleteFailure}, persistentServersApi.postFailure.getSuppressed());
+        assertInstanceOf(IllegalArgumentException.class, failure.getCause());
+        assertTrue(controller.requests().isEmpty());
     }
 
-    @Test
-    void createPersistentServer_http5xx_rollsBackBlueprintWhenReconciliationFindsNoServer() {
-        AtomicInteger order = new AtomicInteger();
-        FakeBlueprintsApi blueprintsApi = new FakeBlueprintsApi(order);
-        FakePersistentServersApi persistentServersApi = new FakePersistentServersApi(order);
-        persistentServersApi.postFailure = new ApiException(500, "controller unavailable");
-
-        PersistentServerApiImpl api = new PersistentServerApiImpl(options(), new NoOpQueryCache(), persistentServersApi, blueprintsApi);
-        CreatePersistentServerRequest request = CreatePersistentServerRequest.builder()
-                .name("Lobby-1")
-                .createBlueprint(CreateBlueprintRequest.builder().build())
-                .build();
-
-        CompletionException failure = assertThrows(CompletionException.class, () -> api.createPersistentServer(request).join());
-
-        assertInstanceOf(RuntimeException.class, failure.getCause());
-        assertEquals(3, persistentServersApi.getCalls);
-        assertEquals(List.of("bp-1"), blueprintsApi.deletedBlueprintIds);
+    private PersistentServerApiImpl api() {
+        ApiContext context = TestContexts.create(controller);
+        InlineBlueprintManager blueprints = new InlineBlueprintManager(
+                context.options(), context.api(BlueprintsApi::new), request -> "https://example.com/server.jar");
+        return new PersistentServerApiImpl(context, context.api(PersistentServersApi::new), blueprints);
     }
 
-    @Test
-    void updatePersistentServer_partialRequest_usesPatch() {
-        AtomicInteger order = new AtomicInteger();
-        FakePersistentServersApi persistentServersApi = new FakePersistentServersApi(order);
-        PersistentServerApiImpl api = new PersistentServerApiImpl(options(), new NoOpQueryCache(), persistentServersApi, new FakeBlueprintsApi(order));
-
-        PersistentServer persistentServer = api.updatePersistentServer(
-                PERSISTENT_SERVER_ID,
-                UpdatePersistentServerRequest.builder()
-                        .active(true)
-                        .build()
-        ).join();
-
-        assertEquals(1, persistentServersApi.patchCalls);
-        assertEquals(0, persistentServersApi.putCalls);
-        assertEquals(Boolean.TRUE, persistentServersApi.lastPatchRequest.getActive());
-        assertNull(persistentServersApi.lastPatchRequest.getType());
-        assertNull(persistentServersApi.lastPatchRequest.getName());
-        assertEquals(PERSISTENT_SERVER_ID, persistentServer.getPersistentServerId());
+    private static String persistentServer() {
+        return persistentServer(null);
     }
 
-    @Test
-    void deletePersistentServer_deletesReferencedBlueprintAfterServer() {
-        AtomicInteger order = new AtomicInteger();
-        FakeBlueprintsApi blueprintsApi = new FakeBlueprintsApi(order);
-        FakePersistentServersApi persistentServersApi = new FakePersistentServersApi(order);
-        persistentServersApi.listResponse = listResponseWithPersistentServer("bp-1");
-        PersistentServerApiImpl api = new PersistentServerApiImpl(options(), new NoOpQueryCache(), persistentServersApi, blueprintsApi);
-
-        api.deletePersistentServer(PERSISTENT_SERVER_ID).join();
-
-        assertEquals(1, persistentServersApi.deleteCalls);
-        assertEquals(List.of("bp-1"), blueprintsApi.deletedBlueprintIds);
-        assertTrue(persistentServersApi.deleteOrder < blueprintsApi.deleteOrder);
-    }
-
-    @Test
-    void deletePersistentServer_withoutReferencedBlueprint_onlyDeletesServer() {
-        AtomicInteger order = new AtomicInteger();
-        FakeBlueprintsApi blueprintsApi = new FakeBlueprintsApi(order);
-        FakePersistentServersApi persistentServersApi = new FakePersistentServersApi(order);
-        PersistentServerApiImpl api = new PersistentServerApiImpl(options(), new NoOpQueryCache(), persistentServersApi, blueprintsApi);
-
-        api.deletePersistentServer(PERSISTENT_SERVER_ID).join();
-
-        assertEquals(1, persistentServersApi.deleteCalls);
-        assertEquals(List.of(), blueprintsApi.deletedBlueprintIds);
-    }
-
-    private static CloudApiOptions options() {
-        return CloudApiOptions.builder()
-                .controllerUrl("http://localhost")
-                .networkId("test-network")
-                .networkSecret("test-secret")
-                .disableCache()
-                .build();
-    }
-
-    private static ModelsListPersistentServersResponse listResponseWithPersistentServer(String blueprintId) {
-        ModelsSourceConfig source = new ModelsSourceConfig();
-        source.setType(ModelsSourceConfig.TypeEnum.BLUEPRINT);
-        source.setBlueprint(blueprintId);
-
-        ModelsPersistentServerSummary summary = new ModelsPersistentServerSummary();
-        summary.setPersistentServerId(PERSISTENT_SERVER_ID);
-        summary.setName("Lobby-1");
-        summary.setSource(source);
-
-        ModelsListPersistentServersResponse response = new ModelsListPersistentServersResponse();
-        response.setPersistentServers(List.of(summary));
-        return response;
-    }
-
-    private static final class FakeBlueprintsApi extends BlueprintsApi {
-        private final AtomicInteger order;
-        private int postCalls;
-        private int postOrder;
-        private int deleteOrder;
-        private ModelsCreateBlueprintRequest lastCreateRequest;
-        private ApiException deleteFailure;
-        private final List<String> deletedBlueprintIds = new ArrayList<>();
-
-        private FakeBlueprintsApi(AtomicInteger order) {
-            this.order = order;
-        }
-
-        @Override
-        public ModelsCreateBlueprintResponse createBlueprint(String xNetworkID,
-                                                              ModelsCreateBlueprintRequest request) {
-            postCalls++;
-            postOrder = order.incrementAndGet();
-            lastCreateRequest = request;
-
-            ModelsCreateBlueprintResponse response = new ModelsCreateBlueprintResponse();
-            response.setBlueprintId("bp-1");
-            response.setName(lastCreateRequest.getName());
-            response.setCreatedAt("2026-04-22T00:00:00Z");
-            response.setUpdatedAt("2026-04-22T00:00:00Z");
-            return response;
-        }
-
-        @Override
-        public app.simplecloud.api.web.models.ModelsDeleteBlueprintResponse deleteBlueprint(String xNetworkID,
-                                                                                                String blueprintId) throws ApiException {
-            deleteOrder = order.incrementAndGet();
-            deletedBlueprintIds.add(blueprintId);
-            if (deleteFailure != null) {
-                throw deleteFailure;
-            }
-            return new app.simplecloud.api.web.models.ModelsDeleteBlueprintResponse();
-        }
-    }
-
-    private static final class FakePersistentServersApi extends PersistentServersApi {
-        private final AtomicInteger order;
-        private int postCalls;
-        private int patchCalls;
-        private int putCalls;
-        private int postOrder;
-        private int getCalls;
-        private int deleteCalls;
-        private int deleteOrder;
-        private String lastPersistentServerId;
-        private String lastName;
-        private ModelsCreatePersistentServerRequest lastCreateRequest;
-        private ModelsPatchPersistentServerRequest lastPatchRequest;
-        private ApiException postFailure;
-        private ModelsListPersistentServersResponse listResponse = listResponseWithPersistentServer(null);
-
-        private FakePersistentServersApi(AtomicInteger order) {
-            this.order = order;
-        }
-
-        @Override
-        public app.simplecloud.api.web.models.ModelsDeletePersistentServerResponse deletePersistentServer(String xNetworkID,
-                                                                                                               String persistentServerId) {
-            deleteCalls++;
-            deleteOrder = order.incrementAndGet();
-            return new app.simplecloud.api.web.models.ModelsDeletePersistentServerResponse();
-        }
-
-        @Override
-        public ModelsCreatePersistentServerResponse createPersistentServer(String xNetworkID,
-                                                                            ModelsCreatePersistentServerRequest request) throws ApiException {
-            postCalls++;
-            postOrder = order.incrementAndGet();
-            lastCreateRequest = request;
-            if (postFailure != null) {
-                throw postFailure;
-            }
-
-            ModelsCreatePersistentServerResponse response = new ModelsCreatePersistentServerResponse();
-            response.setPersistentServerId(PERSISTENT_SERVER_ID);
-            response.setName(lastCreateRequest.getName());
-            response.setType(lastCreateRequest.getType().getValue());
-            response.setMinMemory(lastCreateRequest.getMinMemory());
-            response.setMaxMemory(lastCreateRequest.getMaxMemory());
-            response.setMaxPlayers(lastCreateRequest.getMaxPlayers());
-            response.setActive(lastCreateRequest.getActive());
-            response.setPriority(lastCreateRequest.getPriority());
-            response.setPlayerCount(0);
-            response.setServerhostId(lastCreateRequest.getServerhostId());
-            response.setSource(lastCreateRequest.getSource());
-            response.setWorkflows(lastCreateRequest.getWorkflows());
-            response.setProperties(lastCreateRequest.getProperties());
-            response.setTags(lastCreateRequest.getTags());
-            response.setCreatedAt("2026-04-22T00:00:00Z");
-            response.setUpdatedAt("2026-04-22T00:00:00Z");
-            return response;
-        }
-
-        @Override
-        public ModelsUpdatePersistentServerResponse patchPersistentServer(String xNetworkID,
-                                                                              String persistentServerId,
-                                                                              ModelsPatchPersistentServerRequest request) {
-            patchCalls++;
-            lastPatchRequest = request;
-            return new ModelsUpdatePersistentServerResponse();
-        }
-
-        @Override
-        public ModelsUpdatePersistentServerResponse updatePersistentServer(String xNetworkID,
-                                                                            String persistentServerId,
-                                                                            ModelsUpdatePersistentServerRequest request) {
-            putCalls++;
-            return new ModelsUpdatePersistentServerResponse();
-        }
-
-        @Override
-        public ModelsListPersistentServersResponse listPersistentServers(String xNetworkID,
-                                                                          String persistentServerId,
-                                                                          String name,
-                                                                          String type,
-                                                                          String tags,
-                                                                          Boolean active,
-                                                                          String sourceType,
-                                                                          String blueprintId,
-                                                                          String serverhostId,
-                                                                          Integer limit,
-                                                                          Integer offset) {
-            getCalls++;
-            lastPersistentServerId = persistentServerId;
-            lastName = name;
-            return listResponse;
-        }
+    private static String persistentServer(String extraFields) {
+        return "{\"persistent_server_id\":\"" + SERVER_ID + "\",\"name\":\"survival\",\"type\":\"SERVER\""
+                + ",\"created_at\":\"2026-01-01T00:00:00Z\",\"updated_at\":\"2026-01-01T00:00:00Z\""
+                + (extraFields == null ? "" : "," + extraFields)
+                + "}";
     }
 }

@@ -1,13 +1,16 @@
 package app.simplecloud.api.internal.event;
 
 import app.simplecloud.api.event.Subscription;
+import io.nats.client.Dispatcher;
 
 public class SubscriptionImpl implements Subscription {
 
+    private final Dispatcher dispatcher;
     private final io.nats.client.Subscription natsSubscription;
     private volatile boolean unsubscribed = false;
 
-    public SubscriptionImpl(io.nats.client.Subscription natsSubscription) {
+    public SubscriptionImpl(Dispatcher dispatcher, io.nats.client.Subscription natsSubscription) {
+        this.dispatcher = dispatcher;
         this.natsSubscription = natsSubscription;
     }
 
@@ -16,11 +19,10 @@ public class SubscriptionImpl implements Subscription {
         if (!unsubscribed) {
             synchronized (this) {
                 if (!unsubscribed) {
-                    natsSubscription.unsubscribe();
+                    dispatcher.unsubscribe(natsSubscription);
                     unsubscribed = true;
                 }
             }
         }
     }
-
 }

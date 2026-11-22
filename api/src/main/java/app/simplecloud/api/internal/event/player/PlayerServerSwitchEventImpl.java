@@ -4,7 +4,6 @@ import app.simplecloud.api.event.player.PlayerServerSwitchEvent;
 import app.simplecloud.api.player.CloudPlayer;
 import app.simplecloud.api.player.PlayerApi;
 import io.nats.client.Connection;
-
 import java.time.Instant;
 import java.util.UUID;
 
@@ -14,7 +13,10 @@ class PlayerServerSwitchEventImpl implements PlayerServerSwitchEvent {
     private final Connection natsConnection;
     private CloudPlayer player;
 
-    PlayerServerSwitchEventImpl(build.buf.gen.simplecloud.player.v2.PlayerServerSwitchEvent delegate, PlayerApi playerApi, Connection natsConnection) {
+    PlayerServerSwitchEventImpl(
+            build.buf.gen.simplecloud.player.v2.PlayerServerSwitchEvent delegate,
+            PlayerApi playerApi,
+            Connection natsConnection) {
         this.delegate = delegate;
         this.playerApi = playerApi;
         this.natsConnection = natsConnection;
@@ -48,7 +50,8 @@ class PlayerServerSwitchEventImpl implements PlayerServerSwitchEvent {
     @Override
     public CloudPlayer getPlayer() {
         if (player == null && delegate.hasConfig()) {
-            player = PlayerEventModelMapper.mapPlayer(playerApi, natsConnection, delegate.getNetworkId(), delegate.getConfig(), true);
+            player = PlayerEventModelMapper.mapPlayer(
+                    playerApi, natsConnection, delegate.getNetworkId(), delegate.getConfig(), true);
         }
         return player;
     }

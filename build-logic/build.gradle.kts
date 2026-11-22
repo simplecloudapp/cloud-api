@@ -6,6 +6,8 @@ dependencies {
     implementation(files(libs.javaClass.superclass.protectionDomain.codeSource.location))
     implementation(plugin(libs.plugins.shadow))
     implementation(plugin(libs.plugins.minotaur))
+    implementation(plugin(libs.plugins.blossom))
+    implementation(plugin(libs.plugins.spotless))
 }
 
 fun plugin(plugin: Provider<PluginDependency>): String {

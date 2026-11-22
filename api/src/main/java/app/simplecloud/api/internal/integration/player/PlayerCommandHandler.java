@@ -7,14 +7,13 @@ import build.buf.gen.simplecloud.player.v2.*;
 import io.nats.client.Connection;
 import io.nats.client.Dispatcher;
 import io.nats.client.Message;
-import net.kyori.adventure.text.Component;
-import net.kyori.adventure.text.serializer.gson.GsonComponentSerializer;
-
 import java.util.Optional;
 import java.util.UUID;
 import java.util.concurrent.CompletableFuture;
 import java.util.concurrent.Executor;
 import java.util.concurrent.atomic.AtomicBoolean;
+import net.kyori.adventure.text.Component;
+import net.kyori.adventure.text.serializer.gson.GsonComponentSerializer;
 
 /**
  * Handles kick requests from the controller and connect requests from the controller or {@code connectDirect}
@@ -41,9 +40,6 @@ public class PlayerCommandHandler {
         this.proxyPlayers = proxyPlayers;
     }
 
-    /**
-     * Starts listening for kick and connect requests.
-     */
     public void start() {
         if (!running.compareAndSet(false, true)) return;
 
@@ -52,15 +48,12 @@ public class PlayerCommandHandler {
         requestDispatcher.subscribe(networkId + ".player.*.connect", this::handleConnectRequest);
     }
 
-    /**
-     * Stops listening for kick and connect requests.
-     */
     public void stop() {
         if (!running.compareAndSet(true, false)) return;
 
         if (requestDispatcher != null) {
-            requestDispatcher.unsubscribe(networkId + ".player.*.kick");
-            requestDispatcher.unsubscribe(networkId + ".player.*.connect");
+            natsConnection.closeDispatcher(requestDispatcher);
+            requestDispatcher = null;
         }
     }
 
@@ -69,11 +62,11 @@ public class PlayerCommandHandler {
             KickPlayerRequest request = KickPlayerRequest.parseFrom(msg.getData());
             UUID playerId = UUID.fromString(request.getPlayerId());
             Optional<ProxyPlayer> player = proxyPlayers.findPlayer(playerId);
-            // Every proxy receives the request; only the proxy holding the player answers.
             if (player.isEmpty()) return;
 
             Component reason = parseKickReason(request);
-            CompletableFuture<Void> kick = CompletableFuture.runAsync(() -> player.get().kick(reason), executor);
+            CompletableFuture<Void> kick =
+                    CompletableFuture.runAsync(() -> player.get().kick(reason), executor);
             kick.whenComplete((ignored, failure) -> sendKickResponse(msg, failure == null));
         } catch (Exception e) {
             sendKickResponse(msg, false);
@@ -91,7 +84,8 @@ public class PlayerCommandHandler {
     private void sendKickResponse(Message msg, boolean success) {
         if (msg.getReplyTo() != null) {
             try {
-                KickPlayerResponse response = KickPlayerResponse.newBuilder().setSuccess(success).build();
+                KickPlayerResponse response =
+                        KickPlayerResponse.newBuilder().setSuccess(success).build();
                 natsConnection.publish(msg.getReplyTo(), response.toByteArray());
             } catch (Exception ignored) {
             }
@@ -103,7 +97,6 @@ public class PlayerCommandHandler {
             ConnectPlayerRequest request = ConnectPlayerRequest.parseFrom(msg.getData());
             UUID playerId = UUID.fromString(request.getPlayerId());
             Optional<ProxyPlayer> player = proxyPlayers.findPlayer(playerId);
-            // Every proxy receives the request; only the proxy holding the player answers.
             if (player.isEmpty()) return;
 
             Optional<String> proxyServerName = proxyServerNameOf(request);
@@ -114,7 +107,8 @@ public class PlayerCommandHandler {
 
             CompletableFuture<CloudPlayer.ConnectResult> connect = player.get().connect(proxyServerName.get());
             connect.whenComplete((result, failure) -> {
-                CloudPlayer.ConnectResult reply = failure == null ? result : CloudPlayer.ConnectResult.CONNECTION_FAILED;
+                CloudPlayer.ConnectResult reply =
+                        failure == null ? result : CloudPlayer.ConnectResult.CONNECTION_FAILED;
                 sendConnectResponse(msg, reply);
             });
         } catch (Exception e) {
@@ -122,10 +116,6 @@ public class PlayerCommandHandler {
         }
     }
 
-    /**
-     * Returns the name under which this proxy registered the requested server.
-     * A server ID is mapped through {@link ProxyServerNames}; if both an ID and a name are set, the ID wins.
-     */
     private static Optional<String> proxyServerNameOf(ConnectPlayerRequest request) {
         if (request.getServerId().isEmpty()) {
             return Optional.of(request.getServerName());

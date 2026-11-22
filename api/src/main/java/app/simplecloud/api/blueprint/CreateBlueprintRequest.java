@@ -1,13 +1,16 @@
 package app.simplecloud.api.blueprint;
 
-import org.jetbrains.annotations.Nullable;
-
 import java.util.List;
+import org.jetbrains.annotations.Nullable;
 
 /**
  * Request object for creating a new blueprint.
+ *
+ * <p>{@link BlueprintApi#createBlueprint(CreateBlueprintRequest)} requires a name. Inline blueprints of groups and
+ * persistent servers use the name of the group or persistent server when no name is set.
  */
 public class CreateBlueprintRequest {
+    private String name;
     private String configurator;
     private String minecraftVersion;
     private RuntimeConfig runtimeConfig;
@@ -16,15 +19,22 @@ public class CreateBlueprintRequest {
     private String softwareVersion;
     private List<String> workflowSteps;
 
-    public CreateBlueprintRequest() {
-    }
+    public CreateBlueprintRequest() {}
 
     public static Builder builder() {
         return new Builder();
     }
 
-    @Nullable
-    public String getConfigurator() {
+    @Nullable public String getName() {
+        return name;
+    }
+
+    public CreateBlueprintRequest setName(@Nullable String name) {
+        this.name = name;
+        return this;
+    }
+
+    @Nullable public String getConfigurator() {
         return configurator;
     }
 
@@ -33,8 +43,7 @@ public class CreateBlueprintRequest {
         return this;
     }
 
-    @Nullable
-    public String getMinecraftVersion() {
+    @Nullable public String getMinecraftVersion() {
         return minecraftVersion;
     }
 
@@ -43,8 +52,7 @@ public class CreateBlueprintRequest {
         return this;
     }
 
-    @Nullable
-    public RuntimeConfig getRuntimeConfig() {
+    @Nullable public RuntimeConfig getRuntimeConfig() {
         return runtimeConfig;
     }
 
@@ -53,8 +61,7 @@ public class CreateBlueprintRequest {
         return this;
     }
 
-    @Nullable
-    public String getServerSoftware() {
+    @Nullable public String getServerSoftware() {
         return serverSoftware;
     }
 
@@ -63,8 +70,7 @@ public class CreateBlueprintRequest {
         return this;
     }
 
-    @Nullable
-    public String getServerUrl() {
+    @Nullable public String getServerUrl() {
         return serverUrl;
     }
 
@@ -73,8 +79,7 @@ public class CreateBlueprintRequest {
         return this;
     }
 
-    @Nullable
-    public String getSoftwareVersion() {
+    @Nullable public String getSoftwareVersion() {
         return softwareVersion;
     }
 
@@ -83,8 +88,7 @@ public class CreateBlueprintRequest {
         return this;
     }
 
-    @Nullable
-    public List<String> getWorkflowSteps() {
+    @Nullable public List<String> getWorkflowSteps() {
         return workflowSteps;
     }
 
@@ -94,6 +98,7 @@ public class CreateBlueprintRequest {
     }
 
     public static class Builder {
+        private String name;
         private String configurator;
         private String minecraftVersion;
         private RuntimeConfig runtimeConfig;
@@ -101,6 +106,11 @@ public class CreateBlueprintRequest {
         private String serverUrl;
         private String softwareVersion;
         private List<String> workflowSteps;
+
+        public Builder name(String name) {
+            this.name = name;
+            return this;
+        }
 
         public Builder configurator(String configurator) {
             this.configurator = configurator;
@@ -139,6 +149,7 @@ public class CreateBlueprintRequest {
 
         public CreateBlueprintRequest build() {
             return new CreateBlueprintRequest()
+                    .setName(name)
                     .setConfigurator(configurator)
                     .setMinecraftVersion(minecraftVersion)
                     .setRuntimeConfig(runtimeConfig)

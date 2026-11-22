@@ -1,29 +1,22 @@
 package app.simplecloud.api.internal.event.player;
 
-import app.simplecloud.api.internal.ProtoConversionUtil;
 import app.simplecloud.api.internal.player.CloudPlayerImpl;
+import app.simplecloud.api.internal.util.ProtoConversionUtil;
 import app.simplecloud.api.player.CloudPlayer;
 import app.simplecloud.api.player.PlayerApi;
 import app.simplecloud.api.player.PlayerClientSettings;
 import app.simplecloud.api.player.PlayerProfile;
 import build.buf.gen.simplecloud.player.v2.PlayerConfig;
 import io.nats.client.Connection;
-
 import java.time.Instant;
 import java.util.UUID;
 
 final class PlayerEventModelMapper {
 
-    private PlayerEventModelMapper() {
-    }
+    private PlayerEventModelMapper() {}
 
     static CloudPlayer mapPlayer(
-            PlayerApi playerApi,
-            Connection natsConnection,
-            String networkId,
-            PlayerConfig config,
-            boolean online
-    ) {
+            PlayerApi playerApi, Connection natsConnection, String networkId, PlayerConfig config, boolean online) {
         return new CloudPlayerImpl(
                 playerApi,
                 natsConnection,
@@ -38,30 +31,27 @@ final class PlayerEventModelMapper {
                 emptyToNull(config.getSessionId()),
                 toIsoTimestamp(config.getFirstSeen()),
                 toIsoTimestamp(config.getLastSeen()),
-                config.getPropertiesMap()
-        );
+                config.getPropertiesMap());
     }
 
     static PlayerProfile mapProfile(build.buf.gen.simplecloud.player.v2.PlayerProfile proto) {
-        PlayerProfile profile = new PlayerProfile();
-        profile.setId(proto.getId());
-        profile.setPlayerId(UUID.fromString(proto.getPlayerId()));
-        profile.setName(proto.getName());
-        profile.setTexture(emptyToNull(proto.getTexture()));
-        profile.setCreatedAt(toIsoTimestamp(proto.getCreatedAt()));
-        return profile;
+        return new PlayerProfile(
+                proto.getId(),
+                UUID.fromString(proto.getPlayerId()),
+                proto.getName(),
+                emptyToNull(proto.getTexture()),
+                toIsoTimestamp(proto.getCreatedAt()));
     }
 
     static PlayerClientSettings mapClientSettings(build.buf.gen.simplecloud.player.v2.PlayerClientSettings proto) {
-        PlayerClientSettings settings = new PlayerClientSettings();
-        settings.setChatMode(PlayerClientSettings.ChatMode.parse(ProtoConversionUtil.convertChatModeToString(proto.getChatMode())));
-        settings.setLocale(emptyToNull(proto.getLocale()));
-        settings.setMainHand(PlayerClientSettings.MainHand.parse(ProtoConversionUtil.convertMainHandToString(proto.getMainHand())));
-        settings.setViewDistance(proto.getViewDistance());
-        settings.setChatColors(proto.getChatColors());
-        settings.setClientListingAllowed(proto.getClientListingAllowed());
-        settings.setSkinParts(proto.getSkinPartsList());
-        return settings;
+        return new PlayerClientSettings(
+                PlayerClientSettings.ChatMode.parse(ProtoConversionUtil.convertChatModeToString(proto.getChatMode())),
+                emptyToNull(proto.getLocale()),
+                PlayerClientSettings.MainHand.parse(ProtoConversionUtil.convertMainHandToString(proto.getMainHand())),
+                proto.getViewDistance(),
+                proto.getChatColors(),
+                proto.getClientListingAllowed(),
+                proto.getSkinPartsList());
     }
 
     static String toIsoTimestamp(long epochMillis) {

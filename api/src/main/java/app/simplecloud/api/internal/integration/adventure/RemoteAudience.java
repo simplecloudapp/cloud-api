@@ -4,6 +4,11 @@ import app.simplecloud.api.CloudApi;
 import app.simplecloud.api.internal.CloudApiImpl;
 import build.buf.gen.simplecloud.adventure.v1.*;
 import io.nats.client.Connection;
+import java.util.Collections;
+import java.util.Map;
+import java.util.Objects;
+import java.util.UUID;
+import java.util.WeakHashMap;
 import net.kyori.adventure.audience.Audience;
 import net.kyori.adventure.bossbar.BossBar;
 import net.kyori.adventure.inventory.Book;
@@ -15,17 +20,11 @@ import net.kyori.adventure.title.Title;
 import net.kyori.adventure.title.TitlePart;
 import org.jspecify.annotations.NonNull;
 
-import java.util.Collections;
-import java.util.Map;
-import java.util.Objects;
-import java.util.UUID;
-import java.util.WeakHashMap;
-
 /**
  * An Adventure Audience implementation that sends all actions via NATS
  * to be handled by the target (player, server, or group).
  */
-public class RemoteAudience implements Audience {
+public final class RemoteAudience implements Audience {
 
     private static final Map<BossBar, String> BOSS_BAR_IDS = Collections.synchronizedMap(new WeakHashMap<>());
 
@@ -48,7 +47,7 @@ public class RemoteAudience implements Audience {
         return new Builder(impl.getNatsConnection(), cloudApi.getNetworkId());
     }
 
-    public static class Builder {
+    public static final class Builder {
         private final Connection natsConnection;
         private final String networkId;
 
@@ -85,17 +84,15 @@ public class RemoteAudience implements Audience {
 
     @Override
     public void sendMessage(@NonNull Component message) {
-        SendMessageRequest request = SendMessageRequest.newBuilder()
-                .setMessage(serialize(message))
-                .build();
+        SendMessageRequest request =
+                SendMessageRequest.newBuilder().setMessage(serialize(message)).build();
         publish("message", request.toByteArray());
     }
 
     @Override
     public void sendActionBar(@NonNull Component message) {
-        SendActionbarRequest request = SendActionbarRequest.newBuilder()
-                .setMessage(serialize(message))
-                .build();
+        SendActionbarRequest request =
+                SendActionbarRequest.newBuilder().setMessage(serialize(message)).build();
         publish("actionbar", request.toByteArray());
     }
 
@@ -128,9 +125,8 @@ public class RemoteAudience implements Audience {
                     .setStayMs(times.stay().toMillis())
                     .setFadeOutMs(times.fadeOut().toMillis())
                     .build();
-            SendTitleTimesRequest request = SendTitleTimesRequest.newBuilder()
-                    .setTimes(protoTimes)
-                    .build();
+            SendTitleTimesRequest request =
+                    SendTitleTimesRequest.newBuilder().setTimes(protoTimes).build();
             publish("title-times", request.toByteArray());
         }
     }
@@ -147,9 +143,8 @@ public class RemoteAudience implements Audience {
 
     @Override
     public void playSound(@NonNull Sound sound) {
-        SendPlaySoundRequest request = SendPlaySoundRequest.newBuilder()
-                .setSound(convertSound(sound))
-                .build();
+        SendPlaySoundRequest request =
+                SendPlaySoundRequest.newBuilder().setSound(convertSound(sound)).build();
         publish("sound", request.toByteArray());
     }
 
@@ -157,11 +152,8 @@ public class RemoteAudience implements Audience {
     public void playSound(@NonNull Sound sound, double x, double y, double z) {
         SendPlaySoundAtCoordinatesRequest request = SendPlaySoundAtCoordinatesRequest.newBuilder()
                 .setSound(convertSound(sound))
-                .setCoordinates(SoundCoordinates.newBuilder()
-                        .setX(x)
-                        .setY(y)
-                        .setZ(z)
-                        .build())
+                .setCoordinates(
+                        SoundCoordinates.newBuilder().setX(x).setY(y).setZ(z).build())
                 .build();
         publish("sound-at", request.toByteArray());
     }
@@ -194,9 +186,8 @@ public class RemoteAudience implements Audience {
                 .setOverlay(convertBossBarOverlay(bar.overlay()))
                 .build();
 
-        SendBossBarRequest request = SendBossBarRequest.newBuilder()
-                .setBossBar(protoBossBar)
-                .build();
+        SendBossBarRequest request =
+                SendBossBarRequest.newBuilder().setBossBar(protoBossBar).build();
         publish("bossbar", request.toByteArray());
     }
 
@@ -219,17 +210,15 @@ public class RemoteAudience implements Audience {
 
     @Override
     public void openBook(Book book) {
-        AdventureBook.Builder bookBuilder = AdventureBook.newBuilder()
-                .setTitle(serialize(book.title()))
-                .setAuthor(serialize(book.author()));
+        AdventureBook.Builder bookBuilder =
+                AdventureBook.newBuilder().setTitle(serialize(book.title())).setAuthor(serialize(book.author()));
 
         for (Component page : book.pages()) {
             bookBuilder.addPages(serialize(page));
         }
 
-        SendOpenBookRequest request = SendOpenBookRequest.newBuilder()
-                .setBook(bookBuilder.build())
-                .build();
+        SendOpenBookRequest request =
+                SendOpenBookRequest.newBuilder().setBook(bookBuilder.build()).build();
         publish("open-book", request.toByteArray());
     }
 

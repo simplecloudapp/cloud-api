@@ -3,10 +3,9 @@ package app.simplecloud.api.base;
 import app.simplecloud.api.group.GroupServerType;
 import app.simplecloud.api.group.SourceConfig;
 import app.simplecloud.api.group.WorkflowsConfig;
-import org.jetbrains.annotations.Nullable;
-
 import java.util.List;
 import java.util.Map;
+import org.jetbrains.annotations.Nullable;
 
 /**
  * Common base interface for server configurations.
@@ -21,7 +20,7 @@ import java.util.Map;
 public interface ServerBase {
 
     /**
-     * Returns the human-readable name of this server configuration.
+     * Returns the name of this server configuration.
      *
      * @return the name
      */
@@ -51,16 +50,12 @@ public interface ServerBase {
     /**
      * Returns the source configuration.
      *
-     * <p>Defines whether servers use a blueprint or container image.
-     *
      * @return the source config, or null if not set
      */
     @Nullable SourceConfig getSource();
 
     /**
      * Returns the workflows configuration.
-     *
-     * <p>Defines automated workflows to run on server lifecycle events.
      *
      * @return the workflows config, or null if not set
      */
@@ -119,4 +114,3 @@ public interface ServerBase {
         return this instanceof app.simplecloud.api.persistentserver.PersistentServer;
     }
 }
-

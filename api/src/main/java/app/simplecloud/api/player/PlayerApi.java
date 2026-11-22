@@ -1,14 +1,13 @@
 package app.simplecloud.api.player;
 
-import net.kyori.adventure.text.Component;
-import org.jetbrains.annotations.Nullable;
-
 import java.util.List;
 import java.util.Map;
 import java.util.Optional;
 import java.util.UUID;
 import java.util.concurrent.CompletableFuture;
 import java.util.function.LongUnaryOperator;
+import net.kyori.adventure.text.Component;
+import org.jetbrains.annotations.Nullable;
 
 /**
  * API for querying and managing players connected to the cloud network.
@@ -151,7 +150,8 @@ public interface PlayerApi {
         if (updater == null) {
             return CompletableFuture.failedFuture(new IllegalArgumentException("updater must not be null"));
         }
-        return getOnlineTimeSeconds(uniqueId).thenCompose(current -> setOnlineTimeSeconds(uniqueId, updater.applyAsLong(current)));
+        return getOnlineTimeSeconds(uniqueId)
+                .thenCompose(current -> setOnlineTimeSeconds(uniqueId, updater.applyAsLong(current)));
     }
 
     /**
@@ -411,7 +411,8 @@ public interface PlayerApi {
      * @param selectionMode how the target server is chosen
      * @return a future containing the connection result
      */
-    CompletableFuture<CloudPlayer.ConnectResult> connectToGroup(UUID uniqueId, String groupName, ServerSelectionMode selectionMode);
+    CompletableFuture<CloudPlayer.ConnectResult> connectToGroup(
+            UUID uniqueId, String groupName, ServerSelectionMode selectionMode);
 
     /**
      * Connects a player to a random server of the given server group.

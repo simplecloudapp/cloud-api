@@ -35,4 +35,3 @@ public interface GroupDeletedEvent {
      */
     String getTimestamp();
 }
-

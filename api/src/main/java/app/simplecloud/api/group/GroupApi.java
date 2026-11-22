@@ -1,12 +1,13 @@
 package app.simplecloud.api.group;
 
 import app.simplecloud.api.CloudApiException;
-import org.jetbrains.annotations.Nullable;
-
+import app.simplecloud.api.persistentserver.PersistentServer;
+import app.simplecloud.api.workflow.WorkflowExecutionResult;
 import java.util.List;
 import java.util.Map;
 import java.util.Optional;
 import java.util.concurrent.CompletableFuture;
+import org.jetbrains.annotations.Nullable;
 
 /**
  * API for managing server groups.
@@ -124,6 +125,9 @@ public interface GroupApi {
     /**
      * Updates an existing server group.
      *
+     * <p>Set fields of the deployment, scaling and workflows configs are merged into the current configs;
+     * fields left unset keep their current values.
+     *
      * @param id      the unique ID of the server group to update
      * @param request the updated configuration (only specified fields will be updated)
      * @return a CompletableFuture that completes with the updated group
@@ -131,9 +135,21 @@ public interface GroupApi {
     CompletableFuture<Group> updateGroup(String id, UpdateGroupRequest request);
 
     /**
+     * Replaces the whole configuration of a server group.
+     *
+     * <p>Unset fields get the same defaults as in {@link #createGroup(CreateGroupRequest)}.
+     * Creating an inline blueprint is not supported here; reference an existing blueprint in the source instead.
+     *
+     * @param id      the unique ID of the server group to replace
+     * @param request the new configuration
+     * @return a CompletableFuture that completes with the replaced group
+     */
+    CompletableFuture<Group> replaceGroup(String id, CreateGroupRequest request);
+
+    /**
      * Deletes a server group and its referenced blueprint, if present.
      *
-     * <p>Note: This will not stop running servers, but prevents new servers from being created.
+     * <p>Note: The controller rejects the deletion with {@code CONFLICT} while the group still has active servers.
      *
      * @param id the unique ID of the server group to delete
      * @return a CompletableFuture that completes when the group and its referenced blueprint are deleted
@@ -148,6 +164,15 @@ public interface GroupApi {
      * @return a CompletableFuture that completes with the updated properties
      */
     CompletableFuture<Map<String, Object>> updateGroupProperties(String id, Map<String, Object> properties);
+
+    /**
+     * Replaces all group properties with the given properties.
+     *
+     * @param id the unique ID of the server group
+     * @param properties the new properties
+     * @return a CompletableFuture that completes with the stored properties
+     */
+    CompletableFuture<Map<String, Object>> setGroupProperties(String id, Map<String, Object> properties);
 
     /**
      * Updates a single group property by merging it with existing properties.
@@ -180,4 +205,62 @@ public interface GroupApi {
     default CompletableFuture<Map<String, Object>> deleteGroupProperty(String id, String key) {
         return deleteGroupProperties(id, List.of(key));
     }
+
+    /**
+     * Starts a rolling restart, which replaces the group's servers one after another.
+     *
+     * <p>Only groups with scaling mode {@code SLOTS} support rolling restarts; others fail with {@code INVALID_REQUEST}.
+     *
+     * @param id the unique ID of the server group
+     * @return a CompletableFuture that completes when the controller accepted the rolling restart
+     */
+    CompletableFuture<Void> startRollingRestart(String id);
+
+    /**
+     * Retrieves whether a rolling restart is running for a server group.
+     *
+     * @param id the unique ID of the server group
+     * @return a CompletableFuture that completes with the rolling restart state
+     */
+    CompletableFuture<RollingRestartStatus> getRollingRestartStatus(String id);
+
+    /**
+     * Cancels the running rolling restart of a server group.
+     *
+     * @param id the unique ID of the server group
+     * @return a CompletableFuture that completes when the rolling restart was cancelled
+     */
+    CompletableFuture<Void> cancelRollingRestart(String id);
+
+    /**
+     * Stops all running servers of a server group.
+     *
+     * <p>The group's scaling may start new servers afterwards; deactivate the group to prevent that.
+     *
+     * @param id the unique ID of the server group
+     * @return a CompletableFuture that completes with the number of servers a stop was sent to
+     */
+    CompletableFuture<Integer> stopAllServers(String id);
+
+    /**
+     * Runs a manual workflow on every server of a server group.
+     *
+     * @param id         the unique ID of the server group
+     * @param workflowId the workflow to run, for example {@code default/backup}
+     * @return a CompletableFuture that completes with the per-server results
+     */
+    CompletableFuture<WorkflowExecutionResult> executeWorkflow(String id, String workflowId);
+
+    /**
+     * Converts a server group into a persistent server on the given serverhost.
+     *
+     * <p>The group must be inactive and have no servers, no queued starts and no running rolling restart,
+     * otherwise this fails with {@code CONFLICT}. The group is deleted; the persistent server gets a new ID,
+     * starts inactive and does not keep the group's scaling and deployment.
+     *
+     * @param id           the unique ID of the server group
+     * @param serverhostId the serverhost the persistent server runs on
+     * @return a CompletableFuture that completes with the created persistent server
+     */
+    CompletableFuture<PersistentServer> convertToPersistentServer(String id, String serverhostId);
 }

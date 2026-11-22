@@ -1,0 +1,76 @@
+package app.simplecloud.api.platform.bungeecord.player;
+
+import static org.junit.jupiter.api.Assertions.assertEquals;
+import static org.junit.jupiter.api.Assertions.assertTrue;
+import static org.mockito.ArgumentMatchers.any;
+import static org.mockito.Mockito.*;
+
+import app.simplecloud.api.internal.integration.player.ProxyPlayer;
+import app.simplecloud.api.player.CloudPlayer;
+import java.util.UUID;
+import net.kyori.adventure.text.Component;
+import net.md_5.bungee.api.Callback;
+import net.md_5.bungee.api.ProxyServer;
+import net.md_5.bungee.api.chat.BaseComponent;
+import net.md_5.bungee.api.chat.TextComponent;
+import net.md_5.bungee.api.config.ServerInfo;
+import net.md_5.bungee.api.connection.ProxiedPlayer;
+import org.junit.jupiter.api.Test;
+import org.mockito.ArgumentCaptor;
+import org.mockito.ArgumentMatchers;
+
+class BungeeCordPlayersTest {
+
+    private final UUID playerId = UUID.randomUUID();
+    private final ProxyServer proxy = mock(ProxyServer.class);
+    private final ProxiedPlayer player = mock(ProxiedPlayer.class);
+    private final BungeeCordPlayers players = new BungeeCordPlayers(proxy);
+
+    @Test
+    void playerNotOnThisProxyIsNotFound() {
+        assertTrue(players.findPlayer(playerId).isEmpty());
+    }
+
+    @Test
+    void kickDisconnectsThePlayerWithTheReason() {
+        when(proxy.getPlayer(playerId)).thenReturn(player);
+
+        ProxyPlayer proxyPlayer = players.findPlayer(playerId).orElseThrow();
+        proxyPlayer.kick(Component.text("Maintenance"));
+
+        ArgumentCaptor<BaseComponent[]> message = ArgumentCaptor.forClass(BaseComponent[].class);
+        verify(player).disconnect(message.capture());
+        assertEquals("Maintenance", TextComponent.toPlainText(message.getValue()));
+    }
+
+    @Test
+    void connectToUnregisteredServerAnswersServerNotFound() {
+        when(proxy.getPlayer(playerId)).thenReturn(player);
+
+        ProxyPlayer proxyPlayer = players.findPlayer(playerId).orElseThrow();
+        CloudPlayer.ConnectResult result = proxyPlayer.connect("lobby-1").join();
+
+        assertEquals(CloudPlayer.ConnectResult.SERVER_NOT_FOUND, result);
+        verify(player, never()).connect(any(ServerInfo.class), ArgumentMatchers.<Callback<Boolean>>any());
+    }
+
+    @Test
+    void connectToRegisteredServerConnectsThePlayerToIt() {
+        ServerInfo lobby = mock(ServerInfo.class);
+        when(proxy.getPlayer(playerId)).thenReturn(player);
+        when(proxy.getServerInfo("lobby-1")).thenReturn(lobby);
+        doAnswer(invocation -> {
+                    Callback<Boolean> callback = invocation.getArgument(1);
+                    callback.done(true, null);
+                    return null;
+                })
+                .when(player)
+                .connect(eq(lobby), ArgumentMatchers.<Callback<Boolean>>any());
+
+        ProxyPlayer proxyPlayer = players.findPlayer(playerId).orElseThrow();
+        CloudPlayer.ConnectResult result = proxyPlayer.connect("lobby-1").join();
+
+        assertEquals(CloudPlayer.ConnectResult.SUCCESS, result);
+        verify(player).connect(eq(lobby), ArgumentMatchers.<Callback<Boolean>>any());
+    }
+}

@@ -1,9 +1,8 @@
 package app.simplecloud.api.internal.integration.player;
 
 import app.simplecloud.api.player.CloudPlayer;
-import net.kyori.adventure.text.Component;
-
 import java.util.concurrent.CompletableFuture;
+import net.kyori.adventure.text.Component;
 
 /**
  * A player connected to this proxy, as kick and connect requests act on them.

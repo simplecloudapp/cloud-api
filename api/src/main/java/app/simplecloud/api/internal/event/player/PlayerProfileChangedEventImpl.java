@@ -2,7 +2,6 @@ package app.simplecloud.api.internal.event.player;
 
 import app.simplecloud.api.event.player.PlayerProfileChangedEvent;
 import app.simplecloud.api.player.PlayerProfile;
-
 import java.time.Instant;
 import java.util.UUID;
 

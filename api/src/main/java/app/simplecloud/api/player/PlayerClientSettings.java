@@ -1,77 +1,85 @@
 package app.simplecloud.api.player;
 
+import java.util.List;
+import org.jetbrains.annotations.ApiStatus;
 import org.jetbrains.annotations.Nullable;
 
-import java.util.List;
+public record PlayerClientSettings(
+        ChatMode chatMode,
+        @Nullable String locale,
+        MainHand mainHand,
+        int viewDistance,
+        boolean chatColors,
+        boolean clientListingAllowed,
+        List<String> skinParts) {
 
-public class PlayerClientSettings {
-    private ChatMode chatMode = ChatMode.UNKNOWN;
-    @Nullable
-    private String locale;
-    private MainHand mainHand = MainHand.UNKNOWN;
-    private int viewDistance;
-    private boolean chatColors;
-    private boolean clientListingAllowed;
-    private List<String> skinParts = List.of();
-
-    public PlayerClientSettings() {
+    public PlayerClientSettings {
+        chatMode = chatMode != null ? chatMode : ChatMode.UNKNOWN;
+        mainHand = mainHand != null ? mainHand : MainHand.UNKNOWN;
+        skinParts = skinParts != null ? List.copyOf(skinParts) : List.of();
     }
 
+    /**
+     * @deprecated use {@link #chatMode()}; will be removed in 1.0.0
+     */
+    @Deprecated(forRemoval = true)
+    @ApiStatus.ScheduledForRemoval(inVersion = "1.0.0")
     public ChatMode getChatMode() {
         return chatMode;
     }
 
-    public void setChatMode(ChatMode chatMode) {
-        this.chatMode = chatMode != null ? chatMode : ChatMode.UNKNOWN;
-    }
-
-    @Nullable
-    public String getLocale() {
+    /**
+     * @deprecated use {@link #locale()}; will be removed in 1.0.0
+     */
+    @Deprecated(forRemoval = true)
+    @ApiStatus.ScheduledForRemoval(inVersion = "1.0.0")
+    @Nullable public String getLocale() {
         return locale;
     }
 
-    public void setLocale(@Nullable String locale) {
-        this.locale = locale;
-    }
-
+    /**
+     * @deprecated use {@link #mainHand()}; will be removed in 1.0.0
+     */
+    @Deprecated(forRemoval = true)
+    @ApiStatus.ScheduledForRemoval(inVersion = "1.0.0")
     public MainHand getMainHand() {
         return mainHand;
     }
 
-    public void setMainHand(MainHand mainHand) {
-        this.mainHand = mainHand != null ? mainHand : MainHand.UNKNOWN;
-    }
-
+    /**
+     * @deprecated use {@link #viewDistance()}; will be removed in 1.0.0
+     */
+    @Deprecated(forRemoval = true)
+    @ApiStatus.ScheduledForRemoval(inVersion = "1.0.0")
     public int getViewDistance() {
         return viewDistance;
     }
 
-    public void setViewDistance(int viewDistance) {
-        this.viewDistance = viewDistance;
-    }
-
+    /**
+     * @deprecated use {@link #chatColors()}; will be removed in 1.0.0
+     */
+    @Deprecated(forRemoval = true)
+    @ApiStatus.ScheduledForRemoval(inVersion = "1.0.0")
     public boolean hasChatColors() {
         return chatColors;
     }
 
-    public void setChatColors(boolean chatColors) {
-        this.chatColors = chatColors;
-    }
-
+    /**
+     * @deprecated use {@link #clientListingAllowed()}; will be removed in 1.0.0
+     */
+    @Deprecated(forRemoval = true)
+    @ApiStatus.ScheduledForRemoval(inVersion = "1.0.0")
     public boolean isClientListingAllowed() {
         return clientListingAllowed;
     }
 
-    public void setClientListingAllowed(boolean clientListingAllowed) {
-        this.clientListingAllowed = clientListingAllowed;
-    }
-
+    /**
+     * @deprecated use {@link #skinParts()}; will be removed in 1.0.0
+     */
+    @Deprecated(forRemoval = true)
+    @ApiStatus.ScheduledForRemoval(inVersion = "1.0.0")
     public List<String> getSkinParts() {
         return skinParts;
-    }
-
-    public void setSkinParts(@Nullable List<String> skinParts) {
-        this.skinParts = skinParts != null ? List.copyOf(skinParts) : List.of();
     }
 
     public enum ChatMode {

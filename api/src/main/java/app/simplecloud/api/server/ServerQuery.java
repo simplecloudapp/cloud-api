@@ -1,11 +1,11 @@
 package app.simplecloud.api.server;
 
 import app.simplecloud.api.group.GroupServerType;
-import org.jetbrains.annotations.Nullable;
-
 import java.util.ArrayList;
 import java.util.Arrays;
 import java.util.List;
+import org.jetbrains.annotations.ApiStatus;
+import org.jetbrains.annotations.Nullable;
 
 /**
  * Query parameters for filtering and sorting server lists.
@@ -16,8 +16,8 @@ import java.util.List;
  *     .filterByServerGroupId("group-123")
  *     .filterByState(ServerState.RUNNING, ServerState.STARTING)
  *     .filterByNumericalId(1, 5, 10)
- *     .sortBy("created_at")
- *     .sortOrder("desc");
+ *     .sortBy(ServerQuery.SortField.CREATED_AT)
+ *     .sortOrder(ServerQuery.SortOrder.DESC);
  * </pre>
  */
 public class ServerQuery {
@@ -32,11 +32,9 @@ public class ServerQuery {
     private String sortBy;
     private String sortOrder;
 
-    public ServerQuery() {
-    }
+    public ServerQuery() {}
 
-    @Nullable
-    public List<String> getServerGroupIds() {
+    @Nullable public List<String> getServerGroupIds() {
         return serverGroupIds;
     }
 
@@ -54,8 +52,7 @@ public class ServerQuery {
         return this;
     }
 
-    @Nullable
-    public List<ServerState> getStates() {
+    @Nullable public List<ServerState> getStates() {
         return states;
     }
 
@@ -73,8 +70,7 @@ public class ServerQuery {
         return this;
     }
 
-    @Nullable
-    public String getServerhostId() {
+    @Nullable public String getServerhostId() {
         return serverhostId;
     }
 
@@ -89,8 +85,7 @@ public class ServerQuery {
         return this;
     }
 
-    @Nullable
-    public String getPersistentServerId() {
+    @Nullable public String getPersistentServerId() {
         return persistentServerId;
     }
 
@@ -105,8 +100,7 @@ public class ServerQuery {
         return this;
     }
 
-    @Nullable
-    public List<GroupServerType> getServerGroupTypes() {
+    @Nullable public List<GroupServerType> getServerGroupTypes() {
         return serverGroupTypes;
     }
 
@@ -124,8 +118,7 @@ public class ServerQuery {
         return this;
     }
 
-    @Nullable
-    public List<String> getServerGroupNames() {
+    @Nullable public List<String> getServerGroupNames() {
         return serverGroupNames;
     }
 
@@ -143,8 +136,7 @@ public class ServerQuery {
         return this;
     }
 
-    @Nullable
-    public List<String> getServerGroupTags() {
+    @Nullable public List<String> getServerGroupTags() {
         return serverGroupTags;
     }
 
@@ -162,8 +154,7 @@ public class ServerQuery {
         return this;
     }
 
-    @Nullable
-    public List<Integer> getNumericalIds() {
+    @Nullable public List<Integer> getNumericalIds() {
         return numericalIds;
     }
 
@@ -181,9 +172,24 @@ public class ServerQuery {
         return this;
     }
 
-    @Nullable
-    public String getSortBy() {
+    /**
+     * Returns the raw sort field sent to the controller.
+     *
+     * @return the sort field value, or null if not set
+     */
+    @Nullable public String getSortBy() {
         return sortBy;
+    }
+
+    /**
+     * Set the field to sort by.
+     *
+     * @param sortBy the field to sort by
+     * @return this query for chaining
+     */
+    public ServerQuery sortBy(@Nullable SortField sortBy) {
+        this.sortBy = sortBy != null ? sortBy.getValue() : null;
+        return this;
     }
 
     /**
@@ -191,15 +197,33 @@ public class ServerQuery {
      *
      * @param sortBy the field name (e.g., "created_at", "updated_at", "numerical_id", "state")
      * @return this query for chaining
+     * @deprecated use {@link #sortBy(SortField)}; will be removed in 1.0.0
      */
+    @Deprecated(forRemoval = true)
+    @ApiStatus.ScheduledForRemoval(inVersion = "1.0.0")
     public ServerQuery sortBy(String sortBy) {
         this.sortBy = sortBy;
         return this;
     }
 
-    @Nullable
-    public String getSortOrder() {
+    /**
+     * Returns the raw sort order sent to the controller.
+     *
+     * @return the sort order value, or null if not set
+     */
+    @Nullable public String getSortOrder() {
         return sortOrder;
+    }
+
+    /**
+     * Set the sort order.
+     *
+     * @param sortOrder the sort order
+     * @return this query for chaining
+     */
+    public ServerQuery sortOrder(@Nullable SortOrder sortOrder) {
+        this.sortOrder = sortOrder != null ? sortOrder.getValue() : null;
+        return this;
     }
 
     /**
@@ -207,7 +231,10 @@ public class ServerQuery {
      *
      * @param sortOrder "asc" for ascending or "desc" for descending
      * @return this query for chaining
+     * @deprecated use {@link #sortOrder(SortOrder)}; will be removed in 1.0.0
      */
+    @Deprecated(forRemoval = true)
+    @ApiStatus.ScheduledForRemoval(inVersion = "1.0.0")
     public ServerQuery sortOrder(String sortOrder) {
         this.sortOrder = sortOrder;
         return this;
@@ -220,5 +247,37 @@ public class ServerQuery {
      */
     public static ServerQuery create() {
         return new ServerQuery();
+    }
+
+    public enum SortField {
+        CREATED_AT("created_at"),
+        UPDATED_AT("updated_at"),
+        NUMERICAL_ID("numerical_id"),
+        STATE("state");
+
+        private final String value;
+
+        SortField(String value) {
+            this.value = value;
+        }
+
+        public String getValue() {
+            return value;
+        }
+    }
+
+    public enum SortOrder {
+        ASC("asc"),
+        DESC("desc");
+
+        private final String value;
+
+        SortOrder(String value) {
+            this.value = value;
+        }
+
+        public String getValue() {
+            return value;
+        }
     }
 }

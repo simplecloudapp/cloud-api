@@ -4,12 +4,16 @@ openapi-generator = "7.27.0"
 caffeine = "3.3.1"
 junit = "6.1.3"
 mockito = "5.24.0"
+testcontainers = "2.0.5"
+spotless = "8.9.0"
+palantir-java-format = "2.103.0"
+checkstyle = "14.4.0"
 
-controller-proto = "36.2.0.1.20261016140109.c8833753d47f"
+controller-proto = "36.2.0.1.20261118152751.97f4272700d8"
 adventure-proto = "36.2.0.1.20260902113455.2e6f3d5e83b3"
 player-proto = "36.2.0.1.20261108141701.5bed564c5441"
 
-jnats = "2.26.4"
+jnats = "2.27.0"
 okhttp = "5.5.1"
 gson = "2.15.0"
 gson-fire = "1.9.0"
@@ -18,16 +22,18 @@ jakarta-annotation = "3.0.0"
 velocity = "3.5.0-SNAPSHOT"
 bungeecord = "1.21-R0.4"
 paper = "1.21.4-R0.1-SNAPSHOT"
-folia = "1.21.4-R0.1-SNAPSHOT"
 luckperms = "5.5"
 fabric-minecraft = "26.2"
-fabric-loader = "0.19.3"
+fabric-loader = "0.20.1"
 neoforge = "26.2.0.40-beta"
+minestom = "26_3-SNAPSHOT"
+slf4j = "2.0.20"
 
 adventure = "5.2.0"
 adventure-platform = "4.4.1"
 
 minotaur = "2.10.0"
+blossom = "2.2.0"
 
 [libraries]
 controller-proto = { module = "build.buf.gen:simplecloud_controller_protocolbuffers_java_lite", version.ref = "controller-proto" }
@@ -37,22 +43,22 @@ player-proto = { module = "build.buf.gen:simplecloud_player_protocolbuffers_java
 jnats = { module = "io.nats:jnats", version.ref = "jnats" }
 okhttp = { module = "com.squareup.okhttp3:okhttp", version.ref = "okhttp" }
 okhttp-logging = { module = "com.squareup.okhttp3:logging-interceptor", version.ref = "okhttp" }
-okhttp-mockwebserver = { module = "com.squareup.okhttp3:mockwebserver", version.ref = "okhttp" }
-okhttp-tls = { module = "com.squareup.okhttp3:okhttp-tls", version.ref = "okhttp" }
 gson = { module = "com.google.code.gson:gson", version.ref = "gson" }
 gson-fire = { module = "io.gsonfire:gson-fire", version.ref = "gson-fire" }
 jakarta-annotation = { module = "jakarta.annotation:jakarta.annotation-api", version.ref = "jakarta-annotation" }
 caffeine = { module = "com.github.ben-manes.caffeine:caffeine", version.ref = "caffeine" }
 junit-jupiter = { module = "org.junit.jupiter:junit-jupiter", version.ref = "junit" }
+junit-jupiter-api = { module = "org.junit.jupiter:junit-jupiter-api", version.ref = "junit" }
 mockito-core = { module = "org.mockito:mockito-core", version.ref = "mockito" }
+testcontainers = { module = "org.testcontainers:testcontainers", version.ref = "testcontainers" }
 
 paper-api = { module = "io.papermc.paper:paper-api", version.ref = "paper" }
-folia-api = { module = "dev.folia:folia-api", version.ref = "folia" }
 velocity = { module = "com.velocitypowered:velocity-api", version.ref = "velocity" }
 bungeecord = { module = "net.md-5:bungeecord-api", version.ref = "bungeecord" }
 luckperms = { module = "net.luckperms:api", version.ref = "luckperms" }
 fabric-loader = { module = "net.fabricmc:fabric-loader", version.ref = "fabric-loader" }
-neoforge = { module = "net.neoforged:neoforge", version.ref = "neoforge" }
+minestom = { module = "net.minestom:minestom", version.ref = "minestom" }
+slf4j-api = { module = "org.slf4j:slf4j-api", version.ref = "slf4j" }
 
 adventure-api = { module = "net.kyori:adventure-api", version.ref = "adventure" }
 adventure-gson = { module = "net.kyori:adventure-text-serializer-gson", version.ref = "adventure" }
@@ -60,7 +66,9 @@ adventure-bungeecord = { module = "net.kyori:adventure-platform-bungeecord", ver
 
 [plugins]
 shadow = { id = "com.gradleup.shadow", version.ref = "shadow" }
+spotless = { id = "com.diffplug.spotless", version.ref = "spotless" }
 minotaur = { id = "com.modrinth.minotaur", version.ref = "minotaur" }
+blossom = { id = "net.kyori.blossom", version.ref = "blossom" }
 openapi-generator = { id = "org.openapi.generator", version.ref = "openapi-generator" }
 fabric-loom = { id = "net.fabricmc.fabric-loom", version = "1.19.3" }
-neoforge-userdev = { id = "net.neoforged.gradle.userdev", version = "7.1.39" }
+neoforge-moddev = { id = "net.neoforged.moddev", version = "2.0.148" }

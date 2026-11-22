@@ -1,662 +1,271 @@
 package app.simplecloud.api.internal.group;
 
-import app.simplecloud.api.CloudApiOptions;
+import static org.junit.jupiter.api.Assertions.assertEquals;
+import static org.junit.jupiter.api.Assertions.assertInstanceOf;
+import static org.junit.jupiter.api.Assertions.assertThrows;
+import static org.junit.jupiter.api.Assertions.assertTrue;
+
+import app.simplecloud.api.CloudApiException;
 import app.simplecloud.api.blueprint.CreateBlueprintRequest;
-import app.simplecloud.api.blueprint.RuntimeConfig;
-import app.simplecloud.api.blueprint.RuntimeType;
+import app.simplecloud.api.cache.CacheConfig;
+import app.simplecloud.api.cache.QueryCache;
 import app.simplecloud.api.group.CreateGroupRequest;
 import app.simplecloud.api.group.Group;
-import app.simplecloud.api.group.GroupServerType;
-import app.simplecloud.api.group.ScaleDownConfig;
 import app.simplecloud.api.group.ScalingConfig;
 import app.simplecloud.api.group.ScalingMode;
 import app.simplecloud.api.group.SourceConfig;
 import app.simplecloud.api.group.UpdateGroupRequest;
+import app.simplecloud.api.internal.ApiContext;
 import app.simplecloud.api.internal.cache.NoOpQueryCache;
-import app.simplecloud.api.web.ApiException;
+import app.simplecloud.api.internal.cache.QueryCacheImpl;
+import app.simplecloud.api.internal.util.blueprint.InlineBlueprintManager;
+import app.simplecloud.api.support.ControllerServer;
+import app.simplecloud.api.support.ControllerServer.Request;
+import app.simplecloud.api.support.TestContexts;
 import app.simplecloud.api.web.apis.BlueprintsApi;
 import app.simplecloud.api.web.apis.ServerGroupsApi;
-import app.simplecloud.api.web.models.ModelsCreateBlueprintRequest;
-import app.simplecloud.api.web.models.ModelsCreateBlueprintResponse;
-import app.simplecloud.api.web.models.ModelsCreateServerGroupRequest;
-import app.simplecloud.api.web.models.ModelsCreateServerGroupResponse;
-import app.simplecloud.api.web.models.ModelsListServerGroupsResponse;
-import app.simplecloud.api.web.models.ModelsPatchServerGroupRequest;
-import app.simplecloud.api.web.models.ModelsScalingMode;
-import app.simplecloud.api.web.models.ModelsServerGroupSummary;
-import app.simplecloud.api.web.models.ModelsSourceConfig;
-import app.simplecloud.api.web.models.ModelsUpdateServerGroupRequest;
-import app.simplecloud.api.web.models.ModelsUpdateServerGroupResponse;
-import org.junit.jupiter.api.Test;
-
-import java.io.IOException;
-import java.math.BigDecimal;
-import java.util.ArrayList;
+import com.google.gson.JsonObject;
+import com.google.gson.JsonParser;
 import java.util.List;
 import java.util.Map;
 import java.util.concurrent.CompletionException;
-import java.util.concurrent.atomic.AtomicInteger;
-
-import static org.junit.jupiter.api.Assertions.assertArrayEquals;
-import static org.junit.jupiter.api.Assertions.assertEquals;
-import static org.junit.jupiter.api.Assertions.assertFalse;
-import static org.junit.jupiter.api.Assertions.assertInstanceOf;
-import static org.junit.jupiter.api.Assertions.assertNotNull;
-import static org.junit.jupiter.api.Assertions.assertNull;
-import static org.junit.jupiter.api.Assertions.assertSame;
-import static org.junit.jupiter.api.Assertions.assertThrows;
-import static org.junit.jupiter.api.Assertions.assertTrue;
+import org.junit.jupiter.api.AfterEach;
+import org.junit.jupiter.api.Test;
 
 class GroupApiImplTest {
 
     private static final String GROUP_ID = "0b6e2c4a-7d1f-4e3b-9a5c-2f8d6e1b3c7a";
+    private static final String GROUPS = "/v0/server-groups";
+    private static final String BLUEPRINTS = "/v0/blueprints";
 
-    @Test
-    void getGroupById_usesControllerIdFilter() {
-        AtomicInteger order = new AtomicInteger();
-        FakeServerGroupsApi serverGroupsApi = new FakeServerGroupsApi(order);
-        serverGroupsApi.listResponse = listResponseWithGroup("Lobby", null);
-        GroupApiImpl api = new GroupApiImpl(options(), new NoOpQueryCache(), serverGroupsApi, new FakeBlueprintsApi(order));
+    private final ControllerServer controller = ControllerServer.start();
 
-        api.getGroupById(GROUP_ID).join();
-
-        assertEquals(GROUP_ID, serverGroupsApi.lastServerGroupId);
-        assertEquals(null, serverGroupsApi.lastName);
+    @AfterEach
+    void stopController() {
+        controller.close();
     }
 
     @Test
-    void getGroupByName_usesControllerNameFilter() {
-        AtomicInteger order = new AtomicInteger();
-        FakeServerGroupsApi serverGroupsApi = new FakeServerGroupsApi(order);
-        serverGroupsApi.listResponse = listResponseWithGroup("Lobby", null);
-        GroupApiImpl api = new GroupApiImpl(options(), new NoOpQueryCache(), serverGroupsApi, new FakeBlueprintsApi(order));
+    void findsGroupByNameWithNetworkCredentials() {
+        controller.on("GET", GROUPS, groupList(group("Lobby")));
 
-        api.getGroupByName("Lobby").join();
+        Group group = api().getGroupByName("Lobby").join();
 
-        assertEquals(null, serverGroupsApi.lastServerGroupId);
-        assertEquals("Lobby", serverGroupsApi.lastName);
-    }
-
-    @Test
-    void createGroup_inlineBlueprint_createsBlueprintFirstAndUsesBlueprintSource() {
-        AtomicInteger order = new AtomicInteger();
-        FakeBlueprintsApi blueprintsApi = new FakeBlueprintsApi(order);
-        FakeServerGroupsApi serverGroupsApi = new FakeServerGroupsApi(order);
-        GroupApiImpl api = new GroupApiImpl(options(), new NoOpQueryCache(), serverGroupsApi, blueprintsApi);
-
-        RuntimeConfig runtimeConfig = RuntimeConfig.builder()
-                .type(RuntimeType.JAVA)
-                .with(Map.of("distribution", "temurin"))
-                .build();
-
-        CreateBlueprintRequest createBlueprint = CreateBlueprintRequest.builder()
-                .configurator("paper")
-                .runtimeConfig(runtimeConfig)
-                .workflowSteps(List.of("download", "patch"))
-                .build();
-
-        CreateGroupRequest request = CreateGroupRequest.builder()
-                .name("Lobby")
-                .type(GroupServerType.SERVER)
-                .createBlueprint(createBlueprint)
-                .build();
-
-        Group group = api.createGroup(request).join();
-
-        assertEquals(1, blueprintsApi.postCalls);
-        assertEquals(1, serverGroupsApi.postCalls);
-        assertTrue(blueprintsApi.postOrder < serverGroupsApi.postOrder);
-        assertEquals("Lobby", blueprintsApi.lastCreateRequest.getName());
-        assertNotNull(blueprintsApi.lastCreateRequest.getRuntimeConfig());
-        assertEquals("java", blueprintsApi.lastCreateRequest.getRuntimeConfig().getType());
-        assertEquals("bp-1", serverGroupsApi.lastCreateRequest.getSource().getBlueprint());
-        assertEquals(ModelsSourceConfig.TypeEnum.BLUEPRINT, serverGroupsApi.lastCreateRequest.getSource().getType());
-        assertNotNull(group.getSource());
-        assertEquals("bp-1", group.getSource().getBlueprint());
+        assertEquals(GROUP_ID, group.getServerGroupId());
         assertEquals("Lobby", group.getName());
+        Request request = controller.onlyRequest("GET", GROUPS);
+        assertEquals("Lobby", request.query("name"));
+        assertEquals(TestContexts.NETWORK_ID, request.header("X-Network-ID"));
+        assertEquals(TestContexts.NETWORK_SECRET, request.header("X-Network-Credential"));
     }
 
     @Test
-    void createGroup_scalingModeSlots_mapsToGeneratedScalingEnum() {
-        AtomicInteger order = new AtomicInteger();
-        FakeBlueprintsApi blueprintsApi = new FakeBlueprintsApi(order);
-        FakeServerGroupsApi serverGroupsApi = new FakeServerGroupsApi(order);
-        GroupApiImpl api = new GroupApiImpl(options(), new NoOpQueryCache(), serverGroupsApi, blueprintsApi);
+    void missingGroupFailsWithNotFound() {
+        controller.on("GET", GROUPS, groupList());
 
-        ScalingConfig scaling = ScalingConfig.builder()
-                .minServers(1)
-                .maxServers(3)
-                .availableSlots(50)
-                .playerThreshold(0.8)
-                .scalingMode(ScalingMode.SLOTS)
-                .build();
+        CompletionException failure = assertThrows(
+                CompletionException.class, () -> api().getGroupByName("Lobby").join());
 
-        CreateGroupRequest request = CreateGroupRequest.builder()
-                .name("Lobby")
-                .type(GroupServerType.SERVER)
-                .scaling(scaling)
-                .build();
-
-        Group group = api.createGroup(request).join();
-
-        assertNotNull(serverGroupsApi.lastCreateRequest.getScaling());
-        assertNotNull(serverGroupsApi.lastCreateRequest.getScaling().getScalingMode());
-        assertEquals(ModelsScalingMode.ScalingModeSlots, serverGroupsApi.lastCreateRequest.getScaling().getScalingMode());
-        assertNotNull(group.getScaling());
-        assertEquals(ScalingMode.SLOTS, group.getScaling().getScalingMode());
+        CloudApiException exception = assertInstanceOf(CloudApiException.class, failure.getCause());
+        assertEquals(CloudApiException.Reason.NOT_FOUND, exception.getReason());
     }
 
     @Test
-    void createGroup_appliesDashboardDefaults() {
-        AtomicInteger order = new AtomicInteger();
-        FakeBlueprintsApi blueprintsApi = new FakeBlueprintsApi(order);
-        FakeServerGroupsApi serverGroupsApi = new FakeServerGroupsApi(order);
-        GroupApiImpl api = new GroupApiImpl(options(), new NoOpQueryCache(), serverGroupsApi, blueprintsApi);
+    void findsGroupByIdRegardlessOfCase() {
+        controller.on("GET", GROUPS, groupList(group("Lobby")));
 
-        CreateGroupRequest request = CreateGroupRequest.builder()
-                .name("Lobby")
-                .createBlueprint(CreateBlueprintRequest.builder()
-                        .configurator("paper")
-                        .serverSoftware("paper")
-                        .build())
-                .build();
+        Group group = api().findGroupById(GROUP_ID.toUpperCase()).join().orElseThrow();
 
-        api.createGroup(request).join();
-
-        assertEquals("Lobby", blueprintsApi.lastCreateRequest.getName());
-        assertEquals(List.of("internal/setup"), blueprintsApi.lastCreateRequest.getWorkflowSteps());
-        assertEquals("java", blueprintsApi.lastCreateRequest.getRuntimeConfig().getType());
-        assertEquals("21", blueprintsApi.lastCreateRequest.getRuntimeConfig().getWith().get("version"));
-        assertEquals(List.of("-Dcom.mojang.eula.agree=true"), blueprintsApi.lastCreateRequest.getRuntimeConfig().getWith().get("options"));
-        assertEquals(List.of("nogui"), blueprintsApi.lastCreateRequest.getRuntimeConfig().getWith().get("args"));
-
-        assertEquals(ModelsCreateServerGroupRequest.TypeEnum.SERVER, serverGroupsApi.lastCreateRequest.getType());
-        assertEquals(Integer.valueOf(50), serverGroupsApi.lastCreateRequest.getMaxPlayers());
-        assertEquals(Boolean.TRUE, serverGroupsApi.lastCreateRequest.getActive());
-        assertEquals(List.of("Lobby"), serverGroupsApi.lastCreateRequest.getTags());
-        assertEquals(Map.of(), serverGroupsApi.lastCreateRequest.getProperties());
-        assertEquals("blacklist", serverGroupsApi.lastCreateRequest.getDeployment().getStrategy());
-        assertEquals(BigDecimal.valueOf(0.75), serverGroupsApi.lastCreateRequest.getScaling().getPlayerThreshold());
-        assertEquals(ModelsScalingMode.ScalingModeSlots, serverGroupsApi.lastCreateRequest.getScaling().getScalingMode());
-        assertEquals("3m", serverGroupsApi.lastCreateRequest.getScaling().getScaleDown().getIdleTime());
-        assertEquals(Boolean.TRUE, serverGroupsApi.lastCreateRequest.getScaling().getScaleDown().getIgnorePlayers());
-        assertEquals(List.of("internal/setup"), serverGroupsApi.lastCreateRequest.getWorkflows().getWhen().getStart());
-        assertEquals(List.of("internal/cleanup"), serverGroupsApi.lastCreateRequest.getWorkflows().getWhen().getStop());
-        assertEquals(List.of("default/backup", "default/copy-to-template"), serverGroupsApi.lastCreateRequest.getWorkflows().getManual());
-    }
-
-    @Test
-    void createGroup_inlineBlueprint_resolvesServerUrlFromManifest() {
-        AtomicInteger order = new AtomicInteger();
-        FakeBlueprintsApi blueprintsApi = new FakeBlueprintsApi(order);
-        FakeServerGroupsApi serverGroupsApi = new FakeServerGroupsApi(order);
-        GroupApiImpl api = new GroupApiImpl(
-                options(),
-                new NoOpQueryCache(),
-                serverGroupsApi,
-                blueprintsApi,
-                request -> {
-                    if ("paper".equals(request.getServerSoftware()) && "1.21.11".equals(request.getMinecraftVersion())) {
-                        return "https://example.com/paper-1.21.11.jar";
-                    }
-                    return null;
-                }
-        );
-
-        CreateGroupRequest request = CreateGroupRequest.builder()
-                .name("Lobby")
-                .createBlueprint(CreateBlueprintRequest.builder()
-                        .serverSoftware("paper")
-                        .minecraftVersion("1.21.11")
-                        .build())
-                .build();
-
-        api.createGroup(request).join();
-
-        assertEquals("https://example.com/paper-1.21.11.jar", blueprintsApi.lastCreateRequest.getServerUrl());
-    }
-
-    @Test
-    void createGroup_partialScaling_appliesDefaultsForUnsetPrimitiveFields() {
-        AtomicInteger order = new AtomicInteger();
-        FakeBlueprintsApi blueprintsApi = new FakeBlueprintsApi(order);
-        FakeServerGroupsApi serverGroupsApi = new FakeServerGroupsApi(order);
-        GroupApiImpl api = new GroupApiImpl(options(), new NoOpQueryCache(), serverGroupsApi, blueprintsApi);
-
-        ScaleDownConfig scaleDown = ScaleDownConfig.builder()
-                .idleTime("5m")
-                .build();
-
-        ScalingConfig scaling = ScalingConfig.builder()
-                .minServers(1)
-                .scaleDown(scaleDown)
-                .build();
-
-        CreateGroupRequest request = CreateGroupRequest.builder()
-                .name("Lobby")
-                .scaling(scaling)
-                .build();
-
-        api.createGroup(request).join();
-
-        assertEquals(BigDecimal.valueOf(0.75), serverGroupsApi.lastCreateRequest.getScaling().getPlayerThreshold());
-        assertEquals(Boolean.TRUE, serverGroupsApi.lastCreateRequest.getScaling().getScaleDown().getIgnorePlayers());
-        assertEquals("5m", serverGroupsApi.lastCreateRequest.getScaling().getScaleDown().getIdleTime());
-    }
-
-    @Test
-    void createGroup_inlineBlueprint_nonJavaRuntimeDoesNotReceiveJavaDefaults() {
-        AtomicInteger order = new AtomicInteger();
-        FakeBlueprintsApi blueprintsApi = new FakeBlueprintsApi(order);
-        FakeServerGroupsApi serverGroupsApi = new FakeServerGroupsApi(order);
-        GroupApiImpl api = new GroupApiImpl(options(), new NoOpQueryCache(), serverGroupsApi, blueprintsApi);
-
-        RuntimeConfig runtimeConfig = RuntimeConfig.builder()
-                .type(RuntimeType.NODE)
-                .with(Map.of("entrypoint", "server.js"))
-                .build();
-
-        CreateGroupRequest request = CreateGroupRequest.builder()
-                .name("Lobby")
-                .createBlueprint(CreateBlueprintRequest.builder()
-                        .runtimeConfig(runtimeConfig)
-                        .build())
-                .build();
-
-        api.createGroup(request).join();
-
-        assertEquals("node", blueprintsApi.lastCreateRequest.getRuntimeConfig().getType());
-        assertEquals(Map.of("entrypoint", "server.js"), blueprintsApi.lastCreateRequest.getRuntimeConfig().getWith());
-        assertFalse(blueprintsApi.lastCreateRequest.getRuntimeConfig().getWith().containsKey("version"));
-        assertFalse(blueprintsApi.lastCreateRequest.getRuntimeConfig().getWith().containsKey("options"));
-        assertFalse(blueprintsApi.lastCreateRequest.getRuntimeConfig().getWith().containsKey("args"));
-    }
-
-    @Test
-    void createGroup_invalidPlayerThresholdFailsBeforeBlueprintCreation() {
-        AtomicInteger order = new AtomicInteger();
-        FakeBlueprintsApi blueprintsApi = new FakeBlueprintsApi(order);
-        FakeServerGroupsApi serverGroupsApi = new FakeServerGroupsApi(order);
-        GroupApiImpl api = new GroupApiImpl(options(), new NoOpQueryCache(), serverGroupsApi, blueprintsApi);
-
-        ScalingConfig scaling = ScalingConfig.builder()
-                .playerThreshold(75)
-                .build();
-
-        CreateGroupRequest request = CreateGroupRequest.builder()
-                .name("Lobby")
-                .scaling(scaling)
-                .createBlueprint(CreateBlueprintRequest.builder().configurator("paper").build())
-                .build();
-
-        CompletionException failure = assertThrows(CompletionException.class, () -> api.createGroup(request).join());
-
-        assertInstanceOf(IllegalArgumentException.class, failure.getCause());
-        assertEquals(0, blueprintsApi.postCalls);
-        assertEquals(0, blueprintsApi.deleteCalls);
-        assertEquals(0, serverGroupsApi.postCalls);
-    }
-
-    @Test
-    void createGroup_httpFailure_rollsBackInlineBlueprint() {
-        AtomicInteger order = new AtomicInteger();
-        FakeBlueprintsApi blueprintsApi = new FakeBlueprintsApi(order);
-        FakeServerGroupsApi serverGroupsApi = new FakeServerGroupsApi(order);
-        serverGroupsApi.postFailure = new ApiException(400, "bad request");
-
-        GroupApiImpl api = new GroupApiImpl(options(), new NoOpQueryCache(), serverGroupsApi, blueprintsApi);
-        CreateGroupRequest request = CreateGroupRequest.builder()
-                .name("Lobby")
-                .createBlueprint(CreateBlueprintRequest.builder().build())
-                .build();
-
-        CompletionException failure = assertThrows(CompletionException.class, () -> api.createGroup(request).join());
-
-        assertInstanceOf(RuntimeException.class, failure.getCause());
-        assertEquals(List.of("bp-1"), blueprintsApi.deletedBlueprintIds);
-        assertEquals(0, serverGroupsApi.getCalls, "HTTP failures should roll back directly without reconciliation");
-    }
-
-    @Test
-    void createGroup_httpFailure_retriesAndSurfacesRollbackFailure() {
-        AtomicInteger order = new AtomicInteger();
-        FakeBlueprintsApi blueprintsApi = new FakeBlueprintsApi(order);
-        FakeServerGroupsApi serverGroupsApi = new FakeServerGroupsApi(order);
-        serverGroupsApi.postFailure = new ApiException(400, "bad request");
-        blueprintsApi.deleteFailure = new ApiException(500, "delete failed");
-
-        GroupApiImpl api = new GroupApiImpl(options(), new NoOpQueryCache(), serverGroupsApi, blueprintsApi);
-        CreateGroupRequest request = CreateGroupRequest.builder()
-                .name("Lobby")
-                .createBlueprint(CreateBlueprintRequest.builder().configurator("paper").build())
-                .build();
-
-        CompletionException failure = assertThrows(CompletionException.class, () -> api.createGroup(request).join());
-
-        assertInstanceOf(RuntimeException.class, failure.getCause());
-        assertEquals("Failed to create group and rollback inline blueprint bp-1", failure.getCause().getMessage());
-        assertSame(serverGroupsApi.postFailure, failure.getCause().getCause());
-        assertArrayEquals(new Throwable[]{blueprintsApi.deleteFailure}, failure.getCause().getSuppressed());
-        assertArrayEquals(new Throwable[]{blueprintsApi.deleteFailure}, serverGroupsApi.postFailure.getSuppressed());
-        assertEquals(3, blueprintsApi.deleteCalls);
-    }
-
-    @Test
-    void createGroup_transportFailure_keepsBlueprintWhenGroupAlreadyExists() {
-        AtomicInteger order = new AtomicInteger();
-        FakeBlueprintsApi blueprintsApi = new FakeBlueprintsApi(order);
-        FakeServerGroupsApi serverGroupsApi = new FakeServerGroupsApi(order);
-        serverGroupsApi.postFailure = new ApiException("timeout", new IOException("timeout"), 0, null, null);
-        serverGroupsApi.listResponse = listResponseWithGroup("Lobby", "bp-1");
-
-        GroupApiImpl api = new GroupApiImpl(options(), new NoOpQueryCache(), serverGroupsApi, blueprintsApi);
-        CreateGroupRequest request = CreateGroupRequest.builder()
-                .name("Lobby")
-                .createBlueprint(CreateBlueprintRequest.builder().build())
-                .build();
-
-        assertThrows(CompletionException.class, () -> api.createGroup(request).join());
-
-        assertEquals(1, serverGroupsApi.getCalls);
-        assertEquals(List.of(), blueprintsApi.deletedBlueprintIds);
-    }
-
-    @Test
-    void createGroup_http5xx_rollsBackBlueprintWhenReconciliationFindsNoGroup() {
-        AtomicInteger order = new AtomicInteger();
-        FakeBlueprintsApi blueprintsApi = new FakeBlueprintsApi(order);
-        FakeServerGroupsApi serverGroupsApi = new FakeServerGroupsApi(order);
-        serverGroupsApi.postFailure = new ApiException(500, "controller unavailable");
-
-        GroupApiImpl api = new GroupApiImpl(options(), new NoOpQueryCache(), serverGroupsApi, blueprintsApi);
-        CreateGroupRequest request = CreateGroupRequest.builder()
-                .name("Lobby")
-                .createBlueprint(CreateBlueprintRequest.builder().build())
-                .build();
-
-        CompletionException failure = assertThrows(CompletionException.class, () -> api.createGroup(request).join());
-
-        assertInstanceOf(RuntimeException.class, failure.getCause());
-        assertEquals(3, serverGroupsApi.getCalls);
-        assertEquals(List.of("bp-1"), blueprintsApi.deletedBlueprintIds);
-    }
-
-    @Test
-    void createGroup_http5xx_keepsBlueprintWhenReconciliationFails() {
-        AtomicInteger order = new AtomicInteger();
-        FakeBlueprintsApi blueprintsApi = new FakeBlueprintsApi(order);
-        FakeServerGroupsApi serverGroupsApi = new FakeServerGroupsApi(order);
-        serverGroupsApi.postFailure = new ApiException(500, "controller unavailable");
-        serverGroupsApi.listFailure = new ApiException(503, "still unavailable");
-
-        GroupApiImpl api = new GroupApiImpl(options(), new NoOpQueryCache(), serverGroupsApi, blueprintsApi);
-        CreateGroupRequest request = CreateGroupRequest.builder()
-                .name("Lobby")
-                .createBlueprint(CreateBlueprintRequest.builder().build())
-                .build();
-
-        CompletionException failure = assertThrows(CompletionException.class, () -> api.createGroup(request).join());
-
-        Throwable[] suppressed = serverGroupsApi.postFailure.getSuppressed();
-        assertSame(serverGroupsApi.postFailure, failure.getCause().getCause());
-        assertEquals(1, suppressed.length);
-        assertSame(serverGroupsApi.listFailure, suppressed[0].getCause());
-        assertEquals(1, serverGroupsApi.getCalls);
-        assertEquals(List.of(), blueprintsApi.deletedBlueprintIds);
-    }
-
-    @Test
-    void createGroup_inlineBlueprintRejectsConflictingSourceImage() {
-        AtomicInteger order = new AtomicInteger();
-        FakeBlueprintsApi blueprintsApi = new FakeBlueprintsApi(order);
-        FakeServerGroupsApi serverGroupsApi = new FakeServerGroupsApi(order);
-
-        GroupApiImpl api = new GroupApiImpl(options(), new NoOpQueryCache(), serverGroupsApi, blueprintsApi);
-
-        SourceConfig source = SourceConfig.builder()
-                .image("ghcr.io/example/server:latest")
-                .build();
-
-        CreateGroupRequest request = CreateGroupRequest.builder()
-                .name("Lobby")
-                .source(source)
-                .createBlueprint(CreateBlueprintRequest.builder().build())
-                .build();
-
-        CompletionException failure = assertThrows(CompletionException.class, () -> api.createGroup(request).join());
-
-        assertInstanceOf(IllegalArgumentException.class, failure.getCause());
-        assertEquals(0, blueprintsApi.postCalls);
-        assertEquals(0, serverGroupsApi.postCalls);
-    }
-
-    @Test
-    void deleteGroup_deletesReferencedBlueprintAfterGroup() {
-        AtomicInteger order = new AtomicInteger();
-        FakeBlueprintsApi blueprintsApi = new FakeBlueprintsApi(order);
-        FakeServerGroupsApi serverGroupsApi = new FakeServerGroupsApi(order);
-        serverGroupsApi.listResponse = listResponseWithGroup("Lobby", "bp-1");
-        GroupApiImpl api = new GroupApiImpl(options(), new NoOpQueryCache(), serverGroupsApi, blueprintsApi);
-
-        api.deleteGroup(GROUP_ID).join();
-
-        assertEquals(1, serverGroupsApi.deleteCalls);
-        assertEquals(List.of("bp-1"), blueprintsApi.deletedBlueprintIds);
-        assertTrue(serverGroupsApi.deleteOrder < blueprintsApi.deleteOrder);
-    }
-
-    @Test
-    void deleteGroup_withoutReferencedBlueprint_onlyDeletesGroup() {
-        AtomicInteger order = new AtomicInteger();
-        FakeBlueprintsApi blueprintsApi = new FakeBlueprintsApi(order);
-        FakeServerGroupsApi serverGroupsApi = new FakeServerGroupsApi(order);
-        serverGroupsApi.listResponse = listResponseWithGroup("Lobby", null);
-        GroupApiImpl api = new GroupApiImpl(options(), new NoOpQueryCache(), serverGroupsApi, blueprintsApi);
-
-        api.deleteGroup(GROUP_ID).join();
-
-        assertEquals(1, serverGroupsApi.deleteCalls);
-        assertEquals(List.of(), blueprintsApi.deletedBlueprintIds);
-    }
-
-    @Test
-    void updateGroup_partialRequest_usesPatch() {
-        AtomicInteger order = new AtomicInteger();
-        FakeServerGroupsApi serverGroupsApi = new FakeServerGroupsApi(order);
-        GroupApiImpl api = new GroupApiImpl(options(), new NoOpQueryCache(), serverGroupsApi, new FakeBlueprintsApi(order));
-
-        Group group = api.updateGroup(
-                GROUP_ID,
-                UpdateGroupRequest.builder()
-                        .active(true)
-                        .build()
-        ).join();
-
-        assertEquals(1, serverGroupsApi.patchCalls);
-        assertEquals(0, serverGroupsApi.putCalls);
-        assertEquals(Boolean.TRUE, serverGroupsApi.lastPatchRequest.getActive());
-        assertNull(serverGroupsApi.lastPatchRequest.getType());
-        assertNull(serverGroupsApi.lastPatchRequest.getName());
         assertEquals(GROUP_ID, group.getServerGroupId());
     }
 
-    private static CloudApiOptions options() {
-        return CloudApiOptions.builder()
-                .controllerUrl("http://localhost")
-                .networkId("test-network")
-                .networkSecret("test-secret")
-                .disableCache()
+    @Test
+    void lookupByIdSkipsTheControllerForInvalidIds() {
+        assertTrue(api().findGroupById("Lobby").join().isEmpty());
+        assertTrue(controller.requests().isEmpty());
+    }
+
+    @Test
+    void createFillsInDefaults() {
+        controller.on("POST", GROUPS, group("Lobby"));
+
+        api().createGroup(CreateGroupRequest.builder()
+                        .name("Lobby")
+                        .source(SourceConfig.builder().blueprint("bp-1").build())
+                        .build())
+                .join();
+
+        JsonObject body = controller.onlyRequest("POST", GROUPS).json();
+        assertEquals("SERVER", body.get("type").getAsString());
+        assertEquals(50, body.get("max_players").getAsInt());
+        assertTrue(body.get("active").getAsBoolean());
+        assertEquals(JsonParser.parseString("[\"Lobby\"]"), body.get("tags"));
+        assertEquals(0, body.getAsJsonObject("scaling").get("min_servers").getAsInt());
+        assertEquals(1, body.getAsJsonObject("scaling").get("max_servers").getAsInt());
+        assertEquals(
+                "blacklist", body.getAsJsonObject("deployment").get("strategy").getAsString());
+        assertEquals(
+                JsonParser.parseString("[\"internal/setup\"]"),
+                body.getAsJsonObject("workflows").getAsJsonObject("when").get("start"));
+        assertEquals("bp-1", body.getAsJsonObject("source").get("blueprint").getAsString());
+    }
+
+    @Test
+    void playersScalingModeIsSentAsServers() {
+        controller.on("POST", GROUPS, group("Lobby"));
+
+        api().createGroup(CreateGroupRequest.builder()
+                        .name("Lobby")
+                        .scaling(ScalingConfig.builder()
+                                .scalingMode(ScalingMode.PLAYERS)
+                                .build())
+                        .build())
+                .join();
+
+        JsonObject scaling = controller.onlyRequest("POST", GROUPS).json().getAsJsonObject("scaling");
+        assertEquals("SERVERS", scaling.get("scaling_mode").getAsString());
+    }
+
+    @Test
+    void createWithInlineBlueprintCreatesTheBlueprintFirst() {
+        controller.on("POST", BLUEPRINTS, "{\"blueprint_id\":\"bp-new\",\"name\":\"Lobby\"}");
+        controller.on("POST", GROUPS, group("Lobby"));
+
+        api().createGroup(CreateGroupRequest.builder()
+                        .name("Lobby")
+                        .createBlueprint(inlineBlueprint())
+                        .build())
+                .join();
+
+        List<Request> requests = controller.requests();
+        assertEquals(
+                List.of(BLUEPRINTS, GROUPS),
+                requests.stream().map(Request::path).toList());
+        JsonObject blueprint = requests.get(0).json();
+        assertEquals("Lobby", blueprint.get("name").getAsString());
+        assertEquals(JsonParser.parseString("[\"internal/setup\"]"), blueprint.get("workflow_steps"));
+        JsonObject source = requests.get(1).json().getAsJsonObject("source");
+        assertEquals("blueprint", source.get("type").getAsString());
+        assertEquals("bp-new", source.get("blueprint").getAsString());
+    }
+
+    @Test
+    void failedCreateRemovesTheInlineBlueprintAgain() {
+        controller.on("POST", BLUEPRINTS, "{\"blueprint_id\":\"bp-new\"}");
+        controller.on("POST", GROUPS, 409, "{\"error\":\"group already exists\"}");
+        controller.on("DELETE", BLUEPRINTS, "{}");
+
+        CompletionException failure = assertThrows(
+                CompletionException.class,
+                () -> api().createGroup(CreateGroupRequest.builder()
+                                .name("Lobby")
+                                .createBlueprint(inlineBlueprint())
+                                .build())
+                        .join());
+
+        CloudApiException exception = assertInstanceOf(CloudApiException.class, failure.getCause());
+        assertEquals(CloudApiException.Reason.CONFLICT, exception.getReason());
+        assertEquals("group already exists (409)", exception.getMessage());
+        assertEquals("bp-new", controller.onlyRequest("DELETE", BLUEPRINTS).query("blueprint_id"));
+    }
+
+    @Test
+    void inlineBlueprintCannotBeCombinedWithAnImage() {
+        CompletionException failure = assertThrows(
+                CompletionException.class,
+                () -> api().createGroup(CreateGroupRequest.builder()
+                                .name("Lobby")
+                                .source(SourceConfig.builder().image("nginx").build())
+                                .createBlueprint(inlineBlueprint())
+                                .build())
+                        .join());
+
+        assertInstanceOf(IllegalArgumentException.class, failure.getCause());
+        assertTrue(controller.requests().isEmpty());
+    }
+
+    @Test
+    void scalingUpdateIsMergedWithTheCurrentGroup() {
+        controller.on("GET", GROUPS, groupList(group("Lobby", "\"scaling\":{\"min_servers\":2,\"max_servers\":5}")));
+        controller.on("PATCH", GROUPS, group("Lobby"));
+
+        api().updateGroup(
+                        GROUP_ID,
+                        UpdateGroupRequest.builder()
+                                .scaling(ScalingConfig.builder().maxServers(10).build())
+                                .build())
+                .join();
+
+        Request patch = controller.onlyRequest("PATCH", GROUPS);
+        assertEquals(GROUP_ID, patch.query("server_group_id"));
+        JsonObject scaling = patch.json().getAsJsonObject("scaling");
+        assertEquals(2, scaling.get("min_servers").getAsInt());
+        assertEquals(10, scaling.get("max_servers").getAsInt());
+    }
+
+    @Test
+    void deleteAlsoDeletesTheReferencedBlueprint() {
+        controller.on(
+                "GET", GROUPS, groupList(group("Lobby", "\"source\":{\"type\":\"blueprint\",\"blueprint\":\"bp-1\"}")));
+        controller.on("DELETE", GROUPS, "{}");
+        controller.on("DELETE", BLUEPRINTS, "{}");
+
+        api().deleteGroup(GROUP_ID).join();
+
+        assertEquals(GROUP_ID, controller.onlyRequest("DELETE", GROUPS).query("server_group_id"));
+        assertEquals("bp-1", controller.onlyRequest("DELETE", BLUEPRINTS).query("blueprint_id"));
+    }
+
+    @Test
+    void cachedGroupListIsFetchedAgainAfterAChange() {
+        QueryCacheImpl cache = new QueryCacheImpl(CacheConfig.DEFAULT);
+        try {
+            GroupApiImpl api = api(cache);
+            controller.on("GET", GROUPS, groupList(group("Lobby")));
+            controller.on("PUT", GROUPS + "/properties", "{\"properties\":{\"motd\":\"hi\"}}");
+
+            api.getAllGroups(null).join();
+            api.getAllGroups(null).join();
+            assertEquals(1, controller.requests("GET", GROUPS).size());
+
+            api.setGroupProperties(GROUP_ID, Map.of("motd", "hi")).join();
+            api.getAllGroups(null).join();
+            assertEquals(2, controller.requests("GET", GROUPS).size());
+        } finally {
+            cache.shutdown();
+        }
+    }
+
+    private GroupApiImpl api() {
+        return api(new NoOpQueryCache());
+    }
+
+    private GroupApiImpl api(QueryCache cache) {
+        ApiContext context = TestContexts.create(controller, cache);
+        InlineBlueprintManager blueprints = new InlineBlueprintManager(
+                context.options(), context.api(BlueprintsApi::new), request -> "https://example.com/server.jar");
+        return new GroupApiImpl(context, context.api(ServerGroupsApi::new), blueprints);
+    }
+
+    private static CreateBlueprintRequest inlineBlueprint() {
+        return CreateBlueprintRequest.builder()
+                .configurator("paper")
+                .serverUrl("https://example.com/paper.jar")
                 .build();
     }
 
-    private static ModelsListServerGroupsResponse listResponseWithGroup(String name, String blueprintId) {
-        ModelsSourceConfig source = new ModelsSourceConfig();
-        source.setType(ModelsSourceConfig.TypeEnum.BLUEPRINT);
-        source.setBlueprint(blueprintId);
-
-        ModelsServerGroupSummary summary = new ModelsServerGroupSummary();
-        summary.setServerGroupId(GROUP_ID);
-        summary.setName(name);
-        summary.setType(GroupServerType.SERVER.name());
-        summary.setSource(source);
-        summary.setCreatedAt("2026-04-22T00:00:00Z");
-        summary.setUpdatedAt("2026-04-22T00:00:00Z");
-
-        ModelsListServerGroupsResponse response = new ModelsListServerGroupsResponse();
-        response.setServerGroups(List.of(summary));
-        return response;
+    private static String groupList(String... groups) {
+        return "{\"server_groups\":[" + String.join(",", groups) + "]}";
     }
 
-    private static final class FakeBlueprintsApi extends BlueprintsApi {
-        private final AtomicInteger order;
-        private int postCalls;
-        private int postOrder;
-        private ModelsCreateBlueprintRequest lastCreateRequest;
-        private int deleteCalls;
-        private int deleteOrder;
-        private ApiException deleteFailure;
-        private final List<String> deletedBlueprintIds = new ArrayList<>();
-
-        private FakeBlueprintsApi(AtomicInteger order) {
-            this.order = order;
-        }
-
-        @Override
-        public ModelsCreateBlueprintResponse createBlueprint(String xNetworkID,
-                                                              ModelsCreateBlueprintRequest request) {
-            postCalls++;
-            postOrder = order.incrementAndGet();
-            lastCreateRequest = request;
-
-            ModelsCreateBlueprintResponse response = new ModelsCreateBlueprintResponse();
-            response.setBlueprintId("bp-1");
-            response.setName(lastCreateRequest.getName());
-            response.setConfigurator(lastCreateRequest.getConfigurator());
-            response.setRuntimeConfig(lastCreateRequest.getRuntimeConfig());
-            response.setWorkflowSteps(lastCreateRequest.getWorkflowSteps());
-            response.setCreatedAt("2026-04-22T00:00:00Z");
-            response.setUpdatedAt("2026-04-22T00:00:00Z");
-            return response;
-        }
-
-        @Override
-        public app.simplecloud.api.web.models.ModelsDeleteBlueprintResponse deleteBlueprint(String xNetworkID,
-                                                                                                String blueprintId) throws ApiException {
-            deleteCalls++;
-            deleteOrder = order.incrementAndGet();
-            deletedBlueprintIds.add(blueprintId);
-            if (deleteFailure != null) {
-                throw deleteFailure;
-            }
-            return new app.simplecloud.api.web.models.ModelsDeleteBlueprintResponse();
-        }
+    private static String group(String name) {
+        return group(name, null);
     }
 
-    private static final class FakeServerGroupsApi extends ServerGroupsApi {
-        private final AtomicInteger order;
-        private int postCalls;
-        private int patchCalls;
-        private int putCalls;
-        private int postOrder;
-        private int getCalls;
-        private int deleteCalls;
-        private int deleteOrder;
-        private String lastServerGroupId;
-        private String lastName;
-        private ModelsCreateServerGroupRequest lastCreateRequest;
-        private ModelsPatchServerGroupRequest lastPatchRequest;
-        private ApiException postFailure;
-        private ApiException listFailure;
-        private ModelsListServerGroupsResponse listResponse = new ModelsListServerGroupsResponse();
-
-        private FakeServerGroupsApi(AtomicInteger order) {
-            this.order = order;
-        }
-
-        @Override
-        public app.simplecloud.api.web.models.ModelsDeleteServerGroupResponse deleteServerGroup(String xNetworkID,
-                                                                                                    String serverGroupId) {
-            deleteCalls++;
-            deleteOrder = order.incrementAndGet();
-            return new app.simplecloud.api.web.models.ModelsDeleteServerGroupResponse();
-        }
-
-        @Override
-        public ModelsCreateServerGroupResponse createServerGroup(String xNetworkID,
-                                                                  ModelsCreateServerGroupRequest request) throws ApiException {
-            postCalls++;
-            postOrder = order.incrementAndGet();
-            lastCreateRequest = request;
-            if (postFailure != null) {
-                throw postFailure;
-            }
-
-            ModelsCreateServerGroupResponse response = new ModelsCreateServerGroupResponse();
-            response.setServerGroupId(GROUP_ID);
-            response.setName(lastCreateRequest.getName());
-            response.setType(lastCreateRequest.getType().getValue());
-            response.setMinMemory(lastCreateRequest.getMinMemory());
-            response.setMaxMemory(lastCreateRequest.getMaxMemory());
-            response.setMaxPlayers(lastCreateRequest.getMaxPlayers());
-            response.setActive(lastCreateRequest.getActive());
-            response.setPriority(lastCreateRequest.getPriority());
-            response.setDeployment(lastCreateRequest.getDeployment());
-            response.setScaling(lastCreateRequest.getScaling());
-            response.setSource(lastCreateRequest.getSource());
-            response.setWorkflows(lastCreateRequest.getWorkflows());
-            response.setProperties(lastCreateRequest.getProperties());
-            response.setTags(lastCreateRequest.getTags());
-            response.setCreatedAt("2026-04-22T00:00:00Z");
-            response.setUpdatedAt("2026-04-22T00:00:00Z");
-            return response;
-        }
-
-        @Override
-        public ModelsUpdateServerGroupResponse patchServerGroup(String xNetworkID,
-                                                                    String serverGroupId,
-                                                                    ModelsPatchServerGroupRequest request) {
-            patchCalls++;
-            lastPatchRequest = request;
-            return updateResponse(serverGroupId, request.getActive());
-        }
-
-        @Override
-        public ModelsUpdateServerGroupResponse updateServerGroup(String xNetworkID,
-                                                                  String serverGroupId,
-                                                                  ModelsUpdateServerGroupRequest request) {
-            putCalls++;
-            return updateResponse(serverGroupId, request.getActive());
-        }
-
-        private ModelsUpdateServerGroupResponse updateResponse(String serverGroupId, Boolean active) {
-            ModelsUpdateServerGroupResponse response = new ModelsUpdateServerGroupResponse();
-            response.setServerGroupId(serverGroupId);
-            response.setName("Lobby");
-            response.setType(GroupServerType.SERVER.name());
-            response.setActive(active);
-            response.setCreatedAt("2026-04-22T00:00:00Z");
-            response.setUpdatedAt("2026-04-22T00:00:00Z");
-            return response;
-        }
-
-        @Override
-        public ModelsListServerGroupsResponse listServerGroups(String xNetworkID,
-                                                                String serverGroupId,
-                                                                String name,
-                                                                String type,
-                                                                String tags,
-                                                                Boolean active,
-                                                                String sourceType,
-                                                                String blueprintId,
-                                                                Integer limit,
-                                                                Integer offset) throws ApiException {
-            getCalls++;
-            lastServerGroupId = serverGroupId;
-            lastName = name;
-            if (listFailure != null) {
-                throw listFailure;
-            }
-            return listResponse;
-        }
+    private static String group(String name, String extraFields) {
+        return "{\"server_group_id\":\"" + GROUP_ID + "\",\"name\":\"" + name + "\",\"type\":\"SERVER\""
+                + ",\"created_at\":\"2026-01-01T00:00:00Z\",\"updated_at\":\"2026-01-01T00:00:00Z\""
+                + (extraFields == null ? "" : "," + extraFields)
+                + "}";
     }
 }

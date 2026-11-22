@@ -1,28 +1,26 @@
 package app.simplecloud.api.server;
 
-import org.jetbrains.annotations.Nullable;
-
 import java.util.Map;
+import org.jetbrains.annotations.ApiStatus;
+import org.jetbrains.annotations.Nullable;
 
 /**
  * Request object for updating an existing server instance.
  */
 public class UpdateServerRequest {
-    @Nullable
-    private Integer playerCount;
-    @Nullable
-    private ServerState state;
-    @Nullable
-    private Map<String, Object> properties;
-    @Nullable
-    private Integer minMemory;
-    @Nullable
-    private Integer maxMemory;
-    @Nullable
-    private Integer maxPlayers;
+    @Nullable private Integer playerCount;
 
-    public UpdateServerRequest() {
-    }
+    @Nullable private ServerState state;
+
+    @Nullable private Map<String, Object> properties;
+
+    @Nullable private Integer minMemory;
+
+    @Nullable private Integer maxMemory;
+
+    @Nullable private Integer maxPlayers;
+
+    public UpdateServerRequest() {}
 
     public static Builder builder() {
         return new Builder();
@@ -30,25 +28,25 @@ public class UpdateServerRequest {
 
     /**
      * @deprecated The player count is never sent with a server update. The controller takes it from the
-     *             server's status ping, so this field has no effect.
+     *             server's status ping, so this field has no effect. Will be removed in 1.0.0.
      */
-    @Deprecated
-    @Nullable
-    public Integer getPlayerCount() {
+    @Deprecated(forRemoval = true)
+    @ApiStatus.ScheduledForRemoval(inVersion = "1.0.0")
+    @Nullable public Integer getPlayerCount() {
         return playerCount;
     }
 
     /**
      * @deprecated The player count is never sent with a server update. The controller takes it from the
-     *             server's status ping, so this field has no effect.
+     *             server's status ping, so this field has no effect. Will be removed in 1.0.0.
      */
-    @Deprecated
+    @Deprecated(forRemoval = true)
+    @ApiStatus.ScheduledForRemoval(inVersion = "1.0.0")
     public void setPlayerCount(@Nullable Integer playerCount) {
         this.playerCount = playerCount;
     }
 
-    @Nullable
-    public ServerState getState() {
+    @Nullable public ServerState getState() {
         return state;
     }
 
@@ -56,8 +54,7 @@ public class UpdateServerRequest {
         this.state = state;
     }
 
-    @Nullable
-    public Map<String, Object> getProperties() {
+    @Nullable public Map<String, Object> getProperties() {
         return properties;
     }
 
@@ -65,8 +62,7 @@ public class UpdateServerRequest {
         this.properties = properties;
     }
 
-    @Nullable
-    public Integer getMinMemory() {
+    @Nullable public Integer getMinMemory() {
         return minMemory;
     }
 
@@ -74,8 +70,7 @@ public class UpdateServerRequest {
         this.minMemory = minMemory;
     }
 
-    @Nullable
-    public Integer getMaxMemory() {
+    @Nullable public Integer getMaxMemory() {
         return maxMemory;
     }
 
@@ -83,8 +78,7 @@ public class UpdateServerRequest {
         this.maxMemory = maxMemory;
     }
 
-    @Nullable
-    public Integer getMaxPlayers() {
+    @Nullable public Integer getMaxPlayers() {
         return maxPlayers;
     }
 
@@ -102,9 +96,10 @@ public class UpdateServerRequest {
 
         /**
          * @deprecated The player count is never sent with a server update. The controller takes it from the
-         *             server's status ping, so this field has no effect.
+         *             server's status ping, so this field has no effect. Will be removed in 1.0.0.
          */
-        @Deprecated
+        @Deprecated(forRemoval = true)
+        @ApiStatus.ScheduledForRemoval(inVersion = "1.0.0")
         public Builder playerCount(Integer playerCount) {
             this.playerCount = playerCount;
             return this;
@@ -147,4 +142,3 @@ public class UpdateServerRequest {
         }
     }
 }
-

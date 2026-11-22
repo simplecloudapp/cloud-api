@@ -1,9 +1,8 @@
 package app.simplecloud.api.internal.event.persistentserver;
 
 import app.simplecloud.api.event.persistentserver.PersistentServerStartedEvent;
-import org.jetbrains.annotations.Nullable;
-
 import java.time.Instant;
+import org.jetbrains.annotations.Nullable;
 
 class PersistentServerStartedEventImpl implements PersistentServerStartedEvent {
     private final build.buf.gen.simplecloud.controller.v2.PersistentServerStartedEvent delegate;
@@ -23,8 +22,7 @@ class PersistentServerStartedEventImpl implements PersistentServerStartedEvent {
     }
 
     @Override
-    @Nullable
-    public String getServerId() {
+    @Nullable public String getServerId() {
         String serverId = delegate.getServerId();
         return serverId.isEmpty() ? null : serverId;
     }
@@ -34,4 +32,3 @@ class PersistentServerStartedEventImpl implements PersistentServerStartedEvent {
         return Instant.ofEpochSecond(delegate.getTimestamp()).toString();
     }
 }
-

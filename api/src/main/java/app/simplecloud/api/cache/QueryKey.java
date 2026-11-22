@@ -5,26 +5,6 @@ import java.util.Objects;
 
 /**
  * Represents a cache key for queries, similar to TanStack Query's query keys.
- *
- * <p>Query keys are arrays that uniquely identify a query. They support hierarchical
- * matching for invalidation patterns.
- *
- * <p>Example keys:
- * <pre>{@code
- * QueryKey.of("server", serverId)              // Single server by ID
- * QueryKey.of("servers", "group", groupName)   // Servers filtered by group
- * QueryKey.of("servers")                       // All servers
- * QueryKey.of("groups")                        // All groups
- * QueryKey.of("group", groupId)                // Single group by ID
- * }</pre>
- *
- * <p>Hierarchical matching for invalidation:
- * <pre>{@code
- * // Invalidating QueryKey.of("servers") will also invalidate:
- * // - QueryKey.of("servers", "group", "Lobby")
- * // - QueryKey.of("servers", "query", ...)
- * cache.invalidateAll(QueryKey.of("servers"));
- * }</pre>
  */
 public final class QueryKey {
 
@@ -57,6 +37,7 @@ public final class QueryKey {
             case "group", "groups" -> EntityType.GROUP;
             case "persistentServer", "persistentServers" -> EntityType.PERSISTENT_SERVER;
             case "player", "players" -> EntityType.PLAYER;
+            case "blueprint", "blueprints" -> EntityType.BLUEPRINT;
             default -> null;
         };
     }

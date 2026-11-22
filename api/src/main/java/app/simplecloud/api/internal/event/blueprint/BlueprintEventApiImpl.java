@@ -1,74 +1,45 @@
 package app.simplecloud.api.internal.event.blueprint;
 
 import app.simplecloud.api.event.Subscription;
+import app.simplecloud.api.event.blueprint.BlueprintCreatedEvent;
+import app.simplecloud.api.event.blueprint.BlueprintDeletedEvent;
 import app.simplecloud.api.event.blueprint.BlueprintEventApi;
-import app.simplecloud.api.internal.event.SubscriptionImpl;
-import build.buf.gen.simplecloud.controller.v2.BlueprintCreatedEvent;
-import build.buf.gen.simplecloud.controller.v2.BlueprintDeletedEvent;
-import build.buf.gen.simplecloud.controller.v2.BlueprintUpdatedEvent;
-import io.nats.client.Connection;
-import io.nats.client.Dispatcher;
-import io.nats.client.Message;
-
+import app.simplecloud.api.event.blueprint.BlueprintUpdatedEvent;
+import app.simplecloud.api.internal.event.EventSubscriber;
 import java.util.function.Consumer;
-import java.util.logging.Level;
-import java.util.logging.Logger;
 
 public class BlueprintEventApiImpl implements BlueprintEventApi {
 
-    private static final Logger LOGGER = Logger.getLogger(BlueprintEventApiImpl.class.getName());
+    private final EventSubscriber events;
 
-    private final String networkId;
-    private final Dispatcher dispatcher;
-
-    public BlueprintEventApiImpl(Connection natsConnection, String networkId) {
-        this.networkId = networkId;
-        this.dispatcher = natsConnection.createDispatcher(null);
+    public BlueprintEventApiImpl(EventSubscriber events) {
+        this.events = events;
     }
 
     @Override
-    public Subscription onCreated(Consumer<app.simplecloud.api.event.blueprint.BlueprintCreatedEvent> handler) {
-        String subject = networkId + ".event.blueprint.created";
-        io.nats.client.Subscription natsSub = dispatcher.subscribe(subject, (Message msg) -> {
-            try {
-                BlueprintCreatedEvent protoEvent = BlueprintCreatedEvent.parseFrom(msg.getData());
-                app.simplecloud.api.event.blueprint.BlueprintCreatedEvent event = new BlueprintCreatedEventImpl(protoEvent);
-                handler.accept(event);
-            } catch (Exception e) {
-                LOGGER.log(Level.SEVERE, "Error handling BlueprintCreatedEvent", e);
-            }
-        });
-        return new SubscriptionImpl(natsSub);
+    public Subscription onCreated(Consumer<BlueprintCreatedEvent> handler) {
+        return events.subscribe(
+                "blueprint.created",
+                data -> new BlueprintCreatedEventImpl(
+                        build.buf.gen.simplecloud.controller.v2.BlueprintCreatedEvent.parseFrom(data)),
+                handler);
     }
 
     @Override
-    public Subscription onUpdated(Consumer<app.simplecloud.api.event.blueprint.BlueprintUpdatedEvent> handler) {
-        String subject = networkId + ".event.blueprint.updated";
-        io.nats.client.Subscription natsSub = dispatcher.subscribe(subject, (Message msg) -> {
-            try {
-                BlueprintUpdatedEvent protoEvent = BlueprintUpdatedEvent.parseFrom(msg.getData());
-                app.simplecloud.api.event.blueprint.BlueprintUpdatedEvent event = new BlueprintUpdatedEventImpl(protoEvent);
-                handler.accept(event);
-            } catch (Exception e) {
-                LOGGER.log(Level.SEVERE, "Error handling BlueprintUpdatedEvent", e);
-            }
-        });
-        return new SubscriptionImpl(natsSub);
+    public Subscription onUpdated(Consumer<BlueprintUpdatedEvent> handler) {
+        return events.subscribe(
+                "blueprint.updated",
+                data -> new BlueprintUpdatedEventImpl(
+                        build.buf.gen.simplecloud.controller.v2.BlueprintUpdatedEvent.parseFrom(data)),
+                handler);
     }
 
     @Override
-    public Subscription onDeleted(Consumer<app.simplecloud.api.event.blueprint.BlueprintDeletedEvent> handler) {
-        String subject = networkId + ".event.blueprint.deleted";
-        io.nats.client.Subscription natsSub = dispatcher.subscribe(subject, (Message msg) -> {
-            try {
-                BlueprintDeletedEvent protoEvent = BlueprintDeletedEvent.parseFrom(msg.getData());
-                app.simplecloud.api.event.blueprint.BlueprintDeletedEvent event = new BlueprintDeletedEventImpl(protoEvent);
-                handler.accept(event);
-            } catch (Exception e) {
-                LOGGER.log(Level.SEVERE, "Error handling BlueprintDeletedEvent", e);
-            }
-        });
-        return new SubscriptionImpl(natsSub);
+    public Subscription onDeleted(Consumer<BlueprintDeletedEvent> handler) {
+        return events.subscribe(
+                "blueprint.deleted",
+                data -> new BlueprintDeletedEventImpl(
+                        build.buf.gen.simplecloud.controller.v2.BlueprintDeletedEvent.parseFrom(data)),
+                handler);
     }
-
 }

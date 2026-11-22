@@ -1,47 +1,42 @@
 package app.simplecloud.api.group;
 
+import org.jetbrains.annotations.ApiStatus;
 import org.jetbrains.annotations.Nullable;
 
-public class SourceConfig {
-    @Nullable
-    private SourceType type;
-    @Nullable
-    private String blueprint;
-    @Nullable
-    private String image;
+public record SourceConfig(
+        @Nullable SourceType type,
+        @Nullable String blueprint,
+        @Nullable String image) {
 
-    public SourceConfig() {
+    /**
+     * @deprecated use {@link #type()}; will be removed in 1.0.0
+     */
+    @Deprecated(forRemoval = true)
+    @ApiStatus.ScheduledForRemoval(inVersion = "1.0.0")
+    @Nullable public SourceType getType() {
+        return type;
+    }
+
+    /**
+     * @deprecated use {@link #blueprint()}; will be removed in 1.0.0
+     */
+    @Deprecated(forRemoval = true)
+    @ApiStatus.ScheduledForRemoval(inVersion = "1.0.0")
+    @Nullable public String getBlueprint() {
+        return blueprint;
+    }
+
+    /**
+     * @deprecated use {@link #image()}; will be removed in 1.0.0
+     */
+    @Deprecated(forRemoval = true)
+    @ApiStatus.ScheduledForRemoval(inVersion = "1.0.0")
+    @Nullable public String getImage() {
+        return image;
     }
 
     public static Builder builder() {
         return new Builder();
-    }
-
-    @Nullable
-    public SourceType getType() {
-        return type;
-    }
-
-    public void setType(@Nullable SourceType type) {
-        this.type = type;
-    }
-
-    @Nullable
-    public String getBlueprint() {
-        return blueprint;
-    }
-
-    public void setBlueprint(@Nullable String blueprint) {
-        this.blueprint = blueprint;
-    }
-
-    @Nullable
-    public String getImage() {
-        return image;
-    }
-
-    public void setImage(@Nullable String image) {
-        this.image = image;
     }
 
     public static class Builder {
@@ -65,11 +60,7 @@ public class SourceConfig {
         }
 
         public SourceConfig build() {
-            SourceConfig config = new SourceConfig();
-            config.setType(type);
-            config.setBlueprint(blueprint);
-            config.setImage(image);
-            return config;
+            return new SourceConfig(type, blueprint, image);
         }
     }
 }

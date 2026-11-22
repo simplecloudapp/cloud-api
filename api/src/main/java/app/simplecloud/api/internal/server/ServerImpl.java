@@ -1,18 +1,21 @@
 package app.simplecloud.api.internal.server;
 
+import app.simplecloud.api.base.ServerBase;
 import app.simplecloud.api.blueprint.Blueprint;
 import app.simplecloud.api.group.Group;
+import app.simplecloud.api.internal.blueprint.BlueprintImpl;
 import app.simplecloud.api.internal.group.GroupImpl;
 import app.simplecloud.api.internal.persistentserver.PersistentServerImpl;
 import app.simplecloud.api.persistentserver.PersistentServer;
 import app.simplecloud.api.server.Server;
 import app.simplecloud.api.server.ServerState;
-import app.simplecloud.api.base.ServerBase;
+import app.simplecloud.api.web.models.ModelsBlueprintInfo;
+import app.simplecloud.api.web.models.ModelsServerGroupInfo;
 import app.simplecloud.api.web.models.ModelsServerSummary;
-import org.jetbrains.annotations.Nullable;
-
+import app.simplecloud.api.web.models.ModelsSourceInfo;
 import java.math.BigDecimal;
 import java.util.Map;
+import org.jetbrains.annotations.Nullable;
 
 public class ServerImpl implements Server {
     private final ModelsServerSummary delegate;
@@ -22,6 +25,10 @@ public class ServerImpl implements Server {
 
     public ServerImpl(ModelsServerSummary delegate) {
         this.delegate = delegate;
+    }
+
+    public void setBlueprint(@Nullable Blueprint blueprint) {
+        this.blueprint = blueprint;
     }
 
     public void setPersistentServer(PersistentServer persistentServer) {
@@ -38,8 +45,7 @@ public class ServerImpl implements Server {
     }
 
     @Override
-    @Nullable
-    public String getPersistentServerId() {
+    @Nullable public String getPersistentServerId() {
         return delegate.getPersistentServerId();
     }
 
@@ -53,18 +59,13 @@ public class ServerImpl implements Server {
     }
 
     @Override
-    @Nullable
-    public String getServerGroupId() {
+    @Nullable public String getServerGroupId() {
         return delegate.getServerGroupId();
     }
 
     @Override
-    public String getServerhostId() {
-        String serverhostId = delegate.getServerhostId();
-        if (serverhostId == null) {
-            throw new IllegalStateException("Serverhost ID is null");
-        }
-        return serverhostId;
+    @Nullable public String getServerhostId() {
+        return delegate.getServerhostId();
     }
 
     @Override
@@ -77,14 +78,12 @@ public class ServerImpl implements Server {
     }
 
     @Override
-    @Nullable
-    public String getIp() {
+    @Nullable public String getIp() {
         return delegate.getIp();
     }
 
     @Override
-    @Nullable
-    public Integer getPort() {
+    @Nullable public Integer getPort() {
         return delegate.getPort();
     }
 
@@ -107,23 +106,21 @@ public class ServerImpl implements Server {
     }
 
     @Override
-    @Nullable
-    public Double getCpuUsage() {
+    @Nullable public Double getCpuUsage() {
         BigDecimal cpuUsage = delegate.getCpuUsage();
         return cpuUsage != null ? cpuUsage.doubleValue() : null;
     }
 
     @Override
-    @Nullable
-    public Double getMemoryUsage() {
+    @Nullable public Double getMemoryUsage() {
         BigDecimal memoryUsage = delegate.getMemoryUsage();
         return memoryUsage != null ? memoryUsage.doubleValue() : null;
     }
 
     @Override
-    @Nullable
     public Integer getPlayerCount() {
-        return delegate.getPlayerCount();
+        Integer playerCount = delegate.getPlayerCount();
+        return playerCount != null ? playerCount : 0;
     }
 
     @Override
@@ -139,12 +136,12 @@ public class ServerImpl implements Server {
     public ServerState getState() {
         ModelsServerSummary.StateEnum stateStr = delegate.getState();
         if (stateStr == null) {
-            throw new IllegalStateException("Server state is null");
+            return ServerState.UNKNOWN_STATE;
         }
         try {
             return ServerState.parse(stateStr);
         } catch (IllegalArgumentException e) {
-            throw new IllegalStateException("Invalid server state: " + stateStr, e);
+            return ServerState.UNKNOWN_STATE;
         }
     }
 
@@ -167,21 +164,26 @@ public class ServerImpl implements Server {
     }
 
     @Override
-    @Nullable
-    public String getLastActivity() {
+    @Nullable public String getLastActivity() {
         return delegate.getLastActivity();
     }
 
     @Override
-    @Nullable
-    public Map<String, Object> getProperties() {
+    @Nullable public Map<String, Object> getProperties() {
         return delegate.getProperties();
     }
 
     @Override
-    @Nullable
-    public Blueprint getBlueprint() {
-        return null;
+    @Nullable public Blueprint getBlueprint() {
+        if (blueprint == null) {
+            ModelsServerGroupInfo serverGroup = delegate.getServerGroup();
+            ModelsSourceInfo source = serverGroup != null ? serverGroup.getSource() : null;
+            ModelsBlueprintInfo info = source != null ? source.getBlueprint() : null;
+            if (info != null && info.getId() != null) {
+                blueprint = BlueprintImpl.from(info);
+            }
+        }
+        return blueprint;
     }
 
     @Override
@@ -204,19 +206,17 @@ public class ServerImpl implements Server {
     }
 
     @Override
-    @Nullable
-    public Group getGroup() {
+    @Nullable public Group getGroup() {
         if (group == null && delegate.getServerGroup() != null) {
-            group = new GroupImpl(delegate.getServerGroup());
+            group = GroupImpl.from(delegate.getServerGroup());
         }
         return group;
     }
 
     @Override
-    @Nullable
-    public PersistentServer getPersistentServer() {
-        if  (persistentServer == null && delegate.getPersistentServer() != null) {
-            persistentServer = new PersistentServerImpl(delegate.getPersistentServer());
+    @Nullable public PersistentServer getPersistentServer() {
+        if (persistentServer == null && delegate.getPersistentServer() != null) {
+            persistentServer = PersistentServerImpl.from(delegate.getPersistentServer(), getPlayerCount());
         }
 
         return persistentServer;

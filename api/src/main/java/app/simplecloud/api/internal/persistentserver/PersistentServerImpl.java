@@ -2,251 +2,209 @@ package app.simplecloud.api.internal.persistentserver;
 
 import app.simplecloud.api.group.GroupServerType;
 import app.simplecloud.api.group.SourceConfig;
-import app.simplecloud.api.group.SourceType;
-import app.simplecloud.api.group.WorkflowWhen;
 import app.simplecloud.api.group.WorkflowsConfig;
+import app.simplecloud.api.internal.util.ModelConversionUtil;
 import app.simplecloud.api.persistentserver.PersistentServer;
+import app.simplecloud.api.web.models.ModelsCreatePersistentServerResponse;
 import app.simplecloud.api.web.models.ModelsPersistentServerInfo;
 import app.simplecloud.api.web.models.ModelsPersistentServerSummary;
-import org.jetbrains.annotations.Nullable;
-
+import app.simplecloud.api.web.models.ModelsUpdatePersistentServerResponse;
 import java.util.List;
 import java.util.Map;
+import org.jetbrains.annotations.Nullable;
 
-public class PersistentServerImpl implements PersistentServer {
-    private final ModelsPersistentServerSummary summaryDelegate;
-    private final ModelsPersistentServerInfo infoDelegate;
-    private SourceConfig source;
-    private WorkflowsConfig workflows;
+public record PersistentServerImpl(
+        @Nullable String persistentServerId,
+        @Nullable String name,
+        @Nullable String type,
+        @Nullable Integer minMemory,
+        @Nullable Integer maxMemory,
+        @Nullable Integer maxPlayers,
+        @Nullable Boolean active,
+        @Nullable Integer priority,
+        int playerCount,
+        @Nullable String serverhostId,
+        @Nullable SourceConfig source,
+        @Nullable WorkflowsConfig workflows,
+        @Nullable Map<String, Object> properties,
+        @Nullable List<String> tags,
+        @Nullable String createdAt,
+        @Nullable String updatedAt)
+        implements PersistentServer {
 
-    public PersistentServerImpl(ModelsPersistentServerSummary delegate) {
-        this.summaryDelegate = delegate;
-        this.infoDelegate = null;
+    public static PersistentServerImpl from(ModelsPersistentServerSummary summary) {
+        return new PersistentServerImpl(
+                summary.getPersistentServerId(),
+                summary.getName(),
+                summary.getType(),
+                summary.getMinMemory(),
+                summary.getMaxMemory(),
+                summary.getMaxPlayers(),
+                summary.getActive(),
+                summary.getPriority(),
+                playerCount(summary.getPlayerCount()),
+                summary.getServerhostId(),
+                ModelConversionUtil.fromModel(summary.getSource()),
+                ModelConversionUtil.fromModel(summary.getWorkflows()),
+                summary.getProperties(),
+                summary.getTags(),
+                summary.getCreatedAt(),
+                summary.getUpdatedAt());
     }
 
-    public PersistentServerImpl(ModelsPersistentServerInfo delegate) {
-        this.summaryDelegate = null;
-        this.infoDelegate = delegate;
+    public static PersistentServerImpl from(ModelsCreatePersistentServerResponse response) {
+        return new PersistentServerImpl(
+                response.getPersistentServerId(),
+                response.getName(),
+                response.getType(),
+                response.getMinMemory(),
+                response.getMaxMemory(),
+                response.getMaxPlayers(),
+                response.getActive(),
+                response.getPriority(),
+                playerCount(response.getPlayerCount()),
+                response.getServerhostId(),
+                ModelConversionUtil.fromModel(response.getSource()),
+                ModelConversionUtil.fromModel(response.getWorkflows()),
+                response.getProperties(),
+                response.getTags(),
+                response.getCreatedAt(),
+                response.getUpdatedAt());
+    }
+
+    public static PersistentServerImpl from(ModelsUpdatePersistentServerResponse response) {
+        return new PersistentServerImpl(
+                response.getPersistentServerId(),
+                response.getName(),
+                response.getType(),
+                response.getMinMemory(),
+                response.getMaxMemory(),
+                response.getMaxPlayers(),
+                response.getActive(),
+                response.getPriority(),
+                playerCount(response.getPlayerCount()),
+                response.getServerhostId(),
+                ModelConversionUtil.fromModel(response.getSource()),
+                ModelConversionUtil.fromModel(response.getWorkflows()),
+                response.getProperties(),
+                response.getTags(),
+                response.getCreatedAt(),
+                response.getUpdatedAt());
+    }
+
+    public static PersistentServerImpl from(ModelsPersistentServerInfo info, int playerCount) {
+        return new PersistentServerImpl(
+                info.getId(),
+                info.getName(),
+                info.getType(),
+                info.getMinMemory(),
+                info.getMaxMemory(),
+                info.getMaxPlayers(),
+                info.getActive(),
+                null,
+                playerCount,
+                info.getServerhostId(),
+                ModelConversionUtil.fromModel(info.getSource()),
+                ModelConversionUtil.fromModel(info.getWorkflows()),
+                info.getProperties(),
+                info.getTags(),
+                info.getCreatedAt(),
+                info.getUpdatedAt());
     }
 
     @Override
     public String getPersistentServerId() {
-        if (summaryDelegate != null) {
-            String id = summaryDelegate.getPersistentServerId();
-            if (id == null) {
-                throw new IllegalStateException("Persistent server ID is null");
-            }
-            return id;
-        }
-        if (infoDelegate != null) {
-            String id = infoDelegate.getId();
-            if (id == null) {
-                throw new IllegalStateException("Persistent server ID is null");
-            }
-            return id;
-        }
-        throw new IllegalStateException("No delegate available");
-    }
-
-    @Override
-    @Nullable
-    public Boolean isActive() {
-        if (summaryDelegate != null) {
-            return summaryDelegate.getActive();
-        }
-        return infoDelegate != null ? infoDelegate.getActive() : null;
-    }
-
-    @Override
-    @Nullable
-    public Integer getPriority() {
-        if (summaryDelegate != null) {
-            return summaryDelegate.getPriority();
-        }
-        return null;
-    }
-
-    @Override
-    public int getPlayerCount() {
-        if (summaryDelegate != null) {
-            Integer count = summaryDelegate.getPlayerCount();
-            return count != null ? Math.max(count, 0) : 0;
-        }
-
-        return 0;
-    }
-
-    @Override
-    @Nullable
-    public String getServerhostId() {
-        if (summaryDelegate != null) {
-            return summaryDelegate.getServerhostId();
-        }
-        return infoDelegate != null ? infoDelegate.getServerhostId() : null;
+        return require(persistentServerId, "Persistent server ID");
     }
 
     @Override
     public String getName() {
-        String name = null;
-        if (summaryDelegate != null) {
-            name = summaryDelegate.getName();
-        } else if (infoDelegate != null) {
-            name = infoDelegate.getName();
-        }
-        if (name == null) {
-            throw new IllegalStateException("Persistent server name is null");
-        }
-        return name;
-    }
-
-    @Override
-    @Nullable
-    public Integer getMinMemory() {
-        if (summaryDelegate != null) {
-            return summaryDelegate.getMinMemory();
-        }
-        return infoDelegate != null ? infoDelegate.getMinMemory() : null;
-    }
-
-    @Override
-    @Nullable
-    public Integer getMaxMemory() {
-        if (summaryDelegate != null) {
-            return summaryDelegate.getMaxMemory();
-        }
-        return infoDelegate != null ? infoDelegate.getMaxMemory() : null;
-    }
-
-    @Override
-    @Nullable
-    public Integer getMaxPlayers() {
-        if (summaryDelegate != null) {
-            return summaryDelegate.getMaxPlayers();
-        }
-        return infoDelegate != null ? infoDelegate.getMaxPlayers() : null;
-    }
-
-    @Override
-    @Nullable
-    public SourceConfig getSource() {
-        if (source == null) {
-            app.simplecloud.api.web.models.ModelsSourceConfig config = null;
-            if (summaryDelegate != null) {
-                config = summaryDelegate.getSource();
-            } else if (infoDelegate != null) {
-                config = infoDelegate.getSource();
-            }
-            if (config != null) {
-                source = convertSourceConfig(config);
-            }
-        }
-        return source;
-    }
-
-    @Override
-    @Nullable
-    public WorkflowsConfig getWorkflows() {
-        if (workflows == null) {
-            app.simplecloud.api.web.models.ModelsWorkflowsConfig config = null;
-            if (summaryDelegate != null) {
-                config = summaryDelegate.getWorkflows();
-            } else if (infoDelegate != null) {
-                config = infoDelegate.getWorkflows();
-            }
-            if (config != null) {
-                workflows = convertWorkflowsConfig(config);
-            }
-        }
-        return workflows;
-    }
-
-    @Override
-    @Nullable
-    public Map<String, Object> getProperties() {
-        if (summaryDelegate != null) {
-            return summaryDelegate.getProperties();
-        }
-        return infoDelegate != null ? infoDelegate.getProperties() : null;
-    }
-
-    @Override
-    @Nullable
-    public List<String> getTags() {
-        if (summaryDelegate != null) {
-            return summaryDelegate.getTags();
-        }
-        return infoDelegate != null ? infoDelegate.getTags() : null;
+        return require(name, "Persistent server name");
     }
 
     @Override
     public GroupServerType getType() {
-        String typeStr = null;
-        if (summaryDelegate != null) {
-            typeStr = summaryDelegate.getType();
-        } else if (infoDelegate != null) {
-            typeStr = infoDelegate.getType();
-        }
-        if (typeStr == null) {
-            throw new IllegalStateException("Persistent server type is null");
-        }
+        String value = require(type, "Persistent server type");
         try {
-            return GroupServerType.valueOf(typeStr);
+            return GroupServerType.valueOf(value);
         } catch (IllegalArgumentException e) {
-            throw new IllegalStateException("Invalid persistent server type: " + typeStr, e);
+            throw new IllegalStateException("Invalid persistent server type: " + value, e);
         }
+    }
+
+    @Override
+    public @Nullable Integer getMinMemory() {
+        return minMemory;
+    }
+
+    @Override
+    public @Nullable Integer getMaxMemory() {
+        return maxMemory;
+    }
+
+    @Override
+    public @Nullable Integer getMaxPlayers() {
+        return maxPlayers;
+    }
+
+    @Override
+    public @Nullable Boolean isActive() {
+        return active;
+    }
+
+    @Override
+    public @Nullable Integer getPriority() {
+        return priority;
+    }
+
+    @Override
+    public int getPlayerCount() {
+        return playerCount;
+    }
+
+    @Override
+    public @Nullable String getServerhostId() {
+        return serverhostId;
+    }
+
+    @Override
+    public @Nullable SourceConfig getSource() {
+        return source;
+    }
+
+    @Override
+    public @Nullable WorkflowsConfig getWorkflows() {
+        return workflows;
+    }
+
+    @Override
+    public @Nullable Map<String, Object> getProperties() {
+        return properties;
+    }
+
+    @Override
+    public @Nullable List<String> getTags() {
+        return tags;
     }
 
     @Override
     public String getCreatedAt() {
-        String createdAt = null;
-        if (summaryDelegate != null) {
-            createdAt = summaryDelegate.getCreatedAt();
-        } else if (infoDelegate != null) {
-            createdAt = infoDelegate.getCreatedAt();
-        }
-        if (createdAt == null) {
-            throw new IllegalStateException("Created at timestamp is null");
-        }
-        return createdAt;
+        return require(createdAt, "Created at timestamp");
     }
 
     @Override
     public String getUpdatedAt() {
-        String updatedAt = null;
-        if (summaryDelegate != null) {
-            updatedAt = summaryDelegate.getUpdatedAt();
-        } else if (infoDelegate != null) {
-            updatedAt = infoDelegate.getUpdatedAt();
-        }
-        if (updatedAt == null) {
-            throw new IllegalStateException("Updated at timestamp is null");
-        }
-        return updatedAt;
+        return require(updatedAt, "Updated at timestamp");
     }
 
-    private SourceConfig convertSourceConfig(app.simplecloud.api.web.models.ModelsSourceConfig config) {
-        SourceConfig result = new SourceConfig();
-        String typeStr = config.getType() == null ? null : config.getType().getValue();
-        if (typeStr != null) {
-            try {
-                result.setType(SourceType.valueOf(typeStr.toUpperCase()));
-            } catch (IllegalArgumentException ignored) {
-            }
-        }
-        result.setBlueprint(config.getBlueprint());
-        result.setImage(config.getImage());
-        return result;
+    private static int playerCount(@Nullable Integer count) {
+        return count != null ? Math.max(count, 0) : 0;
     }
 
-    private WorkflowsConfig convertWorkflowsConfig(app.simplecloud.api.web.models.ModelsWorkflowsConfig config) {
-        WorkflowsConfig result = new WorkflowsConfig();
-        result.setManual(config.getManual());
-        if (config.getWhen() != null) {
-            WorkflowWhen when = new WorkflowWhen();
-            when.setStart(config.getWhen().getStart());
-            when.setStop(config.getWhen().getStop());
-            result.setWhen(when);
+    private static <T> T require(@Nullable T value, String name) {
+        if (value == null) {
+            throw new IllegalStateException(name + " is null");
         }
-        return result;
+        return value;
     }
 }

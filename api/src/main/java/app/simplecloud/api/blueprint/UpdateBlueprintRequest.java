@@ -1,0 +1,127 @@
+package app.simplecloud.api.blueprint;
+
+import java.util.List;
+import org.jetbrains.annotations.Nullable;
+
+/**
+ * Request to update an existing blueprint.
+ * All fields are optional - only specified fields will be updated.
+ */
+public final class UpdateBlueprintRequest {
+    private final String name;
+    private final String configurator;
+    private final String minecraftVersion;
+    private final RuntimeConfig runtimeConfig;
+    private final String serverSoftware;
+    private final String serverUrl;
+    private final String softwareVersion;
+    private final List<String> workflowSteps;
+
+    private UpdateBlueprintRequest(Builder builder) {
+        this.name = builder.name;
+        this.configurator = builder.configurator;
+        this.minecraftVersion = builder.minecraftVersion;
+        this.runtimeConfig = builder.runtimeConfig;
+        this.serverSoftware = builder.serverSoftware;
+        this.serverUrl = builder.serverUrl;
+        this.softwareVersion = builder.softwareVersion;
+        this.workflowSteps = builder.workflowSteps;
+    }
+
+    public static Builder builder() {
+        return new Builder();
+    }
+
+    @Nullable public String getName() {
+        return name;
+    }
+
+    @Nullable public String getConfigurator() {
+        return configurator;
+    }
+
+    @Nullable public String getMinecraftVersion() {
+        return minecraftVersion;
+    }
+
+    @Nullable public RuntimeConfig getRuntimeConfig() {
+        return runtimeConfig;
+    }
+
+    @Nullable public String getServerSoftware() {
+        return serverSoftware;
+    }
+
+    @Nullable public String getServerUrl() {
+        return serverUrl;
+    }
+
+    @Nullable public String getSoftwareVersion() {
+        return softwareVersion;
+    }
+
+    @Nullable public List<String> getWorkflowSteps() {
+        return workflowSteps;
+    }
+
+    public static class Builder {
+        private String name;
+        private String configurator;
+        private String minecraftVersion;
+        private RuntimeConfig runtimeConfig;
+        private String serverSoftware;
+        private String serverUrl;
+        private String softwareVersion;
+        private List<String> workflowSteps;
+
+        public Builder name(String name) {
+            this.name = name;
+            return this;
+        }
+
+        public Builder configurator(String configurator) {
+            this.configurator = configurator;
+            return this;
+        }
+
+        public Builder minecraftVersion(String minecraftVersion) {
+            this.minecraftVersion = minecraftVersion;
+            return this;
+        }
+
+        /**
+         * Replaces the whole runtime config, keys missing in {@code with} are removed. The type is required.
+         */
+        public Builder runtimeConfig(RuntimeConfig runtimeConfig) {
+            this.runtimeConfig = runtimeConfig;
+            return this;
+        }
+
+        public Builder serverSoftware(String serverSoftware) {
+            this.serverSoftware = serverSoftware;
+            return this;
+        }
+
+        public Builder serverUrl(String serverUrl) {
+            this.serverUrl = serverUrl;
+            return this;
+        }
+
+        public Builder softwareVersion(String softwareVersion) {
+            this.softwareVersion = softwareVersion;
+            return this;
+        }
+
+        /**
+         * Replaces all workflow steps. An empty list removes them.
+         */
+        public Builder workflowSteps(List<String> workflowSteps) {
+            this.workflowSteps = workflowSteps;
+            return this;
+        }
+
+        public UpdateBlueprintRequest build() {
+            return new UpdateBlueprintRequest(this);
+        }
+    }
+}

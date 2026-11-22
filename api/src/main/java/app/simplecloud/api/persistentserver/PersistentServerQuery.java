@@ -1,10 +1,9 @@
 package app.simplecloud.api.persistentserver;
 
-import org.jetbrains.annotations.Nullable;
-
 import java.util.ArrayList;
 import java.util.Arrays;
 import java.util.List;
+import org.jetbrains.annotations.Nullable;
 
 /**
  * Query parameters for filtering and sorting persistent server lists.
@@ -15,11 +14,9 @@ public class PersistentServerQuery {
     private String serverhostId;
     private Integer limit;
 
-    public PersistentServerQuery() {
-    }
+    public PersistentServerQuery() {}
 
-    @Nullable
-    public List<String> getTags() {
+    @Nullable public List<String> getTags() {
         return tags;
     }
 
@@ -37,8 +34,7 @@ public class PersistentServerQuery {
         return this;
     }
 
-    @Nullable
-    public Boolean getActive() {
+    @Nullable public Boolean getActive() {
         return active;
     }
 
@@ -53,8 +49,7 @@ public class PersistentServerQuery {
         return this;
     }
 
-    @Nullable
-    public String getServerhostId() {
+    @Nullable public String getServerhostId() {
         return serverhostId;
     }
 
@@ -69,8 +64,7 @@ public class PersistentServerQuery {
         return this;
     }
 
-    @Nullable
-    public Integer getLimit() {
+    @Nullable public Integer getLimit() {
         return limit;
     }
 

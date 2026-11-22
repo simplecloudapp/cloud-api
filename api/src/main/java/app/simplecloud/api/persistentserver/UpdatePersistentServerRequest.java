@@ -1,18 +1,17 @@
 package app.simplecloud.api.persistentserver;
 
+import app.simplecloud.api.group.GroupServerType;
 import app.simplecloud.api.group.SourceConfig;
 import app.simplecloud.api.group.WorkflowsConfig;
-import app.simplecloud.api.group.GroupServerType;
-import org.jetbrains.annotations.Nullable;
-
 import java.util.List;
 import java.util.Map;
+import org.jetbrains.annotations.Nullable;
 
 /**
  * Request to update an existing persistent server.
  * All fields are optional - only specified fields will be updated.
  */
-public class UpdatePersistentServerRequest {
+public final class UpdatePersistentServerRequest {
     private final String name;
     private final Integer minMemory;
     private final Integer maxMemory;
@@ -41,63 +40,51 @@ public class UpdatePersistentServerRequest {
         this.tags = builder.tags;
     }
 
-    @Nullable
-    public String getName() {
+    @Nullable public String getName() {
         return name;
     }
 
-    @Nullable
-    public Integer getMinMemory() {
+    @Nullable public Integer getMinMemory() {
         return minMemory;
     }
 
-    @Nullable
-    public Integer getMaxMemory() {
+    @Nullable public Integer getMaxMemory() {
         return maxMemory;
     }
 
-    @Nullable
-    public Integer getMaxPlayers() {
+    @Nullable public Integer getMaxPlayers() {
         return maxPlayers;
     }
 
-    @Nullable
-    public Boolean getActive() {
+    @Nullable public Boolean getActive() {
         return active;
     }
 
-    @Nullable
-    public Integer getPriority() {
+    @Nullable public Integer getPriority() {
         return priority;
     }
 
-    @Nullable
-    public String getServerhostId() {
+    @Nullable public String getServerhostId() {
         return serverhostId;
     }
 
-    @Nullable
-    public GroupServerType getType() {
+    @Nullable public GroupServerType getType() {
         return type;
     }
 
-    @Nullable
-    public SourceConfig getSource() {
+    @Nullable public SourceConfig getSource() {
         return source;
     }
 
-    @Nullable
-    public WorkflowsConfig getWorkflows() {
+    @Nullable public WorkflowsConfig getWorkflows() {
         return workflows;
     }
 
-    @Nullable
-    public Map<String, Object> getProperties() {
+    @Nullable public Map<String, Object> getProperties() {
         return properties;
     }
 
-    @Nullable
-    public List<String> getTags() {
+    @Nullable public List<String> getTags() {
         return tags;
     }
 

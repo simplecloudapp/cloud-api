@@ -1,0 +1,188 @@
+package app.simplecloud.api.internal.util.blueprint;
+
+import app.simplecloud.api.CloudApiException;
+import app.simplecloud.api.CloudApiOptions;
+import app.simplecloud.api.blueprint.CreateBlueprintRequest;
+import com.google.gson.Gson;
+import com.google.gson.JsonParseException;
+import com.google.gson.reflect.TypeToken;
+import java.io.IOException;
+import java.lang.reflect.Type;
+import java.time.Duration;
+import java.time.Instant;
+import java.util.List;
+import java.util.Objects;
+import java.util.concurrent.TimeUnit;
+import okhttp3.Call;
+import okhttp3.HttpUrl;
+import okhttp3.OkHttpClient;
+import okhttp3.Request;
+import okhttp3.Response;
+import okhttp3.ResponseBody;
+import okio.BufferedSource;
+import org.jetbrains.annotations.Nullable;
+
+/**
+ * Resolves inline blueprint download links from the server version manifest.
+ */
+public final class ManifestServerUrlResolver implements InlineBlueprintManager.ServerUrlResolver {
+    static final long MAX_MANIFEST_BYTES = 1024 * 1024;
+
+    private static final Duration FETCH_TIMEOUT = Duration.ofSeconds(30);
+    private static final Duration CACHE_TTL = Duration.ofMinutes(5);
+    private static final Type MANIFEST_TYPE = new TypeToken<List<ManifestEntry>>() {}.getType();
+
+    private final @Nullable HttpUrl manifestUrl;
+    private final String manifestUrlForErrors;
+    private final OkHttpClient httpClient;
+    private final Duration fetchTimeout;
+    private final Gson gson;
+
+    private volatile CachedManifest cachedManifest;
+
+    public ManifestServerUrlResolver(CloudApiOptions options, OkHttpClient httpClient) {
+        this(options.getServerVersionManifestUrl(), httpClient, FETCH_TIMEOUT, new Gson());
+    }
+
+    ManifestServerUrlResolver(String manifestUrl, OkHttpClient httpClient, Duration fetchTimeout, Gson gson) {
+        this.manifestUrl =
+                HttpUrl.parse(Objects.requireNonNull(manifestUrl, "manifestUrl").trim());
+        this.manifestUrlForErrors = this.manifestUrl != null ? withoutSecrets(this.manifestUrl) : "an invalid URL";
+        this.httpClient = Objects.requireNonNull(httpClient, "httpClient");
+        this.fetchTimeout = Objects.requireNonNull(fetchTimeout, "fetchTimeout");
+        this.gson = Objects.requireNonNull(gson, "gson");
+    }
+
+    @Override
+    public @Nullable String resolve(CreateBlueprintRequest request) {
+        String softwareName = normalize(request.getServerSoftware());
+        String version = resolveRequestedVersion(request);
+        if (softwareName == null || version == null) {
+            return null;
+        }
+
+        return loadManifest().stream()
+                .filter(entry -> softwareName.equalsIgnoreCase(normalize(entry.name())))
+                .flatMap(entry -> safeList(entry.downloadLinks()).stream())
+                .filter(downloadLink -> version.equals(normalize(downloadLink.version())))
+                .map(downloadLink -> normalize(downloadLink.link()))
+                .filter(Objects::nonNull)
+                .findFirst()
+                .orElse(null);
+    }
+
+    private List<ManifestEntry> loadManifest() {
+        CachedManifest current = cachedManifest;
+        if (current != null && !current.isExpired()) {
+            return current.entries();
+        }
+
+        synchronized (this) {
+            current = cachedManifest;
+            if (current != null && !current.isExpired()) {
+                return current.entries();
+            }
+
+            List<ManifestEntry> fetchedManifest = fetchManifest();
+            cachedManifest = new CachedManifest(fetchedManifest, Instant.now().plus(CACHE_TTL));
+            return fetchedManifest;
+        }
+    }
+
+    private List<ManifestEntry> fetchManifest() {
+        if (manifestUrl == null) {
+            throw fetchFailure("invalid URL");
+        }
+
+        Request request = new Request.Builder().url(manifestUrl).get().build();
+        Call call = httpClient.newCall(request);
+        call.timeout().timeout(fetchTimeout.toMillis(), TimeUnit.MILLISECONDS);
+        try (Response response = call.execute()) {
+            return readManifest(response);
+        } catch (IOException e) {
+            throw new CloudApiException(
+                    CloudApiException.Reason.UNAVAILABLE,
+                    0,
+                    "Failed to fetch server version manifest from " + manifestUrlForErrors,
+                    e);
+        }
+    }
+
+    private List<ManifestEntry> readManifest(Response response) throws IOException {
+        if (!response.isSuccessful()) {
+            throw fetchFailure("HTTP " + response.code());
+        }
+
+        ResponseBody body = response.body();
+        if (body == null) {
+            throw fetchFailure("empty response body");
+        }
+
+        BufferedSource source = body.source();
+        if (body.contentLength() > MAX_MANIFEST_BYTES || source.request(MAX_MANIFEST_BYTES + 1)) {
+            throw fetchFailure("response exceeds " + MAX_MANIFEST_BYTES + " bytes");
+        }
+
+        try {
+            List<ManifestEntry> manifest = gson.fromJson(source.getBuffer().readUtf8(), MANIFEST_TYPE);
+            return manifest != null ? manifest : List.of();
+        } catch (JsonParseException e) {
+            throw new CloudApiException(
+                    CloudApiException.Reason.UNAVAILABLE,
+                    0,
+                    "Failed to parse server version manifest from " + manifestUrlForErrors,
+                    e);
+        }
+    }
+
+    private CloudApiException fetchFailure(String reason) {
+        return new CloudApiException(
+                CloudApiException.Reason.UNAVAILABLE,
+                "Failed to fetch server version manifest from " + manifestUrlForErrors + ": " + reason);
+    }
+
+    private static String withoutSecrets(HttpUrl url) {
+        return url.newBuilder()
+                .username("")
+                .password("")
+                .query(null)
+                .fragment(null)
+                .build()
+                .toString();
+    }
+
+    private static @Nullable String resolveRequestedVersion(CreateBlueprintRequest request) {
+        String minecraftVersion = normalize(request.getMinecraftVersion());
+        if (minecraftVersion != null) {
+            return minecraftVersion;
+        }
+        return normalize(request.getSoftwareVersion());
+    }
+
+    private static <T> List<T> safeList(@Nullable List<T> values) {
+        return values != null ? values : List.of();
+    }
+
+    private static @Nullable String normalize(@Nullable String value) {
+        if (value == null) {
+            return null;
+        }
+        String normalized = value.trim();
+        return normalized.isEmpty() ? null : normalized;
+    }
+
+    private record CachedManifest(List<ManifestEntry> entries, Instant expiresAt) {
+
+        private CachedManifest {
+            entries = List.copyOf(entries);
+        }
+
+        private boolean isExpired() {
+            return Instant.now().isAfter(expiresAt);
+        }
+    }
+
+    private record ManifestEntry(String name, List<ManifestDownloadLink> downloadLinks) {}
+
+    private record ManifestDownloadLink(String version, String link) {}
+}

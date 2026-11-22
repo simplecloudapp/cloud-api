@@ -23,11 +23,12 @@ public class EventApiImpl implements EventApi {
     private final PlayerEventApi playerEventApi;
 
     public EventApiImpl(Connection natsClient, String networkId, PlayerApi playerApi) {
-        this.groupEventApi = new GroupEventApiImpl(natsClient, networkId);
-        this.serverEventApi = new ServerEventApiImpl(natsClient, networkId);
-        this.persistentServerEventApi = new PersistentServerEventApiImpl(natsClient, networkId);
-        this.blueprintEventApi = new BlueprintEventApiImpl(natsClient, networkId);
-        this.playerEventApi = new PlayerEventApiImpl(natsClient, networkId, playerApi);
+        EventSubscriber events = new EventSubscriber(natsClient, networkId);
+        this.groupEventApi = new GroupEventApiImpl(events);
+        this.serverEventApi = new ServerEventApiImpl(events);
+        this.persistentServerEventApi = new PersistentServerEventApiImpl(events);
+        this.blueprintEventApi = new BlueprintEventApiImpl(events);
+        this.playerEventApi = new PlayerEventApiImpl(events, natsClient, playerApi);
     }
 
     @Override
@@ -54,6 +55,4 @@ public class EventApiImpl implements EventApi {
     public PlayerEventApi player() {
         return playerEventApi;
     }
-
 }
-

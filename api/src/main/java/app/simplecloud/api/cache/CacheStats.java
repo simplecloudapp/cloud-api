@@ -1,72 +1,63 @@
 package app.simplecloud.api.cache;
 
+import org.jetbrains.annotations.ApiStatus;
+
 /**
  * Cache statistics for monitoring and debugging.
- *
- * <p>Example usage:
- * <pre>{@code
- * CacheStats stats = cloudApi.cache().getStats();
- * System.out.println(stats);
- * // Output: CacheStats[hits=42, misses=5, staleHits=3, evictions=0, entries=12, hitRate=89.36%]
- * }</pre>
  */
-public final class CacheStats {
-
-    private final long hitCount;
-    private final long missCount;
-    private final long staleHitCount;
-    private final long evictionCount;
-    private final long entryCount;
-    private final double hitRate;
-
-    public CacheStats(long hitCount, long missCount, long staleHitCount,
-                      long evictionCount, long entryCount, double hitRate) {
-        this.hitCount = hitCount;
-        this.missCount = missCount;
-        this.staleHitCount = staleHitCount;
-        this.evictionCount = evictionCount;
-        this.entryCount = entryCount;
-        this.hitRate = hitRate;
-    }
+public record CacheStats(
+        long hitCount, long missCount, long staleHitCount, long evictionCount, long entryCount, double hitRate) {
 
     /**
-     * Returns the number of cache hits (fresh data returned).
+     * @deprecated use {@link #hitCount()}; will be removed in 1.0.0
      */
+    @Deprecated(forRemoval = true)
+    @ApiStatus.ScheduledForRemoval(inVersion = "1.0.0")
     public long getHitCount() {
         return hitCount;
     }
 
     /**
-     * Returns the number of cache misses (network request required).
+     * @deprecated use {@link #missCount()}; will be removed in 1.0.0
      */
+    @Deprecated(forRemoval = true)
+    @ApiStatus.ScheduledForRemoval(inVersion = "1.0.0")
     public long getMissCount() {
         return missCount;
     }
 
     /**
-     * Returns the number of stale hits (stale data returned with background refresh).
+     * @deprecated use {@link #staleHitCount()}; will be removed in 1.0.0
      */
+    @Deprecated(forRemoval = true)
+    @ApiStatus.ScheduledForRemoval(inVersion = "1.0.0")
     public long getStaleHitCount() {
         return staleHitCount;
     }
 
     /**
-     * Returns the number of evictions.
+     * @deprecated use {@link #evictionCount()}; will be removed in 1.0.0
      */
+    @Deprecated(forRemoval = true)
+    @ApiStatus.ScheduledForRemoval(inVersion = "1.0.0")
     public long getEvictionCount() {
         return evictionCount;
     }
 
     /**
-     * Returns the current number of entries in the cache.
+     * @deprecated use {@link #entryCount()}; will be removed in 1.0.0
      */
+    @Deprecated(forRemoval = true)
+    @ApiStatus.ScheduledForRemoval(inVersion = "1.0.0")
     public long getEntryCount() {
         return entryCount;
     }
 
     /**
-     * Returns the cache hit rate (0.0 to 1.0).
+     * @deprecated use {@link #hitRate()}; will be removed in 1.0.0
      */
+    @Deprecated(forRemoval = true)
+    @ApiStatus.ScheduledForRemoval(inVersion = "1.0.0")
     public double getHitRate() {
         return hitRate;
     }
@@ -75,7 +66,6 @@ public final class CacheStats {
     public String toString() {
         return String.format(
                 "CacheStats[hits=%d, misses=%d, staleHits=%d, evictions=%d, entries=%d, hitRate=%.2f%%]",
-                hitCount, missCount, staleHitCount, evictionCount, entryCount, hitRate * 100
-        );
+                hitCount, missCount, staleHitCount, evictionCount, entryCount, hitRate * 100);
     }
 }

@@ -1,247 +1,444 @@
 package app.simplecloud.api.internal.group;
 
-import app.simplecloud.api.CloudApiOptions;
-import app.simplecloud.api.cache.QueryCache;
-import app.simplecloud.api.cache.QueryKey;
 import app.simplecloud.api.blueprint.CreateBlueprintRequest;
-import app.simplecloud.api.group.*;
-import app.simplecloud.api.internal.blueprint.InlineBlueprintSupport;
-import app.simplecloud.api.internal.create.CreateRequestDefaults;
-import app.simplecloud.api.internal.web.ApiClients;
-import app.simplecloud.api.internal.web.ApiErrors;
-import app.simplecloud.api.internal.web.Identifiers;
+import app.simplecloud.api.cache.QueryKey;
+import app.simplecloud.api.group.CreateGroupRequest;
+import app.simplecloud.api.group.Group;
+import app.simplecloud.api.group.GroupApi;
+import app.simplecloud.api.group.GroupQuery;
+import app.simplecloud.api.group.GroupServerType;
+import app.simplecloud.api.group.GroupStartQueue;
+import app.simplecloud.api.group.GroupStartQueueEntry;
+import app.simplecloud.api.group.GroupStartQueueItem;
+import app.simplecloud.api.group.GroupStartQueueItemStatus;
+import app.simplecloud.api.group.RollingRestartStatus;
+import app.simplecloud.api.group.ScalingConfig;
+import app.simplecloud.api.group.UpdateGroupRequest;
+import app.simplecloud.api.group.WorkflowsConfig;
+import app.simplecloud.api.internal.ApiContext;
+import app.simplecloud.api.internal.persistentserver.PersistentServerImpl;
+import app.simplecloud.api.internal.util.ConfigMergeUtil;
+import app.simplecloud.api.internal.util.ModelConversionUtil;
+import app.simplecloud.api.internal.util.RequestDefaults;
+import app.simplecloud.api.internal.util.ValidationUtil;
+import app.simplecloud.api.internal.util.blueprint.InlineBlueprintManager;
+import app.simplecloud.api.internal.web.ApiCalls;
+import app.simplecloud.api.internal.web.ApiExceptions;
+import app.simplecloud.api.persistentserver.PersistentServer;
 import app.simplecloud.api.web.ApiException;
-import app.simplecloud.api.web.ApiClient;
 import app.simplecloud.api.web.apis.BlueprintsApi;
 import app.simplecloud.api.web.apis.ServerGroupsApi;
-import app.simplecloud.api.web.models.*;
-import org.jetbrains.annotations.Nullable;
-
-import java.time.Duration;
+import app.simplecloud.api.web.models.ModelsConvertGroupToPersistentRequest;
+import app.simplecloud.api.web.models.ModelsCreateServerGroupRequest;
+import app.simplecloud.api.web.models.ModelsCreateServerGroupResponse;
+import app.simplecloud.api.web.models.ModelsDeletePropertiesRequest;
+import app.simplecloud.api.web.models.ModelsDeletePropertiesResponse;
+import app.simplecloud.api.web.models.ModelsExecuteManualWorkflowRequest;
+import app.simplecloud.api.web.models.ModelsExecuteServerGroupWorkflowResponse;
+import app.simplecloud.api.web.models.ModelsListServerGroupStartQueueResponse;
+import app.simplecloud.api.web.models.ModelsListServerGroupsResponse;
+import app.simplecloud.api.web.models.ModelsManualServerStartQueueItem;
+import app.simplecloud.api.web.models.ModelsPatchPropertiesRequest;
+import app.simplecloud.api.web.models.ModelsPatchPropertiesResponse;
+import app.simplecloud.api.web.models.ModelsPatchServerGroupRequest;
+import app.simplecloud.api.web.models.ModelsQueueServerGroupStartRequest;
+import app.simplecloud.api.web.models.ModelsRollingRestartRequest;
+import app.simplecloud.api.web.models.ModelsRollingRestartStatusResponse;
+import app.simplecloud.api.web.models.ModelsServerGroupStartQueueEntry;
+import app.simplecloud.api.web.models.ModelsServerGroupSummary;
+import app.simplecloud.api.web.models.ModelsStopAllServersResponse;
+import app.simplecloud.api.web.models.ModelsUpdatePropertiesRequest;
+import app.simplecloud.api.web.models.ModelsUpdatePropertiesResponse;
+import app.simplecloud.api.web.models.ModelsUpdateServerGroupRequest;
+import app.simplecloud.api.workflow.WorkflowExecutionResult;
 import java.util.HashMap;
 import java.util.List;
 import java.util.Map;
 import java.util.Objects;
 import java.util.Optional;
 import java.util.concurrent.CompletableFuture;
-import java.util.concurrent.Executor;
-import java.util.concurrent.ForkJoinPool;
+import java.util.function.Predicate;
+import org.jetbrains.annotations.Nullable;
 
 public class GroupApiImpl implements GroupApi {
-    private static final Duration TRANSIENT_MISS_RETRY_DELAY = Duration.ofMillis(200);
-    private static final int TRANSIENT_MISS_MAX_RETRIES = 2;
-
-    private final CloudApiOptions options;
+    private final ApiContext context;
     private final ServerGroupsApi serverGroupsApi;
-    private final InlineBlueprintSupport inlineBlueprintSupport;
-    private final CreateRequestDefaults createRequestDefaults;
-    private final QueryCache cache;
-    private final Executor executor;
+    private final InlineBlueprintManager inlineBlueprintManager;
+    private final RequestDefaults requestDefaults = new RequestDefaults();
 
-    public GroupApiImpl(CloudApiOptions options, QueryCache cache) {
-        this(options, cache, ApiClients.create(options));
-    }
-
-    public GroupApiImpl(CloudApiOptions options, QueryCache cache, ApiClient httpClient) {
-        this(options, cache, httpClient, ForkJoinPool.commonPool());
-    }
-
-    public GroupApiImpl(CloudApiOptions options, QueryCache cache, ApiClient httpClient, Executor executor) {
+    public GroupApiImpl(ApiContext context, InlineBlueprintManager.ServerUrlResolver serverUrlResolver) {
         this(
-                options,
-                cache,
-                createServerGroupsApi(options, httpClient),
-                new InlineBlueprintSupport(options, createBlueprintsApi(options, httpClient)),
-                executor
-        );
+                context,
+                context.api(ServerGroupsApi::new),
+                new InlineBlueprintManager(context.options(), context.api(BlueprintsApi::new), serverUrlResolver));
     }
 
-    GroupApiImpl(CloudApiOptions options,
-                 QueryCache cache,
-                 ServerGroupsApi serverGroupsApi,
-                 BlueprintsApi blueprintsApi) {
-        this(options, cache, serverGroupsApi, new InlineBlueprintSupport(options, blueprintsApi), ForkJoinPool.commonPool());
-    }
-
-    GroupApiImpl(CloudApiOptions options,
-                 QueryCache cache,
-                 ServerGroupsApi serverGroupsApi,
-                 BlueprintsApi blueprintsApi,
-                 InlineBlueprintSupport.ServerUrlResolver serverUrlResolver) {
-        this(
-                options,
-                cache,
-                serverGroupsApi,
-                new InlineBlueprintSupport(options, blueprintsApi, serverUrlResolver),
-                ForkJoinPool.commonPool()
-        );
-    }
-
-    private GroupApiImpl(CloudApiOptions options,
-                         QueryCache cache,
-                         ServerGroupsApi serverGroupsApi,
-                         InlineBlueprintSupport inlineBlueprintSupport,
-                         Executor executor) {
-        this.options = options;
-        this.cache = cache;
+    GroupApiImpl(ApiContext context, ServerGroupsApi serverGroupsApi, InlineBlueprintManager inlineBlueprintManager) {
+        this.context = context;
         this.serverGroupsApi = serverGroupsApi;
-        this.inlineBlueprintSupport = inlineBlueprintSupport;
-        this.createRequestDefaults = new CreateRequestDefaults();
-        this.executor = executor;
+        this.inlineBlueprintManager = inlineBlueprintManager;
     }
 
     @Override
     public CompletableFuture<GroupStartQueue> getServerStartQueue() {
-        return CompletableFuture.supplyAsync(() -> {
-            try {
-                ModelsListServerGroupStartQueueResponse response = serverGroupsApi.listServerGroupStartQueue(
-                        options.getNetworkId()
-                );
+        return ApiCalls.supplyAsync(
+                () -> {
+                    ModelsListServerGroupStartQueueResponse response =
+                            serverGroupsApi.listServerGroupStartQueue(context.networkId());
+                    List<GroupStartQueueEntry> items = Objects.requireNonNullElse(
+                                    response.getItems(), List.<ModelsServerGroupStartQueueEntry>of())
+                            .stream()
+                            .map(this::convertStartQueueEntry)
+                            .toList();
 
-                List<GroupStartQueueEntry> items = response.getItems() == null
-                        ? List.of()
-                        : response.getItems().stream()
-                        .map(this::convertStartQueueEntry)
-                        .toList();
-
-                return new GroupStartQueue(
-                        intValue(response.getCount()),
-                        intValue(response.getFailedStarts()),
-                        items,
-                        intValue(response.getQueuedStarts()),
-                        intValue(response.getTotalStarts())
-                );
-            } catch (ApiException e) {
-                throw ApiErrors.from(e);
-            }
-        }, executor);
+                    return new GroupStartQueue(
+                            intValue(response.getCount()),
+                            intValue(response.getFailedStarts()),
+                            items,
+                            intValue(response.getQueuedStarts()),
+                            intValue(response.getTotalStarts()));
+                },
+                context.executor());
     }
 
     @Override
     public CompletableFuture<Void> requestServerStart(String serverGroupId) {
-        return CompletableFuture.runAsync(() -> {
-            String normalizedServerGroupId = normalize(serverGroupId);
-            if (normalizedServerGroupId == null) {
-                throw new IllegalArgumentException("serverGroupId must not be blank");
-            }
-
-            try {
-                ModelsQueueServerGroupStartRequest request = new ModelsQueueServerGroupStartRequest();
-                request.setServerGroupId(normalizedServerGroupId);
-
-                serverGroupsApi.queueServerGroupStart(
-                        options.getNetworkId(),
-                        request
-                );
-            } catch (ApiException e) {
-                throw ApiErrors.from(e);
-            }
-        }, executor);
+        return ApiCalls.runAsync(
+                () -> {
+                    ModelsQueueServerGroupStartRequest request = new ModelsQueueServerGroupStartRequest();
+                    request.setServerGroupId(requireServerGroupId(serverGroupId));
+                    serverGroupsApi.queueServerGroupStart(context.networkId(), request);
+                },
+                context.executor());
     }
 
     @Override
     public CompletableFuture<Void> clearServerStartQueue(String serverGroupId) {
-        return CompletableFuture.runAsync(() -> {
-            String normalizedServerGroupId = normalize(serverGroupId);
-            if (normalizedServerGroupId == null) {
-                throw new IllegalArgumentException("serverGroupId must not be blank");
-            }
-
-            try {
-                serverGroupsApi.clearServerGroupStartQueue(
-                        options.getNetworkId(),
-                        normalizedServerGroupId
-                );
-            } catch (ApiException e) {
-                throw ApiErrors.from(e);
-            }
-        }, executor);
+        return ApiCalls.runAsync(
+                () -> serverGroupsApi.clearServerGroupStartQueue(
+                        context.networkId(), requireServerGroupId(serverGroupId)),
+                context.executor());
     }
 
     @Override
     public CompletableFuture<Group> getGroupByName(String name) {
-        return findGroupByName(name).thenApply(group -> group.orElseThrow(
-                () -> ApiErrors.notFound("Group '" + name + "' not found")
-        ));
+        return findGroupByName(name).thenApply(ApiExceptions.orNotFound("Group '" + name + "' not found"));
     }
 
     @Override
     public CompletableFuture<Optional<Group>> findGroupByName(String name) {
-        QueryKey key = QueryKey.of("group", "name", name);
-
-        return cache.fetchWithTransientMissRecovery(
-                key,
-                () -> fetchGroupByNameFromController(name),
-                Objects::isNull,
-                TRANSIENT_MISS_RETRY_DELAY,
-                TRANSIENT_MISS_MAX_RETRIES
-        ).thenApply(Optional::ofNullable);
+        return findFirst(QueryKey.of("group", "name", name), null, name, summary -> name.equals(summary.getName()));
     }
 
     @Override
     public CompletableFuture<Group> getGroupById(String id) {
-        return findGroupById(id).thenApply(group -> group.orElseThrow(
-                () -> ApiErrors.notFound("Group with ID '" + id + "' not found")
-        ));
+        return findGroupById(id).thenApply(ApiExceptions.orNotFound("Group with ID '" + id + "' not found"));
     }
 
     @Override
     public CompletableFuture<Optional<Group>> findGroupById(String id) {
-        if (!Identifiers.isUuid(id)) {
+        if (!ValidationUtil.isUuid(id)) {
             return CompletableFuture.completedFuture(Optional.empty());
         }
-        QueryKey key = QueryKey.of("group", id);
-
-        return cache.fetchWithTransientMissRecovery(
-                key,
-                () -> fetchGroupByIdFromController(id),
-                Objects::isNull,
-                TRANSIENT_MISS_RETRY_DELAY,
-                TRANSIENT_MISS_MAX_RETRIES
-        ).thenApply(Optional::ofNullable);
+        return findFirst(
+                QueryKey.of("group", id), id, null, summary -> id.equalsIgnoreCase(summary.getServerGroupId()));
     }
 
     @Override
-    public CompletableFuture<List<Group>> getAllGroups(@org.jetbrains.annotations.Nullable GroupQuery query) {
-        QueryKey key = buildQueryKey(query);
-
-        return cache.fetch(key, () -> CompletableFuture.supplyAsync(() -> {
-            try {
-                ModelsListServerGroupsResponse response = executeQuery(query);
-                List<ModelsServerGroupSummary> groups = response.getServerGroups();
-                if (groups == null) {
-                    return List.of();
-                }
-
-                return groups.stream()
-                        .<Group>map(GroupImpl::new)
-                        .toList();
-            } catch (ApiException e) {
-                throw ApiErrors.from(e);
-            }
-        }, executor));
+    public CompletableFuture<List<Group>> getAllGroups(@Nullable GroupQuery query) {
+        return context.cache()
+                .fetch(
+                        buildQueryKey(query),
+                        () -> ApiCalls.supplyAsync(
+                                () -> listGroups(query, null, null).stream()
+                                        .<Group>map(GroupImpl::from)
+                                        .toList(),
+                                context.executor()));
     }
 
-    private QueryKey buildQueryKey(@org.jetbrains.annotations.Nullable GroupQuery query) {
-        if (query == null) {
-            return QueryKey.of("groups");
-        }
-        return QueryKey.of("groups", "query",
-                query.getType(),
-                query.getTag(),
-                query.getLimit()
-        );
+    @Override
+    public CompletableFuture<Group> createGroup(CreateGroupRequest request) {
+        return ApiCalls.supplyAsync(
+                () -> {
+                    WorkflowsConfig workflows = requestDefaults.defaultWorkflows(request.getWorkflows());
+                    CreateBlueprintRequest createBlueprint =
+                            requestDefaults.defaultInlineBlueprint(request.getCreateBlueprint(), workflows);
+                    GroupServerType type = requestDefaults.defaultType(request.getType());
+
+                    ModelsCreateServerGroupRequest apiRequest = new ModelsCreateServerGroupRequest();
+                    apiRequest.setName(request.getName());
+                    apiRequest.setType(ModelsCreateServerGroupRequest.TypeEnum.valueOf(type.name()));
+                    apiRequest.setMinMemory(request.getMinMemory());
+                    apiRequest.setMaxMemory(request.getMaxMemory());
+                    apiRequest.setMaxPlayers(requestDefaults.defaultMaxPlayers(request.getMaxPlayers()));
+                    apiRequest.setActive(requestDefaults.defaultActive(request.getActive()));
+                    apiRequest.setPriority(request.getPriority());
+                    apiRequest.setProperties(requestDefaults.defaultProperties(request.getProperties()));
+                    apiRequest.setTags(requestDefaults.defaultTags(request.getName(), request.getTags()));
+                    apiRequest.setDeployment(
+                            ModelConversionUtil.toModel(requestDefaults.defaultDeployment(request.getDeployment())));
+                    apiRequest.setScaling(
+                            ModelConversionUtil.toModel(requestDefaults.defaultGroupScaling(request.getScaling())));
+                    apiRequest.setWorkflows(ModelConversionUtil.toModel(workflows));
+
+                    inlineBlueprintManager.validateInlineBlueprintSource(createBlueprint, request.getSource());
+                    String blueprintId = inlineBlueprintManager.createBlueprint(request.getName(), createBlueprint);
+                    if (blueprintId != null) {
+                        InlineBlueprintManager.invalidateCache(context.cache(), null);
+                    }
+                    apiRequest.setSource(ModelConversionUtil.toModel(
+                            inlineBlueprintManager.resolveSource(request.getSource(), blueprintId)));
+
+                    ModelsCreateServerGroupResponse response;
+                    try {
+                        response = serverGroupsApi.createServerGroup(context.networkId(), apiRequest);
+                    } catch (ApiException e) {
+                        throw inlineBlueprintManager.rollBackAfterCreateFailure(blueprintId, e);
+                    }
+
+                    invalidateLists();
+                    return GroupImpl.from(response);
+                },
+                context.executor());
     }
 
-    private ModelsListServerGroupsResponse executeQuery(@org.jetbrains.annotations.Nullable GroupQuery query) throws ApiException {
-        return executeQuery(query, null, null);
+    @Override
+    public CompletableFuture<Group> updateGroup(String id, UpdateGroupRequest request) {
+        return ApiCalls.supplyAsync(
+                () -> {
+                    ModelsPatchServerGroupRequest apiRequest = new ModelsPatchServerGroupRequest();
+                    apiRequest.setName(request.getName());
+                    if (request.getType() != null) {
+                        apiRequest.setType(ModelsPatchServerGroupRequest.TypeEnum.valueOf(
+                                request.getType().name()));
+                    }
+                    apiRequest.setMinMemory(request.getMinMemory());
+                    apiRequest.setMaxMemory(request.getMaxMemory());
+                    apiRequest.setMaxPlayers(request.getMaxPlayers());
+                    apiRequest.setActive(request.getActive());
+                    apiRequest.setPriority(request.getPriority());
+                    apiRequest.setProperties(request.getProperties());
+                    apiRequest.setTags(request.getTags());
+                    Group current = request.getDeployment() != null
+                                    || request.getScaling() != null
+                                    || request.getWorkflows() != null
+                            ? findCurrentGroup(id)
+                            : null;
+                    apiRequest.setDeployment(ModelConversionUtil.toModel(ConfigMergeUtil.merge(
+                            current != null ? current.getDeployment() : null, request.getDeployment())));
+                    ScalingConfig scaling =
+                            ConfigMergeUtil.merge(current != null ? current.getScaling() : null, request.getScaling());
+                    if (scaling != null) {
+                        apiRequest.setScaling(
+                                ModelConversionUtil.toModel(requestDefaults.defaultGroupScaling(scaling)));
+                    }
+                    apiRequest.setSource(ModelConversionUtil.toModel(request.getSource()));
+                    apiRequest.setWorkflows(ModelConversionUtil.toModel(ConfigMergeUtil.merge(
+                            current != null ? current.getWorkflows() : null, request.getWorkflows())));
+
+                    Group group = GroupImpl.from(serverGroupsApi.patchServerGroup(context.networkId(), id, apiRequest));
+                    context.cache().set(QueryKey.of("group", id), group);
+                    invalidateLists();
+                    invalidateServers();
+                    return group;
+                },
+                context.executor());
     }
 
-    private ModelsListServerGroupsResponse executeQuery(@Nullable GroupQuery query,
-                                                         @Nullable String serverGroupId,
-                                                         @Nullable String name) throws ApiException {
-        return serverGroupsApi.listServerGroups(
-                this.options.getNetworkId(),
+    @Override
+    public CompletableFuture<Group> replaceGroup(String id, CreateGroupRequest request) {
+        return ApiCalls.supplyAsync(
+                () -> {
+                    if (request.getCreateBlueprint() != null) {
+                        throw new IllegalArgumentException("createBlueprint is not supported when replacing a group");
+                    }
+                    GroupServerType type = requestDefaults.defaultType(request.getType());
+
+                    ModelsUpdateServerGroupRequest apiRequest = new ModelsUpdateServerGroupRequest();
+                    apiRequest.setName(request.getName());
+                    apiRequest.setType(ModelsUpdateServerGroupRequest.TypeEnum.valueOf(type.name()));
+                    apiRequest.setMinMemory(request.getMinMemory());
+                    apiRequest.setMaxMemory(request.getMaxMemory());
+                    apiRequest.setMaxPlayers(requestDefaults.defaultMaxPlayers(request.getMaxPlayers()));
+                    apiRequest.setActive(requestDefaults.defaultActive(request.getActive()));
+                    apiRequest.setPriority(request.getPriority());
+                    apiRequest.setProperties(requestDefaults.defaultProperties(request.getProperties()));
+                    apiRequest.setTags(requestDefaults.defaultTags(request.getName(), request.getTags()));
+                    apiRequest.setDeployment(
+                            ModelConversionUtil.toModel(requestDefaults.defaultDeployment(request.getDeployment())));
+                    apiRequest.setScaling(
+                            ModelConversionUtil.toModel(requestDefaults.defaultGroupScaling(request.getScaling())));
+                    apiRequest.setWorkflows(
+                            ModelConversionUtil.toModel(requestDefaults.defaultWorkflows(request.getWorkflows())));
+                    apiRequest.setSource(ModelConversionUtil.toModel(request.getSource()));
+
+                    Group group =
+                            GroupImpl.from(serverGroupsApi.updateServerGroup(context.networkId(), id, apiRequest));
+                    context.cache().set(QueryKey.of("group", id), group);
+                    invalidateLists();
+                    invalidateServers();
+                    return group;
+                },
+                context.executor());
+    }
+
+    @Override
+    public CompletableFuture<Void> deleteGroup(String id) {
+        return ApiCalls.runAsync(
+                () -> {
+                    String blueprintId = findAttachedBlueprintId(id);
+                    serverGroupsApi.deleteServerGroup(context.networkId(), id);
+                    invalidate(id);
+
+                    inlineBlueprintManager.deleteBlueprintOfDeletedResource(blueprintId);
+                    InlineBlueprintManager.invalidateCache(context.cache(), blueprintId);
+                },
+                context.executor());
+    }
+
+    @Override
+    public CompletableFuture<Map<String, Object>> updateGroupProperties(String id, Map<String, Object> properties) {
+        return ApiCalls.supplyAsync(
+                () -> {
+                    ModelsPatchPropertiesRequest request = new ModelsPatchPropertiesRequest();
+                    request.setProperties(properties);
+                    ModelsPatchPropertiesResponse response =
+                            serverGroupsApi.patchServerGroupProperties(context.networkId(), id, request);
+                    invalidate(id);
+                    return Objects.requireNonNullElseGet(response.getProperties(), HashMap::new);
+                },
+                context.executor());
+    }
+
+    @Override
+    public CompletableFuture<Map<String, Object>> setGroupProperties(String id, Map<String, Object> properties) {
+        return ApiCalls.supplyAsync(
+                () -> {
+                    ModelsUpdatePropertiesRequest request = new ModelsUpdatePropertiesRequest();
+                    request.setProperties(properties);
+                    ModelsUpdatePropertiesResponse response =
+                            serverGroupsApi.updateServerGroupProperties(context.networkId(), id, request);
+                    invalidate(id);
+                    return Objects.requireNonNullElseGet(response.getProperties(), HashMap::new);
+                },
+                context.executor());
+    }
+
+    @Override
+    public CompletableFuture<Void> startRollingRestart(String id) {
+        return ApiCalls.runAsync(
+                () -> {
+                    ModelsRollingRestartRequest request = new ModelsRollingRestartRequest();
+                    request.setServerGroupId(id);
+                    serverGroupsApi.startRollingRestart(context.networkId(), request);
+                },
+                context.executor());
+    }
+
+    @Override
+    public CompletableFuture<RollingRestartStatus> getRollingRestartStatus(String id) {
+        return ApiCalls.supplyAsync(
+                () -> {
+                    ModelsRollingRestartStatusResponse response =
+                            serverGroupsApi.getRollingRestartStatus(context.networkId(), id);
+                    String timestamp = response.getTimestamp();
+                    return new RollingRestartStatus(
+                            Objects.requireNonNullElse(response.getGroupId(), id),
+                            Boolean.TRUE.equals(response.getActive()),
+                            timestamp == null || timestamp.isEmpty() ? null : timestamp);
+                },
+                context.executor());
+    }
+
+    @Override
+    public CompletableFuture<Void> cancelRollingRestart(String id) {
+        return ApiCalls.runAsync(
+                () -> serverGroupsApi.cancelRollingRestart(context.networkId(), id), context.executor());
+    }
+
+    @Override
+    public CompletableFuture<Integer> stopAllServers(String id) {
+        return ApiCalls.supplyAsync(
+                () -> {
+                    ModelsStopAllServersResponse response =
+                            serverGroupsApi.stopAllServers(context.networkId(), id, null);
+                    invalidateServers();
+                    return intValue(response.getServersStopped());
+                },
+                context.executor());
+    }
+
+    @Override
+    public CompletableFuture<WorkflowExecutionResult> executeWorkflow(String id, String workflowId) {
+        return ApiCalls.supplyAsync(
+                () -> {
+                    ModelsExecuteManualWorkflowRequest request = new ModelsExecuteManualWorkflowRequest();
+                    request.setWorkflowId(workflowId);
+                    ModelsExecuteServerGroupWorkflowResponse response =
+                            serverGroupsApi.executeServerGroupWorkflow(context.networkId(), id, request);
+                    return ModelConversionUtil.toWorkflowExecutionResult(
+                            workflowId,
+                            response.getWorkflowId(),
+                            response.getTotalServers(),
+                            response.getSucceededServerIds(),
+                            response.getSkippedServerIds(),
+                            response.getFailedServers());
+                },
+                context.executor());
+    }
+
+    @Override
+    public CompletableFuture<PersistentServer> convertToPersistentServer(String id, String serverhostId) {
+        return ApiCalls.supplyAsync(
+                () -> {
+                    ModelsConvertGroupToPersistentRequest request = new ModelsConvertGroupToPersistentRequest();
+                    request.setServerhostId(serverhostId);
+                    PersistentServer persistentServer = PersistentServerImpl.from(
+                            serverGroupsApi.convertGroupToPersistent(context.networkId(), id, request));
+                    invalidate(id);
+                    context.cache().invalidateAll(QueryKey.of("persistentServers"));
+                    context.cache().invalidateAll(QueryKey.of("persistentServer"));
+                    return persistentServer;
+                },
+                context.executor());
+    }
+
+    @Override
+    public CompletableFuture<Map<String, Object>> deleteGroupProperties(String id, List<String> keys) {
+        return ApiCalls.supplyAsync(
+                () -> {
+                    ModelsDeletePropertiesRequest request = new ModelsDeletePropertiesRequest();
+                    request.setKeys(keys);
+                    ModelsDeletePropertiesResponse response =
+                            serverGroupsApi.deleteServerGroupProperties(context.networkId(), id, request);
+                    invalidate(id);
+                    return Objects.requireNonNullElseGet(response.getProperties(), HashMap::new);
+                },
+                context.executor());
+    }
+
+    private CompletableFuture<Optional<Group>> findFirst(
+            QueryKey key,
+            @Nullable String serverGroupId,
+            @Nullable String name,
+            Predicate<ModelsServerGroupSummary> filter) {
+        return context.fetchWithTransientMissRecovery(
+                        key,
+                        () -> ApiCalls.supplyAsync(
+                                () -> listGroups(null, serverGroupId, name).stream()
+                                        .filter(filter)
+                                        .findFirst()
+                                        .<Group>map(GroupImpl::from)
+                                        .orElse(null),
+                                context.executor()),
+                        Objects::isNull)
+                .thenApply(Optional::ofNullable);
+    }
+
+    private List<ModelsServerGroupSummary> listGroups(
+            @Nullable GroupQuery query, @Nullable String serverGroupId, @Nullable String name) throws ApiException {
+        ModelsListServerGroupsResponse response = serverGroupsApi.listServerGroups(
+                context.networkId(),
                 serverGroupId,
                 name,
                 query != null && query.getType() != null ? query.getType().name() : null,
@@ -250,408 +447,56 @@ public class GroupApiImpl implements GroupApi {
                 null,
                 null,
                 query != null ? query.getLimit() : null,
-                null
-        );
+                null);
+        return Objects.requireNonNullElse(response.getServerGroups(), List.of());
     }
 
-    private boolean groupExistsWithBlueprint(String name, @Nullable String blueprintId) {
-        if (blueprintId == null) {
-            return false;
+    private QueryKey buildQueryKey(@Nullable GroupQuery query) {
+        if (query == null) {
+            return QueryKey.of("groups");
         }
-
-        try {
-            ModelsListServerGroupsResponse response = executeQuery(null, null, name);
-            List<ModelsServerGroupSummary> groups = response.getServerGroups();
-            if (groups == null) {
-                return false;
-            }
-
-            return groups.stream()
-                    .anyMatch(summary -> name.equals(summary.getName()) && sourceReferencesBlueprint(summary.getSource(), blueprintId));
-        } catch (ApiException e) {
-            throw ApiErrors.from(e);
-        }
+        return QueryKey.of("groups", "query", query.getType(), query.getTag(), query.getLimit());
     }
 
-    private CompletableFuture<Group> fetchGroupByNameFromController(String name) {
-        return CompletableFuture.supplyAsync(() -> {
-            try {
-                ModelsListServerGroupsResponse response = executeQuery(null, null, name);
-                List<ModelsServerGroupSummary> groups = response.getServerGroups();
-                if (groups == null) {
-                    return null;
-                }
-
-                return groups.stream()
-                        .filter(summary -> name.equals(summary.getName()))
-                        .findFirst()
-                        .<Group>map(GroupImpl::new)
-                        .orElse(null);
-            } catch (ApiException e) {
-                throw ApiErrors.from(e);
-            }
-        }, executor);
+    private @Nullable Group findCurrentGroup(String groupId) throws ApiException {
+        return listGroups(null, groupId, null).stream()
+                .filter(group -> groupId.equalsIgnoreCase(group.getServerGroupId()))
+                .findFirst()
+                .<Group>map(GroupImpl::from)
+                .orElse(null);
     }
 
-    private CompletableFuture<Group> fetchGroupByIdFromController(String id) {
-        return CompletableFuture.supplyAsync(() -> {
-            try {
-                ModelsListServerGroupsResponse response = executeQuery(null, id, null);
-                List<ModelsServerGroupSummary> groups = response.getServerGroups();
-                if (groups == null) {
-                    return null;
-                }
-
-                return groups.stream()
-                        .filter(summary -> id.equals(summary.getServerGroupId()))
-                        .findFirst()
-                        .<Group>map(GroupImpl::new)
-                        .orElse(null);
-            } catch (ApiException e) {
-                throw ApiErrors.from(e);
-            }
-        }, executor);
-    }
-
-    @Override
-    public CompletableFuture<Group> createGroup(CreateGroupRequest request) {
-        return CompletableFuture.supplyAsync(() -> {
-            WorkflowsConfig effectiveWorkflows = createRequestDefaults.defaultWorkflows(request.getWorkflows());
-            CreateBlueprintRequest effectiveCreateBlueprint = createRequestDefaults.defaultInlineBlueprint(
-                    request.getCreateBlueprint(),
-                    effectiveWorkflows
-            );
-            GroupServerType effectiveType = createRequestDefaults.defaultType(request.getType());
-            int effectiveMaxPlayers = createRequestDefaults.defaultMaxPlayers(request.getMaxPlayers());
-            boolean effectiveActive = createRequestDefaults.defaultActive(request.getActive());
-            Map<String, Object> effectiveProperties = createRequestDefaults.defaultProperties(request.getProperties());
-            List<String> effectiveTags = createRequestDefaults.defaultTags(request.getName(), request.getTags());
-            DeploymentConfig effectiveDeployment = createRequestDefaults.defaultDeployment(request.getDeployment());
-            ScalingConfig effectiveScaling = createRequestDefaults.defaultGroupScaling(request.getScaling());
-
-            inlineBlueprintSupport.validateInlineBlueprintSource(effectiveCreateBlueprint, request.getSource());
-
-            ModelsCreateServerGroupRequest apiRequest = new ModelsCreateServerGroupRequest();
-            apiRequest.setName(request.getName());
-            apiRequest.setType(ModelsCreateServerGroupRequest.TypeEnum.valueOf(effectiveType.name()));
-            apiRequest.setMinMemory(request.getMinMemory());
-            apiRequest.setMaxMemory(request.getMaxMemory());
-            apiRequest.setMaxPlayers(effectiveMaxPlayers);
-            apiRequest.setActive(effectiveActive);
-            apiRequest.setPriority(request.getPriority());
-            apiRequest.setProperties(effectiveProperties);
-            apiRequest.setTags(effectiveTags);
-            apiRequest.setDeployment(convertDeploymentConfig(effectiveDeployment));
-            apiRequest.setScaling(convertScalingConfig(effectiveScaling));
-            apiRequest.setWorkflows(convertWorkflowsConfig(effectiveWorkflows));
-
-            String createdBlueprintId;
-            try {
-                createdBlueprintId = inlineBlueprintSupport.createBlueprint(request.getName(), effectiveCreateBlueprint);
-                SourceConfig effectiveSource = createdBlueprintId != null
-                        ? inlineBlueprintSupport.buildInlineBlueprintSource(request.getSource(), createdBlueprintId)
-                        : request.getSource();
-                if (effectiveSource != null) {
-                    apiRequest.setSource(convertSourceConfig(effectiveSource));
-                }
-
-                ModelsCreateServerGroupResponse response;
-                try {
-                    response = serverGroupsApi.createServerGroup(
-                            this.options.getNetworkId(),
-                            apiRequest
-                    );
-                } catch (ApiException e) {
-                    String blueprintId = createdBlueprintId;
-                    throw inlineBlueprintSupport.rollBackAfterCreateFailure(
-                            "group",
-                            blueprintId,
-                            e,
-                            () -> groupExistsWithBlueprint(request.getName(), blueprintId)
-                    );
-                }
-
-                // Invalidate group list caches (new group created)
-                cache.invalidateAll(QueryKey.of("groups"));
-                cache.invalidateAll(QueryKey.of("group", "name"));
-
-                ModelsServerGroupSummary summary = new ModelsServerGroupSummary();
-                summary.setServerGroupId(response.getServerGroupId());
-                summary.setName(response.getName());
-                summary.setType(response.getType());
-                summary.setMinMemory(response.getMinMemory());
-                summary.setMaxMemory(response.getMaxMemory());
-                summary.setMaxPlayers(response.getMaxPlayers());
-                summary.setActive(response.getActive());
-                summary.setPriority(response.getPriority());
-                summary.setDeployment(response.getDeployment());
-                summary.setScaling(response.getScaling());
-                summary.setSource(response.getSource());
-                summary.setWorkflows(response.getWorkflows());
-                summary.setProperties(response.getProperties());
-                summary.setTags(response.getTags());
-                summary.setCreatedAt(response.getCreatedAt());
-                summary.setUpdatedAt(response.getUpdatedAt());
-
-                return new GroupImpl(summary);
-            } catch (ApiException e) {
-                throw ApiErrors.from(e);
-            }
-        }, executor);
-    }
-
-    @Override
-    public CompletableFuture<Group> updateGroup(String id, UpdateGroupRequest request) {
-        return CompletableFuture.supplyAsync(() -> {
-            try {
-                ModelsPatchServerGroupRequest apiRequest = new ModelsPatchServerGroupRequest();
-                apiRequest.setName(request.getName());
-                if (request.getType() != null) {
-                    apiRequest.setType(ModelsPatchServerGroupRequest.TypeEnum.valueOf(request.getType().name()));
-                }
-                apiRequest.setMinMemory(request.getMinMemory());
-                apiRequest.setMaxMemory(request.getMaxMemory());
-                apiRequest.setMaxPlayers(request.getMaxPlayers());
-                apiRequest.setActive(request.getActive());
-                apiRequest.setPriority(request.getPriority());
-                apiRequest.setProperties(request.getProperties());
-                apiRequest.setTags(request.getTags());
-
-                if (request.getDeployment() != null) {
-                    apiRequest.setDeployment(convertDeploymentConfig(request.getDeployment()));
-                }
-                if (request.getScaling() != null) {
-                    apiRequest.setScaling(convertScalingConfig(createRequestDefaults.defaultGroupScaling(request.getScaling())));
-                }
-                if (request.getSource() != null) {
-                    apiRequest.setSource(convertSourceConfig(request.getSource()));
-                }
-                if (request.getWorkflows() != null) {
-                    apiRequest.setWorkflows(convertWorkflowsConfig(request.getWorkflows()));
-                }
-
-                ModelsUpdateServerGroupResponse response = serverGroupsApi.patchServerGroup(
-                        this.options.getNetworkId(),
-                        id,
-                        apiRequest
-                );
-
-                ModelsServerGroupSummary summary = new ModelsServerGroupSummary();
-                summary.setServerGroupId(response.getServerGroupId());
-                summary.setName(response.getName());
-                summary.setType(response.getType());
-                summary.setMinMemory(response.getMinMemory());
-                summary.setMaxMemory(response.getMaxMemory());
-                summary.setMaxPlayers(response.getMaxPlayers());
-                summary.setActive(response.getActive());
-                summary.setPriority(response.getPriority());
-                summary.setDeployment(response.getDeployment());
-                summary.setScaling(response.getScaling());
-                summary.setSource(response.getSource());
-                summary.setWorkflows(response.getWorkflows());
-                summary.setProperties(response.getProperties());
-                summary.setTags(response.getTags());
-                summary.setCreatedAt(response.getCreatedAt());
-                summary.setUpdatedAt(response.getUpdatedAt());
-
-                Group group = new GroupImpl(summary);
-
-                // Update cache with new data and invalidate list caches
-                cache.set(QueryKey.of("group", id), group);
-                cache.invalidateAll(QueryKey.of("groups"));
-                cache.invalidateAll(QueryKey.of("group", "name"));
-
-                return group;
-            } catch (ApiException e) {
-                throw ApiErrors.from(e);
-            }
-        }, executor);
-    }
-
-    private ModelsDeploymentConfig convertDeploymentConfig(DeploymentConfig config) {
-        ModelsDeploymentConfig result = new ModelsDeploymentConfig();
-        if (config.getStrategy() != null) {
-            result.setStrategy(convertDeploymentStrategy(config.getStrategy()));
-        }
-
-        if (config.getHosts() != null) {
-            for (DeploymentHost host : config.getHosts()) {
-                ModelsDeploymentHost modelHost = new ModelsDeploymentHost();
-                modelHost.setName(host.getName());
-                modelHost.setPriority(host.getPriority());
-                result.addHostsItem(modelHost);
-            }
-        }
-
-        return result;
-    }
-
-    private String convertDeploymentStrategy(DeploymentStrategy strategy) {
-        return switch (strategy) {
-            case WHITELIST -> "whitelist";
-            case BLACKLIST -> "blacklist";
-            case RANDOM, PRIORITY, ROUND_ROBIN -> throw new IllegalArgumentException(
-                    "DeploymentStrategy." + strategy.name() + " is not supported by the controller REST API. Supported strategies are WHITELIST and BLACKLIST."
-            );
-        };
-    }
-
-    private ModelsScalingConfig convertScalingConfig(ScalingConfig config) {
-        ModelsScalingConfig result = new ModelsScalingConfig();
-        result.setAvailableSlots(config.getAvailableSlots());
-        result.setMaxServers(config.getMaxServers());
-        result.setMinServers(config.getMinServers());
-        result.setPlayerThreshold(java.math.BigDecimal.valueOf(config.getPlayerThreshold()));
-        if (config.getScalingMode() != null) {
-            result.setScalingMode(ModelsScalingMode.fromValue(convertScalingMode(config.getScalingMode())));
-        }
-
-        if (config.getScaleDown() != null) {
-            ModelsScaleDownConfig scaleDown = new ModelsScaleDownConfig();
-            scaleDown.setIdleTime(config.getScaleDown().getIdleTime());
-            scaleDown.setIgnorePlayers(config.getScaleDown().isIgnorePlayers());
-            result.setScaleDown(scaleDown);
-        }
-
-        return result;
-    }
-
-    private String convertScalingMode(ScalingMode scalingMode) {
-        return switch (scalingMode) {
-            case SLOTS -> "SLOTS";
-            case PLAYERS -> "SERVERS";
-            case MANUAL -> throw new IllegalArgumentException(
-                    "ScalingMode.MANUAL is not supported by the controller REST API. Supported modes are SLOTS and PLAYERS."
-            );
-        };
-    }
-
-    private ModelsSourceConfig convertSourceConfig(SourceConfig config) {
-        ModelsSourceConfig result = new ModelsSourceConfig();
-        if (config.getType() != null) {
-            result.setType(ModelsSourceConfig.TypeEnum.valueOf(config.getType().name()));
-        }
-        result.setBlueprint(config.getBlueprint());
-        result.setImage(config.getImage());
-        return result;
-    }
-
-    private ModelsWorkflowsConfig convertWorkflowsConfig(WorkflowsConfig config) {
-        ModelsWorkflowsConfig result = new ModelsWorkflowsConfig();
-        result.setManual(config.getManual());
-
-        if (config.getWhen() != null) {
-            ModelsWorkflowWhen when = new ModelsWorkflowWhen();
-            when.setStart(config.getWhen().getStart());
-            when.setStop(config.getWhen().getStop());
-            result.setWhen(when);
-        }
-
-        return result;
-    }
-
-    private boolean sourceReferencesBlueprint(@Nullable ModelsSourceConfig source, String blueprintId) {
-        return source != null && blueprintId.equals(source.getBlueprint());
-    }
-
-    @Nullable
-    private String findAttachedBlueprintId(String groupId) throws ApiException {
-        ModelsListServerGroupsResponse response = executeQuery(null, groupId, null);
-        List<ModelsServerGroupSummary> groups = response.getServerGroups();
-        if (groups == null) {
-            return null;
-        }
-
-        return groups.stream()
-                .filter(group -> groupId.equals(group.getServerGroupId()))
+    private @Nullable String findAttachedBlueprintId(String groupId) throws ApiException {
+        return listGroups(null, groupId, null).stream()
+                .filter(group -> groupId.equalsIgnoreCase(group.getServerGroupId()))
                 .map(ModelsServerGroupSummary::getSource)
-                .map(inlineBlueprintSupport::getReferencedBlueprintId)
+                .map(inlineBlueprintManager::getReferencedBlueprintId)
                 .filter(Objects::nonNull)
                 .findFirst()
                 .orElse(null);
     }
 
-    @Override
-    public CompletableFuture<Void> deleteGroup(String id) {
-        return CompletableFuture.runAsync(() -> {
-            try {
-                String blueprintId = findAttachedBlueprintId(id);
-
-                serverGroupsApi.deleteServerGroup(
-                        this.options.getNetworkId(),
-                        id
-                );
-
-                // Invalidate this group and list caches
-                cache.invalidate(QueryKey.of("group", id));
-                cache.invalidateAll(QueryKey.of("groups"));
-                cache.invalidateAll(QueryKey.of("group", "name"));
-
-                inlineBlueprintSupport.deleteBlueprint(blueprintId);
-            } catch (ApiException e) {
-                throw ApiErrors.from(e);
-            }
-        }, executor);
+    private void invalidate(String id) {
+        context.cache().invalidate(QueryKey.of("group", id));
+        invalidateLists();
+        invalidateServers();
     }
 
-    @Override
-    public CompletableFuture<Map<String, Object>> updateGroupProperties(String id, Map<String, Object> properties) {
-        return CompletableFuture.supplyAsync(() -> {
-            try {
-                ModelsPatchPropertiesRequest request = new ModelsPatchPropertiesRequest();
-                request.setProperties(properties);
-
-                ModelsPatchPropertiesResponse response = serverGroupsApi.patchServerGroupProperties(
-                        this.options.getNetworkId(),
-                        id,
-                        request
-                );
-
-                // Invalidate group cache (properties changed)
-                cache.invalidate(QueryKey.of("group", id));
-                cache.invalidateAll(QueryKey.of("groups"));
-                cache.invalidateAll(QueryKey.of("group", "name"));
-
-                Map<String, Object> result = response.getProperties();
-                return result != null ? result : new HashMap<>();
-            } catch (ApiException e) {
-                throw ApiErrors.from(e);
-            }
-        }, executor);
+    private void invalidateServers() {
+        context.cache().invalidateAll(QueryKey.of("servers"));
+        context.cache().invalidateAll(QueryKey.of("server"));
     }
 
-    @Override
-    public CompletableFuture<Map<String, Object>> deleteGroupProperties(String id, List<String> keys) {
-        return CompletableFuture.supplyAsync(() -> {
-            try {
-                ModelsDeletePropertiesRequest request = new ModelsDeletePropertiesRequest();
-                request.setKeys(keys);
-
-                ModelsDeletePropertiesResponse response = serverGroupsApi.deleteServerGroupProperties(
-                        this.options.getNetworkId(),
-                        id,
-                        request
-                );
-
-                // Invalidate group cache (properties changed)
-                cache.invalidate(QueryKey.of("group", id));
-                cache.invalidateAll(QueryKey.of("groups"));
-                cache.invalidateAll(QueryKey.of("group", "name"));
-
-                Map<String, Object> result = response.getProperties();
-                return result != null ? result : new HashMap<>();
-            } catch (ApiException e) {
-                throw ApiErrors.from(e);
-            }
-        }, executor);
+    private void invalidateLists() {
+        context.cache().invalidateAll(QueryKey.of("groups"));
+        context.cache().invalidateAll(QueryKey.of("group", "name"));
     }
 
     private GroupStartQueueEntry convertStartQueueEntry(ModelsServerGroupStartQueueEntry entry) {
-        List<GroupStartQueueItem> starts = entry.getStarts() == null
-                ? List.of()
-                : entry.getStarts().stream()
-                .map(this::convertStartQueueItem)
-                .toList();
+        List<GroupStartQueueItem> starts =
+                Objects.requireNonNullElse(entry.getStarts(), List.<ModelsManualServerStartQueueItem>of()).stream()
+                        .map(this::convertStartQueueItem)
+                        .toList();
 
         return new GroupStartQueueEntry(
                 intValue(entry.getFailedStarts()),
@@ -659,8 +504,7 @@ public class GroupApiImpl implements GroupApi {
                 entry.getServerGroupId(),
                 entry.getServerGroupName(),
                 starts,
-                intValue(entry.getTotalStarts())
-        );
+                intValue(entry.getTotalStarts()));
     }
 
     private GroupStartQueueItem convertStartQueueItem(ModelsManualServerStartQueueItem item) {
@@ -669,30 +513,17 @@ public class GroupApiImpl implements GroupApi {
                 item.getCreatedAt(),
                 item.getFailureReason(),
                 item.getId(),
-                GroupStartQueueItemStatus.fromApiValue(statusValue)
-        );
+                GroupStartQueueItemStatus.fromApiValue(statusValue));
     }
 
-    private int intValue(Integer value) {
+    private static int intValue(@Nullable Integer value) {
         return value != null ? value : 0;
     }
 
-    private String normalize(String value) {
-        if (value == null || value.isBlank()) {
-            return null;
+    private static String requireServerGroupId(@Nullable String serverGroupId) {
+        if (serverGroupId == null || serverGroupId.isBlank()) {
+            throw new IllegalArgumentException("serverGroupId must not be blank");
         }
-        return value;
-    }
-
-    private static ServerGroupsApi createServerGroupsApi(CloudApiOptions options, ApiClient httpClient) {
-        ServerGroupsApi api = new ServerGroupsApi(httpClient);
-        api.setCustomBaseUrl(options.getControllerUrl());
-        return api;
-    }
-
-    private static BlueprintsApi createBlueprintsApi(CloudApiOptions options, ApiClient httpClient) {
-        BlueprintsApi api = new BlueprintsApi(httpClient);
-        api.setCustomBaseUrl(options.getControllerUrl());
-        return api;
+        return serverGroupId;
     }
 }

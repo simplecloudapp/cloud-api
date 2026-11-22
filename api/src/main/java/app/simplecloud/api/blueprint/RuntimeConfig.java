@@ -1,38 +1,32 @@
 package app.simplecloud.api.blueprint;
 
+import java.util.Map;
+import org.jetbrains.annotations.ApiStatus;
 import org.jetbrains.annotations.Nullable;
 
-import java.util.Map;
+public record RuntimeConfig(
+        @Nullable RuntimeType type, @Nullable Map<String, Object> with) {
 
-public class RuntimeConfig {
-    @Nullable
-    private RuntimeType type;
-    @Nullable
-    private Map<String, Object> with;
+    /**
+     * @deprecated use {@link #type()}; will be removed in 1.0.0
+     */
+    @Deprecated(forRemoval = true)
+    @ApiStatus.ScheduledForRemoval(inVersion = "1.0.0")
+    @Nullable public RuntimeType getType() {
+        return type;
+    }
 
-    public RuntimeConfig() {
+    /**
+     * @deprecated use {@link #with()}; will be removed in 1.0.0
+     */
+    @Deprecated(forRemoval = true)
+    @ApiStatus.ScheduledForRemoval(inVersion = "1.0.0")
+    @Nullable public Map<String, Object> getWith() {
+        return with;
     }
 
     public static Builder builder() {
         return new Builder();
-    }
-
-    @Nullable
-    public RuntimeType getType() {
-        return type;
-    }
-
-    public void setType(@Nullable RuntimeType type) {
-        this.type = type;
-    }
-
-    @Nullable
-    public Map<String, Object> getWith() {
-        return with;
-    }
-
-    public void setWith(@Nullable Map<String, Object> with) {
-        this.with = with;
     }
 
     public static class Builder {
@@ -50,10 +44,7 @@ public class RuntimeConfig {
         }
 
         public RuntimeConfig build() {
-            RuntimeConfig config = new RuntimeConfig();
-            config.setType(type);
-            config.setWith(with);
-            return config;
+            return new RuntimeConfig(type, with);
         }
     }
 }

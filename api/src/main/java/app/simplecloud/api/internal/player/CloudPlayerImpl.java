@@ -6,15 +6,14 @@ import app.simplecloud.api.player.CloudPlayer;
 import app.simplecloud.api.player.PlayerApi;
 import app.simplecloud.api.player.ServerSelectionMode;
 import io.nats.client.Connection;
-import net.kyori.adventure.audience.Audience;
-import net.kyori.adventure.audience.ForwardingAudience;
-import net.kyori.adventure.text.Component;
-import org.jspecify.annotations.NonNull;
-
 import java.util.Collections;
 import java.util.Map;
 import java.util.UUID;
 import java.util.concurrent.CompletableFuture;
+import net.kyori.adventure.audience.Audience;
+import net.kyori.adventure.audience.ForwardingAudience;
+import net.kyori.adventure.text.Component;
+import org.jspecify.annotations.NonNull;
 
 public class CloudPlayerImpl implements CloudPlayer, ForwardingAudience.Single {
 
@@ -47,8 +46,7 @@ public class CloudPlayerImpl implements CloudPlayer, ForwardingAudience.Single {
             String sessionId,
             String firstSeen,
             String lastSeen,
-            Map<String, String> properties
-    ) {
+            Map<String, String> properties) {
         this.playerApi = playerApi;
         this.audience = RemoteAudience.builder(natsConnection, networkId).forPlayer(uniqueId);
         this.uniqueId = uniqueId;
@@ -133,9 +131,7 @@ public class CloudPlayerImpl implements CloudPlayer, ForwardingAudience.Single {
         return playerApi.kick(uniqueId, reason).thenApply(success -> {
             if (!Boolean.TRUE.equals(success)) {
                 throw new CloudApiException(
-                        CloudApiException.Reason.UNKNOWN,
-                        "Player '" + uniqueId + "' could not be kicked"
-                );
+                        CloudApiException.Reason.UNKNOWN, "Player '" + uniqueId + "' could not be kicked");
             }
             return null;
         });

@@ -1,5 +1,6 @@
 package app.simplecloud.api.event.blueprint;
 
+import app.simplecloud.api.blueprint.Blueprint;
 import org.jetbrains.annotations.Nullable;
 
 /**
@@ -29,10 +30,16 @@ public interface BlueprintDeletedEvent {
     @Nullable String getName();
 
     /**
+     * Returns the blueprint as it was before deletion.
+     *
+     * @return the blueprint, or null if the controller did not send it
+     */
+    @Nullable Blueprint getBlueprint();
+
+    /**
      * Returns the timestamp when this event occurred (ISO 8601 format).
      *
      * @return the timestamp
      */
     String getTimestamp();
 }
-

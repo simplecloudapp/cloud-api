@@ -1,10 +1,9 @@
 package app.simplecloud.api.internal.event.server;
 
 import app.simplecloud.api.event.server.ServerStateChangedEvent;
-import app.simplecloud.api.internal.ProtoConversionUtil;
+import app.simplecloud.api.internal.util.ProtoConversionUtil;
 import app.simplecloud.api.server.Server;
 import app.simplecloud.api.server.ServerState;
-
 import java.time.Instant;
 
 class ServerStateChangedEventImpl implements ServerStateChangedEvent {
@@ -27,20 +26,12 @@ class ServerStateChangedEventImpl implements ServerStateChangedEvent {
 
     @Override
     public ServerState getOldState() {
-        ServerState state = ProtoConversionUtil.convertServerState(delegate.getOldState());
-        if (state == null) {
-            throw new IllegalStateException("Old state is not available in ServerStateChangedEvent");
-        }
-        return state;
+        return ProtoConversionUtil.convertServerState(delegate.getOldState());
     }
 
     @Override
     public ServerState getNewState() {
-        ServerState state = ProtoConversionUtil.convertServerState(delegate.getNewState());
-        if (state == null) {
-            throw new IllegalStateException("New state is not available in ServerStateChangedEvent");
-        }
-        return state;
+        return ProtoConversionUtil.convertServerState(delegate.getNewState());
     }
 
     @Override
@@ -59,8 +50,7 @@ class ServerStateChangedEventImpl implements ServerStateChangedEvent {
                     delegate.getNewState(),
                     delegate.hasGroupConfig() ? delegate.getGroupConfig() : null,
                     delegate.hasPersistentServerConfig() ? delegate.getPersistentServerConfig() : null,
-                    delegate.getTimestamp()
-            );
+                    delegate.getTimestamp());
         }
         return server;
     }
