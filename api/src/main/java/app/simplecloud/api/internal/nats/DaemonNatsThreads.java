@@ -17,19 +17,25 @@ final class DaemonNatsThreads implements NatsThreads {
     private final ExecutorService executor = Executors.newCachedThreadPool(DaemonNatsThreads::newDaemonThread);
     private final ScheduledExecutorService scheduledExecutor =
             Executors.newScheduledThreadPool(JNATS_DEFAULT_SCHEDULER_THREADS, DaemonNatsThreads::newDaemonThread);
+    private final ExecutorService connectExecutor =
+            Executors.newSingleThreadExecutor(DaemonNatsThreads::newDaemonThread);
+    private final ExecutorService callbackExecutor =
+            Executors.newSingleThreadExecutor(DaemonNatsThreads::newDaemonThread);
 
     @Override
     public void applyTo(Options.Builder optionsBuilder) {
         optionsBuilder.executor(executor);
         optionsBuilder.scheduledExecutor(scheduledExecutor);
-        optionsBuilder.connectThreadFactory(DaemonNatsThreads::newDaemonThread);
-        optionsBuilder.callbackThreadFactory(DaemonNatsThreads::newDaemonThread);
+        optionsBuilder.connectExecutor(connectExecutor);
+        optionsBuilder.callbackExecutor(callbackExecutor);
     }
 
     @Override
     public void shutdown() {
         executor.shutdownNow();
         scheduledExecutor.shutdownNow();
+        connectExecutor.shutdownNow();
+        callbackExecutor.shutdownNow();
     }
 
     private static Thread newDaemonThread(Runnable task) {

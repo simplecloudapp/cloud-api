@@ -82,6 +82,9 @@ public final class FakeNatsConnection {
         if (methodName.equals("createDispatcher")) {
             return createDispatcher();
         }
+        if (methodName.equals("getStatus")) {
+            return Connection.Status.CONNECTED;
+        }
         throw new AssertionError("Unexpected connection call: " + methodName);
     }
 

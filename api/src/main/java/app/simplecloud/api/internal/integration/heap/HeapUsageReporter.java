@@ -75,7 +75,14 @@ public final class HeapUsageReporter {
         }
     }
 
+    /**
+     * Skips a report while disconnected, because jnats would queue it and send every old value at once
+     * after the reconnect.
+     */
     private void publishHeapUsage() {
+        if (natsConnection.getStatus() != Connection.Status.CONNECTED) {
+            return;
+        }
         MemoryUsage heapMemoryUsage = ManagementFactory.getMemoryMXBean().getHeapMemoryUsage();
         String heapUsedBytesText = Long.toString(heapMemoryUsage.getUsed());
         natsConnection.publish(subject, heapUsedBytesText.getBytes(StandardCharsets.US_ASCII));

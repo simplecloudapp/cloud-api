@@ -8,6 +8,7 @@ import org.junit.jupiter.api.Timeout;
 
 import java.lang.reflect.Proxy;
 import java.nio.charset.StandardCharsets;
+import java.util.concurrent.atomic.AtomicInteger;
 
 import static org.junit.jupiter.api.Assertions.*;
 
@@ -65,6 +66,21 @@ class HeapUsageReporterTest {
     }
 
     @Test
+    void skipsReportWhileDisconnected() {
+        AtomicInteger publishCalls = new AtomicInteger();
+        Connection disconnectedConnection = (Connection) Proxy.newProxyInstance(
+                Connection.class.getClassLoader(),
+                new Class<?>[]{Connection.class},
+                (proxy, method, args) -> answerAsDisconnected(method.getName(), publishCalls)
+        );
+        HeapUsageReporter reporter = new HeapUsageReporter(disconnectedConnection, NETWORK_ID, SERVER_ID);
+
+        reporter.reportIfDue();
+
+        assertEquals(0, publishCalls.get());
+    }
+
+    @Test
     void failedPublishDoesNotEndTheRepeatingTask() {
         Connection failingConnection = newConnectionThrowing(new IllegalStateException("connection closed"));
         HeapUsageReporter reporter = new HeapUsageReporter(failingConnection, NETWORK_ID, SERVER_ID);
@@ -80,11 +96,22 @@ class HeapUsageReporterTest {
         assertDoesNotThrow(reporter::reportIfDue);
     }
 
+    private static Object answerAsDisconnected(String methodName, AtomicInteger publishCalls) {
+        if (methodName.equals("getStatus")) {
+            return Connection.Status.DISCONNECTED;
+        }
+        publishCalls.incrementAndGet();
+        return null;
+    }
+
     private static Connection newConnectionThrowing(Throwable publishFailure) {
         return (Connection) Proxy.newProxyInstance(
                 Connection.class.getClassLoader(),
                 new Class<?>[]{Connection.class},
                 (proxy, method, args) -> {
+                    if (method.getName().equals("getStatus")) {
+                        return Connection.Status.CONNECTED;
+                    }
                     throw publishFailure;
                 }
         );
