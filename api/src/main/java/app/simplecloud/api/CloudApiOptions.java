@@ -8,8 +8,8 @@ import java.util.regex.Pattern;
 
 public class CloudApiOptions {
 
-    public final static CloudApiOptions DEFAULT = new Builder().build();
     private static final Pattern DURATION_PATTERN = Pattern.compile("^(\\d+)(ms|s|m|h)$");
+    public final static CloudApiOptions DEFAULT = new Builder().build();
 
     private final String natsUrl;
     private final Duration natsFailoverReconnectAfter;
