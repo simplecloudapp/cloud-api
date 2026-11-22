@@ -16,7 +16,6 @@ import app.simplecloud.api.presence.ProxyPresencePlayerProvider;
 import app.simplecloud.api.runtime.SimpleCloudRuntime;
 import java.util.List;
 import java.util.Locale;
-import net.kyori.adventure.platform.bungeecord.BungeeAudiences;
 import net.luckperms.api.LuckPermsProvider;
 import net.md_5.bungee.api.connection.ProxiedPlayer;
 import net.md_5.bungee.api.plugin.Plugin;
@@ -27,9 +26,7 @@ public class BungeeCordApiProvider extends Plugin implements ProxyPresencePlayer
     private PlayerCommandHandler playerCommandHandler;
     private ProxyPresenceTracker proxyPresenceTracker;
     private ProxyPresenceResponder proxyPresenceResponder;
-    private LuckPermsSynchronizer luckPermsSynchronizer;
-
-    private BungeeAudiences bungeeAudiences;
+    private LuckPermsSynchronizer luckPermsSynchronizer = LuckPermsSynchronizer.DISABLED;
 
     @Override
     public void onEnable() {
@@ -41,8 +38,6 @@ public class BungeeCordApiProvider extends Plugin implements ProxyPresencePlayer
         this.proxyPresenceTracker = new ProxyPresenceTracker(proxyName);
         this.proxyPresenceResponder = new ProxyPresenceResponder(
                 cloudApi.getNatsConnection(), cloudApi.getNetworkId(), SimpleCloudRuntime.serverId(), this);
-
-        this.bungeeAudiences = BungeeAudiences.create(this);
 
         getLogger().info("SimpleCloud v3 API provider initialized!");
         getProxy()
@@ -65,13 +60,15 @@ public class BungeeCordApiProvider extends Plugin implements ProxyPresencePlayer
     public void onDisable() {
         getLogger().info("SimpleCloud v3 API provider uninitialized!");
         luckPermsSynchronizer.stop();
-        proxyPresenceResponder.stop();
-        playerCommandHandler.stop();
-
-        if (bungeeAudiences != null) {
-            bungeeAudiences.close();
+        if (proxyPresenceResponder != null) {
+            proxyPresenceResponder.stop();
         }
-        cloudApi.close();
+        if (playerCommandHandler != null) {
+            playerCommandHandler.stop();
+        }
+        if (cloudApi != null) {
+            cloudApi.close();
+        }
     }
 
     private LuckPermsSynchronizer startLuckPermsSynchronizer() {

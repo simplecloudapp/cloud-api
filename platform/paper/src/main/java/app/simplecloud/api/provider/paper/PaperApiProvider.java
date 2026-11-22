@@ -21,7 +21,7 @@ public class PaperApiProvider extends JavaPlugin {
         String groupName = SimpleCloudRuntime.groupName();
 
         this.adventureIntegration = new AdventureIntegration(
-                cloudApi, new PaperPlayerAudiences(this), serverId, groupName != null ? groupName : serverId);
+                cloudApi, new PaperPlayerAudiences(this), serverId, groupName.isBlank() ? serverId : groupName);
         adventureIntegration.start();
         Bukkit.getPluginManager().registerEvents(new PlayerConnectionListener(adventureIntegration), this);
 
