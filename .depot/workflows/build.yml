@@ -39,7 +39,7 @@ jobs:
 
       - name: Build and Test
         run: |
-          ./gradlew :api:check \
+          ./gradlew :api:check -Pnats \
             :platform:shared:check \
             :platform:spigot:check \
             :platform:spigot-legacy:check \
