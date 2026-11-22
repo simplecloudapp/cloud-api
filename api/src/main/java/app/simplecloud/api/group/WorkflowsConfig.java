@@ -1,33 +1,32 @@
 package app.simplecloud.api.group;
 
 import java.util.List;
+import org.jetbrains.annotations.ApiStatus;
 import org.jetbrains.annotations.Nullable;
 
-public class WorkflowsConfig {
-    @Nullable private List<String> manual;
+public record WorkflowsConfig(
+        @Nullable List<String> manual, @Nullable WorkflowWhen when) {
 
-    @Nullable private WorkflowWhen when;
-
-    public WorkflowsConfig() {}
-
-    public static Builder builder() {
-        return new Builder();
-    }
-
+    /**
+     * @deprecated use {@link #manual()}; will be removed in 1.0.0
+     */
+    @Deprecated(forRemoval = true)
+    @ApiStatus.ScheduledForRemoval(inVersion = "1.0.0")
     @Nullable public List<String> getManual() {
         return manual;
     }
 
-    public void setManual(@Nullable List<String> manual) {
-        this.manual = manual;
-    }
-
+    /**
+     * @deprecated use {@link #when()}; will be removed in 1.0.0
+     */
+    @Deprecated(forRemoval = true)
+    @ApiStatus.ScheduledForRemoval(inVersion = "1.0.0")
     @Nullable public WorkflowWhen getWhen() {
         return when;
     }
 
-    public void setWhen(@Nullable WorkflowWhen when) {
-        this.when = when;
+    public static Builder builder() {
+        return new Builder();
     }
 
     public static class Builder {
@@ -45,10 +44,7 @@ public class WorkflowsConfig {
         }
 
         public WorkflowsConfig build() {
-            WorkflowsConfig config = new WorkflowsConfig();
-            config.setManual(manual);
-            config.setWhen(when);
-            return config;
+            return new WorkflowsConfig(manual, when);
         }
     }
 }

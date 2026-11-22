@@ -1,39 +1,42 @@
 package app.simplecloud.api.cache;
 
 import java.time.Duration;
+import org.jetbrains.annotations.ApiStatus;
+import org.jetbrains.annotations.Nullable;
 
 /**
  * Per-entity-type cache configuration overrides.
+ *
+ * @param staleTime the stale time for this entity type, or null to use the default
+ * @param cacheTime the cache time for this entity type, or null to use the default
+ * @param enabled whether caching is enabled for this entity type
  */
-public final class EntityCacheConfig {
-
-    private final Duration staleTime;
-    private final Duration cacheTime;
-    private final boolean enabled;
-
-    private EntityCacheConfig(Builder builder) {
-        this.staleTime = builder.staleTime;
-        this.cacheTime = builder.cacheTime;
-        this.enabled = builder.enabled;
-    }
+public record EntityCacheConfig(
+        @Nullable Duration staleTime, @Nullable Duration cacheTime, boolean enabled) {
 
     /**
-     * Returns the stale time for this entity type, or null to use the default.
+     * @deprecated use {@link #staleTime()}; will be removed in 1.0.0
      */
-    public Duration getStaleTime() {
+    @Deprecated(forRemoval = true)
+    @ApiStatus.ScheduledForRemoval(inVersion = "1.0.0")
+    @Nullable public Duration getStaleTime() {
         return staleTime;
     }
 
     /**
-     * Returns the cache time for this entity type, or null to use the default.
+     * @deprecated use {@link #cacheTime()}; will be removed in 1.0.0
      */
-    public Duration getCacheTime() {
+    @Deprecated(forRemoval = true)
+    @ApiStatus.ScheduledForRemoval(inVersion = "1.0.0")
+    @Nullable public Duration getCacheTime() {
         return cacheTime;
     }
 
     /**
-     * Returns whether caching is enabled for this entity type.
+     * @deprecated use {@link #enabled()}; will be removed in 1.0.0
      */
+    @Deprecated(forRemoval = true)
+    @ApiStatus.ScheduledForRemoval(inVersion = "1.0.0")
     public boolean isEnabled() {
         return enabled;
     }
@@ -83,7 +86,7 @@ public final class EntityCacheConfig {
         }
 
         public EntityCacheConfig build() {
-            return new EntityCacheConfig(this);
+            return new EntityCacheConfig(staleTime, cacheTime, enabled);
         }
     }
 }

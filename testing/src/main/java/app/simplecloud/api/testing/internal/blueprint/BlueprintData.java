@@ -63,8 +63,8 @@ public final class BlueprintData {
             return null;
         }
         return RuntimeConfig.builder()
-                .type(config.getType())
-                .with(config.getWith() == null ? null : new LinkedHashMap<>(config.getWith()))
+                .type(config.type())
+                .with(config.with() == null ? null : new LinkedHashMap<>(config.with()))
                 .build();
     }
 }

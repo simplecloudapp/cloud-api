@@ -380,9 +380,9 @@ public final class CloudState {
     public void startRollingRestart(String id) {
         mutate(events -> {
             GroupData group = requireGroup(id);
-            ScalingMode mode = group.scaling == null || group.scaling.getScalingMode() == null
+            ScalingMode mode = group.scaling == null || group.scaling.scalingMode() == null
                     ? ScalingMode.SLOTS
-                    : group.scaling.getScalingMode();
+                    : group.scaling.scalingMode();
             if (mode != ScalingMode.SLOTS) {
                 throw invalid("Rolling restarts require SLOTS scaling mode");
             }
@@ -984,7 +984,7 @@ public final class CloudState {
             group.priority = server.priority;
             group.deployment = DeploymentConfig.builder()
                     .strategy(hosts.isEmpty() ? DeploymentStrategy.BLACKLIST : DeploymentStrategy.WHITELIST)
-                    .hosts(hosts.toArray(DeploymentHost[]::new))
+                    .hosts(hosts)
                     .build();
             group.scaling = scaling;
             group.source = server.source;
@@ -1138,7 +1138,7 @@ public final class CloudState {
                 changed.softwareVersion = request.getSoftwareVersion();
             }
             if (request.getRuntimeConfig() != null) {
-                if (request.getRuntimeConfig().getType() == null) {
+                if (request.getRuntimeConfig().type() == null) {
                     throw invalid("runtimeConfig.type is required when updating the runtime config");
                 }
                 changed.runtimeConfig = BlueprintData.copy(request.getRuntimeConfig());
@@ -1205,13 +1205,13 @@ public final class CloudState {
             return source;
         }
         if (source != null) {
-            if (source.getType() != null && source.getType() != SourceType.BLUEPRINT) {
+            if (source.type() != null && source.type() != SourceType.BLUEPRINT) {
                 throw invalid("createBlueprint requires source.type to be BLUEPRINT when source is provided");
             }
-            if (source.getBlueprint() != null && !source.getBlueprint().isBlank()) {
+            if (source.blueprint() != null && !source.blueprint().isBlank()) {
                 throw invalid("createBlueprint cannot be combined with source.blueprint");
             }
-            if (source.getImage() != null && !source.getImage().isBlank()) {
+            if (source.image() != null && !source.image().isBlank()) {
                 throw invalid("createBlueprint cannot be combined with source.image");
             }
         }
@@ -1232,7 +1232,7 @@ public final class CloudState {
     }
 
     private void requireSourceBlueprint(SourceConfig source) {
-        if (source.getBlueprint() != null && !blueprints.containsKey(source.getBlueprint())) {
+        if (source.blueprint() != null && !blueprints.containsKey(source.blueprint())) {
             throw notFound("Blueprint not found");
         }
     }
@@ -1245,10 +1245,10 @@ public final class CloudState {
     }
 
     private @Nullable BlueprintData blueprintOf(@Nullable SourceConfig source) {
-        if (source == null || source.getBlueprint() == null) {
+        if (source == null || source.blueprint() == null) {
             return null;
         }
-        return blueprints.get(source.getBlueprint());
+        return blueprints.get(source.blueprint());
     }
 
     private boolean isBlueprintUsed(String blueprintId) {
@@ -1257,7 +1257,7 @@ public final class CloudState {
     }
 
     private static boolean usesBlueprint(@Nullable SourceConfig source, String blueprintId) {
-        return source != null && blueprintId.equals(source.getBlueprint());
+        return source != null && blueprintId.equals(source.blueprint());
     }
 
     private void requireFreeBlueprintName(BlueprintData blueprint, String name) {
@@ -1700,33 +1700,22 @@ public final class CloudState {
     public PlayerClientSettings updateClientSettings(UUID id, UpdateClientSettingsRequest request) {
         return mutate(events -> {
             PlayerData player = requirePlayer(id);
-            PlayerClientSettings settings =
-                    player.clientSettings == null ? new PlayerClientSettings() : player.clientSettings;
-            if (request.getChatMode() != null) {
-                settings.setChatMode(request.getChatMode());
-            }
-            if (request.getLocale() != null) {
-                settings.setLocale(request.getLocale());
-            }
-            if (request.getMainHand() != null) {
-                settings.setMainHand(request.getMainHand());
-            }
-            if (request.getViewDistance() != null) {
-                settings.setViewDistance(request.getViewDistance());
-            }
-            if (request.getChatColors() != null) {
-                settings.setChatColors(request.getChatColors());
-            }
-            if (request.getClientListingAllowed() != null) {
-                settings.setClientListingAllowed(request.getClientListingAllowed());
-            }
-            if (request.getSkinParts() != null) {
-                settings.setSkinParts(request.getSkinParts());
-            }
+            PlayerClientSettings current = player.clientSettings != null
+                    ? player.clientSettings
+                    : new PlayerClientSettings(null, null, null, 0, false, false, null);
+            PlayerClientSettings settings = new PlayerClientSettings(
+                    request.getChatMode() != null ? request.getChatMode() : current.chatMode(),
+                    request.getLocale() != null ? request.getLocale() : current.locale(),
+                    request.getMainHand() != null ? request.getMainHand() : current.mainHand(),
+                    request.getViewDistance() != null ? request.getViewDistance() : current.viewDistance(),
+                    request.getChatColors() != null ? request.getChatColors() : current.chatColors(),
+                    request.getClientListingAllowed() != null
+                            ? request.getClientListingAllowed()
+                            : current.clientListingAllowed(),
+                    request.getSkinParts() != null ? request.getSkinParts() : current.skinParts());
             player.clientSettings = settings;
-            events.add(new PlayerClientSettingsUpdated(
-                    networkId, now.toString(), id, player.sessionId(), PlayerData.copy(settings)));
-            return PlayerData.copy(settings);
+            events.add(new PlayerClientSettingsUpdated(networkId, now.toString(), id, player.sessionId(), settings));
+            return settings;
         });
     }
 
@@ -1774,7 +1763,7 @@ public final class CloudState {
         List<ServerData> started = new ArrayList<>();
         for (GroupData group : List.copyOf(groups.values())) {
             ScalingConfig config = group.scaling;
-            if (config == null || Boolean.FALSE.equals(group.active) || config.getScalingMode() == ScalingMode.MANUAL) {
+            if (config == null || Boolean.FALSE.equals(group.active) || config.scalingMode() == ScalingMode.MANUAL) {
                 continue;
             }
             int attempts = 0;
@@ -1796,21 +1785,29 @@ public final class CloudState {
 
     private boolean needsServer(GroupData group, ScalingConfig config) {
         List<ServerData> running = serversOf(group);
-        if (config.getMaxServers() > 0 && running.size() >= config.getMaxServers()) {
+        int maxServers = orZero(config.maxServers());
+        if (maxServers > 0 && running.size() >= maxServers) {
             return false;
         }
-        if (running.size() < config.getMinServers()) {
+        if (running.size() < orZero(config.minServers())) {
             return true;
         }
         if (running.isEmpty()) {
             return false;
         }
-        if (config.getScalingMode() == ScalingMode.PLAYERS) {
-            double threshold =
-                    config.getPlayerThreshold() > 1 ? config.getPlayerThreshold() / 100 : config.getPlayerThreshold();
-            return config.hasPlayerThreshold() && running.stream().allMatch(server -> load(server) >= threshold);
+        if (config.scalingMode() == ScalingMode.PLAYERS) {
+            if (!config.hasPlayerThreshold()) {
+                return false;
+            }
+            double threshold = config.playerThreshold() > 1 ? config.playerThreshold() / 100 : config.playerThreshold();
+            return running.stream().allMatch(server -> load(server) >= threshold);
         }
-        return config.getAvailableSlots() > 0 && freeSlots(running) < config.getAvailableSlots();
+        int availableSlots = orZero(config.availableSlots());
+        return availableSlots > 0 && freeSlots(running) < availableSlots;
+    }
+
+    private static int orZero(@Nullable Integer value) {
+        return value != null ? value : 0;
     }
 
     private static double load(ServerData server) {

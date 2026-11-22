@@ -77,7 +77,7 @@ public final class PlayerData {
     }
 
     public @Nullable PlayerClientSettings clientSettings() {
-        return clientSettings == null ? null : copy(clientSettings);
+        return clientSettings;
     }
 
     public CloudPlayer snapshot(PlayerApi api, Instant now) {
@@ -95,17 +95,5 @@ public final class PlayerData {
                 firstSeen.toString(),
                 lastSeen.toString(),
                 Map.copyOf(properties));
-    }
-
-    public static PlayerClientSettings copy(PlayerClientSettings settings) {
-        PlayerClientSettings copy = new PlayerClientSettings();
-        copy.setChatMode(settings.getChatMode());
-        copy.setLocale(settings.getLocale());
-        copy.setMainHand(settings.getMainHand());
-        copy.setViewDistance(settings.getViewDistance());
-        copy.setChatColors(settings.hasChatColors());
-        copy.setClientListingAllowed(settings.isClientListingAllowed());
-        copy.setSkinParts(settings.getSkinParts());
-        return copy;
     }
 }

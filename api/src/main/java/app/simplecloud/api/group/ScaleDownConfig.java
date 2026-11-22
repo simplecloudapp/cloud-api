@@ -1,44 +1,40 @@
 package app.simplecloud.api.group;
 
+import org.jetbrains.annotations.ApiStatus;
 import org.jetbrains.annotations.Nullable;
 
-public class ScaleDownConfig {
-    @Nullable private String idleTime;
+public record ScaleDownConfig(
+        @Nullable String idleTime, @Nullable Boolean ignorePlayers) {
 
-    private boolean ignorePlayers;
-    private boolean ignorePlayersSet;
+    public boolean hasIgnorePlayers() {
+        return ignorePlayers != null;
+    }
 
-    public ScaleDownConfig() {}
+    /**
+     * @deprecated use {@link #idleTime()}; will be removed in 1.0.0
+     */
+    @Deprecated(forRemoval = true)
+    @ApiStatus.ScheduledForRemoval(inVersion = "1.0.0")
+    @Nullable public String getIdleTime() {
+        return idleTime;
+    }
+
+    /**
+     * @deprecated use {@link #ignorePlayers()}; will be removed in 1.0.0
+     */
+    @Deprecated(forRemoval = true)
+    @ApiStatus.ScheduledForRemoval(inVersion = "1.0.0")
+    public boolean isIgnorePlayers() {
+        return Boolean.TRUE.equals(ignorePlayers);
+    }
 
     public static Builder builder() {
         return new Builder();
     }
 
-    @Nullable public String getIdleTime() {
-        return idleTime;
-    }
-
-    public void setIdleTime(@Nullable String idleTime) {
-        this.idleTime = idleTime;
-    }
-
-    public boolean isIgnorePlayers() {
-        return ignorePlayers;
-    }
-
-    public void setIgnorePlayers(boolean ignorePlayers) {
-        this.ignorePlayers = ignorePlayers;
-        this.ignorePlayersSet = true;
-    }
-
-    public boolean hasIgnorePlayers() {
-        return ignorePlayersSet;
-    }
-
     public static class Builder {
         private String idleTime;
-        private boolean ignorePlayers;
-        private boolean ignorePlayersSet;
+        private Boolean ignorePlayers;
 
         public Builder idleTime(String idleTime) {
             this.idleTime = idleTime;
@@ -47,17 +43,11 @@ public class ScaleDownConfig {
 
         public Builder ignorePlayers(boolean ignorePlayers) {
             this.ignorePlayers = ignorePlayers;
-            this.ignorePlayersSet = true;
             return this;
         }
 
         public ScaleDownConfig build() {
-            ScaleDownConfig config = new ScaleDownConfig();
-            config.setIdleTime(idleTime);
-            if (ignorePlayersSet) {
-                config.setIgnorePlayers(ignorePlayers);
-            }
-            return config;
+            return new ScaleDownConfig(idleTime, ignorePlayers);
         }
     }
 }

@@ -4,7 +4,6 @@ import app.simplecloud.api.blueprint.CreateBlueprintRequest;
 import app.simplecloud.api.blueprint.RuntimeConfig;
 import app.simplecloud.api.blueprint.RuntimeType;
 import app.simplecloud.api.group.DeploymentConfig;
-import app.simplecloud.api.group.DeploymentHost;
 import app.simplecloud.api.group.DeploymentStrategy;
 import app.simplecloud.api.group.GroupServerType;
 import app.simplecloud.api.group.ScaleDownConfig;
@@ -57,26 +56,26 @@ public final class RequestDefaults {
     }
 
     public WorkflowsConfig defaultWorkflows(@Nullable WorkflowsConfig workflows) {
-        WorkflowWhen sourceWhen = workflows != null ? workflows.getWhen() : null;
+        WorkflowWhen sourceWhen = workflows != null ? workflows.when() : null;
 
         WorkflowWhen effectiveWhen = WorkflowWhen.builder()
-                .start(copyOrDefault(sourceWhen != null ? sourceWhen.getStart() : null, DEFAULT_WORKFLOW_START))
-                .stop(copyOrDefault(sourceWhen != null ? sourceWhen.getStop() : null, DEFAULT_WORKFLOW_STOP))
+                .start(copyOrDefault(sourceWhen != null ? sourceWhen.start() : null, DEFAULT_WORKFLOW_START))
+                .stop(copyOrDefault(sourceWhen != null ? sourceWhen.stop() : null, DEFAULT_WORKFLOW_STOP))
                 .build();
 
         return WorkflowsConfig.builder()
                 .when(effectiveWhen)
-                .manual(copyOrDefault(workflows != null ? workflows.getManual() : null, DEFAULT_MANUAL_WORKFLOWS))
+                .manual(copyOrDefault(workflows != null ? workflows.manual() : null, DEFAULT_MANUAL_WORKFLOWS))
                 .build();
     }
 
     public DeploymentConfig defaultDeployment(@Nullable DeploymentConfig deployment) {
         return DeploymentConfig.builder()
                 .strategy(
-                        deployment != null && deployment.getStrategy() != null
-                                ? deployment.getStrategy()
+                        deployment != null && deployment.strategy() != null
+                                ? deployment.strategy()
                                 : DeploymentStrategy.BLACKLIST)
-                .hosts(copyHosts(deployment != null ? deployment.getHosts() : null))
+                .hosts(deployment != null && deployment.hosts() != null ? deployment.hosts() : List.of())
                 .build();
     }
 
@@ -91,18 +90,18 @@ public final class RequestDefaults {
                     .build();
         }
 
-        double playerThreshold = scaling.hasPlayerThreshold() ? scaling.getPlayerThreshold() : DEFAULT_PLAYER_THRESHOLD;
+        double playerThreshold = scaling.hasPlayerThreshold() ? scaling.playerThreshold() : DEFAULT_PLAYER_THRESHOLD;
         if (scaling.hasPlayerThreshold() && (playerThreshold <= 0 || playerThreshold > 1)) {
             throw new IllegalArgumentException("playerThreshold must be greater than 0 and at most 1");
         }
 
         return ScalingConfig.builder()
-                .availableSlots(scaling.getAvailableSlots())
-                .minServers(scaling.getMinServers())
-                .maxServers(scaling.getMaxServers())
+                .availableSlots(orZero(scaling.availableSlots()))
+                .minServers(orZero(scaling.minServers()))
+                .maxServers(orZero(scaling.maxServers()))
                 .playerThreshold(playerThreshold)
-                .scalingMode(scaling.getScalingMode() != null ? scaling.getScalingMode() : ScalingMode.SLOTS)
-                .scaleDown(defaultScaleDown(scaling.getScaleDown()))
+                .scalingMode(scaling.scalingMode() != null ? scaling.scalingMode() : ScalingMode.SLOTS)
+                .scaleDown(defaultScaleDown(scaling.scaleDown()))
                 .build();
     }
 
@@ -123,8 +122,8 @@ public final class RequestDefaults {
                 .workflowSteps(
                         createBlueprint.getWorkflowSteps() != null
                                 ? List.copyOf(createBlueprint.getWorkflowSteps())
-                                : List.copyOf(Objects.requireNonNull(Objects.requireNonNull(workflows.getWhen())
-                                        .getStart())))
+                                : List.copyOf(Objects.requireNonNull(
+                                        Objects.requireNonNull(workflows.when()).start())))
                 .build();
     }
 
@@ -147,16 +146,16 @@ public final class RequestDefaults {
     private ScaleDownConfig defaultScaleDown(@Nullable ScaleDownConfig scaleDown) {
         return ScaleDownConfig.builder()
                 .idleTime(
-                        scaleDown != null && scaleDown.getIdleTime() != null
-                                ? scaleDown.getIdleTime()
+                        scaleDown != null && scaleDown.idleTime() != null
+                                ? scaleDown.idleTime()
                                 : DEFAULT_SCALE_DOWN_IDLE_TIME)
-                .ignorePlayers(scaleDown == null || !scaleDown.hasIgnorePlayers() || scaleDown.isIgnorePlayers())
+                .ignorePlayers(scaleDown == null || !Boolean.FALSE.equals(scaleDown.ignorePlayers()))
                 .build();
     }
 
     private RuntimeConfig defaultRuntimeConfig(@Nullable RuntimeConfig runtimeConfig) {
         RuntimeType effectiveType =
-                runtimeConfig != null && runtimeConfig.getType() != null ? runtimeConfig.getType() : RuntimeType.JAVA;
+                runtimeConfig != null && runtimeConfig.type() != null ? runtimeConfig.type() : RuntimeType.JAVA;
 
         Map<String, Object> runtimeWith = new LinkedHashMap<>();
         if (effectiveType == RuntimeType.JAVA) {
@@ -165,9 +164,9 @@ public final class RequestDefaults {
             runtimeWith.put("args", DEFAULT_JAVA_ARGS);
         }
 
-        boolean preserveExplicitWith = runtimeConfig != null && runtimeConfig.getWith() != null;
+        boolean preserveExplicitWith = runtimeConfig != null && runtimeConfig.with() != null;
         if (preserveExplicitWith) {
-            runtimeWith.putAll(runtimeConfig.getWith());
+            runtimeWith.putAll(runtimeConfig.with());
         }
         return RuntimeConfig.builder()
                 .type(effectiveType)
@@ -175,22 +174,8 @@ public final class RequestDefaults {
                 .build();
     }
 
-    private DeploymentHost[] copyHosts(@Nullable DeploymentHost[] hosts) {
-        if (hosts == null || hosts.length == 0) {
-            return new DeploymentHost[0];
-        }
-
-        DeploymentHost[] copy = new DeploymentHost[hosts.length];
-        for (int i = 0; i < hosts.length; i++) {
-            DeploymentHost source = hosts[i];
-            copy[i] = source == null
-                    ? DeploymentHost.builder().build()
-                    : DeploymentHost.builder()
-                            .name(source.getName())
-                            .priority(source.getPriority())
-                            .build();
-        }
-        return copy;
+    private static int orZero(@Nullable Integer value) {
+        return value != null ? value : 0;
     }
 
     private List<String> copyOrDefault(@Nullable List<String> values, List<String> fallback) {

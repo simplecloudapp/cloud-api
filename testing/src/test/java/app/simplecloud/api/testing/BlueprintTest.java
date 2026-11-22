@@ -41,7 +41,7 @@ class BlueprintTest {
         assertEquals(paper.getBlueprintId(), fetched.getBlueprintId());
         assertEquals("1.21.4", fetched.getMinecraftVersion());
         assertNotNull(fetched.getServerUrl());
-        assertEquals(RuntimeType.JAVA, fetched.getRuntimeConfig().getType());
+        assertEquals(RuntimeType.JAVA, fetched.getRuntimeConfig().type());
         assertEquals(List.of("internal/setup"), fetched.getWorkflowSteps());
         assertEquals(paper.getBlueprintId(), created.single().getBlueprint().getBlueprintId());
         assertEquals(
@@ -166,7 +166,7 @@ class BlueprintTest {
                 .build());
 
         Blueprint blueprint = cloud.blueprint("lobby").orElseThrow();
-        assertEquals(blueprint.getBlueprintId(), lobby.getSource().getBlueprint());
+        assertEquals(blueprint.getBlueprintId(), lobby.getSource().blueprint());
         assertEquals(List.of("internal/setup"), blueprint.getWorkflowSteps());
 
         lobby.delete();

@@ -35,27 +35,23 @@ final class PlayerEventModelMapper {
     }
 
     static PlayerProfile mapProfile(build.buf.gen.simplecloud.player.v2.PlayerProfile proto) {
-        PlayerProfile profile = new PlayerProfile();
-        profile.setId(proto.getId());
-        profile.setPlayerId(UUID.fromString(proto.getPlayerId()));
-        profile.setName(proto.getName());
-        profile.setTexture(emptyToNull(proto.getTexture()));
-        profile.setCreatedAt(toIsoTimestamp(proto.getCreatedAt()));
-        return profile;
+        return new PlayerProfile(
+                proto.getId(),
+                UUID.fromString(proto.getPlayerId()),
+                proto.getName(),
+                emptyToNull(proto.getTexture()),
+                toIsoTimestamp(proto.getCreatedAt()));
     }
 
     static PlayerClientSettings mapClientSettings(build.buf.gen.simplecloud.player.v2.PlayerClientSettings proto) {
-        PlayerClientSettings settings = new PlayerClientSettings();
-        settings.setChatMode(
-                PlayerClientSettings.ChatMode.parse(ProtoConversionUtil.convertChatModeToString(proto.getChatMode())));
-        settings.setLocale(emptyToNull(proto.getLocale()));
-        settings.setMainHand(
-                PlayerClientSettings.MainHand.parse(ProtoConversionUtil.convertMainHandToString(proto.getMainHand())));
-        settings.setViewDistance(proto.getViewDistance());
-        settings.setChatColors(proto.getChatColors());
-        settings.setClientListingAllowed(proto.getClientListingAllowed());
-        settings.setSkinParts(proto.getSkinPartsList());
-        return settings;
+        return new PlayerClientSettings(
+                PlayerClientSettings.ChatMode.parse(ProtoConversionUtil.convertChatModeToString(proto.getChatMode())),
+                emptyToNull(proto.getLocale()),
+                PlayerClientSettings.MainHand.parse(ProtoConversionUtil.convertMainHandToString(proto.getMainHand())),
+                proto.getViewDistance(),
+                proto.getChatColors(),
+                proto.getClientListingAllowed(),
+                proto.getSkinPartsList());
     }
 
     static String toIsoTimestamp(long epochMillis) {

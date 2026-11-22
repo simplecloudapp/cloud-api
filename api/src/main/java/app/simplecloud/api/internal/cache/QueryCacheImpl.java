@@ -104,7 +104,7 @@ public class QueryCacheImpl implements QueryCache {
         EntityType entityType = key.getEntityType();
         if (entityType != null && config.getEntityConfigs().containsKey(entityType)) {
             EntityCacheConfig entityConfig = config.getEntityConfigs().get(entityType);
-            if (!entityConfig.isEnabled()) {
+            if (!entityConfig.enabled()) {
                 return fetcher.get();
             }
         }
@@ -189,8 +189,8 @@ public class QueryCacheImpl implements QueryCache {
         EntityType type = key.getEntityType();
         if (type != null && config.getEntityConfigs().containsKey(type)) {
             EntityCacheConfig entityConfig = config.getEntityConfigs().get(type);
-            if (entityConfig.getStaleTime() != null) {
-                return entityConfig.getStaleTime();
+            if (entityConfig.staleTime() != null) {
+                return entityConfig.staleTime();
             }
         }
         return config.getDefaultStaleTime();
@@ -200,8 +200,8 @@ public class QueryCacheImpl implements QueryCache {
         EntityType type = key.getEntityType();
         if (type != null && config.getEntityConfigs().containsKey(type)) {
             EntityCacheConfig entityConfig = config.getEntityConfigs().get(type);
-            if (entityConfig.getCacheTime() != null) {
-                return entityConfig.getCacheTime();
+            if (entityConfig.cacheTime() != null) {
+                return entityConfig.cacheTime();
             }
         }
         return config.getDefaultCacheTime();

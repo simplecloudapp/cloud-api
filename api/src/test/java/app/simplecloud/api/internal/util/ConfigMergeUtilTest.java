@@ -3,7 +3,6 @@ package app.simplecloud.api.internal.util;
 import static org.junit.jupiter.api.Assertions.assertEquals;
 import static org.junit.jupiter.api.Assertions.assertFalse;
 import static org.junit.jupiter.api.Assertions.assertNull;
-import static org.junit.jupiter.api.Assertions.assertSame;
 import static org.junit.jupiter.api.Assertions.assertTrue;
 
 import app.simplecloud.api.group.DeploymentConfig;
@@ -38,13 +37,11 @@ class ConfigMergeUtilTest {
 
         ScalingConfig merged = ConfigMergeUtil.merge(current, update);
 
-        assertEquals(1, merged.getMinServers());
-        assertEquals(10, merged.getMaxServers());
-        assertEquals(0.5, merged.getPlayerThreshold());
-        assertEquals(ScalingMode.PLAYERS, merged.getScalingMode());
-        assertEquals("1m", merged.getScaleDown().getIdleTime());
-        assertTrue(merged.getScaleDown().hasIgnorePlayers());
-        assertFalse(merged.getScaleDown().isIgnorePlayers());
+        assertEquals(1, merged.minServers());
+        assertEquals(10, merged.maxServers());
+        assertEquals(0.5, merged.playerThreshold());
+        assertEquals(ScalingMode.PLAYERS, merged.scalingMode());
+        assertEquals(new ScaleDownConfig("1m", false), merged.scaleDown());
     }
 
     @Test
@@ -71,17 +68,17 @@ class ConfigMergeUtilTest {
                 .hosts(host)
                 .build();
 
-        DeploymentConfig merged = ConfigMergeUtil.merge(current, new DeploymentConfig());
+        DeploymentConfig merged = ConfigMergeUtil.merge(current, new DeploymentConfig(null, null));
 
-        assertEquals(DeploymentStrategy.WHITELIST, merged.getStrategy());
-        assertSame(host, merged.getHosts()[0]);
+        assertEquals(DeploymentStrategy.WHITELIST, merged.strategy());
+        assertEquals(List.of(host), merged.hosts());
     }
 
     @Test
     void deploymentFallsBackToBlacklistWithoutAnyStrategy() {
-        DeploymentConfig merged = ConfigMergeUtil.merge(null, new DeploymentConfig());
+        DeploymentConfig merged = ConfigMergeUtil.merge(null, new DeploymentConfig(null, null));
 
-        assertEquals(DeploymentStrategy.BLACKLIST, merged.getStrategy());
+        assertEquals(DeploymentStrategy.BLACKLIST, merged.strategy());
     }
 
     @Test
@@ -99,8 +96,8 @@ class ConfigMergeUtilTest {
 
         WorkflowsConfig merged = ConfigMergeUtil.merge(current, update);
 
-        assertEquals(List.of("default/backup"), merged.getManual());
-        assertEquals(List.of("custom/setup"), merged.getWhen().getStart());
-        assertEquals(List.of("internal/cleanup"), merged.getWhen().getStop());
+        assertEquals(List.of("default/backup"), merged.manual());
+        assertEquals(List.of("custom/setup"), merged.when().start());
+        assertEquals(List.of("internal/cleanup"), merged.when().stop());
     }
 }

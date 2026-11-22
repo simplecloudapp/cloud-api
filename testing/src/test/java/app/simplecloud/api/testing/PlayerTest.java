@@ -266,8 +266,8 @@ class PlayerTest {
         steve.changeProfile("Steven", "texture").login();
 
         PlayerProfileChangedEvent change = changes.single();
-        assertEquals("Steve", change.getOldProfile().getName());
-        assertEquals("Steven", change.getNewProfile().getName());
+        assertEquals("Steve", change.getOldProfile().name());
+        assertEquals("Steven", change.getNewProfile().name());
         assertEquals("Steven", steve.getName());
         assertTrue(logins.single().isNameChanged());
         assertEquals(
@@ -276,7 +276,7 @@ class PlayerTest {
                         .player()
                         .getLatestProfile(steve.getUniqueId())
                         .join()
-                        .getTexture());
+                        .texture());
         assertEquals(
                 2, cloud.api().player().getProfiles(steve.getUniqueId()).join().size());
     }
@@ -293,8 +293,8 @@ class PlayerTest {
 
         PlayerClientSettings settings =
                 cloud.api().player().getClientSettings(steve.getUniqueId()).join();
-        assertEquals("de_DE", settings.getLocale());
-        assertEquals(12, settings.getViewDistance());
+        assertEquals("de_DE", settings.locale());
+        assertEquals(12, settings.viewDistance());
         assertEquals(steve.getSessionId(), updates.single().getSessionId());
         assertEquals(
                 "de_DE",
@@ -302,8 +302,8 @@ class PlayerTest {
                         .player()
                         .getCurrentSession(steve.getUniqueId())
                         .join()
-                        .getClientSettings()
-                        .getLocale());
+                        .clientSettings()
+                        .locale());
     }
 
     @Test

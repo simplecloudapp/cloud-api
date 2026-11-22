@@ -30,18 +30,16 @@ public final class SessionData {
     }
 
     public PlayerSession toSession(String networkId, UUID playerId, @Nullable PlayerClientSettings settings) {
-        PlayerSession session = new PlayerSession();
-        session.setId(id);
-        session.setNetworkId(networkId);
-        session.setPlayerId(playerId);
-        session.setClientVersion(CLIENT_VERSION);
-        session.setOnlineMode(true);
-        session.setLoginTime(loginTime.toString());
-        if (logoutTime != null) {
-            session.setLogoutTime(logoutTime.toString());
-            session.setDurationSeconds(durationSeconds(logoutTime));
-        }
-        session.setClientSettings(settings);
-        return session;
+        return new PlayerSession(
+                id,
+                networkId,
+                playerId,
+                null,
+                CLIENT_VERSION,
+                true,
+                loginTime.toString(),
+                logoutTime != null ? logoutTime.toString() : null,
+                logoutTime != null ? durationSeconds(logoutTime) : null,
+                settings);
     }
 }

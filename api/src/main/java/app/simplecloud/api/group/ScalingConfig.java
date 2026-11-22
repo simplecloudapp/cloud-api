@@ -1,128 +1,115 @@
 package app.simplecloud.api.group;
 
+import org.jetbrains.annotations.ApiStatus;
 import org.jetbrains.annotations.Nullable;
 
-public class ScalingConfig {
-    private int availableSlots;
-    private boolean availableSlotsSet;
-    private int maxServers;
-    private boolean maxServersSet;
-    private int minServers;
-    private boolean minServersSet;
-    private double playerThreshold;
-    private boolean playerThresholdSet;
+public record ScalingConfig(
+        @Nullable Integer availableSlots,
+        @Nullable Integer maxServers,
+        @Nullable Integer minServers,
+        @Nullable Double playerThreshold,
+        @Nullable ScaleDownConfig scaleDown,
+        @Nullable ScalingMode scalingMode) {
 
-    @Nullable private ScaleDownConfig scaleDown;
+    public boolean hasAvailableSlots() {
+        return availableSlots != null;
+    }
 
-    @Nullable private ScalingMode scalingMode;
+    public boolean hasMaxServers() {
+        return maxServers != null;
+    }
 
-    public ScalingConfig() {}
+    public boolean hasMinServers() {
+        return minServers != null;
+    }
+
+    public boolean hasPlayerThreshold() {
+        return playerThreshold != null;
+    }
+
+    /**
+     * @deprecated use {@link #availableSlots()}; will be removed in 1.0.0
+     */
+    @Deprecated(forRemoval = true)
+    @ApiStatus.ScheduledForRemoval(inVersion = "1.0.0")
+    public int getAvailableSlots() {
+        return availableSlots != null ? availableSlots : 0;
+    }
+
+    /**
+     * @deprecated use {@link #maxServers()}; will be removed in 1.0.0
+     */
+    @Deprecated(forRemoval = true)
+    @ApiStatus.ScheduledForRemoval(inVersion = "1.0.0")
+    public int getMaxServers() {
+        return maxServers != null ? maxServers : 0;
+    }
+
+    /**
+     * @deprecated use {@link #minServers()}; will be removed in 1.0.0
+     */
+    @Deprecated(forRemoval = true)
+    @ApiStatus.ScheduledForRemoval(inVersion = "1.0.0")
+    public int getMinServers() {
+        return minServers != null ? minServers : 0;
+    }
+
+    /**
+     * @deprecated use {@link #playerThreshold()}; will be removed in 1.0.0
+     */
+    @Deprecated(forRemoval = true)
+    @ApiStatus.ScheduledForRemoval(inVersion = "1.0.0")
+    public double getPlayerThreshold() {
+        return playerThreshold != null ? playerThreshold : 0;
+    }
+
+    /**
+     * @deprecated use {@link #scaleDown()}; will be removed in 1.0.0
+     */
+    @Deprecated(forRemoval = true)
+    @ApiStatus.ScheduledForRemoval(inVersion = "1.0.0")
+    @Nullable public ScaleDownConfig getScaleDown() {
+        return scaleDown;
+    }
+
+    /**
+     * @deprecated use {@link #scalingMode()}; will be removed in 1.0.0
+     */
+    @Deprecated(forRemoval = true)
+    @ApiStatus.ScheduledForRemoval(inVersion = "1.0.0")
+    @Nullable public ScalingMode getScalingMode() {
+        return scalingMode;
+    }
 
     public static Builder builder() {
         return new Builder();
     }
 
-    public int getAvailableSlots() {
-        return availableSlots;
-    }
-
-    public void setAvailableSlots(int availableSlots) {
-        this.availableSlots = availableSlots;
-        this.availableSlotsSet = true;
-    }
-
-    public boolean hasAvailableSlots() {
-        return availableSlotsSet;
-    }
-
-    public int getMaxServers() {
-        return maxServers;
-    }
-
-    public void setMaxServers(int maxServers) {
-        this.maxServers = maxServers;
-        this.maxServersSet = true;
-    }
-
-    public boolean hasMaxServers() {
-        return maxServersSet;
-    }
-
-    public int getMinServers() {
-        return minServers;
-    }
-
-    public void setMinServers(int minServers) {
-        this.minServers = minServers;
-        this.minServersSet = true;
-    }
-
-    public boolean hasMinServers() {
-        return minServersSet;
-    }
-
-    public double getPlayerThreshold() {
-        return playerThreshold;
-    }
-
-    public void setPlayerThreshold(double playerThreshold) {
-        this.playerThreshold = playerThreshold;
-        this.playerThresholdSet = true;
-    }
-
-    public boolean hasPlayerThreshold() {
-        return playerThresholdSet;
-    }
-
-    @Nullable public ScaleDownConfig getScaleDown() {
-        return scaleDown;
-    }
-
-    public void setScaleDown(@Nullable ScaleDownConfig scaleDown) {
-        this.scaleDown = scaleDown;
-    }
-
-    @Nullable public ScalingMode getScalingMode() {
-        return scalingMode;
-    }
-
-    public void setScalingMode(@Nullable ScalingMode scalingMode) {
-        this.scalingMode = scalingMode;
-    }
-
     public static class Builder {
-        private int availableSlots;
-        private boolean availableSlotsSet;
-        private int maxServers;
-        private boolean maxServersSet;
-        private int minServers;
-        private boolean minServersSet;
-        private double playerThreshold;
-        private boolean playerThresholdSet;
+        private Integer availableSlots;
+        private Integer maxServers;
+        private Integer minServers;
+        private Double playerThreshold;
         private ScaleDownConfig scaleDown;
         private ScalingMode scalingMode;
 
         public Builder availableSlots(int availableSlots) {
             this.availableSlots = availableSlots;
-            this.availableSlotsSet = true;
             return this;
         }
 
         public Builder maxServers(int maxServers) {
             this.maxServers = maxServers;
-            this.maxServersSet = true;
             return this;
         }
 
         public Builder minServers(int minServers) {
             this.minServers = minServers;
-            this.minServersSet = true;
             return this;
         }
 
         public Builder playerThreshold(double playerThreshold) {
             this.playerThreshold = playerThreshold;
-            this.playerThresholdSet = true;
             return this;
         }
 
@@ -137,22 +124,7 @@ public class ScalingConfig {
         }
 
         public ScalingConfig build() {
-            ScalingConfig config = new ScalingConfig();
-            if (availableSlotsSet) {
-                config.setAvailableSlots(availableSlots);
-            }
-            if (maxServersSet) {
-                config.setMaxServers(maxServers);
-            }
-            if (minServersSet) {
-                config.setMinServers(minServers);
-            }
-            if (playerThresholdSet) {
-                config.setPlayerThreshold(playerThreshold);
-            }
-            config.setScaleDown(scaleDown);
-            config.setScalingMode(scalingMode);
-            return config;
+            return new ScalingConfig(availableSlots, maxServers, minServers, playerThreshold, scaleDown, scalingMode);
         }
     }
 }

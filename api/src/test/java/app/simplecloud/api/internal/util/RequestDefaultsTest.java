@@ -1,10 +1,8 @@
 package app.simplecloud.api.internal.util;
 
 import static org.junit.jupiter.api.Assertions.assertEquals;
-import static org.junit.jupiter.api.Assertions.assertFalse;
 import static org.junit.jupiter.api.Assertions.assertNull;
 import static org.junit.jupiter.api.Assertions.assertThrows;
-import static org.junit.jupiter.api.Assertions.assertTrue;
 
 import app.simplecloud.api.blueprint.CreateBlueprintRequest;
 import app.simplecloud.api.blueprint.RuntimeConfig;
@@ -27,12 +25,7 @@ class RequestDefaultsTest {
     void groupScalingDefaultsWhenNothingIsSet() {
         ScalingConfig scaling = defaults.defaultGroupScaling(null);
 
-        assertEquals(0, scaling.getMinServers());
-        assertEquals(1, scaling.getMaxServers());
-        assertEquals(0.75, scaling.getPlayerThreshold());
-        assertEquals(ScalingMode.SLOTS, scaling.getScalingMode());
-        assertEquals("3m", scaling.getScaleDown().getIdleTime());
-        assertTrue(scaling.getScaleDown().isIgnorePlayers());
+        assertEquals(new ScalingConfig(null, 1, 0, 0.75, new ScaleDownConfig("3m", true), ScalingMode.SLOTS), scaling);
     }
 
     @Test
@@ -45,12 +38,7 @@ class RequestDefaultsTest {
                 .scaleDown(ScaleDownConfig.builder().ignorePlayers(false).build())
                 .build());
 
-        assertEquals(2, scaling.getMinServers());
-        assertEquals(8, scaling.getMaxServers());
-        assertEquals(0.9, scaling.getPlayerThreshold());
-        assertEquals(ScalingMode.PLAYERS, scaling.getScalingMode());
-        assertEquals("3m", scaling.getScaleDown().getIdleTime());
-        assertFalse(scaling.getScaleDown().isIgnorePlayers());
+        assertEquals(new ScalingConfig(0, 8, 2, 0.9, new ScaleDownConfig("3m", false), ScalingMode.PLAYERS), scaling);
     }
 
     @ParameterizedTest
@@ -74,9 +62,9 @@ class RequestDefaultsTest {
         WorkflowsConfig workflows = defaults.defaultWorkflows(
                 WorkflowsConfig.builder().manual(List.of("custom/restart")).build());
 
-        assertEquals(List.of("custom/restart"), workflows.getManual());
-        assertEquals(List.of("internal/setup"), workflows.getWhen().getStart());
-        assertEquals(List.of("internal/cleanup"), workflows.getWhen().getStop());
+        assertEquals(List.of("custom/restart"), workflows.manual());
+        assertEquals(List.of("internal/setup"), workflows.when().start());
+        assertEquals(List.of("internal/cleanup"), workflows.when().stop());
     }
 
     @Test
@@ -87,9 +75,9 @@ class RequestDefaultsTest {
                 CreateBlueprintRequest.builder().configurator("paper").build(), workflows);
 
         assertEquals(List.of("internal/setup"), blueprint.getWorkflowSteps());
-        assertEquals(RuntimeType.JAVA, blueprint.getRuntimeConfig().getType());
-        assertEquals("21", blueprint.getRuntimeConfig().getWith().get("version"));
-        assertEquals(List.of("nogui"), blueprint.getRuntimeConfig().getWith().get("args"));
+        assertEquals(RuntimeType.JAVA, blueprint.getRuntimeConfig().type());
+        assertEquals("21", blueprint.getRuntimeConfig().with().get("version"));
+        assertEquals(List.of("nogui"), blueprint.getRuntimeConfig().with().get("args"));
     }
 
     @Test
@@ -101,7 +89,7 @@ class RequestDefaultsTest {
                         .build())
                 .build());
 
-        Map<String, Object> with = blueprint.getRuntimeConfig().getWith();
+        Map<String, Object> with = blueprint.getRuntimeConfig().with();
         assertEquals("25", with.get("version"));
         assertEquals(List.of("-Dcom.mojang.eula.agree=true"), with.get("options"));
     }
@@ -112,7 +100,7 @@ class RequestDefaultsTest {
                 .runtimeConfig(RuntimeConfig.builder().type(RuntimeType.BINARY).build())
                 .build());
 
-        assertEquals(RuntimeType.BINARY, blueprint.getRuntimeConfig().getType());
-        assertNull(blueprint.getRuntimeConfig().getWith());
+        assertEquals(RuntimeType.BINARY, blueprint.getRuntimeConfig().type());
+        assertNull(blueprint.getRuntimeConfig().with());
     }
 }

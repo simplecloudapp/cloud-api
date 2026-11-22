@@ -138,14 +138,14 @@ public class PlayerSessionReporter {
                         build.buf.gen.simplecloud.player.v2.PlayerClientSettings.Builder settingsBuilder =
                                 build.buf.gen.simplecloud.player.v2.PlayerClientSettings.newBuilder()
                                         .setSessionId(sessionId)
-                                        .setChatMode(toProtoChatMode(settings.getChatMode()))
-                                        .setMainHand(toProtoMainHand(settings.getMainHand()))
-                                        .setViewDistance(settings.getViewDistance())
-                                        .setChatColors(settings.hasChatColors())
-                                        .setClientListingAllowed(settings.isClientListingAllowed())
-                                        .addAllSkinParts(settings.getSkinParts());
+                                        .setChatMode(toProtoChatMode(settings.chatMode()))
+                                        .setMainHand(toProtoMainHand(settings.mainHand()))
+                                        .setViewDistance(settings.viewDistance())
+                                        .setChatColors(settings.chatColors())
+                                        .setClientListingAllowed(settings.clientListingAllowed())
+                                        .addAllSkinParts(settings.skinParts());
 
-                        if (settings.getLocale() != null) settingsBuilder.setLocale(settings.getLocale());
+                        if (settings.locale() != null) settingsBuilder.setLocale(settings.locale());
 
                         UpdateClientSettingsRequest request = UpdateClientSettingsRequest.newBuilder()
                                 .setSessionId(sessionId)

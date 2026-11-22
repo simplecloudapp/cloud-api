@@ -1,32 +1,30 @@
 package app.simplecloud.api.group;
 
+import org.jetbrains.annotations.ApiStatus;
 import org.jetbrains.annotations.Nullable;
 
-public class DeploymentHost {
-    @Nullable private String name;
+public record DeploymentHost(@Nullable String name, int priority) {
 
-    private int priority;
-
-    public DeploymentHost() {}
-
-    public static Builder builder() {
-        return new Builder();
-    }
-
+    /**
+     * @deprecated use {@link #name()}; will be removed in 1.0.0
+     */
+    @Deprecated(forRemoval = true)
+    @ApiStatus.ScheduledForRemoval(inVersion = "1.0.0")
     @Nullable public String getName() {
         return name;
     }
 
-    public void setName(@Nullable String name) {
-        this.name = name;
-    }
-
+    /**
+     * @deprecated use {@link #priority()}; will be removed in 1.0.0
+     */
+    @Deprecated(forRemoval = true)
+    @ApiStatus.ScheduledForRemoval(inVersion = "1.0.0")
     public int getPriority() {
         return priority;
     }
 
-    public void setPriority(int priority) {
-        this.priority = priority;
+    public static Builder builder() {
+        return new Builder();
     }
 
     public static class Builder {
@@ -44,10 +42,7 @@ public class DeploymentHost {
         }
 
         public DeploymentHost build() {
-            DeploymentHost host = new DeploymentHost();
-            host.setName(name);
-            host.setPriority(priority);
-            return host;
+            return new DeploymentHost(name, priority);
         }
     }
 }

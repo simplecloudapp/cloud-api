@@ -10,29 +10,27 @@ import java.util.concurrent.ConcurrentHashMap;
 public final class ProxyPresenceTracker {
 
     private final String connectedProxyName;
-    private final Map<String, TrackedPlayerMetadata> players = new ConcurrentHashMap<>();
+    private final Map<String, TrackedPlayer> players = new ConcurrentHashMap<>();
 
     public ProxyPresenceTracker(String connectedProxyName) {
         this.connectedProxyName = connectedProxyName == null ? "" : connectedProxyName;
     }
 
     public void trackLogin(String playerId) {
-        players.put(normalize(playerId), new TrackedPlayerMetadata(System.currentTimeMillis()));
+        players.put(normalize(playerId), new TrackedPlayer(System.currentTimeMillis(), ""));
     }
 
     public void updateSessionId(String playerId, String sessionId) {
-        TrackedPlayerMetadata metadata = players.get(normalize(playerId));
-        if (metadata != null) {
-            metadata.setSessionId(sessionId);
-        }
+        players.computeIfPresent(
+                normalize(playerId), (id, player) -> new TrackedPlayer(player.loginTimestampUnixMillis(), sessionId));
     }
 
     public String getSessionId(String playerId) {
-        TrackedPlayerMetadata metadata = players.get(normalize(playerId));
-        if (metadata == null || metadata.getSessionId().isEmpty()) {
+        TrackedPlayer player = players.get(normalize(playerId));
+        if (player == null || player.sessionId().isEmpty()) {
             return null;
         }
-        return metadata.getSessionId();
+        return player.sessionId();
     }
 
     public void remove(String playerId) {
@@ -48,7 +46,7 @@ public final class ProxyPresenceTracker {
             int clientVersion,
             boolean onlineMode) {
         String normalizedPlayerId = normalize(playerId);
-        TrackedPlayerMetadata metadata = players.get(normalizedPlayerId);
+        TrackedPlayer player = players.get(normalizedPlayerId);
 
         return new ProxyPresencePlayer(
                 normalizedPlayerId,
@@ -56,36 +54,21 @@ public final class ProxyPresenceTracker {
                 displayName,
                 connectedServerName,
                 connectedProxyName,
-                metadata != null ? metadata.getLoginTimestampUnixMillis() : 0L,
+                player != null ? player.loginTimestampUnixMillis() : 0L,
                 clientLanguage,
                 clientVersion,
                 onlineMode,
-                metadata != null ? metadata.getSessionId() : "");
+                player != null ? player.sessionId() : "");
     }
 
     private static String normalize(String value) {
         return value == null ? "" : value;
     }
 
-    private static final class TrackedPlayerMetadata {
+    private record TrackedPlayer(long loginTimestampUnixMillis, String sessionId) {
 
-        private final long loginTimestampUnixMillis;
-        private volatile String sessionId = "";
-
-        private TrackedPlayerMetadata(long loginTimestampUnixMillis) {
-            this.loginTimestampUnixMillis = loginTimestampUnixMillis;
-        }
-
-        private long getLoginTimestampUnixMillis() {
-            return loginTimestampUnixMillis;
-        }
-
-        private String getSessionId() {
-            return sessionId;
-        }
-
-        private void setSessionId(String sessionId) {
-            this.sessionId = sessionId == null ? "" : sessionId;
+        private TrackedPlayer {
+            sessionId = normalize(sessionId);
         }
     }
 }

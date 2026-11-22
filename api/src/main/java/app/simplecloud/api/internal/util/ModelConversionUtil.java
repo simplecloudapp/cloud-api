@@ -39,11 +39,11 @@ public final class ModelConversionUtil {
             return null;
         }
         ModelsSourceConfig result = new ModelsSourceConfig();
-        if (config.getType() != null) {
-            result.setType(ModelsSourceConfig.TypeEnum.valueOf(config.getType().name()));
+        if (config.type() != null) {
+            result.setType(ModelsSourceConfig.TypeEnum.valueOf(config.type().name()));
         }
-        result.setBlueprint(config.getBlueprint());
-        result.setImage(config.getImage());
+        result.setBlueprint(config.blueprint());
+        result.setImage(config.image());
         return result;
     }
 
@@ -52,11 +52,11 @@ public final class ModelConversionUtil {
             return null;
         }
         ModelsWorkflowsConfig result = new ModelsWorkflowsConfig();
-        result.setManual(config.getManual());
-        if (config.getWhen() != null) {
+        result.setManual(config.manual());
+        if (config.when() != null) {
             ModelsWorkflowWhen when = new ModelsWorkflowWhen();
-            when.setStart(config.getWhen().getStart());
-            when.setStop(config.getWhen().getStop());
+            when.setStart(config.when().start());
+            when.setStop(config.when().stop());
             result.setWhen(when);
         }
         return result;
@@ -67,14 +67,14 @@ public final class ModelConversionUtil {
             return null;
         }
         ModelsDeploymentConfig result = new ModelsDeploymentConfig();
-        if (config.getStrategy() != null) {
-            result.setStrategy(toModel(config.getStrategy()));
+        if (config.strategy() != null) {
+            result.setStrategy(toModel(config.strategy()));
         }
-        if (config.getHosts() != null) {
-            for (DeploymentHost host : config.getHosts()) {
+        if (config.hosts() != null) {
+            for (DeploymentHost host : config.hosts()) {
                 ModelsDeploymentHost modelHost = new ModelsDeploymentHost();
-                modelHost.setName(host.getName());
-                modelHost.setPriority(host.getPriority());
+                modelHost.setName(host.name());
+                modelHost.setPriority(host.priority());
                 result.addHostsItem(modelHost);
             }
         }
@@ -86,17 +86,17 @@ public final class ModelConversionUtil {
             return null;
         }
         ModelsScalingConfig result = new ModelsScalingConfig();
-        result.setAvailableSlots(config.getAvailableSlots());
-        result.setMaxServers(config.getMaxServers());
-        result.setMinServers(config.getMinServers());
-        result.setPlayerThreshold(BigDecimal.valueOf(config.getPlayerThreshold()));
-        if (config.getScalingMode() != null) {
-            result.setScalingMode(toModel(config.getScalingMode()));
+        result.setAvailableSlots(orZero(config.availableSlots()));
+        result.setMaxServers(orZero(config.maxServers()));
+        result.setMinServers(orZero(config.minServers()));
+        result.setPlayerThreshold(BigDecimal.valueOf(config.playerThreshold() != null ? config.playerThreshold() : 0));
+        if (config.scalingMode() != null) {
+            result.setScalingMode(toModel(config.scalingMode()));
         }
-        if (config.getScaleDown() != null) {
+        if (config.scaleDown() != null) {
             ModelsScaleDownConfig scaleDown = new ModelsScaleDownConfig();
-            scaleDown.setIdleTime(config.getScaleDown().getIdleTime());
-            scaleDown.setIgnorePlayers(config.getScaleDown().isIgnorePlayers());
+            scaleDown.setIdleTime(config.scaleDown().idleTime());
+            scaleDown.setIgnorePlayers(Boolean.TRUE.equals(config.scaleDown().ignorePlayers()));
             result.setScaleDown(scaleDown);
         }
         return result;
@@ -106,77 +106,54 @@ public final class ModelConversionUtil {
         if (config == null) {
             return null;
         }
-        SourceConfig result = new SourceConfig();
-        if (config.getType() != null) {
-            result.setType(parseEnum(SourceType.class, config.getType().getValue()));
-        }
-        result.setBlueprint(config.getBlueprint());
-        result.setImage(config.getImage());
-        return result;
+        SourceType type = config.getType() != null
+                ? parseEnum(SourceType.class, config.getType().getValue())
+                : null;
+        return new SourceConfig(type, config.getBlueprint(), config.getImage());
     }
 
     public static @Nullable WorkflowsConfig fromModel(@Nullable ModelsWorkflowsConfig config) {
         if (config == null) {
             return null;
         }
-        WorkflowsConfig result = new WorkflowsConfig();
-        result.setManual(config.getManual());
-        if (config.getWhen() != null) {
-            WorkflowWhen when = new WorkflowWhen();
-            when.setStart(config.getWhen().getStart());
-            when.setStop(config.getWhen().getStop());
-            result.setWhen(when);
-        }
-        return result;
+        WorkflowWhen when = config.getWhen() != null
+                ? new WorkflowWhen(config.getWhen().getStart(), config.getWhen().getStop())
+                : null;
+        return new WorkflowsConfig(config.getManual(), when);
     }
 
     public static @Nullable DeploymentConfig fromModel(@Nullable ModelsDeploymentConfig config) {
         if (config == null) {
             return null;
         }
-        DeploymentConfig result = new DeploymentConfig();
-        if (config.getStrategy() != null) {
-            result.setStrategy(parseEnum(DeploymentStrategy.class, config.getStrategy()));
-        }
-        if (config.getHosts() != null) {
-            result.setHosts(config.getHosts().stream()
-                    .map(modelHost -> {
-                        DeploymentHost host = new DeploymentHost();
-                        host.setName(modelHost.getName());
-                        host.setPriority(modelHost.getPriority() != null ? modelHost.getPriority() : 0);
-                        return host;
-                    })
-                    .toArray(DeploymentHost[]::new));
-        }
-        return result;
+        DeploymentStrategy strategy =
+                config.getStrategy() != null ? parseEnum(DeploymentStrategy.class, config.getStrategy()) : null;
+        List<DeploymentHost> hosts = config.getHosts() != null
+                ? config.getHosts().stream()
+                        .map(modelHost -> new DeploymentHost(modelHost.getName(), orZero(modelHost.getPriority())))
+                        .toList()
+                : null;
+        return new DeploymentConfig(hosts, strategy);
     }
 
     public static @Nullable ScalingConfig fromModel(@Nullable ModelsScalingConfig config) {
         if (config == null) {
             return null;
         }
-        ScalingConfig result = new ScalingConfig();
-        result.setAvailableSlots(orZero(config.getAvailableSlots()));
-        result.setMaxServers(orZero(config.getMaxServers()));
-        result.setMinServers(orZero(config.getMinServers()));
-        if (config.getPlayerThreshold() != null) {
-            result.setPlayerThreshold(config.getPlayerThreshold().doubleValue());
-        }
-        if (config.getScalingMode() != null) {
-            ScalingMode scalingMode = fromModel(config.getScalingMode());
-            if (scalingMode != null) {
-                result.setScalingMode(scalingMode);
-            }
-        }
-        if (config.getScaleDown() != null) {
-            ScaleDownConfig scaleDown = new ScaleDownConfig();
-            scaleDown.setIdleTime(config.getScaleDown().getIdleTime());
-            if (config.getScaleDown().getIgnorePlayers() != null) {
-                scaleDown.setIgnorePlayers(config.getScaleDown().getIgnorePlayers());
-            }
-            result.setScaleDown(scaleDown);
-        }
-        return result;
+        ScaleDownConfig scaleDown = config.getScaleDown() != null
+                ? new ScaleDownConfig(
+                        config.getScaleDown().getIdleTime(),
+                        config.getScaleDown().getIgnorePlayers())
+                : null;
+        return new ScalingConfig(
+                orZero(config.getAvailableSlots()),
+                orZero(config.getMaxServers()),
+                orZero(config.getMinServers()),
+                config.getPlayerThreshold() != null
+                        ? config.getPlayerThreshold().doubleValue()
+                        : null,
+                scaleDown,
+                config.getScalingMode() != null ? fromModel(config.getScalingMode()) : null);
     }
 
     private static String toModel(DeploymentStrategy strategy) {

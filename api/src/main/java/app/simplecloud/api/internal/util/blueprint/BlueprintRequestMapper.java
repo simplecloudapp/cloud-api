@@ -47,7 +47,7 @@ public final class BlueprintRequestMapper {
     }
 
     public ModelsPatchBlueprintRequest toPatchRequest(UpdateBlueprintRequest request) {
-        if (request.getRuntimeConfig() != null && request.getRuntimeConfig().getType() == null) {
+        if (request.getRuntimeConfig() != null && request.getRuntimeConfig().type() == null) {
             throw new IllegalArgumentException("runtimeConfig.type is required when updating the runtime config");
         }
         ModelsPatchBlueprintRequest apiRequest = new ModelsPatchBlueprintRequest();
@@ -67,10 +67,10 @@ public final class BlueprintRequestMapper {
             return null;
         }
         ModelsRuntimeConfig apiRuntimeConfig = new ModelsRuntimeConfig();
-        if (runtimeConfig.getType() != null) {
-            apiRuntimeConfig.setType(runtimeConfig.getType().name().toLowerCase(Locale.ROOT));
+        if (runtimeConfig.type() != null) {
+            apiRuntimeConfig.setType(runtimeConfig.type().name().toLowerCase(Locale.ROOT));
         }
-        apiRuntimeConfig.setWith(runtimeConfig.getWith());
+        apiRuntimeConfig.setWith(runtimeConfig.with());
         return apiRuntimeConfig;
     }
 
