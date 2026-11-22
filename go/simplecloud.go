@@ -27,7 +27,20 @@ type PersistentServerQuery = sdk.PersistentServerQuery
 type PersistentServersClient = sdk.PersistentServersClient
 
 type Player = sdk.Player
+type PlayerQuery = sdk.PlayerQuery
+type PlayerProfile = sdk.PlayerProfile
+type PlayerSession = sdk.PlayerSession
+type PlayerClientSettings = sdk.PlayerClientSettings
 type PlayersClient = sdk.PlayersClient
+
+type ServerSelectionMode = sdk.ServerSelectionMode
+
+const (
+	SelectRandom     = sdk.SelectRandom
+	SelectMinPlayers = sdk.SelectMinPlayers
+	SelectMaxPlayers = sdk.SelectMaxPlayers
+	SelectFirst      = sdk.SelectFirst
+)
 
 type Blueprint = sdk.Blueprint
 type BlueprintsClient = sdk.BlueprintsClient
