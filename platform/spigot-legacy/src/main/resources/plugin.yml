@@ -1,5 +1,6 @@
 name: simplecloud-api
 version: "1.0"
 main: app.simplecloud.api.platform.spigot.legacy.LegacySpigotApiProvider
-api-version: "1.8"
+# The lowest value Bukkit accepts. Servers before 1.13 ignore this field.
+api-version: "1.13"
 author: Fllip
