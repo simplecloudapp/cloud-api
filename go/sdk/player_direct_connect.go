@@ -11,8 +11,6 @@ import (
 
 const directConnectTimeout = 30 * time.Second
 
-// ConnectDirect asks the player's proxy over NATS to move the player to a server
-// registered on that proxy, including servers the cloud does not manage.
 func (c *PlayersClient) ConnectDirect(ctx context.Context, id, serverName string) (PlayerConnectResult, error) {
 	connection, err := c.nats()
 	if err != nil {

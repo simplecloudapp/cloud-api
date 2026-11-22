@@ -5,7 +5,6 @@ import (
 	"net/http"
 )
 
-// PersistentServer is the stable facade name for a generated persistent-server model.
 type PersistentServer = ModelsPersistentServerSummary
 
 type PersistentServerQuery struct {

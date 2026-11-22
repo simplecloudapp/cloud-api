@@ -5,7 +5,6 @@ import (
 	"net/http"
 )
 
-// PlayerClientSettings is the stable facade name for a generated client-settings model.
 type PlayerClientSettings = ModelsPlayerClientSettingsResponse
 
 func (c *PlayersClient) ClientSettings(ctx context.Context, id string) (*PlayerClientSettings, *http.Response, error) {

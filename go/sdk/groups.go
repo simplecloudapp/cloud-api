@@ -6,7 +6,6 @@ import (
 	"net/http"
 )
 
-// Group is the stable facade name for a generated server-group model.
 type Group = ModelsServerGroupSummary
 
 type GroupQuery struct {

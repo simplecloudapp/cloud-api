@@ -5,7 +5,6 @@ import (
 	"net/http"
 )
 
-// ServerSelectionMode picks a server when a player connects to a group.
 type ServerSelectionMode string
 
 const (

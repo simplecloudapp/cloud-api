@@ -6,7 +6,6 @@ import (
 	"net/http"
 )
 
-// Blueprint is the stable facade name for a generated blueprint model.
 type Blueprint = ModelsBlueprintSummary
 
 type BlueprintsClient struct{ authenticatedClient }

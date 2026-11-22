@@ -1,15 +1,6 @@
-# SimpleCloud Go API
+# SimpleCloud Go SDK
 
-The standalone Go client for the SimpleCloud Controller. It includes:
-
-- an idiomatic facade for groups, servers, persistent servers, players, and events;
-- typed NATS subscriptions using the same protobuf messages and subjects as the Java API;
-- the complete generated REST surface for every controller endpoint, available through `Client.Raw`;
-- all OpenAPI request and response models in the `generated` subpackage.
-
-This module is a Go library. It is not a Minecraft plugin and has no dependency on a Minecraft server runtime.
-
-The handwritten implementation lives in `sdk`, while the module root re-exports its public API for import compatibility. OpenAPI-generated code lives separately in `generated`.
+Go client for the SimpleCloud controller. Manage groups, servers, persistent servers, blueprints and players, and subscribe to network events.
 
 ## Install
 
@@ -17,9 +8,9 @@ The handwritten implementation lives in `sdk`, while the module root re-exports 
 go get github.com/simplecloudapp/cloud-api/go
 ```
 
-The module requires Go 1.26 or newer.
+Requires Go 1.26 or newer.
 
-## Usage
+## Quick start
 
 ```go
 package main
@@ -49,74 +40,24 @@ func main() {
 }
 ```
 
-`NewClientFromEnv` reads:
+Set `SIMPLECLOUD_NETWORK_ID` and `SIMPLECLOUD_NETWORK_SECRET` before running it.
 
-- `SIMPLECLOUD_NETWORK_ID` (default `default`)
-- `SIMPLECLOUD_NETWORK_SECRET`
-- `SIMPLECLOUD_CONTROLLER_URL` (default `https://controller.simplecloud.app`)
-- `SIMPLECLOUD_NATS_URL` (default `wss://nats.simplecloud.app:443`)
-- `SIMPLECLOUD_COMPONENT` (optional `X-SC-Component` header)
+## Clients
 
-You can also pass `Options` directly to `NewClient`, including a custom `http.Client` or additional NATS options.
+| Field | Covers |
+|---|---|
+| `client.Groups` | groups, start queue, rolling restarts, workflows, conversion to a persistent server |
+| `client.Servers` | servers, commands, workflows, stop |
+| `client.PersistentServers` | persistent servers, workflows, conversion to a group |
+| `client.Blueprints` | blueprints |
+| `client.Players` | online players, profiles, sessions, properties, settings, connect and kick |
+| `client.Stats` | network stats |
+| `client.Events` | NATS events for all of the above |
+| `client.Raw` | every controller endpoint, generated from the OpenAPI spec |
 
-NATS request reply subjects use `<networkId>._INBOX.<random>`. The SDK applies this network prefix after `NATSOptions`, so a custom inbox prefix cannot override it. Existing responders continue replying to the request's supplied reply subject.
+## Docs
 
-To run the NATS connection and reconnect integration tests, start an isolated NATS broker and run `NATS_TEST_URL=nats://127.0.0.1:4222 go test ./...`. Without this variable, the broker integration tests are skipped.
-
-## Example project
-
-A small runnable command is available in [`examples/basic`](examples/basic). It loads the standard environment variables, lists the network's groups, and prints their names and IDs:
-
-```sh
-export SIMPLECLOUD_NETWORK_ID="your-network-id"
-export SIMPLECLOUD_NETWORK_SECRET="your-network-secret"
-go run ./examples/basic
-```
-
-## Events
-
-NATS is connected lazily on the first subscription. The returned `*nats.Subscription` can be drained or unsubscribed normally.
-
-```go
-subscription, err := client.Events.OnServerStarted(func(event *simplecloud.ServerStartedEvent) {
-	fmt.Printf("server %s started\n", event.GetServerId())
-})
-if err != nil {
-	log.Fatal(err)
-}
-defer subscription.Unsubscribe()
-```
-
-Group, server, persistent-server, blueprint, and player events all have typed subscription methods.
-
-## Complete controller API
-
-The facade intentionally keeps common operations compact. Every controller endpoint—including networks, metrics, plugins, secrets, serverhosts, environment variables, and audit events—is exposed through the generated `Raw` client:
-
-```go
-result, response, err := client.Raw.ServerhostsAPI.ListServerhosts(context.Background()).
-	XNetworkID(client.NetworkID()).
-	Execute()
-```
-
-The client sends the network secret with every request, including `Raw` ones. Generated request builders still need the network ID explicitly; the facade supplies it automatically.
-
-Code using models outside the facade can import the generated package directly:
-
-```go
-import "github.com/simplecloudapp/cloud-api/go/generated"
-```
-
-## Regeneration
-
-The checked-in client is generated from `api/openapi.yaml`. From the repository root:
-
-```sh
-./gradlew :api:generateGoClient
-cd go
-go fmt ./...
-go mod tidy
-go test ./...
-```
-
-The generator writes only to `go/generated`; the handwritten facade remains isolated in `go/sdk`.
+- [Configuration](docs/configuration.md)
+- [Events](docs/events.md)
+- [Raw API](docs/raw-api.md)
+- [Example](docs/examples/basic/main.go): lists the groups of a network, run it with `go run ./docs/examples/basic`

@@ -1,5 +1,3 @@
-// Package simplecloud preserves the module-root API while the implementation
-// lives in the sdk subpackage.
 package simplecloud
 
 import sdk "github.com/simplecloudapp/cloud-api/go/sdk"

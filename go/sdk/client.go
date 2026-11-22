@@ -10,7 +10,6 @@ import (
 	"github.com/simplecloudapp/cloud-api/go/generated"
 )
 
-// Client provides the handwritten facade and the complete generated API.
 type Client struct {
 	Raw               *generated.APIClient
 	Groups            *GroupsClient

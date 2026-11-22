@@ -5,7 +5,6 @@ import (
 	"net/http"
 )
 
-// Stats is the stable facade name for the generated network statistics model.
 type Stats = ModelsCloudStats
 
 type StatsClient struct{ authenticatedClient }

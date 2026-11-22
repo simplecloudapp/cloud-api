@@ -32,7 +32,7 @@ The official SDK for the SimpleCloud controller. Manage groups, servers, persist
 - [x] **Easy API Use**: Just add the plugin to your server and include the api as a provided artifact.
 - [x] **Supported Server Software**: Supports every major platform.
 - [x] **Easy API access**: Use every api method we provide, just from one interface.
-- [x] **Go SDK**: A standalone Go SDK for use outside of Minecraft servers.
+- [x] **Go SDK**: Use the API from Go services and tools.
 
 ## Server Installation
 

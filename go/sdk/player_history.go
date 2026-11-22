@@ -6,10 +6,8 @@ import (
 	"net/http"
 )
 
-// PlayerProfile is the stable facade name for a generated player-profile model.
 type PlayerProfile = ModelsPlayerProfileResponse
 
-// PlayerSession is the stable facade name for a generated player-session model.
 type PlayerSession = ModelsPlayerSessionResponse
 
 func (c *PlayersClient) Profiles(ctx context.Context, id string, limit, offset int32) ([]PlayerProfile, *http.Response, error) {

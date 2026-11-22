@@ -7,7 +7,6 @@ import (
 	"github.com/nats-io/nats.go"
 )
 
-// Player is the stable facade name for a generated player model.
 type Player = ModelsPlayerResponse
 
 type PlayersClient struct {

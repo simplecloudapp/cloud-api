@@ -5,7 +5,6 @@ import (
 	"net/http"
 )
 
-// Server is the stable facade name for a generated server model.
 type Server = ModelsServerSummary
 
 type ServerQuery struct {
