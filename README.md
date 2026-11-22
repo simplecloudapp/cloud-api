@@ -75,7 +75,11 @@ compileOnly 'app.simplecloud.api:api:VERSION'
 
 ### Go
 
-The standalone Go SDK lives in [`go/`](go/README.md). See the [Go SDK README](go/README.md) for installation and usage.
+> Requires Go 1.26 or newer. For usage and examples see the [Go SDK README](go/README.md).
+
+```sh
+go get github.com/simplecloudapp/cloud-api/go
+```
 
 ## Contributing
 
