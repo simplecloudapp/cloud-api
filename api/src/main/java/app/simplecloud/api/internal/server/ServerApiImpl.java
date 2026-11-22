@@ -58,11 +58,11 @@ public class ServerApiImpl implements ServerApi {
         }
         return context.fetchWithTransientMissRecovery(
                 QueryKey.of("server", id),
-                () -> ApiCalls.supplyAsync(() -> listServers(null, id).stream()
+                () -> ApiCalls.supplyAsync(() -> Objects.requireNonNull(listServers(null, id).stream()
                         .filter(summary -> id.equals(summary.getServerId()))
                         .findFirst()
                         .<Server>map(ServerImpl::new)
-                        .orElse(null), context.executor()),
+                        .orElse(null)), context.executor()),
                 Objects::isNull
         ).thenApply(Optional::ofNullable);
     }
@@ -81,10 +81,10 @@ public class ServerApiImpl implements ServerApi {
 
         return context.fetchWithTransientMissRecovery(
                 QueryKey.of("server", "numerical", groupName, numericalId),
-                () -> fetchServers(query).thenApply(servers -> servers.stream()
+                () -> fetchServers(query).thenApply(servers -> Objects.requireNonNull(servers.stream()
                         .filter(server -> server.getNumericalId() == numericalId)
                         .findFirst()
-                        .orElse(null)),
+                        .orElse(null))),
                 Objects::isNull
         ).thenApply(Optional::ofNullable);
     }

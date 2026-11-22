@@ -247,7 +247,7 @@ public class PersistentServerApiImpl implements PersistentServerApi {
 
             ModelsConvertPersistentToGroupRequest request = new ModelsConvertPersistentToGroupRequest();
             request.setDeployment(conversionDeployment);
-            request.setScaling(ModelConversionUtil.toModel(requestDefaults.defaultGroupScaling(scaling)));
+            request.setScaling(Objects.requireNonNull(ModelConversionUtil.toModel(requestDefaults.defaultGroupScaling(scaling))));
 
             Group group = GroupImpl.from(persistentServersApi.convertPersistentToGroup(context.networkId(), id, request));
             invalidate(id);
@@ -274,11 +274,11 @@ public class PersistentServerApiImpl implements PersistentServerApi {
                                                                    Predicate<ModelsPersistentServerSummary> filter) {
         return context.fetchWithTransientMissRecovery(
                 key,
-                () -> ApiCalls.supplyAsync(() -> listPersistentServers(null, persistentServerId, name).stream()
+                () -> ApiCalls.supplyAsync(() -> Objects.requireNonNull(listPersistentServers(null, persistentServerId, name).stream()
                         .filter(filter)
                         .findFirst()
                         .<PersistentServer>map(PersistentServerImpl::from)
-                        .orElse(null), context.executor()),
+                        .orElse(null)), context.executor()),
                 Objects::isNull
         ).thenApply(Optional::ofNullable);
     }

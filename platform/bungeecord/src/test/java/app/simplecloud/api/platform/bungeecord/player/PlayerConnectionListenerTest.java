@@ -1,4 +1,4 @@
-package app.simplecloud.api.platform.bungeecord;
+package app.simplecloud.api.platform.bungeecord.player;
 
 import app.simplecloud.api.platform.shared.player.ConnectingPlayer;
 import app.simplecloud.api.platform.shared.player.ProxyPlayerSessions;

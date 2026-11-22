@@ -1,4 +1,4 @@
-package app.simplecloud.api.provider.paper;
+package app.simplecloud.api.provider.paper.player;
 
 import app.simplecloud.api.internal.integration.adventure.AdventureIntegration;
 import org.bukkit.event.EventHandler;

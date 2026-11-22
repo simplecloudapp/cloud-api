@@ -8,5 +8,4 @@ import org.jetbrains.annotations.Nullable;
  * @param serverId     the server ID
  * @param errorMessage the failure reason, or null if none is known
  */
-public record WorkflowFailure(String serverId, @Nullable String errorMessage) {
-}
+public record WorkflowFailure(String serverId, @Nullable String errorMessage) { }

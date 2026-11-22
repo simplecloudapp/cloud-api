@@ -1,4 +1,4 @@
-package app.simplecloud.api.platform.velocity;
+package app.simplecloud.api.platform.velocity.player;
 
 import app.simplecloud.api.platform.shared.player.ConnectingPlayer;
 import app.simplecloud.api.platform.shared.player.ProxyPlayerSessions;

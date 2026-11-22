@@ -1,4 +1,4 @@
-package app.simplecloud.api.platform.velocity;
+package app.simplecloud.api.platform.velocity.player;
 
 import app.simplecloud.api.internal.integration.player.ProxyPlayer;
 import app.simplecloud.api.player.CloudPlayer;

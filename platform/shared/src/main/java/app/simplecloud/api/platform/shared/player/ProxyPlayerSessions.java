@@ -4,7 +4,6 @@ import app.simplecloud.api.internal.integration.player.LoginResult;
 import app.simplecloud.api.internal.integration.player.PlayerLogin;
 import app.simplecloud.api.internal.integration.player.PlayerSessionReporter;
 import app.simplecloud.api.internal.integration.presence.ProxyPresenceTracker;
-import app.simplecloud.api.platform.shared.FailureLog;
 import app.simplecloud.api.platform.shared.luckperms.LuckPermsSynchronizer;
 import app.simplecloud.api.player.PlayerClientSettings;
 
@@ -17,29 +16,26 @@ import java.util.logging.Level;
 import java.util.logging.Logger;
 
 /**
- * Reports the sessions of the players on this proxy to the controller. The platform listeners only read
- * the player data from their events and hold the login until {@link #login} completes.
+ * Reports the sessions of the players on this proxy to the controller.
  */
 public final class ProxyPlayerSessions {
 
-    private static final Logger logger = Logger.getLogger(ProxyPlayerSessions.class.getName());
+    private static final Logger LOGGER = Logger.getLogger(ProxyPlayerSessions.class.getName());
     private static final Duration LOGIN_WAIT = Duration.ofSeconds(5);
 
     private final PlayerSessionReporter sessionReporter;
     private final ProxyPresenceTracker presenceTracker;
     private final String proxyName;
     private final LuckPermsSynchronizer luckPermsSynchronizer;
-    private final FailureLog failureLog;
     private final Duration loginWait;
 
     public ProxyPlayerSessions(
             PlayerSessionReporter sessionReporter,
             ProxyPresenceTracker presenceTracker,
             String proxyName,
-            LuckPermsSynchronizer luckPermsSynchronizer,
-            FailureLog failureLog
+            LuckPermsSynchronizer luckPermsSynchronizer
     ) {
-        this(sessionReporter, presenceTracker, proxyName, luckPermsSynchronizer, failureLog, LOGIN_WAIT);
+        this(sessionReporter, presenceTracker, proxyName, luckPermsSynchronizer, LOGIN_WAIT);
     }
 
     ProxyPlayerSessions(
@@ -47,14 +43,12 @@ public final class ProxyPlayerSessions {
             ProxyPresenceTracker presenceTracker,
             String proxyName,
             LuckPermsSynchronizer luckPermsSynchronizer,
-            FailureLog failureLog,
             Duration loginWait
     ) {
         this.sessionReporter = sessionReporter;
         this.presenceTracker = presenceTracker;
         this.proxyName = proxyName != null && !proxyName.isBlank() ? proxyName : "unknown";
         this.luckPermsSynchronizer = luckPermsSynchronizer;
-        this.failureLog = failureLog;
         this.loginWait = loginWait;
     }
 
@@ -70,7 +64,7 @@ public final class ProxyPlayerSessions {
         CompletableFuture<Void> registration = loginReport
                 .thenAccept(result -> applyLoginResult(player, result, clientSettings))
                 .exceptionally(failure -> {
-                    failureLog.logFailure("Failed to send login event for " + player.name(), failure);
+                    LOGGER.log(Level.SEVERE, "Failed to send login event for " + player.name(), failure);
                     return null;
                 });
         return registration.copy().completeOnTimeout(null, loginWait.toMillis(), TimeUnit.MILLISECONDS);
@@ -78,7 +72,7 @@ public final class ProxyPlayerSessions {
 
     public void disconnect(UUID playerId, String playerName) {
         sessionReporter.reportDisconnect(playerId).exceptionally(failure -> {
-            failureLog.logFailure("Failed to send disconnect event for " + playerName, failure);
+            LOGGER.log(Level.SEVERE, "Failed to send disconnect event for " + playerName, failure);
             return null;
         });
         presenceTracker.remove(playerId.toString());
@@ -87,7 +81,7 @@ public final class ProxyPlayerSessions {
 
     public void serverSwitched(UUID playerId, String playerName, String serverName) {
         sessionReporter.reportServerSwitch(playerId, serverName).exceptionally(failure -> {
-            failureLog.logFailure("Failed to send server switch event for " + playerName, failure);
+            LOGGER.log(Level.SEVERE, "Failed to send server switch event for " + playerName, failure);
             return null;
         });
     }
@@ -119,7 +113,7 @@ public final class ProxyPlayerSessions {
 
     private void applyLoginResult(ConnectingPlayer player, LoginResult result, Supplier<PlayerClientSettings> clientSettings) {
         if (!result.success()) {
-            failureLog.logFailure("Login failed for " + player.name() + ": " + result.errorMessage(), null);
+            LOGGER.warning("Login failed for " + player.name() + ": " + result.errorMessage());
             return;
         }
         String sessionId = result.sessionId();
@@ -133,7 +127,7 @@ public final class ProxyPlayerSessions {
 
     private void sendClientSettings(String playerName, String sessionId, PlayerClientSettings settings) {
         sessionReporter.reportClientSettings(sessionId, settings).exceptionally(failure -> {
-            logger.log(Level.FINE, "Failed to send client settings for " + playerName, failure);
+            LOGGER.log(Level.FINE, "Failed to send client settings for " + playerName, failure);
             return null;
         });
     }

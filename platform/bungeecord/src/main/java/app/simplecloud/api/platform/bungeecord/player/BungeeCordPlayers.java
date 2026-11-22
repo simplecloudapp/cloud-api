@@ -1,4 +1,4 @@
-package app.simplecloud.api.platform.bungeecord;
+package app.simplecloud.api.platform.bungeecord.player;
 
 import app.simplecloud.api.internal.integration.player.ProxyPlayer;
 import app.simplecloud.api.internal.integration.player.ProxyPlayers;
@@ -8,11 +8,11 @@ import net.md_5.bungee.api.connection.ProxiedPlayer;
 import java.util.Optional;
 import java.util.UUID;
 
-final class BungeeCordPlayers implements ProxyPlayers {
+public final class BungeeCordPlayers implements ProxyPlayers {
 
     private final ProxyServer proxy;
 
-    BungeeCordPlayers(ProxyServer proxy) {
+    public BungeeCordPlayers(ProxyServer proxy) {
         this.proxy = proxy;
     }
 

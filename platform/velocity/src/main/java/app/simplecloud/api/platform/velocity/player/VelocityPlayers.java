@@ -1,4 +1,4 @@
-package app.simplecloud.api.platform.velocity;
+package app.simplecloud.api.platform.velocity.player;
 
 import app.simplecloud.api.internal.integration.player.ProxyPlayer;
 import app.simplecloud.api.internal.integration.player.ProxyPlayers;
@@ -8,11 +8,11 @@ import com.velocitypowered.api.proxy.ProxyServer;
 import java.util.Optional;
 import java.util.UUID;
 
-final class VelocityPlayers implements ProxyPlayers {
+public final class VelocityPlayers implements ProxyPlayers {
 
     private final ProxyServer proxyServer;
 
-    VelocityPlayers(ProxyServer proxyServer) {
+    public VelocityPlayers(ProxyServer proxyServer) {
         this.proxyServer = proxyServer;
     }
 

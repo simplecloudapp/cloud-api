@@ -7,6 +7,7 @@ import io.papermc.paper.plugin.loader.library.impl.MavenLibraryResolver;
 import org.eclipse.aether.artifact.DefaultArtifact;
 import org.eclipse.aether.graph.Dependency;
 import org.eclipse.aether.repository.RemoteRepository;
+import org.jspecify.annotations.NonNull;
 
 @SuppressWarnings("UnstableApiUsage")
 public class PaperLoader implements PluginLoader {
@@ -14,7 +15,7 @@ public class PaperLoader implements PluginLoader {
     public static final String MAVEN_CENTRAL_DEFAULT_MIRROR = getDefaultMavenCentralMirror();
 
     @Override
-    public void classloader(PluginClasspathBuilder classpathBuilder) {
+    public void classloader(@NonNull PluginClasspathBuilder classpathBuilder) {
         MavenLibraryResolver resolver = new MavenLibraryResolver();
         resolver.addRepository(
             new RemoteRepository.Builder("central", "default", MAVEN_CENTRAL_DEFAULT_MIRROR).build()

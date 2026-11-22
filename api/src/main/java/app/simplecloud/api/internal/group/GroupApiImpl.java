@@ -342,11 +342,11 @@ public class GroupApiImpl implements GroupApi {
                                                         Predicate<ModelsServerGroupSummary> filter) {
         return context.fetchWithTransientMissRecovery(
                 key,
-                () -> ApiCalls.supplyAsync(() -> listGroups(null, serverGroupId, name).stream()
+                () -> ApiCalls.supplyAsync(() -> Objects.requireNonNull(listGroups(null, serverGroupId, name).stream()
                         .filter(filter)
                         .findFirst()
                         .<Group>map(GroupImpl::from)
-                        .orElse(null), context.executor()),
+                        .orElse(null)), context.executor()),
                 Objects::isNull
         ).thenApply(Optional::ofNullable);
     }

@@ -50,12 +50,7 @@ import java.time.Duration;
 import java.time.Instant;
 import java.time.OffsetDateTime;
 import java.time.ZoneOffset;
-import java.util.ArrayList;
-import java.util.HashMap;
-import java.util.List;
-import java.util.Map;
-import java.util.Optional;
-import java.util.UUID;
+import java.util.*;
 import java.util.concurrent.CompletableFuture;
 
 public class PlayerApiImpl implements PlayerApi {
@@ -535,7 +530,7 @@ public class PlayerApiImpl implements PlayerApi {
                 this,
                 natsConnection,
                 context.networkId(),
-                UUID.fromString(player.getId()),
+                UUID.fromString(Objects.requireNonNull(player.getId())),
                 player.getName(),
                 player.getDisplayName(),
                 player.getConnectedProxyName(),
@@ -552,7 +547,7 @@ public class PlayerApiImpl implements PlayerApi {
     private PlayerProfile convertProfile(ModelsPlayerProfileResponse response) {
         PlayerProfile result = new PlayerProfile();
         result.setId(response.getId());
-        result.setPlayerId(UUID.fromString(response.getPlayerId()));
+        result.setPlayerId(UUID.fromString(Objects.requireNonNull(response.getPlayerId())));
         result.setName(response.getName());
         result.setTexture(emptyToNull(response.getTexture()));
         result.setCreatedAt(response.getCreatedAt());
@@ -566,7 +561,7 @@ public class PlayerApiImpl implements PlayerApi {
         PlayerSession result = new PlayerSession();
         result.setId(response.getId());
         result.setNetworkId(response.getNetworkId());
-        result.setPlayerId(UUID.fromString(response.getPlayerId()));
+        result.setPlayerId(UUID.fromString(Objects.requireNonNull(response.getPlayerId())));
         result.setAddressHash(emptyToNull(response.getAddressHash()));
         result.setClientVersion(response.getClientVersion() != null ? response.getClientVersion() : 0);
         result.setOnlineMode(Boolean.TRUE.equals(response.getOnlineMode()));

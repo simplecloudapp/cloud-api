@@ -5,6 +5,7 @@ import app.simplecloud.api.cache.*;
 import com.github.benmanes.caffeine.cache.Cache;
 import com.github.benmanes.caffeine.cache.Caffeine;
 import com.github.benmanes.caffeine.cache.Expiry;
+import org.jspecify.annotations.NonNull;
 
 import java.time.Duration;
 import java.time.Instant;
@@ -50,17 +51,17 @@ public class QueryCacheImpl implements QueryCache {
                 .maximumSize(config.getMaxEntries())
                 .expireAfter(new Expiry<QueryKey, CacheEntry<?>>() {
                     @Override
-                    public long expireAfterCreate(QueryKey key, CacheEntry<?> value, long currentTime) {
+                    public long expireAfterCreate(@NonNull QueryKey key, @NonNull CacheEntry<?> value, long currentTime) {
                         return remainingNanos(value);
                     }
 
                     @Override
-                    public long expireAfterUpdate(QueryKey key, CacheEntry<?> value, long currentTime, long currentDuration) {
+                    public long expireAfterUpdate(@NonNull QueryKey key, @NonNull CacheEntry<?> value, long currentTime, long currentDuration) {
                         return remainingNanos(value);
                     }
 
                     @Override
-                    public long expireAfterRead(QueryKey key, CacheEntry<?> value, long currentTime, long currentDuration) {
+                    public long expireAfterRead(@NonNull QueryKey key, @NonNull CacheEntry<?> value, long currentTime, long currentDuration) {
                         return currentDuration;
                     }
                 })
@@ -99,12 +100,11 @@ public class QueryCacheImpl implements QueryCache {
 
                 if (!entry.isStale(staleThreshold)) {
                     hitCount.incrementAndGet();
-                    return CompletableFuture.completedFuture(entry.getData());
                 } else {
                     staleHitCount.incrementAndGet();
                     triggerBackgroundRevalidation(key, fetcher);
-                    return CompletableFuture.completedFuture(entry.getData());
                 }
+                return CompletableFuture.completedFuture(entry.getData());
             }
         }
 

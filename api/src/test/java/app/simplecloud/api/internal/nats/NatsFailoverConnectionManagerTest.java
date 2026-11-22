@@ -5,7 +5,9 @@ import app.simplecloud.api.support.Await;
 import app.simplecloud.api.support.NatsTest;
 import app.simplecloud.api.support.TestNats;
 import io.nats.client.Connection;
+import io.nats.client.Dispatcher;
 import io.nats.client.Message;
+import io.nats.client.Subscription;
 import org.junit.jupiter.api.AfterEach;
 import org.junit.jupiter.api.Test;
 
@@ -78,6 +80,30 @@ class NatsFailoverConnectionManagerTest {
                 return !received.isEmpty();
             }, "the early subscription receives messages");
         }
+    }
+
+    @Test
+    @NatsTest
+    void subscriptionEndedThroughItsDispatcherReceivesNothing() throws Exception {
+        String networkId = TestNats.randomNetworkId();
+        String subject = networkId + ".test.events";
+        BlockingQueue<Message> ended = new LinkedBlockingQueue<>();
+        BlockingQueue<Message> open = new LinkedBlockingQueue<>();
+        manager = new NatsFailoverConnectionManager(TestNats.url(), networkId, "secret", Duration.ofSeconds(30));
+        Connection connection = manager.getConnection();
+        awaitConnected(connection);
+        Dispatcher dispatcher = connection.createDispatcher(null);
+        Subscription subscription = dispatcher.subscribe(subject, ended::add);
+        dispatcher.subscribe(subject, open::add);
+
+        dispatcher.unsubscribe(subscription);
+        connection.flush(TestNats.TIMEOUT);
+        try (Connection publisher = TestNats.connect()) {
+            publisher.publish(subject, new byte[0]);
+        }
+
+        TestNats.next(open);
+        assertTrue(ended.isEmpty());
     }
 
     private static void assertRepliesGoToNetworkInbox(Connection connection, String subject, String networkId) throws Exception {

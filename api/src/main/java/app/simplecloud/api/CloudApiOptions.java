@@ -61,41 +61,22 @@ public class CloudApiOptions {
         return networkSecret;
     }
 
-    /**
-     * Returns the manifest URL used to resolve software versions to download URLs
-     * when inline blueprints omit {@code serverUrl}.
-     */
     public String getServerVersionManifestUrl() {
         return serverVersionManifestUrl;
     }
 
-    /**
-     * Returns the cache configuration.
-     *
-     * @return the cache configuration
-     */
     public CacheConfig getCacheConfig() {
         return cacheConfig;
     }
 
-    /**
-     * Returns the HTTP connect timeout for the controller REST client.
-     */
     public Duration getHttpConnectTimeout() {
         return httpConnectTimeout;
     }
 
-    /**
-     * Returns the HTTP read timeout for the controller REST client. Prevents
-     * requests from hanging indefinitely when the controller is unresponsive.
-     */
     public Duration getHttpReadTimeout() {
         return httpReadTimeout;
     }
 
-    /**
-     * Returns the HTTP write timeout for the controller REST client.
-     */
     public Duration getHttpWriteTimeout() {
         return httpWriteTimeout;
     }
@@ -153,12 +134,6 @@ public class CloudApiOptions {
             return this;
         }
 
-        /**
-         * Sets the value for the controller request header {@code X-SC-Component}.
-         *
-         * @param component the component identifier to send; null/blank disables the header
-         * @return this builder
-         */
         public Builder component(String component) {
             this.component = component;
             return this;
@@ -174,53 +149,21 @@ public class CloudApiOptions {
             return this;
         }
 
-        /**
-         * Sets the manifest URL used to resolve software versions into concrete download URLs
-         * for inline blueprint creation.
-         *
-         * <p>The manifest is only fetched over HTTPS from publicly routable addresses; redirects
-         * are re-checked and the response size is capped. If a JVM-wide proxy is configured, the proxy
-         * resolves the manifest host, so the address check applies to the proxy host instead.
-         *
-         * @param serverVersionManifestUrl manifest endpoint returning {@code server_versions.json}
-         * @return this builder
-         */
         public Builder serverVersionManifestUrl(String serverVersionManifestUrl) {
             this.serverVersionManifestUrl = serverVersionManifestUrl;
             return this;
         }
 
-        /**
-         * Sets the cache configuration.
-         *
-         * <p>By default, caching is enabled with sensible defaults.
-         * Use {@link CacheConfig#DISABLED} to disable caching entirely.
-         *
-         * @param cacheConfig the cache configuration
-         * @return this builder
-         */
         public Builder cache(CacheConfig cacheConfig) {
             this.cacheConfig = cacheConfig;
             return this;
         }
 
-        /**
-         * Disables caching entirely.
-         * Shorthand for {@code cache(CacheConfig.DISABLED)}.
-         *
-         * @return this builder
-         */
         public Builder disableCache() {
             this.cacheConfig = CacheConfig.DISABLED;
             return this;
         }
 
-        /**
-         * Sets the HTTP connect timeout for the controller REST client.
-         * A value of zero disables the timeout.
-         *
-         * @param httpConnectTimeout the connect timeout; must be non-null and non-negative
-         */
         public Builder httpConnectTimeout(Duration httpConnectTimeout) {
             if (httpConnectTimeout == null || httpConnectTimeout.isNegative()) {
                 throw new IllegalArgumentException("httpConnectTimeout must be >= 0");
@@ -229,14 +172,6 @@ public class CloudApiOptions {
             return this;
         }
 
-        /**
-         * Sets the HTTP read timeout for the controller REST client.
-         * A value of zero disables the timeout. Setting a bounded read timeout
-         * prevents in-flight requests from hanging indefinitely when the
-         * controller stops responding.
-         *
-         * @param httpReadTimeout the read timeout; must be non-null and non-negative
-         */
         public Builder httpReadTimeout(Duration httpReadTimeout) {
             if (httpReadTimeout == null || httpReadTimeout.isNegative()) {
                 throw new IllegalArgumentException("httpReadTimeout must be >= 0");
@@ -245,12 +180,6 @@ public class CloudApiOptions {
             return this;
         }
 
-        /**
-         * Sets the HTTP write timeout for the controller REST client.
-         * A value of zero disables the timeout.
-         *
-         * @param httpWriteTimeout the write timeout; must be non-null and non-negative
-         */
         public Builder httpWriteTimeout(Duration httpWriteTimeout) {
             if (httpWriteTimeout == null || httpWriteTimeout.isNegative()) {
                 throw new IllegalArgumentException("httpWriteTimeout must be >= 0");

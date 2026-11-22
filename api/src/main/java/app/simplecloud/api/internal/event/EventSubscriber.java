@@ -28,7 +28,7 @@ public final class EventSubscriber {
                 LOGGER.log(Level.SEVERE, "Error handling event " + subject, e);
             }
         });
-        return new SubscriptionImpl(subscription);
+        return new SubscriptionImpl(dispatcher, subscription);
     }
 
     @FunctionalInterface

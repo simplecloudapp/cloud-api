@@ -15,6 +15,7 @@ import java.lang.reflect.Method;
 import java.lang.reflect.Proxy;
 import java.time.Duration;
 import java.util.ArrayList;
+import java.util.Arrays;
 import java.util.List;
 import java.util.concurrent.CompletableFuture;
 import java.util.concurrent.CopyOnWriteArrayList;
@@ -357,6 +358,15 @@ public final class NatsFailoverConnectionManager {
                     }
                 }
 
+                if (isUnsubscribeBySubscription(method, args)) {
+                    for (SubscriptionProxyState subscription : subscriptions) {
+                        if (subscription.proxy == args[0]) {
+                            subscription.unsubscribe(Arrays.copyOfRange(args, 1, args.length));
+                        }
+                    }
+                    return this.proxy;
+                }
+
                 if (method.getName().equals("drain")) {
                     Dispatcher dispatcher = close();
                     if (dispatcher == null) {
@@ -497,6 +507,13 @@ public final class NatsFailoverConnectionManager {
                 && parameterTypes.length == 2
                 && parameterTypes[0] == String.class
                 && MessageHandler.class.isAssignableFrom(parameterTypes[1]);
+    }
+
+    private static boolean isUnsubscribeBySubscription(Method method, Object[] args) {
+        return method.getName().equals("unsubscribe")
+                && args != null
+                && args.length >= 1
+                && method.getParameterTypes()[0] == Subscription.class;
     }
 
     private static boolean isUnsubscribeBySubject(Method method, Object[] args) {

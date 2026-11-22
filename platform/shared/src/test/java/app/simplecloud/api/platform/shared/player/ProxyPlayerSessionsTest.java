@@ -13,8 +13,6 @@ import org.junit.jupiter.params.provider.ValueSource;
 
 import java.net.InetSocketAddress;
 import java.time.Duration;
-import java.util.ArrayList;
-import java.util.List;
 import java.util.Locale;
 import java.util.UUID;
 import java.util.concurrent.CompletableFuture;
@@ -40,7 +38,6 @@ class ProxyPlayerSessionsTest {
     private final PlayerSessionReporter reporter = mock(PlayerSessionReporter.class);
     private final ProxyPresenceTracker presence = new ProxyPresenceTracker("proxy-1");
     private final LuckPermsSynchronizer luckPerms = mock(LuckPermsSynchronizer.class);
-    private final List<String> failures = new ArrayList<>();
     private final CompletableFuture<LoginResult> loginReport = new CompletableFuture<>();
     private ProxyPlayerSessions sessions;
 
@@ -63,7 +60,7 @@ class ProxyPlayerSessionsTest {
 
     @ParameterizedTest
     @ValueSource(strings = {"", " "})
-    void loginWithoutLocaleOrProxyName_usesDefaults(String proxyName) {
+    void loginWithoutLocaleOrProxyNameUsesDefaults(String proxyName) {
         sessions(proxyName, Duration.ofSeconds(5)).login(player(null), () -> null);
 
         verify(reporter).reportLogin(new PlayerLogin(playerId, "Player", "Display", "unknown",
@@ -71,7 +68,7 @@ class ProxyPlayerSessionsTest {
     }
 
     @Test
-    void successfulLogin_completesAfterTheControllerRegisteredTheSession() {
+    void successfulLoginCompletesAfterTheControllerRegisteredTheSession() {
         CompletableFuture<Void> login = sessions.login(player(Locale.GERMANY), () -> null);
         assertFalse(login.isDone());
         verifyNoInteractions(luckPerms);
@@ -81,11 +78,10 @@ class ProxyPlayerSessionsTest {
         assertTrue(login.isDone());
         assertEquals("session-1", presence.getSessionId(playerId.toString()));
         verify(luckPerms).synchronize(playerId);
-        assertEquals(List.of(), failures);
     }
 
     @Test
-    void rejectedLogin_completesAndIsLogged() {
+    void rejectedLoginCompletesWithoutASession() {
         CompletableFuture<Void> login = sessions.login(player(Locale.GERMANY), () -> null);
 
         loginReport.complete(LoginResult.failure("Request timeout"));
@@ -94,19 +90,18 @@ class ProxyPlayerSessionsTest {
         assertFalse(login.isCompletedExceptionally());
         assertNull(presence.getSessionId(playerId.toString()));
         verifyNoInteractions(luckPerms);
-        assertEquals(List.of("Login failed for Player: Request timeout"), failures);
     }
 
     @Test
-    void failedLoginReport_completesAndIsLogged() {
+    void failedLoginReportCompletesWithoutASession() {
         CompletableFuture<Void> login = sessions.login(player(Locale.GERMANY), () -> null);
 
         loginReport.completeExceptionally(new IllegalStateException("Disconnected"));
 
         assertTrue(login.isDone());
         assertFalse(login.isCompletedExceptionally());
+        assertNull(presence.getSessionId(playerId.toString()));
         verifyNoInteractions(luckPerms);
-        assertEquals(List.of("Failed to send login event for Player"), failures);
     }
 
     @Test
@@ -119,7 +114,7 @@ class ProxyPlayerSessionsTest {
     }
 
     @Test
-    void clientSettingsSentBeforeTheSession_areSentOnceItIsRegistered() {
+    void clientSettingsSentBeforeTheSessionAreSentOnceItIsRegistered() {
         PlayerClientSettings settings = new PlayerClientSettings();
         sessions.login(player(Locale.GERMANY), () -> settings);
 
@@ -131,7 +126,7 @@ class ProxyPlayerSessionsTest {
     }
 
     @Test
-    void loginWithoutClientSettings_sendsNone() {
+    void loginWithoutClientSettingsSendsNone() {
         sessions.login(player(Locale.GERMANY), () -> null);
 
         loginReport.complete(LoginResult.success("session-1"));
@@ -140,7 +135,7 @@ class ProxyPlayerSessionsTest {
     }
 
     @Test
-    void clientSettingsChange_isForwardedWithTheSession() {
+    void clientSettingsChangeIsForwardedWithTheSession() {
         sessions.login(player(Locale.GERMANY), () -> null);
         loginReport.complete(LoginResult.success("session-1"));
         PlayerClientSettings settings = new PlayerClientSettings();
@@ -151,7 +146,7 @@ class ProxyPlayerSessionsTest {
     }
 
     @Test
-    void disconnect_reportsAndForgetsThePlayer() {
+    void disconnectReportsAndForgetsThePlayer() {
         sessions.login(player(Locale.GERMANY), () -> null);
         loginReport.complete(LoginResult.success("session-1"));
 
@@ -165,25 +160,24 @@ class ProxyPlayerSessionsTest {
     }
 
     @Test
-    void failedDisconnectReport_isLogged() {
+    void failedDisconnectReportStillForgetsThePlayer() {
         when(reporter.reportDisconnect(playerId)).thenReturn(CompletableFuture.failedFuture(new IllegalStateException()));
 
         sessions.disconnect(playerId, "Player");
 
-        assertEquals(List.of("Failed to send disconnect event for Player"), failures);
         verify(luckPerms).forget(playerId);
+        assertNull(presence.getSessionId(playerId.toString()));
     }
 
     @Test
-    void serverSwitch_isReported() {
+    void serverSwitchIsReported() {
         sessions.serverSwitched(playerId, "Player", "lobby-1");
 
         verify(reporter).reportServerSwitch(playerId, "lobby-1");
     }
 
     private ProxyPlayerSessions sessions(String proxyName, Duration loginWait) {
-        return new ProxyPlayerSessions(reporter, presence, proxyName, luckPerms,
-                (message, cause) -> failures.add(message), loginWait);
+        return new ProxyPlayerSessions(reporter, presence, proxyName, luckPerms, loginWait);
     }
 
     private ConnectingPlayer player(Locale locale) {
