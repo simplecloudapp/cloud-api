@@ -3,6 +3,7 @@ package simplecloud
 import sdk "github.com/simplecloudapp/cloud-api/go/sdk"
 
 type ModelsBlueprintSummary = sdk.ModelsBlueprintSummary
+type ModelsCancelRollingRestartResponse = sdk.ModelsCancelRollingRestartResponse
 type ModelsClearServerGroupStartQueueResponse = sdk.ModelsClearServerGroupStartQueueResponse
 type ModelsCloudStats = sdk.ModelsCloudStats
 type ModelsConnectPlayerRequest = sdk.ModelsConnectPlayerRequest
@@ -15,6 +16,11 @@ type ModelsDeletePersistentServerResponse = sdk.ModelsDeletePersistentServerResp
 type ModelsDeletePlayerPropertiesRequest = sdk.ModelsDeletePlayerPropertiesRequest
 type ModelsDeletePropertiesRequest = sdk.ModelsDeletePropertiesRequest
 type ModelsDeleteServerGroupResponse = sdk.ModelsDeleteServerGroupResponse
+type ModelsExecuteManualWorkflowFailure = sdk.ModelsExecuteManualWorkflowFailure
+type ModelsExecuteManualWorkflowRequest = sdk.ModelsExecuteManualWorkflowRequest
+type ModelsExecutePersistentServerWorkflowResponse = sdk.ModelsExecutePersistentServerWorkflowResponse
+type ModelsExecuteServerGroupWorkflowResponse = sdk.ModelsExecuteServerGroupWorkflowResponse
+type ModelsExecuteServerWorkflowResponse = sdk.ModelsExecuteServerWorkflowResponse
 type ModelsKickPlayerRequest = sdk.ModelsKickPlayerRequest
 type ModelsKickPlayerResponse = sdk.ModelsKickPlayerResponse
 type ModelsListServerGroupStartQueueResponse = sdk.ModelsListServerGroupStartQueueResponse
@@ -28,6 +34,11 @@ type ModelsPersistentServerSummary = sdk.ModelsPersistentServerSummary
 type ModelsPlayerResponse = sdk.ModelsPlayerResponse
 type ModelsQueueServerGroupStartRequest = sdk.ModelsQueueServerGroupStartRequest
 type ModelsQueueServerGroupStartResponse = sdk.ModelsQueueServerGroupStartResponse
+type ModelsRollingRestartRequest = sdk.ModelsRollingRestartRequest
+type ModelsRollingRestartResponse = sdk.ModelsRollingRestartResponse
+type ModelsRollingRestartStatusResponse = sdk.ModelsRollingRestartStatusResponse
+type ModelsSendCommandRequest = sdk.ModelsSendCommandRequest
+type ModelsSendCommandResponse = sdk.ModelsSendCommandResponse
 type ModelsServerGroupSummary = sdk.ModelsServerGroupSummary
 type ModelsServerSummary = sdk.ModelsServerSummary
 type ModelsStopServerResponse = sdk.ModelsStopServerResponse

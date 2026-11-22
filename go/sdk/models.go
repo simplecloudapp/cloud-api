@@ -3,6 +3,7 @@ package simplecloud
 import "github.com/simplecloudapp/cloud-api/go/generated"
 
 type ModelsBlueprintSummary = generated.ModelsBlueprintSummary
+type ModelsCancelRollingRestartResponse = generated.ModelsCancelRollingRestartResponse
 type ModelsClearServerGroupStartQueueResponse = generated.ModelsClearServerGroupStartQueueResponse
 type ModelsCloudStats = generated.ModelsCloudStats
 type ModelsConnectPlayerRequest = generated.ModelsConnectPlayerRequest
@@ -15,6 +16,11 @@ type ModelsDeletePersistentServerResponse = generated.ModelsDeletePersistentServ
 type ModelsDeletePlayerPropertiesRequest = generated.ModelsDeletePlayerPropertiesRequest
 type ModelsDeletePropertiesRequest = generated.ModelsDeletePropertiesRequest
 type ModelsDeleteServerGroupResponse = generated.ModelsDeleteServerGroupResponse
+type ModelsExecuteManualWorkflowFailure = generated.ModelsExecuteManualWorkflowFailure
+type ModelsExecuteManualWorkflowRequest = generated.ModelsExecuteManualWorkflowRequest
+type ModelsExecutePersistentServerWorkflowResponse = generated.ModelsExecutePersistentServerWorkflowResponse
+type ModelsExecuteServerGroupWorkflowResponse = generated.ModelsExecuteServerGroupWorkflowResponse
+type ModelsExecuteServerWorkflowResponse = generated.ModelsExecuteServerWorkflowResponse
 type ModelsKickPlayerRequest = generated.ModelsKickPlayerRequest
 type ModelsKickPlayerResponse = generated.ModelsKickPlayerResponse
 type ModelsListServerGroupStartQueueResponse = generated.ModelsListServerGroupStartQueueResponse
@@ -28,6 +34,11 @@ type ModelsPersistentServerSummary = generated.ModelsPersistentServerSummary
 type ModelsPlayerResponse = generated.ModelsPlayerResponse
 type ModelsQueueServerGroupStartRequest = generated.ModelsQueueServerGroupStartRequest
 type ModelsQueueServerGroupStartResponse = generated.ModelsQueueServerGroupStartResponse
+type ModelsRollingRestartRequest = generated.ModelsRollingRestartRequest
+type ModelsRollingRestartResponse = generated.ModelsRollingRestartResponse
+type ModelsRollingRestartStatusResponse = generated.ModelsRollingRestartStatusResponse
+type ModelsSendCommandRequest = generated.ModelsSendCommandRequest
+type ModelsSendCommandResponse = generated.ModelsSendCommandResponse
 type ModelsServerGroupSummary = generated.ModelsServerGroupSummary
 type ModelsServerSummary = generated.ModelsServerSummary
 type ModelsStopServerResponse = generated.ModelsStopServerResponse
