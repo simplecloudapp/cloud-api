@@ -89,7 +89,8 @@ class SimpleCloudNatsListenerTest {
                 "nats://localhost:4222",
                 "network",
                 "secret",
-                listener
+                listener,
+                NatsThreads.JNATS_DEFAULT
         );
 
         assertSame(listener, options.getErrorListener());
