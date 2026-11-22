@@ -27,9 +27,8 @@ type ServerQuery struct {
 type ServersClient struct{ authenticatedClient }
 
 func (c *ServersClient) List(ctx context.Context, query *ServerQuery) ([]Server, *http.Response, error) {
-	request := c.api.ServersAPI.V0ServersGet(ctx).
-		XNetworkID(c.networkID).
-		XNetworkCredential(c.credential)
+	request := c.api.ServersAPI.ListServers(ctx).
+		XNetworkID(c.networkID)
 	if query != nil {
 		if value := stringQuery(query.IDs); value != "" {
 			request = request.ServerId(value)

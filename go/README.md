@@ -17,7 +17,7 @@ The handwritten implementation lives in `sdk`, while the module root re-exports 
 go get github.com/simplecloudapp/cloud-api/go
 ```
 
-The module requires Go 1.23 or newer.
+The module requires Go 1.26 or newer.
 
 ## Usage
 
@@ -94,13 +94,12 @@ Group, server, persistent-server, and blueprint events all have typed subscripti
 The facade intentionally keeps common operations compact. Every controller endpoint—including networks, blueprints, metrics, plugins, secrets, serverhosts, stats, workflows, rolling restarts, and player sessions—is exposed through the generated `Raw` client:
 
 ```go
-result, response, err := client.Raw.StatsAPI.V0StatsGet(context.Background()).
+result, response, err := client.Raw.ServerhostsAPI.ListServerhosts(context.Background()).
 	XNetworkID(client.NetworkID()).
-	XNetworkCredential("network-secret").
 	Execute()
 ```
 
-Generated request builders require the network headers explicitly. The facade (`Groups`, `Servers`, `PersistentServers`, and `Players`) supplies them automatically.
+The client sends the network secret with every request, including `Raw` ones. Generated request builders still need the network ID explicitly; the facade supplies it automatically.
 
 Code using models outside the facade can import the generated package directly:
 

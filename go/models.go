@@ -1,0 +1,29 @@
+package simplecloud
+
+import sdk "github.com/simplecloudapp/cloud-api/go/sdk"
+
+type ModelsClearServerGroupStartQueueResponse = sdk.ModelsClearServerGroupStartQueueResponse
+type ModelsConnectPlayerRequest = sdk.ModelsConnectPlayerRequest
+type ModelsConnectPlayerResponse = sdk.ModelsConnectPlayerResponse
+type ModelsCreatePersistentServerRequest = sdk.ModelsCreatePersistentServerRequest
+type ModelsCreateServerGroupRequest = sdk.ModelsCreateServerGroupRequest
+type ModelsDeletePersistentServerResponse = sdk.ModelsDeletePersistentServerResponse
+type ModelsDeletePlayerPropertiesRequest = sdk.ModelsDeletePlayerPropertiesRequest
+type ModelsDeletePropertiesRequest = sdk.ModelsDeletePropertiesRequest
+type ModelsDeleteServerGroupResponse = sdk.ModelsDeleteServerGroupResponse
+type ModelsKickPlayerRequest = sdk.ModelsKickPlayerRequest
+type ModelsKickPlayerResponse = sdk.ModelsKickPlayerResponse
+type ModelsListServerGroupStartQueueResponse = sdk.ModelsListServerGroupStartQueueResponse
+type ModelsPatchPersistentServerRequest = sdk.ModelsPatchPersistentServerRequest
+type ModelsPatchPlayerRequest = sdk.ModelsPatchPlayerRequest
+type ModelsPatchPropertiesRequest = sdk.ModelsPatchPropertiesRequest
+type ModelsPatchServerGroupRequest = sdk.ModelsPatchServerGroupRequest
+type ModelsPatchServerRequest = sdk.ModelsPatchServerRequest
+type ModelsPersistentServerSummary = sdk.ModelsPersistentServerSummary
+type ModelsPlayerResponse = sdk.ModelsPlayerResponse
+type ModelsQueueServerGroupStartRequest = sdk.ModelsQueueServerGroupStartRequest
+type ModelsQueueServerGroupStartResponse = sdk.ModelsQueueServerGroupStartResponse
+type ModelsServerGroupSummary = sdk.ModelsServerGroupSummary
+type ModelsServerSummary = sdk.ModelsServerSummary
+type ModelsStopServerResponse = sdk.ModelsStopServerResponse
+type ModelsUpdatePlayerPropertiesRequest = sdk.ModelsUpdatePlayerPropertiesRequest

@@ -1,5 +1,5 @@
-buf.build/gen/go/simplecloud/controller/protocolbuffers/go v1.36.11-20260307111646-50c9870526a2.1 h1:oQZOWCo1Cwpn8NwDK7vrvT5vdn2+gs/Q6XNgej3ixyc=
-buf.build/gen/go/simplecloud/controller/protocolbuffers/go v1.36.11-20260307111646-50c9870526a2.1/go.mod h1:QH736AcCVwV3Ly1yM2D87Tql7+KY4+nkMjbsU4iCG+w=
+buf.build/gen/go/simplecloud/controller/protocolbuffers/go v1.36.12-20261016140109-c8833753d47f.2 h1:IaJ/2bYjRkug0QhHJ9juoZDF4Z6o4wySAU0Q5Ap+EBw=
+buf.build/gen/go/simplecloud/controller/protocolbuffers/go v1.36.12-20261016140109-c8833753d47f.2/go.mod h1:S8cmimJadHa2nv15VG/jjq094LgTd1ZtzCRXHbfNzmw=
 github.com/google/go-cmp v0.7.0 h1:wk8382ETsv4JYUZwIsn6YpYiWiBsYLSJiTsyBybVuN8=
 github.com/google/go-cmp v0.7.0/go.mod h1:pXiqmnSA92OHEEa9HXL2W4E7lf9JzCmGVUdgjX3N/iU=
 github.com/klauspost/compress v1.20.0 h1:a3C1ke2ohxFymNlb2HWAHjDeKCI90scRskErZkR0ezA=

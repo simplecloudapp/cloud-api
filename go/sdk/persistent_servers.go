@@ -24,9 +24,8 @@ type PersistentServerQuery struct {
 type PersistentServersClient struct{ authenticatedClient }
 
 func (c *PersistentServersClient) List(ctx context.Context, query *PersistentServerQuery) ([]PersistentServer, *http.Response, error) {
-	request := c.api.PersistentServersAPI.V0PersistentServersGet(ctx).
-		XNetworkID(c.networkID).
-		XNetworkCredential(c.credential)
+	request := c.api.PersistentServersAPI.ListPersistentServers(ctx).
+		XNetworkID(c.networkID)
 	if query != nil {
 		if value := stringQuery(query.IDs); value != "" {
 			request = request.PersistentServerId(value)

@@ -11,25 +11,22 @@ type Player = ModelsPlayerResponse
 type PlayersClient struct{ authenticatedClient }
 
 func (c *PlayersClient) GetByID(ctx context.Context, id string) (*Player, *http.Response, error) {
-	return c.api.PlayersAPI.V0PlayersIdGet(ctx).
+	return c.api.PlayersAPI.GetPlayer(ctx).
 		XNetworkID(c.networkID).
-		XNetworkCredential(c.credential).
 		PlayerId(id).
 		Execute()
 }
 
 func (c *PlayersClient) GetByName(ctx context.Context, name string) (*Player, *http.Response, error) {
-	return c.api.PlayersAPI.V0PlayersNameGet(ctx).
+	return c.api.PlayersAPI.GetPlayerByName(ctx).
 		XNetworkID(c.networkID).
-		XNetworkCredential(c.credential).
 		Name(name).
 		Execute()
 }
 
 func (c *PlayersClient) Online(ctx context.Context, server string) ([]Player, *http.Response, error) {
-	request := c.api.PlayersAPI.V0PlayersOnlineGet(ctx).
-		XNetworkID(c.networkID).
-		XNetworkCredential(c.credential)
+	request := c.api.PlayersAPI.ListOnlinePlayers(ctx).
+		XNetworkID(c.networkID)
 	if server != "" {
 		request = request.Server(server)
 	}
@@ -50,9 +47,8 @@ func (c *PlayersClient) Online(ctx context.Context, server string) ([]Player, *h
 }
 
 func (c *PlayersClient) OnlineCount(ctx context.Context) (int32, *http.Response, error) {
-	result, response, err := c.api.PlayersAPI.V0PlayersOnlineCountGet(ctx).
+	result, response, err := c.api.PlayersAPI.GetOnlinePlayerCount(ctx).
 		XNetworkID(c.networkID).
-		XNetworkCredential(c.credential).
 		Execute()
 	if err != nil || result == nil {
 		return 0, response, err
