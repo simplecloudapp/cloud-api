@@ -1,24 +1,18 @@
 package app.simplecloud.api.platform.velocity;
 
-import app.simplecloud.api.internal.integration.player.LoginResult;
-import app.simplecloud.api.internal.integration.player.PlayerLogin;
-import app.simplecloud.api.internal.integration.player.PlayerSessionReporter;
-import app.simplecloud.api.internal.integration.presence.ProxyPresenceTracker;
-import app.simplecloud.api.platform.shared.luckperms.LuckPermsSynchronizer;
+import app.simplecloud.api.platform.shared.player.ConnectingPlayer;
+import app.simplecloud.api.platform.shared.player.ProxyPlayerSessions;
 import app.simplecloud.api.player.PlayerClientSettings;
 import com.velocitypowered.api.event.Continuation;
 import com.velocitypowered.api.event.EventTask;
 import com.velocitypowered.api.event.connection.DisconnectEvent;
 import com.velocitypowered.api.event.connection.PostLoginEvent;
-import com.velocitypowered.api.event.player.PlayerSettingsChangedEvent;
 import com.velocitypowered.api.network.ProtocolVersion;
 import com.velocitypowered.api.proxy.Player;
 import com.velocitypowered.api.proxy.player.PlayerSettings;
 import com.velocitypowered.api.proxy.player.SkinParts;
 import com.velocitypowered.api.util.GameProfile;
 import org.junit.jupiter.api.Test;
-import org.junit.jupiter.params.ParameterizedTest;
-import org.junit.jupiter.params.provider.CsvSource;
 
 import java.net.InetSocketAddress;
 import java.util.List;
@@ -27,145 +21,51 @@ import java.util.UUID;
 import java.util.concurrent.CompletableFuture;
 
 import static org.junit.jupiter.api.Assertions.assertEquals;
-import static org.mockito.ArgumentMatchers.*;
-import static org.mockito.Mockito.*;
+import static org.junit.jupiter.api.Assertions.assertFalse;
+import static org.junit.jupiter.api.Assertions.assertTrue;
+import static org.mockito.ArgumentMatchers.any;
+import static org.mockito.Mockito.mock;
+import static org.mockito.Mockito.verify;
+import static org.mockito.Mockito.verifyNoInteractions;
+import static org.mockito.Mockito.when;
 
 class PlayerConnectionListenerTest {
 
-    @ParameterizedTest
-    @CsvSource({
-            "success, false", "failure, false", "exception, false",
-            "success, true", "failure, true", "exception, true"
-    })
-    void loginWaitsForControllerAndAlwaysReleasesEvent(String outcome, boolean completedBeforeEvent) {
-        UUID playerId = UUID.randomUUID();
-        CompletableFuture<LoginResult> registration = new CompletableFuture<>();
-        PlayerSessionReporter sessionReporter = mock(PlayerSessionReporter.class);
-        when(sessionReporter.reportLogin(any(PlayerLogin.class))).thenReturn(registration);
-        ProxyPresenceTracker presence = mock(ProxyPresenceTracker.class);
-        LuckPermsSynchronizer luckPermsSynchronizer = mock(LuckPermsSynchronizer.class);
-        PlayerConnectionListener listener = new PlayerConnectionListener(
-                sessionReporter, presence, "proxy-1", luckPermsSynchronizer);
-        Player player = mock(Player.class);
-        when(player.getUniqueId()).thenReturn(playerId);
-        when(player.getUsername()).thenReturn("Player");
-        when(player.getGameProfile()).thenReturn(new GameProfile(playerId, "Player", List.of()));
-        when(player.getRemoteAddress()).thenReturn(new InetSocketAddress("127.0.0.1", 25565));
-        when(player.getProtocolVersion()).thenReturn(ProtocolVersion.MINECRAFT_1_21);
-        if (completedBeforeEvent) {
-            completeRegistration(registration, outcome);
-        }
-        PostLoginEvent event = new PostLoginEvent(player);
+    private final UUID playerId = UUID.randomUUID();
+    private final ProxyPlayerSessions sessions = mock(ProxyPlayerSessions.class);
+    private final PlayerConnectionListener listener = new PlayerConnectionListener(sessions);
+
+    @Test
+    void loginEventIsHeldUntilTheSessionIsRegistered() {
+        CompletableFuture<Void> login = new CompletableFuture<>();
+        when(sessions.login(any(), any())).thenReturn(login);
         Continuation continuation = mock(Continuation.class);
 
-        EventTask task = listener.onPlayerJoin(event);
+        EventTask task = listener.onPlayerJoin(new PostLoginEvent(player(List.of())));
         task.execute(continuation);
-        if (!completedBeforeEvent) {
-            verifyNoInteractions(continuation);
-            verifyNoInteractions(luckPermsSynchronizer);
-            completeRegistration(registration, outcome);
-        }
+        verifyNoInteractions(continuation);
+        login.complete(null);
 
         verify(continuation).resume();
-        if (outcome.equals("success")) {
-            verify(presence).updateSessionId(playerId.toString(), "session-1");
-            verify(luckPermsSynchronizer).synchronize(playerId);
-        } else {
-            verifyNoInteractions(luckPermsSynchronizer);
-        }
     }
 
     @Test
-    void loginReportsThePlayerToTheController() {
-        UUID playerId = UUID.randomUUID();
-        InetSocketAddress address = new InetSocketAddress("127.0.0.1", 25565);
-        PlayerSessionReporter sessionReporter = mock(PlayerSessionReporter.class);
-        when(sessionReporter.reportLogin(any(PlayerLogin.class))).thenReturn(new CompletableFuture<>());
-        PlayerConnectionListener listener = new PlayerConnectionListener(
-                sessionReporter, mock(ProxyPresenceTracker.class), "proxy-1", LuckPermsSynchronizer.DISABLED);
-        Player player = mock(Player.class);
-        when(player.getUniqueId()).thenReturn(playerId);
-        when(player.getUsername()).thenReturn("Player");
-        when(player.getGameProfile()).thenReturn(new GameProfile(playerId, "Player", List.of()));
-        when(player.getRemoteAddress()).thenReturn(address);
-        when(player.getProtocolVersion()).thenReturn(ProtocolVersion.MINECRAFT_1_21);
+    void quitEndsTheSession() {
+        listener.onPlayerQuit(new DisconnectEvent(player(List.of()), DisconnectEvent.LoginStatus.SUCCESSFUL_LOGIN));
 
-        listener.onPlayerJoin(new PostLoginEvent(player));
-
-        PlayerLogin expected = new PlayerLogin(playerId, "Player", "Player", "proxy-1",
-                String.valueOf(address.hashCode()), "en_US", ProtocolVersion.MINECRAFT_1_21.getProtocol(), false, null);
-        verify(sessionReporter).reportLogin(expected);
+        verify(sessions).disconnect(playerId, "Player");
     }
 
     @Test
-    void quitStopsLuckPermsSynchronizationForThePlayer() {
-        UUID playerId = UUID.randomUUID();
-        PlayerSessionReporter sessionReporter = mock(PlayerSessionReporter.class);
-        when(sessionReporter.reportDisconnect(playerId)).thenReturn(CompletableFuture.completedFuture(null));
-        LuckPermsSynchronizer luckPermsSynchronizer = mock(LuckPermsSynchronizer.class);
-        PlayerConnectionListener listener = new PlayerConnectionListener(
-                sessionReporter, mock(ProxyPresenceTracker.class), "proxy-1", luckPermsSynchronizer);
-        Player player = mock(Player.class);
-        when(player.getUniqueId()).thenReturn(playerId);
+    void connectingPlayerIsReadFromThePlayerAndItsProfile() {
+        List<GameProfile.Property> properties = List.of(
+                new GameProfile.Property("other", "ignored", ""),
+                new GameProfile.Property("textures", "texture-value", "signature"));
 
-        listener.onPlayerQuit(new DisconnectEvent(player, DisconnectEvent.LoginStatus.SUCCESSFUL_LOGIN));
+        ConnectingPlayer result = PlayerConnectionListener.toConnectingPlayer(player(properties));
 
-        verify(luckPermsSynchronizer).forget(playerId);
-    }
-
-    @Test
-    void loginSendsClientSettingsAlreadyReportedByTheClient() {
-        UUID playerId = UUID.randomUUID();
-        PlayerSessionReporter sessionReporter = mock(PlayerSessionReporter.class);
-        when(sessionReporter.reportLogin(any(PlayerLogin.class)))
-                .thenReturn(CompletableFuture.completedFuture(LoginResult.success("session-1")));
-        when(sessionReporter.reportClientSettings(anyString(), any())).thenReturn(CompletableFuture.completedFuture(null));
-        PlayerConnectionListener listener = new PlayerConnectionListener(
-                sessionReporter, mock(ProxyPresenceTracker.class), "proxy-1", LuckPermsSynchronizer.DISABLED);
-        Player player = mock(Player.class);
-        when(player.getUniqueId()).thenReturn(playerId);
-        when(player.getUsername()).thenReturn("Player");
-        when(player.getGameProfile()).thenReturn(new GameProfile(playerId, "Player", List.of()));
-        when(player.getRemoteAddress()).thenReturn(new InetSocketAddress("127.0.0.1", 25565));
-        when(player.getProtocolVersion()).thenReturn(ProtocolVersion.MINECRAFT_1_21);
-        when(player.hasSentPlayerSettings()).thenReturn(true);
-        PlayerSettings settings = settings();
-        when(player.getPlayerSettings()).thenReturn(settings);
-
-        listener.onPlayerJoin(new PostLoginEvent(player)).execute(mock(Continuation.class));
-
-        verify(sessionReporter).reportClientSettings(eq("session-1"), any(PlayerClientSettings.class));
-    }
-
-    @Test
-    void settingsChangeIsIgnoredUntilTheSessionIsKnown() {
-        PlayerSessionReporter sessionReporter = mock(PlayerSessionReporter.class);
-        ProxyPresenceTracker presence = mock(ProxyPresenceTracker.class);
-        PlayerConnectionListener listener = new PlayerConnectionListener(
-                sessionReporter, presence, "proxy-1", LuckPermsSynchronizer.DISABLED);
-        Player player = mock(Player.class);
-        when(player.getUniqueId()).thenReturn(UUID.randomUUID());
-
-        listener.onPlayerSettingsChanged(new PlayerSettingsChangedEvent(player, settings()));
-
-        verify(sessionReporter, never()).reportClientSettings(anyString(), any());
-    }
-
-    @Test
-    void settingsChangeIsForwardedWithTheSession() {
-        UUID playerId = UUID.randomUUID();
-        PlayerSessionReporter sessionReporter = mock(PlayerSessionReporter.class);
-        when(sessionReporter.reportClientSettings(anyString(), any())).thenReturn(CompletableFuture.completedFuture(null));
-        ProxyPresenceTracker presence = mock(ProxyPresenceTracker.class);
-        when(presence.getSessionId(playerId.toString())).thenReturn("session-1");
-        PlayerConnectionListener listener = new PlayerConnectionListener(
-                sessionReporter, presence, "proxy-1", LuckPermsSynchronizer.DISABLED);
-        Player player = mock(Player.class);
-        when(player.getUniqueId()).thenReturn(playerId);
-
-        listener.onPlayerSettingsChanged(new PlayerSettingsChangedEvent(player, settings()));
-
-        verify(sessionReporter).reportClientSettings(eq("session-1"), any(PlayerClientSettings.class));
+        assertEquals(new ConnectingPlayer(playerId, "Player", "Player", new InetSocketAddress("127.0.0.1", 25565),
+                Locale.GERMANY, ProtocolVersion.MINECRAFT_1_21.getProtocol(), true, "texture-value"), result);
     }
 
     @Test
@@ -176,9 +76,21 @@ class PlayerConnectionListenerTest {
         assertEquals("de_DE", result.getLocale());
         assertEquals(PlayerClientSettings.MainHand.LEFT, result.getMainHand());
         assertEquals(12, result.getViewDistance());
-        assertEquals(true, result.hasChatColors());
-        assertEquals(false, result.isClientListingAllowed());
+        assertTrue(result.hasChatColors());
+        assertFalse(result.isClientListingAllowed());
         assertEquals(List.of("CAPE", "HAT"), result.getSkinParts());
+    }
+
+    private Player player(List<GameProfile.Property> profileProperties) {
+        Player player = mock(Player.class);
+        when(player.getUniqueId()).thenReturn(playerId);
+        when(player.getUsername()).thenReturn("Player");
+        when(player.getGameProfile()).thenReturn(new GameProfile(playerId, "Player", profileProperties));
+        when(player.getRemoteAddress()).thenReturn(new InetSocketAddress("127.0.0.1", 25565));
+        when(player.getEffectiveLocale()).thenReturn(Locale.GERMANY);
+        when(player.getProtocolVersion()).thenReturn(ProtocolVersion.MINECRAFT_1_21);
+        when(player.isOnlineMode()).thenReturn(true);
+        return player;
     }
 
     private static PlayerSettings settings() {
@@ -192,14 +104,4 @@ class PlayerConnectionListenerTest {
         when(settings.getSkinParts()).thenReturn(new SkinParts((byte) 0x41));
         return settings;
     }
-
-    private static void completeRegistration(CompletableFuture<LoginResult> registration, String outcome) {
-        switch (outcome) {
-            case "success" -> registration.complete(LoginResult.success("session-1"));
-            case "failure" -> registration.complete(LoginResult.failure("Request timeout"));
-            case "exception" -> registration.completeExceptionally(new IllegalStateException("Disconnected"));
-            default -> throw new AssertionError(outcome);
-        }
-    }
-
 }

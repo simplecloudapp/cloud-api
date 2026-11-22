@@ -11,6 +11,7 @@ import app.simplecloud.api.presence.ProxyPresencePlayerProvider;
 import app.simplecloud.api.runtime.SimpleCloudRuntime;
 import app.simplecloud.api.platform.shared.luckperms.LuckPermsPrimaryGroupSynchronizer;
 import app.simplecloud.api.platform.shared.luckperms.LuckPermsSynchronizer;
+import app.simplecloud.api.platform.shared.player.ProxyPlayerSessions;
 import net.kyori.adventure.platform.bungeecord.BungeeAudiences;
 import net.md_5.bungee.api.connection.ProxiedPlayer;
 import net.md_5.bungee.api.plugin.Plugin;
@@ -53,10 +54,13 @@ public class BungeeCordApiProvider extends Plugin implements ProxyPresencePlayer
         getLogger().info("SimpleCloud v3 API provider initialized!");
         getProxy().getPluginManager().registerListener(this, new PlayerConnectionListener(
                 this,
-                playerSessionReporter,
-                proxyPresenceTracker,
-                proxyName,
-                luckPermsSynchronizer
+                new ProxyPlayerSessions(
+                        playerSessionReporter,
+                        proxyPresenceTracker,
+                        proxyName,
+                        luckPermsSynchronizer,
+                        this::logFailure
+                )
         ));
 
         playerCommandHandler.start();
@@ -86,7 +90,7 @@ public class BungeeCordApiProvider extends Plugin implements ProxyPresencePlayer
                     LuckPermsProvider.get(),
                     this,
                     playerId -> getProxy().getPlayer(playerId) != null,
-                    (message, cause) -> getLogger().log(java.util.logging.Level.SEVERE, message, cause)
+                    this::logFailure
             );
             primaryGroupSynchronizer.start();
             getLogger().info("LuckPerms primary group synchronization enabled");
@@ -95,6 +99,10 @@ public class BungeeCordApiProvider extends Plugin implements ProxyPresencePlayer
             getLogger().log(java.util.logging.Level.WARNING, "LuckPerms is present but its API is not available", exception);
             return LuckPermsSynchronizer.DISABLED;
         }
+    }
+
+    private void logFailure(String message, Throwable cause) {
+        getLogger().log(java.util.logging.Level.SEVERE, message, cause);
     }
 
     @Override

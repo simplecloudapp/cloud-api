@@ -1,10 +1,7 @@
 package app.simplecloud.api.platform.bungeecord;
 
-import app.simplecloud.api.internal.integration.player.LoginResult;
-import app.simplecloud.api.internal.integration.player.PlayerLogin;
-import app.simplecloud.api.internal.integration.player.PlayerSessionReporter;
-import app.simplecloud.api.internal.integration.presence.ProxyPresenceTracker;
-import app.simplecloud.api.platform.shared.luckperms.LuckPermsSynchronizer;
+import app.simplecloud.api.platform.shared.player.ConnectingPlayer;
+import app.simplecloud.api.platform.shared.player.ProxyPlayerSessions;
 import app.simplecloud.api.player.PlayerClientSettings;
 import net.md_5.bungee.api.SkinConfiguration;
 import net.md_5.bungee.api.connection.PendingConnection;
@@ -20,132 +17,61 @@ import net.md_5.bungee.event.EventPriority;
 
 import java.util.ArrayList;
 import java.util.List;
-import java.util.UUID;
 import java.util.concurrent.CompletableFuture;
-import java.util.concurrent.TimeUnit;
-import java.util.logging.Level;
-import java.util.logging.Logger;
 
 public class PlayerConnectionListener implements Listener {
 
-    private static final Logger logger = Logger.getLogger(PlayerConnectionListener.class.getName());
-    private static final long LOGIN_WAIT_SECONDS = 5;
-
     private final Plugin plugin;
-    private final PlayerSessionReporter playerSessionReporter;
-    private final ProxyPresenceTracker proxyPresenceTracker;
-    private final String proxyName;
-    private final LuckPermsSynchronizer luckPermsSynchronizer;
+    private final ProxyPlayerSessions sessions;
 
-    public PlayerConnectionListener(
-            Plugin plugin,
-            PlayerSessionReporter playerSessionReporter,
-            ProxyPresenceTracker proxyPresenceTracker,
-            String proxyName,
-            LuckPermsSynchronizer luckPermsSynchronizer
-    ) {
+    public PlayerConnectionListener(Plugin plugin, ProxyPlayerSessions sessions) {
         this.plugin = plugin;
-        this.playerSessionReporter = playerSessionReporter;
-        this.proxyPresenceTracker = proxyPresenceTracker;
-        this.proxyName = proxyName;
-        this.luckPermsSynchronizer = luckPermsSynchronizer;
+        this.sessions = sessions;
     }
 
     @EventHandler(priority = EventPriority.LOW)
     public void onPlayerJoin(PostLoginEvent event) {
         ProxiedPlayer player = event.getPlayer();
-        PendingConnection connection = player.getPendingConnection();
-        UUID playerId = player.getUniqueId();
-        proxyPresenceTracker.trackLogin(playerId.toString());
-
-        String connectedProxyName = proxyName != null && !proxyName.isBlank() ? proxyName : "unknown";
-        String addressHash = String.valueOf(connection.getSocketAddress().hashCode());
-        String clientLanguage = player.getLocale() != null ? player.getLocale().toString() : "en_US";
-        PlayerLogin login = new PlayerLogin(
-                playerId,
-                player.getName(),
-                player.getDisplayName(),
-                connectedProxyName,
-                addressHash,
-                clientLanguage,
-                connection.getVersion(),
-                connection.isOnlineMode(),
-                null
+        CompletableFuture<Void> login = sessions.login(
+                toConnectingPlayer(player),
+                () -> player.getLocale() != null ? toClientSettings(player) : null
         );
-
-        CompletableFuture<LoginResult> loginReport = playerSessionReporter.reportLogin(login);
-        // Keep the initial backend connection behind controller registration.
         event.registerIntent(plugin);
-        CompletableFuture<Void> loginApplied = loginReport.thenAccept(result -> applyLoginResult(player, result));
-        CompletableFuture<Void> registration = loginApplied.exceptionally(failure -> {
-            logger.log(Level.SEVERE, "Failed to send login event for " + player.getName(), failure);
-            return null;
-        });
-        CompletableFuture<Void> registrationOrTimeout =
-                registration.copy().completeOnTimeout(null, LOGIN_WAIT_SECONDS, TimeUnit.SECONDS);
-        registrationOrTimeout.whenComplete((ignored, failure) -> event.completeIntent(plugin));
-    }
-
-    private void applyLoginResult(ProxiedPlayer player, LoginResult result) {
-        if (!result.success()) {
-            logger.warning("Login failed for " + player.getName() + ": " + result.errorMessage());
-            return;
-        }
-        UUID playerId = player.getUniqueId();
-        String sessionId = result.sessionId();
-        proxyPresenceTracker.updateSessionId(playerId.toString(), sessionId);
-        luckPermsSynchronizer.synchronize(playerId);
-        if (player.getLocale() != null) {
-            sendClientSettings(player, sessionId);
-        }
+        login.whenComplete((ignored, failure) -> event.completeIntent(plugin));
     }
 
     @EventHandler
     public void onPlayerQuit(PlayerDisconnectEvent event) {
         ProxiedPlayer player = event.getPlayer();
-        UUID playerId = player.getUniqueId();
-
-        playerSessionReporter.reportDisconnect(playerId)
-                .exceptionally(e -> {
-                    logger.log(Level.SEVERE, "Failed to send disconnect event for " + player.getName(), e);
-                    return null;
-                });
-        proxyPresenceTracker.remove(playerId.toString());
-        luckPermsSynchronizer.forget(playerId);
+        sessions.disconnect(player.getUniqueId(), player.getName());
     }
 
     @EventHandler
     public void onSettingsChanged(SettingsChangedEvent event) {
         ProxiedPlayer player = event.getPlayer();
-        String sessionId = proxyPresenceTracker.getSessionId(player.getUniqueId().toString());
-        // Settings sent before the login completed are picked up once the session exists.
-        if (sessionId == null) {
-            return;
-        }
-
-        sendClientSettings(player, sessionId);
+        sessions.clientSettingsChanged(player.getUniqueId(), player.getName(), toClientSettings(player));
     }
 
     @EventHandler
     public void onServerSwitch(ServerSwitchEvent event) {
         ProxiedPlayer player = event.getPlayer();
-        String newServer = player.getServer() != null ? player.getServer().getInfo().getName() : null;
-
-        if (newServer != null) {
-            playerSessionReporter.reportServerSwitch(player.getUniqueId(), newServer)
-                    .exceptionally(e -> {
-                        logger.log(Level.SEVERE, "Failed to send server switch event for " + player.getName(), e);
-                        return null;
-                    });
+        if (player.getServer() != null) {
+            sessions.serverSwitched(player.getUniqueId(), player.getName(), player.getServer().getInfo().getName());
         }
     }
 
-    private void sendClientSettings(ProxiedPlayer player, String sessionId) {
-        playerSessionReporter.reportClientSettings(sessionId, toClientSettings(player))
-                .exceptionally(e -> {
-                    logger.log(Level.FINE, "Failed to send client settings for " + player.getName() + ": " + e.getMessage());
-                    return null;
-                });
+    static ConnectingPlayer toConnectingPlayer(ProxiedPlayer player) {
+        PendingConnection connection = player.getPendingConnection();
+        return new ConnectingPlayer(
+                player.getUniqueId(),
+                player.getName(),
+                player.getDisplayName(),
+                connection.getSocketAddress(),
+                player.getLocale(),
+                connection.getVersion(),
+                connection.isOnlineMode(),
+                null
+        );
     }
 
     static PlayerClientSettings toClientSettings(ProxiedPlayer player) {
