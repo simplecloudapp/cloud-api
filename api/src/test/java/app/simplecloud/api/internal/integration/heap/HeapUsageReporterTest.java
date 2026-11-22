@@ -66,6 +66,19 @@ class HeapUsageReporterTest {
     }
 
     @Test
+    void publishesOnlyOnDueTicksAsTheTicksAdvance() {
+        FakeNatsConnection nats = FakeNatsConnection.withoutRequests();
+        HeapUsageReporter reporter = new HeapUsageReporter(nats.connection(), NETWORK_ID, SERVER_ID);
+
+        for (int tick = 0; tick <= TICK_AT_NINETY_SECONDS; tick++) {
+            reporter.reportIfDue();
+        }
+
+        int reportsInFirstMinute = TICK_AT_ONE_MINUTE + 1;
+        assertEquals(reportsInFirstMinute + 1, nats.published().size());
+    }
+
+    @Test
     void skipsReportWhileDisconnected() {
         AtomicInteger publishCalls = new AtomicInteger();
         Connection disconnectedConnection = (Connection) Proxy.newProxyInstance(
