@@ -32,7 +32,7 @@ public class PlayerConnectionListener implements Listener {
     public void onPlayerJoin(PostLoginEvent event) {
         ProxiedPlayer player = event.getPlayer();
         CompletableFuture<Void> login = sessions.login(
-                toConnectingPlayer(player), () -> player.getLocale() != null ? toClientSettings(player) : null);
+                toConnectingPlayer(player), player, () -> player.getLocale() != null ? toClientSettings(player) : null);
         event.registerIntent(plugin);
         login.whenComplete((ignored, failure) -> event.completeIntent(plugin));
     }
@@ -40,7 +40,7 @@ public class PlayerConnectionListener implements Listener {
     @EventHandler
     public void onPlayerQuit(PlayerDisconnectEvent event) {
         ProxiedPlayer player = event.getPlayer();
-        sessions.disconnect(player.getUniqueId(), player.getName());
+        sessions.disconnect(player.getUniqueId(), player.getName(), player);
     }
 
     @EventHandler
@@ -74,28 +74,35 @@ public class PlayerConnectionListener implements Listener {
     }
 
     static PlayerClientSettings toClientSettings(ProxiedPlayer player) {
-        PlayerClientSettings result = new PlayerClientSettings();
-        if (player.getChatMode() != null) {
-            result.setChatMode(
-                    switch (player.getChatMode()) {
-                        case SHOWN -> PlayerClientSettings.ChatMode.ENABLED;
-                        case COMMANDS_ONLY -> PlayerClientSettings.ChatMode.COMMANDS_ONLY;
-                        case HIDDEN -> PlayerClientSettings.ChatMode.HIDDEN;
-                    });
+        return new PlayerClientSettings(
+                toChatMode(player.getChatMode()),
+                player.getLocale() != null ? player.getLocale().toString() : null,
+                toMainHand(player.getMainHand()),
+                player.getViewDistance(),
+                player.hasChatColors(),
+                // Bungee does not expose the client listing flag.
+                true,
+                toSkinParts(player.getSkinParts()));
+    }
+
+    private static PlayerClientSettings.ChatMode toChatMode(ProxiedPlayer.ChatMode chatMode) {
+        if (chatMode == null) {
+            return PlayerClientSettings.ChatMode.UNKNOWN;
         }
-        result.setLocale(player.getLocale() != null ? player.getLocale().toString() : null);
-        if (player.getMainHand() != null) {
-            result.setMainHand(
-                    player.getMainHand() == ProxiedPlayer.MainHand.LEFT
-                            ? PlayerClientSettings.MainHand.LEFT
-                            : PlayerClientSettings.MainHand.RIGHT);
+        return switch (chatMode) {
+            case SHOWN -> PlayerClientSettings.ChatMode.ENABLED;
+            case COMMANDS_ONLY -> PlayerClientSettings.ChatMode.COMMANDS_ONLY;
+            case HIDDEN -> PlayerClientSettings.ChatMode.HIDDEN;
+        };
+    }
+
+    private static PlayerClientSettings.MainHand toMainHand(ProxiedPlayer.MainHand mainHand) {
+        if (mainHand == null) {
+            return PlayerClientSettings.MainHand.UNKNOWN;
         }
-        result.setViewDistance(player.getViewDistance());
-        result.setChatColors(player.hasChatColors());
-        // Bungee does not expose the client listing flag.
-        result.setClientListingAllowed(true);
-        result.setSkinParts(toSkinParts(player.getSkinParts()));
-        return result;
+        return mainHand == ProxiedPlayer.MainHand.LEFT
+                ? PlayerClientSettings.MainHand.LEFT
+                : PlayerClientSettings.MainHand.RIGHT;
     }
 
     private static List<String> toSkinParts(SkinConfiguration skinParts) {

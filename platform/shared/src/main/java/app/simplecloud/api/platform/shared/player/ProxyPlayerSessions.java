@@ -6,9 +6,17 @@ import app.simplecloud.api.internal.integration.player.PlayerSessionReporter;
 import app.simplecloud.api.internal.integration.presence.ProxyPresenceTracker;
 import app.simplecloud.api.platform.shared.luckperms.LuckPermsSynchronizer;
 import app.simplecloud.api.player.PlayerClientSettings;
+import java.net.InetSocketAddress;
+import java.net.SocketAddress;
+import java.nio.charset.StandardCharsets;
+import java.security.MessageDigest;
+import java.security.NoSuchAlgorithmException;
 import java.time.Duration;
+import java.util.HexFormat;
+import java.util.Map;
 import java.util.UUID;
 import java.util.concurrent.CompletableFuture;
+import java.util.concurrent.ConcurrentHashMap;
 import java.util.concurrent.TimeUnit;
 import java.util.function.Supplier;
 import java.util.logging.Level;
@@ -27,6 +35,8 @@ public final class ProxyPlayerSessions {
     private final String proxyName;
     private final LuckPermsSynchronizer luckPermsSynchronizer;
     private final Duration loginWait;
+    private final Map<UUID, Object> connections = new ConcurrentHashMap<>();
+    private final Map<UUID, CompletableFuture<?>> reports = new ConcurrentHashMap<>();
 
     public ProxyPlayerSessions(
             PlayerSessionReporter sessionReporter,
@@ -55,11 +65,18 @@ public final class ProxyPlayerSessions {
      *
      * @param clientSettings the settings the client has sent so far, or {@code null} if none yet
      */
-    public CompletableFuture<Void> login(ConnectingPlayer player, Supplier<PlayerClientSettings> clientSettings) {
+    public CompletableFuture<Void> login(
+            ConnectingPlayer player, Object connection, Supplier<PlayerClientSettings> clientSettings) {
+        connections.put(player.id(), connection);
         presenceTracker.trackLogin(player.id().toString());
-        CompletableFuture<LoginResult> loginReport = sessionReporter.reportLogin(toPlayerLogin(player));
+        CompletableFuture<LoginResult> loginReport =
+                afterPreviousReport(player.id(), () -> sessionReporter.reportLogin(toPlayerLogin(player)));
         CompletableFuture<Void> registration = loginReport
-                .thenAccept(result -> applyLoginResult(player, result, clientSettings))
+                .thenAccept(result -> {
+                    if (connections.get(player.id()) == connection) {
+                        applyLoginResult(player, result, clientSettings);
+                    }
+                })
                 .exceptionally(failure -> {
                     LOGGER.log(Level.SEVERE, "Failed to send login event for " + player.name(), failure);
                     return null;
@@ -67,13 +84,17 @@ public final class ProxyPlayerSessions {
         return registration.copy().completeOnTimeout(null, loginWait.toMillis(), TimeUnit.MILLISECONDS);
     }
 
-    public void disconnect(UUID playerId, String playerName) {
-        sessionReporter.reportDisconnect(playerId).exceptionally(failure -> {
-            LOGGER.log(Level.SEVERE, "Failed to send disconnect event for " + playerName, failure);
-            return null;
-        });
+    public void disconnect(UUID playerId, String playerName, Object connection) {
+        if (!connections.remove(playerId, connection)) {
+            return;
+        }
         presenceTracker.remove(playerId.toString());
         luckPermsSynchronizer.forget(playerId);
+        afterPreviousReport(playerId, () -> sessionReporter.reportDisconnect(playerId))
+                .exceptionally(failure -> {
+                    LOGGER.log(Level.SEVERE, "Failed to send disconnect event for " + playerName, failure);
+                    return null;
+                });
     }
 
     public void serverSwitched(UUID playerId, String playerName, String serverName) {
@@ -100,7 +121,7 @@ public final class ProxyPlayerSessions {
                 player.name(),
                 player.displayName(),
                 proxyName,
-                String.valueOf(player.address().hashCode()),
+                hashAddress(player.address()),
                 player.locale() != null ? player.locale().toString() : "en_US",
                 player.protocolVersion(),
                 player.onlineMode(),
@@ -119,6 +140,34 @@ public final class ProxyPlayerSessions {
         PlayerClientSettings settings = clientSettings.get();
         if (settings != null) {
             sendClientSettings(player.name(), sessionId, settings);
+        }
+    }
+
+    private <T> CompletableFuture<T> afterPreviousReport(UUID playerId, Supplier<CompletableFuture<T>> report) {
+        CompletableFuture<T> next = new CompletableFuture<>();
+        CompletableFuture<?> previous = reports.put(playerId, next);
+        CompletableFuture<?> start = previous != null ? previous : CompletableFuture.completedFuture(null);
+        start.handle((ignored, failure) -> null)
+                .thenCompose(ignored -> report.get())
+                .whenComplete((result, failure) -> {
+                    reports.remove(playerId, next);
+                    if (failure != null) {
+                        next.completeExceptionally(failure);
+                    } else {
+                        next.complete(result);
+                    }
+                });
+        return next;
+    }
+
+    static String hashAddress(SocketAddress address) {
+        byte[] value = address instanceof InetSocketAddress socketAddress && socketAddress.getAddress() != null
+                ? socketAddress.getAddress().getAddress()
+                : String.valueOf(address).getBytes(StandardCharsets.UTF_8);
+        try {
+            return HexFormat.of().formatHex(MessageDigest.getInstance("SHA-256").digest(value));
+        } catch (NoSuchAlgorithmException e) {
+            throw new IllegalStateException("SHA-256 is not available", e);
         }
     }
 

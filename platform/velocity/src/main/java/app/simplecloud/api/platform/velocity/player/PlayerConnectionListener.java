@@ -29,13 +29,14 @@ public class PlayerConnectionListener {
         Player player = event.getPlayer();
         return EventTask.resumeWhenComplete(sessions.login(
                 toConnectingPlayer(player),
+                player,
                 () -> player.hasSentPlayerSettings() ? toClientSettings(player.getPlayerSettings()) : null));
     }
 
     @Subscribe
     public void onPlayerQuit(DisconnectEvent event) {
         Player player = event.getPlayer();
-        sessions.disconnect(player.getUniqueId(), player.getUsername());
+        sessions.disconnect(player.getUniqueId(), player.getUsername(), player);
     }
 
     @Subscribe
@@ -75,23 +76,22 @@ public class PlayerConnectionListener {
     }
 
     static PlayerClientSettings toClientSettings(PlayerSettings settings) {
-        PlayerClientSettings result = new PlayerClientSettings();
-        result.setChatMode(
-                switch (settings.getChatMode()) {
-                    case SHOWN -> PlayerClientSettings.ChatMode.ENABLED;
-                    case COMMANDS_ONLY -> PlayerClientSettings.ChatMode.COMMANDS_ONLY;
-                    case HIDDEN -> PlayerClientSettings.ChatMode.HIDDEN;
-                });
-        result.setLocale(settings.getLocale() != null ? settings.getLocale().toString() : null);
-        result.setMainHand(
-                settings.getMainHand() == PlayerSettings.MainHand.LEFT
-                        ? PlayerClientSettings.MainHand.LEFT
-                        : PlayerClientSettings.MainHand.RIGHT);
-        result.setViewDistance(settings.getViewDistance());
-        result.setChatColors(settings.hasChatColors());
-        result.setClientListingAllowed(settings.isClientListingAllowed());
-        result.setSkinParts(toSkinParts(settings.getSkinParts()));
-        return result;
+        PlayerClientSettings.ChatMode chatMode = switch (settings.getChatMode()) {
+            case SHOWN -> PlayerClientSettings.ChatMode.ENABLED;
+            case COMMANDS_ONLY -> PlayerClientSettings.ChatMode.COMMANDS_ONLY;
+            case HIDDEN -> PlayerClientSettings.ChatMode.HIDDEN;
+        };
+        PlayerClientSettings.MainHand mainHand = settings.getMainHand() == PlayerSettings.MainHand.LEFT
+                ? PlayerClientSettings.MainHand.LEFT
+                : PlayerClientSettings.MainHand.RIGHT;
+        return new PlayerClientSettings(
+                chatMode,
+                settings.getLocale() != null ? settings.getLocale().toString() : null,
+                mainHand,
+                settings.getViewDistance(),
+                settings.hasChatColors(),
+                settings.isClientListingAllowed(),
+                toSkinParts(settings.getSkinParts()));
     }
 
     private static List<String> toSkinParts(SkinParts skinParts) {

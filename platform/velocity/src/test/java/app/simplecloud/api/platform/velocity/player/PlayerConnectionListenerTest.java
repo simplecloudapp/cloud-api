@@ -1,8 +1,6 @@
 package app.simplecloud.api.platform.velocity.player;
 
 import static org.junit.jupiter.api.Assertions.assertEquals;
-import static org.junit.jupiter.api.Assertions.assertFalse;
-import static org.junit.jupiter.api.Assertions.assertTrue;
 import static org.mockito.ArgumentMatchers.any;
 import static org.mockito.Mockito.mock;
 import static org.mockito.Mockito.verify;
@@ -37,7 +35,7 @@ class PlayerConnectionListenerTest {
     @Test
     void loginEventIsHeldUntilTheSessionIsRegistered() {
         CompletableFuture<Void> login = new CompletableFuture<>();
-        when(sessions.login(any(), any())).thenReturn(login);
+        when(sessions.login(any(), any(), any())).thenReturn(login);
         Continuation continuation = mock(Continuation.class);
 
         EventTask task = listener.onPlayerJoin(new PostLoginEvent(player(List.of())));
@@ -50,9 +48,11 @@ class PlayerConnectionListenerTest {
 
     @Test
     void quitEndsTheSession() {
-        listener.onPlayerQuit(new DisconnectEvent(player(List.of()), DisconnectEvent.LoginStatus.SUCCESSFUL_LOGIN));
+        Player player = player(List.of());
 
-        verify(sessions).disconnect(playerId, "Player");
+        listener.onPlayerQuit(new DisconnectEvent(player, DisconnectEvent.LoginStatus.SUCCESSFUL_LOGIN));
+
+        verify(sessions).disconnect(playerId, "Player", player);
     }
 
     @Test
@@ -80,13 +80,16 @@ class PlayerConnectionListenerTest {
     void clientSettingsAreConvertedToTheCloudModel() {
         PlayerClientSettings result = PlayerConnectionListener.toClientSettings(settings());
 
-        assertEquals(PlayerClientSettings.ChatMode.COMMANDS_ONLY, result.getChatMode());
-        assertEquals("de_DE", result.getLocale());
-        assertEquals(PlayerClientSettings.MainHand.LEFT, result.getMainHand());
-        assertEquals(12, result.getViewDistance());
-        assertTrue(result.hasChatColors());
-        assertFalse(result.isClientListingAllowed());
-        assertEquals(List.of("CAPE", "HAT"), result.getSkinParts());
+        assertEquals(
+                new PlayerClientSettings(
+                        PlayerClientSettings.ChatMode.COMMANDS_ONLY,
+                        "de_DE",
+                        PlayerClientSettings.MainHand.LEFT,
+                        12,
+                        true,
+                        false,
+                        List.of("CAPE", "HAT")),
+                result);
     }
 
     private Player player(List<GameProfile.Property> profileProperties) {

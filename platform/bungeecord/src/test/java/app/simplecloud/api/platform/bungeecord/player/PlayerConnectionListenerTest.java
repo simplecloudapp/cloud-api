@@ -1,7 +1,6 @@
 package app.simplecloud.api.platform.bungeecord.player;
 
 import static org.junit.jupiter.api.Assertions.assertEquals;
-import static org.junit.jupiter.api.Assertions.assertTrue;
 import static org.mockito.ArgumentMatchers.any;
 import static org.mockito.Mockito.mock;
 import static org.mockito.Mockito.verify;
@@ -35,7 +34,7 @@ class PlayerConnectionListenerTest {
     @SuppressWarnings("unchecked")
     void loginEventIsHeldUntilTheSessionIsRegistered() {
         CompletableFuture<Void> login = new CompletableFuture<>();
-        when(sessions.login(any(), any())).thenReturn(login);
+        when(sessions.login(any(), any(), any())).thenReturn(login);
         Callback<PostLoginEvent> callback = mock(Callback.class);
         PostLoginEvent event = new PostLoginEvent(player(), null, callback);
 
@@ -49,9 +48,11 @@ class PlayerConnectionListenerTest {
 
     @Test
     void quitEndsTheSession() {
-        listener.onPlayerQuit(new PlayerDisconnectEvent(player()));
+        ProxiedPlayer player = player();
 
-        verify(sessions).disconnect(playerId, "Player");
+        listener.onPlayerQuit(new PlayerDisconnectEvent(player));
+
+        verify(sessions).disconnect(playerId, "Player", player);
     }
 
     @Test
@@ -75,13 +76,16 @@ class PlayerConnectionListenerTest {
     void clientSettingsAreConvertedToTheCloudModel() {
         PlayerClientSettings result = PlayerConnectionListener.toClientSettings(player());
 
-        assertEquals(PlayerClientSettings.ChatMode.HIDDEN, result.getChatMode());
-        assertEquals("de_DE", result.getLocale());
-        assertEquals(PlayerClientSettings.MainHand.LEFT, result.getMainHand());
-        assertEquals(12, result.getViewDistance());
-        assertTrue(result.hasChatColors());
-        assertTrue(result.isClientListingAllowed());
-        assertEquals(List.of("JACKET", "RIGHT_PANTS"), result.getSkinParts());
+        assertEquals(
+                new PlayerClientSettings(
+                        PlayerClientSettings.ChatMode.HIDDEN,
+                        "de_DE",
+                        PlayerClientSettings.MainHand.LEFT,
+                        12,
+                        true,
+                        true,
+                        List.of("JACKET", "RIGHT_PANTS")),
+                result);
     }
 
     private ProxiedPlayer player() {
