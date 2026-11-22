@@ -29,6 +29,12 @@ type PersistentServersClient = sdk.PersistentServersClient
 type Player = sdk.Player
 type PlayersClient = sdk.PlayersClient
 
+type Blueprint = sdk.Blueprint
+type BlueprintsClient = sdk.BlueprintsClient
+
+type Stats = sdk.Stats
+type StatsClient = sdk.StatsClient
+
 func DefaultOptions() Options { return sdk.DefaultOptions() }
 
 func NewClient(options Options) (*Client, error) { return sdk.NewClient(options) }

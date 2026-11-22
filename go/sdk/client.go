@@ -17,6 +17,8 @@ type Client struct {
 	Servers           *ServersClient
 	PersistentServers *PersistentServersClient
 	Players           *PlayersClient
+	Blueprints        *BlueprintsClient
+	Stats             *StatsClient
 	Events            *EventsClient
 
 	options Options
@@ -52,6 +54,8 @@ func NewClient(options Options) (*Client, error) {
 	client.Servers = &ServersClient{authenticatedClient: api}
 	client.PersistentServers = &PersistentServersClient{authenticatedClient: api}
 	client.Players = &PlayersClient{authenticatedClient: api}
+	client.Blueprints = &BlueprintsClient{authenticatedClient: api}
+	client.Stats = &StatsClient{authenticatedClient: api}
 	client.Events = &EventsClient{client: client}
 	return client, nil
 }

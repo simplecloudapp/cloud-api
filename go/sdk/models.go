@@ -2,11 +2,15 @@ package simplecloud
 
 import "github.com/simplecloudapp/cloud-api/go/generated"
 
+type ModelsBlueprintSummary = generated.ModelsBlueprintSummary
 type ModelsClearServerGroupStartQueueResponse = generated.ModelsClearServerGroupStartQueueResponse
+type ModelsCloudStats = generated.ModelsCloudStats
 type ModelsConnectPlayerRequest = generated.ModelsConnectPlayerRequest
 type ModelsConnectPlayerResponse = generated.ModelsConnectPlayerResponse
+type ModelsCreateBlueprintRequest = generated.ModelsCreateBlueprintRequest
 type ModelsCreatePersistentServerRequest = generated.ModelsCreatePersistentServerRequest
 type ModelsCreateServerGroupRequest = generated.ModelsCreateServerGroupRequest
+type ModelsDeleteBlueprintResponse = generated.ModelsDeleteBlueprintResponse
 type ModelsDeletePersistentServerResponse = generated.ModelsDeletePersistentServerResponse
 type ModelsDeletePlayerPropertiesRequest = generated.ModelsDeletePlayerPropertiesRequest
 type ModelsDeletePropertiesRequest = generated.ModelsDeletePropertiesRequest
@@ -14,6 +18,7 @@ type ModelsDeleteServerGroupResponse = generated.ModelsDeleteServerGroupResponse
 type ModelsKickPlayerRequest = generated.ModelsKickPlayerRequest
 type ModelsKickPlayerResponse = generated.ModelsKickPlayerResponse
 type ModelsListServerGroupStartQueueResponse = generated.ModelsListServerGroupStartQueueResponse
+type ModelsPatchBlueprintRequest = generated.ModelsPatchBlueprintRequest
 type ModelsPatchPersistentServerRequest = generated.ModelsPatchPersistentServerRequest
 type ModelsPatchPlayerRequest = generated.ModelsPatchPlayerRequest
 type ModelsPatchPropertiesRequest = generated.ModelsPatchPropertiesRequest
@@ -26,4 +31,5 @@ type ModelsQueueServerGroupStartResponse = generated.ModelsQueueServerGroupStart
 type ModelsServerGroupSummary = generated.ModelsServerGroupSummary
 type ModelsServerSummary = generated.ModelsServerSummary
 type ModelsStopServerResponse = generated.ModelsStopServerResponse
+type ModelsUpdateBlueprintRequest = generated.ModelsUpdateBlueprintRequest
 type ModelsUpdatePlayerPropertiesRequest = generated.ModelsUpdatePlayerPropertiesRequest
