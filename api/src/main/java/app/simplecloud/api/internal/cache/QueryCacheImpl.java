@@ -15,9 +15,6 @@ import java.util.function.Supplier;
 import java.util.logging.Level;
 import java.util.logging.Logger;
 
-/**
- * Caffeine-backed implementation of QueryCache with stale-while-revalidate semantics.
- */
 public class QueryCacheImpl implements QueryCache {
 
     private static final Logger LOGGER = Logger.getLogger(QueryCacheImpl.class.getName());
@@ -101,11 +98,9 @@ public class QueryCacheImpl implements QueryCache {
                 Instant staleThreshold = Instant.now().minus(staleTime);
 
                 if (!entry.isStale(staleThreshold)) {
-                    // Fresh data - return immediately
                     hitCount.incrementAndGet();
                     return CompletableFuture.completedFuture(entry.getData());
                 } else {
-                    // Stale data - return cached, revalidate in background
                     staleHitCount.incrementAndGet();
                     triggerBackgroundRevalidation(key, fetcher);
                     return CompletableFuture.completedFuture(entry.getData());
@@ -113,7 +108,6 @@ public class QueryCacheImpl implements QueryCache {
             }
         }
 
-        // No cached data - fetch with deduplication
         missCount.incrementAndGet();
         return fetchWithDeduplication(key, fetcher);
     }
@@ -157,7 +151,6 @@ public class QueryCacheImpl implements QueryCache {
     }
 
     private <T> void triggerBackgroundRevalidation(QueryKey key, Supplier<CompletableFuture<T>> fetcher) {
-        // Only revalidate if not already revalidating
         if (inFlightRequests.containsKey(key)) {
             return;
         }
@@ -255,10 +248,6 @@ public class QueryCacheImpl implements QueryCache {
         return cache.asMap().keySet();
     }
 
-    /**
-     * Shuts down the background revalidation executor.
-     * Call this when the CloudApi is being shut down.
-     */
     public void shutdown() {
         revalidationExecutor.shutdown();
         try {

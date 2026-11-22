@@ -14,9 +14,6 @@ import java.util.function.Function;
 import java.util.function.Predicate;
 import java.util.function.Supplier;
 
-/**
- * Everything the REST backed APIs of one {@link app.simplecloud.api.CloudApi} instance share.
- */
 public record ApiContext(CloudApiOptions options, QueryCache cache, ApiClient client, Executor executor) {
 
     private static final Duration TRANSIENT_MISS_RETRY_DELAY = Duration.ofMillis(200);
@@ -30,19 +27,12 @@ public record ApiContext(CloudApiOptions options, QueryCache cache, ApiClient cl
         return options.getNetworkId();
     }
 
-    /**
-     * Creates a generated API, for example {@code context.api(ServersApi::new)}.
-     */
     public <T> T api(Function<ApiClient, T> factory) {
         return factory.apply(client);
     }
 
-    /**
-     * Fetches through the cache and retries a few times when the result looks like a miss caused by
-     * the controller not having caught up yet.
-     */
     public <T> CompletableFuture<T> fetchWithTransientMissRecovery(QueryKey key,
-                                                                   Supplier<CompletableFuture<T>> fetcher,
+                                                                   supplier<CompletableFuture<T>> fetcher,
                                                                    Predicate<T> isTransientMiss) {
         return cache.fetchWithTransientMissRecovery(
                 key,

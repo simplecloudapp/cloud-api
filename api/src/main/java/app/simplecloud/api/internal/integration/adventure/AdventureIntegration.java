@@ -46,10 +46,6 @@ import java.util.concurrent.ConcurrentHashMap;
 import java.util.concurrent.atomic.AtomicBoolean;
 import java.util.concurrent.atomic.AtomicReference;
 
-/**
- * Adventure integration for server plugins.
- * Handles adventure actions (messages, titles, sounds, boss bars) from remote sources.
- */
 public class AdventureIntegration {
 
     private static final List<String> ACTIONS = List.of(
@@ -80,9 +76,6 @@ public class AdventureIntegration {
 
     private Dispatcher dispatcher;
 
-    /**
-     * Creates an integration for actions sent to a player on this server, to this server, or to its group.
-     */
     public AdventureIntegration(CloudApiImpl cloudApi, PlayerAudiences playerAudiences, String serverId, String groupName) {
         this(cloudApi.getNatsConnection(), cloudApi.getNetworkId(), playerAudiences, serverId, groupName);
     }
@@ -96,9 +89,6 @@ public class AdventureIntegration {
         this.groupName = groupName;
     }
 
-    /**
-     * Starts listening for adventure actions.
-     */
     public void start() {
         if (!running.compareAndSet(false, true)) return;
 
@@ -120,9 +110,6 @@ public class AdventureIntegration {
         }
     }
 
-    /**
-     * Stops listening for adventure actions.
-     */
     public void stop() {
         if (!running.compareAndSet(true, false)) return;
 
@@ -136,9 +123,6 @@ public class AdventureIntegration {
         activeBossBars.clear();
     }
 
-    /**
-     * Drops the boss bars tracked for a player who left this server.
-     */
     public void forgetPlayer(UUID playerId) {
         for (String bossBarId : activeBossBars.keySet()) {
             untrackBossBar(bossBarId, playerId);
@@ -152,7 +136,6 @@ public class AdventureIntegration {
         PlayerAction action = prepareAction(extractAction(msg.getSubject()), msg);
         if (action == null) return;
 
-        // Every server receives player actions; only the server holding the player runs them.
         playerAudiences.runForPlayer(playerId, quietly(action));
     }
 
@@ -173,7 +156,6 @@ public class AdventureIntegration {
     }
 
     private UUID extractPlayerId(String subject) {
-        // Subject pattern: {networkId}.adventure.player.{uuid}.{action}
         String[] parts = subject.split("\\.");
         if (parts.length < 2) return null;
         try {

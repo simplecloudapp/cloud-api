@@ -1,4 +1,4 @@
-package app.simplecloud.api.internal.blueprint;
+package app.simplecloud.api.internal.util.blueprint;
 
 import app.simplecloud.api.blueprint.CreateBlueprintRequest;
 import app.simplecloud.api.blueprint.RuntimeConfig;
@@ -13,15 +13,15 @@ import java.util.ArrayList;
 import java.util.List;
 import java.util.Locale;
 
-final class BlueprintRequestConverter {
+public final class BlueprintRequestMapper {
 
-    private final InlineBlueprintSupport.ServerUrlResolver serverUrlResolver;
+    private final InlineBlueprintManager.ServerUrlResolver serverUrlResolver;
 
-    BlueprintRequestConverter(InlineBlueprintSupport.ServerUrlResolver serverUrlResolver) {
+    public BlueprintRequestMapper(InlineBlueprintManager.ServerUrlResolver serverUrlResolver) {
         this.serverUrlResolver = serverUrlResolver;
     }
 
-    ModelsCreateBlueprintRequest toCreateRequest(String name, CreateBlueprintRequest request) {
+    public ModelsCreateBlueprintRequest toCreateRequest(String name, CreateBlueprintRequest request) {
         ModelsCreateBlueprintRequest apiRequest = new ModelsCreateBlueprintRequest();
         apiRequest.setName(name);
         apiRequest.setConfigurator(request.getConfigurator());
@@ -34,7 +34,7 @@ final class BlueprintRequestConverter {
         return apiRequest;
     }
 
-    ModelsUpdateBlueprintRequest toReplaceRequest(String name, CreateBlueprintRequest request) {
+    public ModelsUpdateBlueprintRequest toReplaceRequest(String name, CreateBlueprintRequest request) {
         ModelsUpdateBlueprintRequest apiRequest = new ModelsUpdateBlueprintRequest();
         apiRequest.setName(name);
         apiRequest.setConfigurator(request.getConfigurator());
@@ -47,7 +47,7 @@ final class BlueprintRequestConverter {
         return apiRequest;
     }
 
-    ModelsPatchBlueprintRequest toPatchRequest(UpdateBlueprintRequest request) {
+    public ModelsPatchBlueprintRequest toPatchRequest(UpdateBlueprintRequest request) {
         if (request.getRuntimeConfig() != null && request.getRuntimeConfig().getType() == null) {
             throw new IllegalArgumentException("runtimeConfig.type is required when updating the runtime config");
         }
@@ -108,7 +108,7 @@ final class BlueprintRequestConverter {
         return values != null ? new ArrayList<>(values) : null;
     }
 
-    static @Nullable String normalize(@Nullable String value) {
+    public static @Nullable String normalize(@Nullable String value) {
         if (value == null || value.isBlank()) {
             return null;
         }

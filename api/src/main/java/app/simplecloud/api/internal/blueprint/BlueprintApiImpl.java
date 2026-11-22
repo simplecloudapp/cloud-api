@@ -1,12 +1,15 @@
 package app.simplecloud.api.internal.blueprint;
 
+import app.simplecloud.api.internal.util.blueprint.ManifestServerUrlResolver;
+import app.simplecloud.api.internal.util.blueprint.InlineBlueprintManager;
+import app.simplecloud.api.internal.util.blueprint.BlueprintRequestMapper;
 import app.simplecloud.api.blueprint.Blueprint;
 import app.simplecloud.api.blueprint.BlueprintApi;
 import app.simplecloud.api.blueprint.CreateBlueprintRequest;
 import app.simplecloud.api.blueprint.UpdateBlueprintRequest;
 import app.simplecloud.api.cache.QueryKey;
 import app.simplecloud.api.internal.ApiContext;
-import app.simplecloud.api.internal.create.CreateRequestDefaults;
+import app.simplecloud.api.internal.util.RequestDefaults;
 import app.simplecloud.api.internal.web.ApiExceptions;
 import app.simplecloud.api.internal.web.ApiCalls;
 import app.simplecloud.api.internal.util.ValidationUtil;
@@ -26,17 +29,17 @@ import java.util.function.Predicate;
 public class BlueprintApiImpl implements BlueprintApi {
     private final ApiContext context;
     private final BlueprintsApi blueprintsApi;
-    private final BlueprintRequestConverter converter;
-    private final CreateRequestDefaults createRequestDefaults = new CreateRequestDefaults();
+    private final BlueprintRequestMapper requestMapper;
+    private final RequestDefaults requestDefaults = new RequestDefaults();
 
     public BlueprintApiImpl(ApiContext context) {
         this(context, context.api(BlueprintsApi::new), new ManifestServerUrlResolver(context.options()));
     }
 
-    BlueprintApiImpl(ApiContext context, BlueprintsApi blueprintsApi, InlineBlueprintSupport.ServerUrlResolver serverUrlResolver) {
+    BlueprintApiImpl(ApiContext context, BlueprintsApi blueprintsApi, InlineBlueprintManager.ServerUrlResolver serverUrlResolver) {
         this.context = context;
         this.blueprintsApi = blueprintsApi;
-        this.converter = new BlueprintRequestConverter(serverUrlResolver);
+        this.requestMapper = new BlueprintRequestMapper(serverUrlResolver);
     }
 
     @Override
@@ -82,10 +85,10 @@ public class BlueprintApiImpl implements BlueprintApi {
     public CompletableFuture<Blueprint> createBlueprint(CreateBlueprintRequest request) {
         return ApiCalls.supplyAsync(() -> {
             String name = requireName(request);
-            CreateBlueprintRequest effective = createRequestDefaults.defaultBlueprint(request);
+            CreateBlueprintRequest effective = requestDefaults.defaultBlueprint(request);
             ModelsCreateBlueprintResponse response = blueprintsApi.createBlueprint(
                     context.networkId(),
-                    converter.toCreateRequest(name, effective)
+                    requestMapper.toCreateRequest(name, effective)
             );
             invalidateLists();
             return BlueprintImpl.from(response);
@@ -96,11 +99,11 @@ public class BlueprintApiImpl implements BlueprintApi {
     public CompletableFuture<Blueprint> replaceBlueprint(String id, CreateBlueprintRequest request) {
         return ApiCalls.supplyAsync(() -> {
             String name = requireName(request);
-            CreateBlueprintRequest effective = createRequestDefaults.defaultBlueprint(request);
+            CreateBlueprintRequest effective = requestDefaults.defaultBlueprint(request);
             ModelsUpdateBlueprintResponse response = blueprintsApi.updateBlueprint(
                     context.networkId(),
                     id,
-                    converter.toReplaceRequest(name, effective)
+                    requestMapper.toReplaceRequest(name, effective)
             );
             invalidate(id);
             return BlueprintImpl.from(response);
@@ -113,7 +116,7 @@ public class BlueprintApiImpl implements BlueprintApi {
             ModelsUpdateBlueprintResponse response = blueprintsApi.patchBlueprint(
                     context.networkId(),
                     id,
-                    converter.toPatchRequest(request)
+                    requestMapper.toPatchRequest(request)
             );
             invalidate(id);
             return BlueprintImpl.from(response);
@@ -142,7 +145,7 @@ public class BlueprintApiImpl implements BlueprintApi {
     }
 
     private String requireName(CreateBlueprintRequest request) {
-        String name = BlueprintRequestConverter.normalize(request.getName());
+        String name = BlueprintRequestMapper.normalize(request.getName());
         if (name == null) {
             throw new IllegalArgumentException("Blueprint name is required");
         }
@@ -150,12 +153,12 @@ public class BlueprintApiImpl implements BlueprintApi {
     }
 
     private void invalidate(String id) {
-        InlineBlueprintSupport.invalidateCache(context.cache(), id);
+        InlineBlueprintManager.invalidateCache(context.cache(), id);
         context.cache().invalidateAll(QueryKey.of("servers"));
         context.cache().invalidateAll(QueryKey.of("server"));
     }
 
     private void invalidateLists() {
-        InlineBlueprintSupport.invalidateCache(context.cache(), null);
+        InlineBlueprintManager.invalidateCache(context.cache(), null);
     }
 }

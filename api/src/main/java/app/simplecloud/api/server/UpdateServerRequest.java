@@ -30,9 +30,9 @@ public class UpdateServerRequest {
 
     /**
      * @deprecated The player count is never sent with a server update. The controller takes it from the
-     *             server's status ping, so this field has no effect.
+     *             server's status ping, so this field has no effect. Will be removed in 1.0.0.
      */
-    @Deprecated
+    @Deprecated(forRemoval = true)
     @Nullable
     public Integer getPlayerCount() {
         return playerCount;
@@ -40,9 +40,9 @@ public class UpdateServerRequest {
 
     /**
      * @deprecated The player count is never sent with a server update. The controller takes it from the
-     *             server's status ping, so this field has no effect.
+     *             server's status ping, so this field has no effect. Will be removed in 1.0.0.
      */
-    @Deprecated
+    @Deprecated(forRemoval = true)
     public void setPlayerCount(@Nullable Integer playerCount) {
         this.playerCount = playerCount;
     }
@@ -102,9 +102,9 @@ public class UpdateServerRequest {
 
         /**
          * @deprecated The player count is never sent with a server update. The controller takes it from the
-         *             server's status ping, so this field has no effect.
+         *             server's status ping, so this field has no effect. Will be removed in 1.0.0.
          */
-        @Deprecated
+        @Deprecated(forRemoval = true)
         public Builder playerCount(Integer playerCount) {
             this.playerCount = playerCount;
             return this;

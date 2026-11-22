@@ -95,15 +95,7 @@ public final class EventBus implements AutoCloseable {
         throw new IllegalStateException("Event handler failed", first);
     }
 
-    private static final class Registration<E> {
-
-        private final Class<E> type;
-        private final Consumer<? super E> handler;
-
-        private Registration(Class<E> type, Consumer<? super E> handler) {
-            this.type = type;
-            this.handler = handler;
-        }
+    private record Registration<E>(Class<E> type, Consumer<? super E> handler) {
 
         private void deliver(Object event) {
             if (type.isInstance(event)) {

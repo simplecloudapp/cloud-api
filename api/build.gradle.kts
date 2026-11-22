@@ -115,8 +115,8 @@ val generateNativeImageMetadata = tasks.register<GenerateNativeImageMetadata>("g
     dependencies.from(configurations.runtimeClasspath)
     metadataPath = "META-INF/native-image/app.simplecloud.api/api"
     reflectiveTypes.addAll(
-        "app.simplecloud.api.internal.blueprint.ManifestServerUrlResolver\$ManifestEntry",
-        "app.simplecloud.api.internal.blueprint.ManifestServerUrlResolver\$ManifestDownloadLink",
+        "app.simplecloud.api.internal.util.blueprint.ManifestServerUrlResolver\$ManifestEntry",
+        "app.simplecloud.api.internal.util.blueprint.ManifestServerUrlResolver\$ManifestDownloadLink",
     )
     outputDir = layout.buildDirectory.dir("generated/native-image")
 }

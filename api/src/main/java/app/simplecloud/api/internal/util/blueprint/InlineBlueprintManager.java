@@ -1,4 +1,4 @@
-package app.simplecloud.api.internal.blueprint;
+package app.simplecloud.api.internal.util.blueprint;
 
 import app.simplecloud.api.CloudApiException;
 import app.simplecloud.api.CloudApiOptions;
@@ -21,23 +21,23 @@ import java.util.logging.Logger;
 /**
  * Shared support for resources that create or delete a referenced blueprint as part of their lifecycle.
  */
-public final class InlineBlueprintSupport {
-    private static final Logger LOGGER = Logger.getLogger(InlineBlueprintSupport.class.getName());
+public final class InlineBlueprintManager {
+    private static final Logger LOGGER = Logger.getLogger(InlineBlueprintManager.class.getName());
 
     private final CloudApiOptions options;
     private final BlueprintsApi blueprintsApi;
-    private final BlueprintRequestConverter converter;
+    private final BlueprintRequestMapper requestMapper;
 
-    public InlineBlueprintSupport(CloudApiOptions options, BlueprintsApi blueprintsApi) {
+    public InlineBlueprintManager(CloudApiOptions options, BlueprintsApi blueprintsApi) {
         this(options, blueprintsApi, new ManifestServerUrlResolver(options));
     }
 
-    public InlineBlueprintSupport(CloudApiOptions options,
+    public InlineBlueprintManager(CloudApiOptions options,
                                   BlueprintsApi blueprintsApi,
                                   ServerUrlResolver serverUrlResolver) {
         this.options = options;
         this.blueprintsApi = blueprintsApi;
-        this.converter = new BlueprintRequestConverter(serverUrlResolver);
+        this.requestMapper = new BlueprintRequestMapper(serverUrlResolver);
     }
 
     public void validateInlineBlueprintSource(@Nullable CreateBlueprintRequest createBlueprint,
@@ -65,7 +65,7 @@ public final class InlineBlueprintSupport {
 
         String name = normalize(request.getName());
         String effectiveName = name != null ? name : blueprintName;
-        ModelsCreateBlueprintRequest apiRequest = converter.toCreateRequest(effectiveName, request);
+        ModelsCreateBlueprintRequest apiRequest = requestMapper.toCreateRequest(effectiveName, request);
         ModelsCreateBlueprintResponse response;
         try {
             response = blueprintsApi.createBlueprint(options.getNetworkId(), apiRequest);
@@ -103,11 +103,6 @@ public final class InlineBlueprintSupport {
         return source == null ? null : normalize(source.getBlueprint());
     }
 
-    /**
-     * Deletes the inline blueprint after creating the resource that references it failed and returns the
-     * exception the caller throws. If the resource was created anyway, the controller refuses to delete the
-     * blueprint because it is in use, so it is kept.
-     */
     public CloudApiException rollBackAfterCreateFailure(@Nullable String blueprintId, ApiException createFailure) {
         if (blueprintId != null) {
             try {
@@ -119,10 +114,7 @@ public final class InlineBlueprintSupport {
         return ApiExceptions.from(createFailure);
     }
 
-    /**
-     * Deletes the blueprint of a resource that was already deleted. Failures are logged instead of thrown,
-     * because the resource itself is gone.
-     */
+
     public void deleteBlueprintOfDeletedResource(@Nullable String blueprintId) {
         try {
             deleteBlueprint(blueprintId);

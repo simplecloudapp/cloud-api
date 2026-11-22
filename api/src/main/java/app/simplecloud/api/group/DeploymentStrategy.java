@@ -16,19 +16,25 @@ public enum DeploymentStrategy {
 
     /**
      * Deploy servers to hosts randomly.
+     *
+     * @deprecated not supported by the controller; will be removed in 1.0.0
      */
-    @Deprecated
+    @Deprecated(forRemoval = true)
     RANDOM,
 
     /**
      * Deploy servers to hosts based on priority (hosts with lower priority numbers are preferred).
+     *
+     * @deprecated not supported by the controller; will be removed in 1.0.0
      */
-    @Deprecated
+    @Deprecated(forRemoval = true)
     PRIORITY,
 
     /**
      * Deploy servers to hosts in a round-robin fashion, distributing load evenly.
+     *
+     * @deprecated not supported by the controller; will be removed in 1.0.0
      */
-    @Deprecated
+    @Deprecated(forRemoval = true)
     ROUND_ROBIN
 }

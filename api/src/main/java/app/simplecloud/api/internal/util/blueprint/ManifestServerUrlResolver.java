@@ -1,4 +1,4 @@
-package app.simplecloud.api.internal.blueprint;
+package app.simplecloud.api.internal.util.blueprint;
 
 import app.simplecloud.api.CloudApiException;
 import app.simplecloud.api.CloudApiOptions;
@@ -26,7 +26,7 @@ import java.util.concurrent.TimeUnit;
 /**
  * Resolves inline blueprint download links from the server version manifest.
  */
-final class ManifestServerUrlResolver implements InlineBlueprintSupport.ServerUrlResolver {
+public final class ManifestServerUrlResolver implements InlineBlueprintManager.ServerUrlResolver {
     static final long MAX_MANIFEST_BYTES = 1024 * 1024;
 
     private static final Duration FETCH_TIMEOUT = Duration.ofSeconds(30);
@@ -42,7 +42,7 @@ final class ManifestServerUrlResolver implements InlineBlueprintSupport.ServerUr
 
     private volatile CachedManifest cachedManifest;
 
-    ManifestServerUrlResolver(CloudApiOptions options) {
+    public ManifestServerUrlResolver(CloudApiOptions options) {
         this(
                 options.getServerVersionManifestUrl(),
                 new OkHttpClient.Builder()
@@ -55,9 +55,6 @@ final class ManifestServerUrlResolver implements InlineBlueprintSupport.ServerUr
         );
     }
 
-    /**
-     * An invalid URL only fails once the manifest is needed, so unrelated SDK features keep working.
-     */
     ManifestServerUrlResolver(String manifestUrl, OkHttpClient httpClient, Duration fetchTimeout, Gson gson) {
         this.manifestUrl = HttpUrl.parse(Objects.requireNonNull(manifestUrl, "manifestUrl").trim());
         this.manifestUrlForErrors = this.manifestUrl != null ? withoutSecrets(this.manifestUrl) : "an invalid URL";
@@ -75,10 +72,10 @@ final class ManifestServerUrlResolver implements InlineBlueprintSupport.ServerUr
         }
 
         return loadManifest().stream()
-                .filter(entry -> softwareName.equalsIgnoreCase(normalize(entry.name)))
-                .flatMap(entry -> safeList(entry.downloadLinks).stream())
-                .filter(downloadLink -> version.equals(normalize(downloadLink.version)))
-                .map(downloadLink -> normalize(downloadLink.link))
+                .filter(entry -> softwareName.equalsIgnoreCase(normalize(entry.name())))
+                .flatMap(entry -> safeList(entry.downloadLinks()).stream())
+                .filter(downloadLink -> version.equals(normalize(downloadLink.version())))
+                .map(downloadLink -> normalize(downloadLink.link()))
                 .filter(Objects::nonNull)
                 .findFirst()
                 .orElse(null);
@@ -87,13 +84,13 @@ final class ManifestServerUrlResolver implements InlineBlueprintSupport.ServerUr
     private List<ManifestEntry> loadManifest() {
         CachedManifest current = cachedManifest;
         if (current != null && !current.isExpired()) {
-            return current.entries;
+            return current.entries();
         }
 
         synchronized (this) {
             current = cachedManifest;
             if (current != null && !current.isExpired()) {
-                return current.entries;
+                return current.entries();
             }
 
             List<ManifestEntry> fetchedManifest = fetchManifest();
@@ -190,13 +187,10 @@ final class ManifestServerUrlResolver implements InlineBlueprintSupport.ServerUr
         return normalized.isEmpty() ? null : normalized;
     }
 
-    private static final class CachedManifest {
-        private final List<ManifestEntry> entries;
-        private final Instant expiresAt;
+    private record CachedManifest(List<ManifestEntry> entries, Instant expiresAt) {
 
-        private CachedManifest(List<ManifestEntry> entries, Instant expiresAt) {
-            this.entries = List.copyOf(entries);
-            this.expiresAt = expiresAt;
+        private CachedManifest {
+            entries = List.copyOf(entries);
         }
 
         private boolean isExpired() {
@@ -204,13 +198,9 @@ final class ManifestServerUrlResolver implements InlineBlueprintSupport.ServerUr
         }
     }
 
-    private static final class ManifestEntry {
-        private String name;
-        private List<ManifestDownloadLink> downloadLinks;
+    private record ManifestEntry(String name, List<ManifestDownloadLink> downloadLinks) {
     }
 
-    private static final class ManifestDownloadLink {
-        private String version;
-        private String link;
+    private record ManifestDownloadLink(String version, String link) {
     }
 }

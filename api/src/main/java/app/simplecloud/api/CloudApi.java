@@ -153,7 +153,7 @@ public interface CloudApi extends AutoCloseable {
      *
      * // Get cache statistics
      * CacheStats stats = cloudApi.cache().getStats();
-     * System.out.println("Cache hit rate: " + stats.getHitRate());
+     * System.out.println("Cache hit rate: " + stats.hitRate());
      * }</pre>
      *
      * @return the query cache

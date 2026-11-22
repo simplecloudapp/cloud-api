@@ -172,7 +172,6 @@ public final class NatsFailoverConnectionManager {
                     }
                     oldConnection = connectionRef.getAndSet(newConnection);
                 }
-                // Draining flushes the old connection, which blocks while it is down, so it must not hold bindLock.
                 drainQuietly(previousDispatchers);
                 if (oldConnection != null && oldConnection != newConnection) {
                     oldConnection.close();
@@ -464,7 +463,6 @@ public final class NatsFailoverConnectionManager {
         }
 
         private void unsubscribe(Object[] args) {
-            // Holds bindLock so a concurrent rebind cannot pair the old dispatcher with the new subscription.
             synchronized (bindLock) {
                 if (!active.compareAndSet(true, false)) {
                     return;

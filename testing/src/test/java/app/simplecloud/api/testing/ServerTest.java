@@ -166,8 +166,8 @@ class ServerTest {
         lobby.startServer();
 
         List<Server> servers = cloud.api().server().getAllServers(ServerQuery.create()
-                .sortBy("numerical_id")
-                .sortOrder("desc")).join();
+                .sortBy(ServerQuery.SortField.NUMERICAL_ID)
+                .sortOrder(ServerQuery.SortOrder.DESC)).join();
 
         assertEquals(List.of(3, 2, 1), servers.stream().map(Server::getNumericalId).toList());
     }
@@ -178,7 +178,7 @@ class ServerTest {
         cloud.advanceTime(Duration.ofSeconds(1));
         cloud.createGroup("a").startServer();
 
-        List<Server> servers = cloud.api().server().getAllServers(ServerQuery.create().sortBy("created_at")).join();
+        List<Server> servers = cloud.api().server().getAllServers(ServerQuery.create().sortBy(ServerQuery.SortField.CREATED_AT)).join();
 
         assertEquals(List.of("b", "a"), servers.stream().map(server -> server.getGroup().getName()).toList());
     }

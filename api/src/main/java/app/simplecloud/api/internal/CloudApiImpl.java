@@ -65,7 +65,6 @@ public class CloudApiImpl implements CloudApi {
         );
         this.natsClient = natsConnectionManager.getConnection();
 
-        // Initialize cache
         CacheConfig cacheConfig = options.getCacheConfig();
         if (cacheConfig.isEnabled()) {
             this.queryCache = new QueryCacheImpl(cacheConfig, ApiClientFactory.maxRequestDuration(options));
@@ -73,7 +72,6 @@ public class CloudApiImpl implements CloudApi {
             this.queryCache = new NoOpQueryCache();
         }
 
-        // Initialize APIs with cache
         this.httpClient = ApiClientFactory.create(options);
         ApiContext context = new ApiContext(options, queryCache, httpClient, executor);
         this.playerApi = new PlayerApiImpl(context, natsClient);
@@ -84,7 +82,6 @@ public class CloudApiImpl implements CloudApi {
         this.blueprintApi = new BlueprintApiImpl(context);
         this.statsApi = new StatsApiImpl(context);
 
-        // Setup event-based cache invalidation with debouncing
         if (cacheConfig.isEnabled() && cacheConfig.isAutoInvalidateOnEvents()) {
             long debounceMs = cacheConfig.getEventDebounceTime().toMillis();
             this.cacheEventListener = new CacheEventListener(queryCache, eventApi, debounceMs);
@@ -129,12 +126,6 @@ public class CloudApiImpl implements CloudApi {
         return statsApi;
     }
 
-    /**
-     * Returns the underlying NATS connection.
-     * This is for internal use by integration modules.
-     *
-     * @return the NATS connection
-     */
     public Connection getNatsConnection() {
         return natsClient;
     }

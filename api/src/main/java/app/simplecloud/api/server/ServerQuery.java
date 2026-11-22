@@ -16,8 +16,8 @@ import java.util.List;
  *     .filterByServerGroupId("group-123")
  *     .filterByState(ServerState.RUNNING, ServerState.STARTING)
  *     .filterByNumericalId(1, 5, 10)
- *     .sortBy("created_at")
- *     .sortOrder("desc");
+ *     .sortBy(ServerQuery.SortField.CREATED_AT)
+ *     .sortOrder(ServerQuery.SortOrder.DESC);
  * </pre>
  */
 public class ServerQuery {
@@ -181,6 +181,11 @@ public class ServerQuery {
         return this;
     }
 
+    /**
+     * Returns the raw sort field sent to the controller.
+     *
+     * @return the sort field value, or null if not set
+     */
     @Nullable
     public String getSortBy() {
         return sortBy;
@@ -189,14 +194,32 @@ public class ServerQuery {
     /**
      * Set the field to sort by.
      *
-     * @param sortBy the field name (e.g., "created_at", "updated_at", "numerical_id", "state")
+     * @param sortBy the field to sort by
      * @return this query for chaining
      */
+    public ServerQuery sortBy(@Nullable SortField sortBy) {
+        this.sortBy = sortBy != null ? sortBy.getValue() : null;
+        return this;
+    }
+
+    /**
+     * Set the field to sort by.
+     *
+     * @param sortBy the field name (e.g., "created_at", "updated_at", "numerical_id", "state")
+     * @return this query for chaining
+     * @deprecated use {@link #sortBy(SortField)}; will be removed in 1.0.0
+     */
+    @Deprecated(forRemoval = true)
     public ServerQuery sortBy(String sortBy) {
         this.sortBy = sortBy;
         return this;
     }
 
+    /**
+     * Returns the raw sort order sent to the controller.
+     *
+     * @return the sort order value, or null if not set
+     */
     @Nullable
     public String getSortOrder() {
         return sortOrder;
@@ -205,9 +228,22 @@ public class ServerQuery {
     /**
      * Set the sort order.
      *
-     * @param sortOrder "asc" for ascending or "desc" for descending
+     * @param sortOrder the sort order
      * @return this query for chaining
      */
+    public ServerQuery sortOrder(@Nullable SortOrder sortOrder) {
+        this.sortOrder = sortOrder != null ? sortOrder.getValue() : null;
+        return this;
+    }
+
+    /**
+     * Set the sort order.
+     *
+     * @param sortOrder "asc" for ascending or "desc" for descending
+     * @return this query for chaining
+     * @deprecated use {@link #sortOrder(SortOrder)}; will be removed in 1.0.0
+     */
+    @Deprecated(forRemoval = true)
     public ServerQuery sortOrder(String sortOrder) {
         this.sortOrder = sortOrder;
         return this;
@@ -220,5 +256,37 @@ public class ServerQuery {
      */
     public static ServerQuery create() {
         return new ServerQuery();
+    }
+
+    public enum SortField {
+        CREATED_AT("created_at"),
+        UPDATED_AT("updated_at"),
+        NUMERICAL_ID("numerical_id"),
+        STATE("state");
+
+        private final String value;
+
+        SortField(String value) {
+            this.value = value;
+        }
+
+        public String getValue() {
+            return value;
+        }
+    }
+
+    public enum SortOrder {
+        ASC("asc"),
+        DESC("desc");
+
+        private final String value;
+
+        SortOrder(String value) {
+            this.value = value;
+        }
+
+        public String getValue() {
+            return value;
+        }
     }
 }

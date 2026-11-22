@@ -12,19 +12,24 @@ import app.simplecloud.api.group.WorkflowWhen;
 import app.simplecloud.api.group.WorkflowsConfig;
 import app.simplecloud.api.web.models.ModelsDeploymentConfig;
 import app.simplecloud.api.web.models.ModelsDeploymentHost;
+import app.simplecloud.api.web.models.ModelsExecuteManualWorkflowFailure;
 import app.simplecloud.api.web.models.ModelsScaleDownConfig;
 import app.simplecloud.api.web.models.ModelsScalingConfig;
 import app.simplecloud.api.web.models.ModelsScalingMode;
 import app.simplecloud.api.web.models.ModelsSourceConfig;
 import app.simplecloud.api.web.models.ModelsWorkflowWhen;
 import app.simplecloud.api.web.models.ModelsWorkflowsConfig;
+import app.simplecloud.api.workflow.WorkflowExecutionResult;
+import app.simplecloud.api.workflow.WorkflowFailure;
 import org.jetbrains.annotations.Nullable;
 
 import java.math.BigDecimal;
+import java.util.List;
 import java.util.Locale;
+import java.util.Objects;
 
 /**
- * Converts the shared group and persistent server configs between the API and the generated REST models.
+ * Converts shared group and persistent server types between the API and the generated REST models.
  */
 public final class ModelConversionUtil {
 
@@ -210,6 +215,25 @@ public final class ModelConversionUtil {
         } catch (IllegalArgumentException e) {
             return null;
         }
+    }
+
+    public static WorkflowExecutionResult toWorkflowExecutionResult(String requestedWorkflowId,
+                                                                     @Nullable String workflowId,
+                                                                     @Nullable Integer totalServers,
+                                                                     @Nullable List<String> succeededServerIds,
+                                                                     @Nullable List<String> skippedServerIds,
+                                                                     @Nullable List<ModelsExecuteManualWorkflowFailure> failedServers) {
+        List<WorkflowFailure> failures = Objects.requireNonNullElse(failedServers, List.<ModelsExecuteManualWorkflowFailure>of())
+                .stream()
+                .map(failure -> new WorkflowFailure(Objects.requireNonNullElse(failure.getServerId(), ""), failure.getErrorMessage()))
+                .toList();
+        return new WorkflowExecutionResult(
+                Objects.requireNonNullElse(workflowId, requestedWorkflowId),
+                totalServers != null ? totalServers : 0,
+                Objects.requireNonNullElse(succeededServerIds, List.of()),
+                Objects.requireNonNullElse(skippedServerIds, List.of()),
+                failures
+        );
     }
 
     private static int orZero(@Nullable Integer value) {

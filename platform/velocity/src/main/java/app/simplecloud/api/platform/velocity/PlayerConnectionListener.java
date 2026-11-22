@@ -89,12 +89,12 @@ public class PlayerConnectionListener {
     }
 
     private void applyLoginResult(Player player, LoginResult result) {
-        if (!result.isSuccess()) {
-            logger.warn("Login failed for {}: {}", player.getUsername(), result.getErrorMessage());
+        if (!result.success()) {
+            logger.warn("Login failed for {}: {}", player.getUsername(), result.errorMessage());
             return;
         }
         UUID playerId = player.getUniqueId();
-        String sessionId = result.getSessionId();
+        String sessionId = result.sessionId();
         proxyPresenceTracker.updateSessionId(playerId.toString(), sessionId);
         luckPermsSynchronizer.synchronize(playerId);
         if (player.hasSentPlayerSettings()) {

@@ -4,15 +4,6 @@ import java.time.Duration;
 
 /**
  * Per-entity-type cache configuration overrides.
- * Use this to set different freshness requirements for different entity types.
- *
- * <p>Example:
- * <pre>{@code
- * EntityCacheConfig serverConfig = EntityCacheConfig.builder()
- *     .staleTime(Duration.ofSeconds(2))  // Servers need fresher data
- *     .cacheTime(Duration.ofMinutes(2))
- *     .build();
- * }</pre>
  */
 public class EntityCacheConfig {
 

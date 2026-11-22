@@ -212,9 +212,9 @@ public interface Server {
      * @return the server group
      * @throws IllegalStateException if this server was spawned from a persistent server
      * @deprecated Use {@link #getGroup()} instead. This method throws if the server
-     *             was spawned from a persistent server.
+     *             was spawned from a persistent server. Will be removed in 1.0.0.
      */
-    @Deprecated
+    @Deprecated(forRemoval = true)
     default Group getServerGroup() {
         Group group = getGroup();
         if (group == null) {

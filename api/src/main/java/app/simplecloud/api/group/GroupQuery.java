@@ -34,36 +34,36 @@ public class GroupQuery {
     }
 
     /**
-     * @deprecated the controller does not support sorting groups, this value is ignored
+     * @deprecated the controller does not support sorting groups, this value is ignored; will be removed in 1.0.0
      */
-    @Deprecated
+    @Deprecated(forRemoval = true)
     @Nullable
     public String getSortBy() {
         return sortBy;
     }
 
     /**
-     * @deprecated the controller does not support sorting groups, this value is ignored
+     * @deprecated the controller does not support sorting groups, this value is ignored; will be removed in 1.0.0
      */
-    @Deprecated
+    @Deprecated(forRemoval = true)
     public GroupQuery sortBy(String sortBy) {
         this.sortBy = sortBy;
         return this;
     }
 
     /**
-     * @deprecated the controller does not support sorting groups, this value is ignored
+     * @deprecated the controller does not support sorting groups, this value is ignored; will be removed in 1.0.0
      */
-    @Deprecated
+    @Deprecated(forRemoval = true)
     @Nullable
     public String getSortOrder() {
         return sortOrder;
     }
 
     /**
-     * @deprecated the controller does not support sorting groups, this value is ignored
+     * @deprecated the controller does not support sorting groups, this value is ignored; will be removed in 1.0.0
      */
-    @Deprecated
+    @Deprecated(forRemoval = true)
     public GroupQuery sortOrder(String sortOrder) {
         this.sortOrder = sortOrder;
         return this;

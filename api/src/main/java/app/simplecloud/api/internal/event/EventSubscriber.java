@@ -8,9 +8,6 @@ import java.util.function.Consumer;
 import java.util.logging.Level;
 import java.util.logging.Logger;
 
-/**
- * Subscribes to controller events of one network on a shared dispatcher.
- */
 public final class EventSubscriber {
     private static final Logger LOGGER = Logger.getLogger(EventSubscriber.class.getName());
 
@@ -22,9 +19,6 @@ public final class EventSubscriber {
         this.dispatcher = natsConnection.createDispatcher(null);
     }
 
-    /**
-     * Subscribes to {@code <networkId>.event.<event>}, for example {@code group.created}.
-     */
     public <E> Subscription subscribe(String event, Parser<E> parser, Consumer<? super E> handler) {
         String subject = networkId + ".event." + event;
         io.nats.client.Subscription subscription = dispatcher.subscribe(subject, message -> {

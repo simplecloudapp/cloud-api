@@ -6,41 +6,7 @@ import java.util.HashMap;
 import java.util.Map;
 
 /**
- * Configuration for the query cache, inspired by TanStack Query.
- *
- * <p>Key concepts:
- * <ul>
- *   <li><b>staleTime</b>: How long data is considered fresh. Fresh data is returned immediately
- *       without network request. Default: 5 seconds (varies by entity type).</li>
- *   <li><b>cacheTime</b>: How long unused data stays in memory before garbage collection.
- *       Default: 2 minutes.</li>
- *   <li><b>autoInvalidateOnEvents</b>: When enabled, NATS events automatically invalidate
- *       affected cache entries. Default: true.</li>
- * </ul>
- *
- * <p>Default stale times by entity type (optimized for typical usage patterns):
- * <ul>
- *   <li>SERVER: 3 seconds (metrics like CPU/memory may change without events)</li>
- *   <li>GROUP: 30 seconds (configuration rarely changes, events handle updates)</li>
- *   <li>PERSISTENT_SERVER: 30 seconds (similar to groups)</li>
- *   <li>PLAYER: 5 seconds (balance between freshness and load)</li>
- *   <li>BLUEPRINT: 10 seconds (similar to groups)</li>
- * </ul>
- *
- * <p>Example:
- * <pre>{@code
- * // Use defaults - recommended for most cases
- * CloudApi api = CloudApi.create();
- *
- * // Custom configuration
- * CacheConfig config = CacheConfig.builder()
- *     .defaultStaleTime(Duration.ofSeconds(10))
- *     .defaultCacheTime(Duration.ofMinutes(5))
- *     .entityConfig(EntityType.SERVER, EntityCacheConfig.builder()
- *         .staleTime(Duration.ofSeconds(1))  // Need very fresh server data
- *         .build())
- *     .build();
- * }</pre>
+ * Configuration for the query cache.
  */
 public class CacheConfig {
 

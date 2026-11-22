@@ -5,42 +5,44 @@ import org.jetbrains.annotations.Nullable;
 /**
  * One persisted manual server-start queue item.
  */
-public final class GroupStartQueueItem {
-    @Nullable
-    private final String createdAt;
-    @Nullable
-    private final String failureReason;
-    @Nullable
-    private final String id;
-    private final GroupStartQueueItemStatus status;
+public record GroupStartQueueItem(
+        @Nullable String createdAt,
+        @Nullable String failureReason,
+        @Nullable String id,
+        GroupStartQueueItemStatus status
+) {
 
-    public GroupStartQueueItem(
-            @Nullable String createdAt,
-            @Nullable String failureReason,
-            @Nullable String id,
-            GroupStartQueueItemStatus status
-    ) {
-        this.createdAt = createdAt;
-        this.failureReason = failureReason;
-        this.id = id;
-        this.status = status;
-    }
-
+    /**
+     * @deprecated use {@link #createdAt()}; will be removed in 1.0.0
+     */
+    @Deprecated(forRemoval = true)
     @Nullable
     public String getCreatedAt() {
         return createdAt;
     }
 
+    /**
+     * @deprecated use {@link #failureReason()}; will be removed in 1.0.0
+     */
+    @Deprecated(forRemoval = true)
     @Nullable
     public String getFailureReason() {
         return failureReason;
     }
 
+    /**
+     * @deprecated use {@link #id()}; will be removed in 1.0.0
+     */
+    @Deprecated(forRemoval = true)
     @Nullable
     public String getId() {
         return id;
     }
 
+    /**
+     * @deprecated use {@link #status()}; will be removed in 1.0.0
+     */
+    @Deprecated(forRemoval = true)
     public GroupStartQueueItemStatus getStatus() {
         return status;
     }

@@ -9,7 +9,6 @@ import java.util.function.Supplier;
 
 /**
  * A no-op cache implementation used when caching is disabled.
- * All operations pass through to the underlying fetcher without caching.
  */
 public class NoOpQueryCache implements QueryCache {
 
@@ -25,27 +24,22 @@ public class NoOpQueryCache implements QueryCache {
 
     @Override
     public <T> void set(QueryKey key, T data) {
-        // No-op
     }
 
     @Override
     public void invalidate(QueryKey key) {
-        // No-op
     }
 
     @Override
     public void invalidateAll(QueryKey keyPattern) {
-        // No-op
     }
 
     @Override
     public void invalidateByType(EntityType type) {
-        // No-op
     }
 
     @Override
     public void clear() {
-        // No-op
     }
 
     @Override

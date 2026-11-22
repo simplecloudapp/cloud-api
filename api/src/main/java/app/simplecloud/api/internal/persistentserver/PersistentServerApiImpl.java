@@ -5,15 +5,14 @@ import app.simplecloud.api.cache.QueryKey;
 import app.simplecloud.api.group.GroupServerType;
 import app.simplecloud.api.group.WorkflowsConfig;
 import app.simplecloud.api.internal.ApiContext;
-import app.simplecloud.api.internal.blueprint.InlineBlueprintSupport;
-import app.simplecloud.api.internal.create.CreateRequestDefaults;
-import app.simplecloud.api.internal.update.ConfigMerger;
+import app.simplecloud.api.internal.util.blueprint.InlineBlueprintManager;
+import app.simplecloud.api.internal.util.RequestDefaults;
+import app.simplecloud.api.internal.util.ConfigMergeUtil;
 import app.simplecloud.api.group.DeploymentConfig;
 import app.simplecloud.api.group.DeploymentHost;
 import app.simplecloud.api.group.Group;
 import app.simplecloud.api.group.ScalingConfig;
 import app.simplecloud.api.internal.group.GroupImpl;
-import app.simplecloud.api.internal.workflow.WorkflowResults;
 import app.simplecloud.api.workflow.WorkflowExecutionResult;
 import app.simplecloud.api.internal.util.ModelConversionUtil;
 import app.simplecloud.api.internal.util.ValidationUtil;
@@ -38,17 +37,17 @@ import java.util.function.Predicate;
 public class PersistentServerApiImpl implements PersistentServerApi {
     private final ApiContext context;
     private final PersistentServersApi persistentServersApi;
-    private final InlineBlueprintSupport inlineBlueprintSupport;
-    private final CreateRequestDefaults createRequestDefaults = new CreateRequestDefaults();
+    private final InlineBlueprintManager inlineBlueprintManager;
+    private final RequestDefaults requestDefaults = new RequestDefaults();
 
     public PersistentServerApiImpl(ApiContext context) {
-        this(context, context.api(PersistentServersApi::new), new InlineBlueprintSupport(context.options(), context.api(BlueprintsApi::new)));
+        this(context, context.api(PersistentServersApi::new), new InlineBlueprintManager(context.options(), context.api(BlueprintsApi::new)));
     }
 
-    PersistentServerApiImpl(ApiContext context, PersistentServersApi persistentServersApi, InlineBlueprintSupport inlineBlueprintSupport) {
+    PersistentServerApiImpl(ApiContext context, PersistentServersApi persistentServersApi, InlineBlueprintManager inlineBlueprintManager) {
         this.context = context;
         this.persistentServersApi = persistentServersApi;
-        this.inlineBlueprintSupport = inlineBlueprintSupport;
+        this.inlineBlueprintManager = inlineBlueprintManager;
     }
 
     @Override
@@ -85,35 +84,35 @@ public class PersistentServerApiImpl implements PersistentServerApi {
     @Override
     public CompletableFuture<PersistentServer> createPersistentServer(CreatePersistentServerRequest request) {
         return ApiCalls.supplyAsync(() -> {
-            WorkflowsConfig workflows = createRequestDefaults.defaultWorkflows(request.getWorkflows());
-            CreateBlueprintRequest createBlueprint = createRequestDefaults.defaultInlineBlueprint(request.getCreateBlueprint(), workflows);
-            GroupServerType type = createRequestDefaults.defaultType(request.getType());
+            WorkflowsConfig workflows = requestDefaults.defaultWorkflows(request.getWorkflows());
+            CreateBlueprintRequest createBlueprint = requestDefaults.defaultInlineBlueprint(request.getCreateBlueprint(), workflows);
+            GroupServerType type = requestDefaults.defaultType(request.getType());
 
             ModelsCreatePersistentServerRequest apiRequest = new ModelsCreatePersistentServerRequest();
             apiRequest.setName(request.getName());
             apiRequest.setType(ModelsCreatePersistentServerRequest.TypeEnum.valueOf(type.name()));
             apiRequest.setMinMemory(request.getMinMemory());
             apiRequest.setMaxMemory(request.getMaxMemory());
-            apiRequest.setMaxPlayers(createRequestDefaults.defaultMaxPlayers(request.getMaxPlayers()));
-            apiRequest.setActive(createRequestDefaults.defaultActive(request.getActive()));
+            apiRequest.setMaxPlayers(requestDefaults.defaultMaxPlayers(request.getMaxPlayers()));
+            apiRequest.setActive(requestDefaults.defaultActive(request.getActive()));
             apiRequest.setPriority(request.getPriority());
             apiRequest.setServerhostId(request.getServerhostId());
-            apiRequest.setProperties(createRequestDefaults.defaultProperties(request.getProperties()));
-            apiRequest.setTags(createRequestDefaults.defaultTags(request.getName(), request.getTags()));
+            apiRequest.setProperties(requestDefaults.defaultProperties(request.getProperties()));
+            apiRequest.setTags(requestDefaults.defaultTags(request.getName(), request.getTags()));
             apiRequest.setWorkflows(ModelConversionUtil.toModel(workflows));
 
-            inlineBlueprintSupport.validateInlineBlueprintSource(createBlueprint, request.getSource());
-            String blueprintId = inlineBlueprintSupport.createBlueprint(request.getName(), createBlueprint);
+            inlineBlueprintManager.validateInlineBlueprintSource(createBlueprint, request.getSource());
+            String blueprintId = inlineBlueprintManager.createBlueprint(request.getName(), createBlueprint);
             if (blueprintId != null) {
-                InlineBlueprintSupport.invalidateCache(context.cache(), null);
+                InlineBlueprintManager.invalidateCache(context.cache(), null);
             }
-            apiRequest.setSource(ModelConversionUtil.toModel(inlineBlueprintSupport.resolveSource(request.getSource(), blueprintId)));
+            apiRequest.setSource(ModelConversionUtil.toModel(inlineBlueprintManager.resolveSource(request.getSource(), blueprintId)));
 
             ModelsCreatePersistentServerResponse response;
             try {
                 response = persistentServersApi.createPersistentServer(context.networkId(), apiRequest);
             } catch (ApiException e) {
-                throw inlineBlueprintSupport.rollBackAfterCreateFailure(blueprintId, e);
+                throw inlineBlueprintManager.rollBackAfterCreateFailure(blueprintId, e);
             }
 
             invalidateLists();
@@ -139,7 +138,7 @@ public class PersistentServerApiImpl implements PersistentServerApi {
             apiRequest.setTags(request.getTags());
             apiRequest.setSource(ModelConversionUtil.toModel(request.getSource()));
             WorkflowsConfig currentWorkflows = request.getWorkflows() != null ? findCurrentWorkflows(id) : null;
-            apiRequest.setWorkflows(ModelConversionUtil.toModel(ConfigMerger.merge(currentWorkflows, request.getWorkflows())));
+            apiRequest.setWorkflows(ModelConversionUtil.toModel(ConfigMergeUtil.merge(currentWorkflows, request.getWorkflows())));
 
             PersistentServer persistentServer = PersistentServerImpl.from(
                     persistentServersApi.patchPersistentServer(context.networkId(), id, apiRequest)
@@ -157,20 +156,20 @@ public class PersistentServerApiImpl implements PersistentServerApi {
             if (request.getCreateBlueprint() != null) {
                 throw new IllegalArgumentException("createBlueprint is not supported when replacing a persistent server");
             }
-            GroupServerType type = createRequestDefaults.defaultType(request.getType());
+            GroupServerType type = requestDefaults.defaultType(request.getType());
 
             ModelsUpdatePersistentServerRequest apiRequest = new ModelsUpdatePersistentServerRequest();
             apiRequest.setName(request.getName());
             apiRequest.setType(ModelsUpdatePersistentServerRequest.TypeEnum.valueOf(type.name()));
             apiRequest.setMinMemory(request.getMinMemory());
             apiRequest.setMaxMemory(request.getMaxMemory());
-            apiRequest.setMaxPlayers(createRequestDefaults.defaultMaxPlayers(request.getMaxPlayers()));
-            apiRequest.setActive(createRequestDefaults.defaultActive(request.getActive()));
+            apiRequest.setMaxPlayers(requestDefaults.defaultMaxPlayers(request.getMaxPlayers()));
+            apiRequest.setActive(requestDefaults.defaultActive(request.getActive()));
             apiRequest.setPriority(request.getPriority());
             apiRequest.setServerhostId(request.getServerhostId());
-            apiRequest.setProperties(createRequestDefaults.defaultProperties(request.getProperties()));
-            apiRequest.setTags(createRequestDefaults.defaultTags(request.getName(), request.getTags()));
-            apiRequest.setWorkflows(ModelConversionUtil.toModel(createRequestDefaults.defaultWorkflows(request.getWorkflows())));
+            apiRequest.setProperties(requestDefaults.defaultProperties(request.getProperties()));
+            apiRequest.setTags(requestDefaults.defaultTags(request.getName(), request.getTags()));
+            apiRequest.setWorkflows(ModelConversionUtil.toModel(requestDefaults.defaultWorkflows(request.getWorkflows())));
             apiRequest.setSource(ModelConversionUtil.toModel(request.getSource()));
 
             PersistentServer persistentServer = PersistentServerImpl.from(
@@ -190,8 +189,8 @@ public class PersistentServerApiImpl implements PersistentServerApi {
             persistentServersApi.deletePersistentServer(context.networkId(), id);
             invalidate(id);
 
-            inlineBlueprintSupport.deleteBlueprintOfDeletedResource(blueprintId);
-            InlineBlueprintSupport.invalidateCache(context.cache(), blueprintId);
+            inlineBlueprintManager.deleteBlueprintOfDeletedResource(blueprintId);
+            InlineBlueprintManager.invalidateCache(context.cache(), blueprintId);
         }, context.executor());
     }
 
@@ -224,7 +223,7 @@ public class PersistentServerApiImpl implements PersistentServerApi {
             request.setWorkflowId(workflowId);
             ModelsExecutePersistentServerWorkflowResponse response =
                     persistentServersApi.executePersistentServerWorkflow(context.networkId(), id, request);
-            return WorkflowResults.of(
+            return ModelConversionUtil.toWorkflowExecutionResult(
                     workflowId,
                     response.getWorkflowId(),
                     response.getTotalServers(),
@@ -248,7 +247,7 @@ public class PersistentServerApiImpl implements PersistentServerApi {
 
             ModelsConvertPersistentToGroupRequest request = new ModelsConvertPersistentToGroupRequest();
             request.setDeployment(conversionDeployment);
-            request.setScaling(ModelConversionUtil.toModel(createRequestDefaults.defaultGroupScaling(scaling)));
+            request.setScaling(ModelConversionUtil.toModel(requestDefaults.defaultGroupScaling(scaling)));
 
             Group group = GroupImpl.from(persistentServersApi.convertPersistentToGroup(context.networkId(), id, request));
             invalidate(id);
@@ -330,7 +329,7 @@ public class PersistentServerApiImpl implements PersistentServerApi {
         return listPersistentServers(null, persistentServerId, null).stream()
                 .filter(server -> persistentServerId.equals(server.getPersistentServerId()))
                 .map(ModelsPersistentServerSummary::getSource)
-                .map(inlineBlueprintSupport::getReferencedBlueprintId)
+                .map(inlineBlueprintManager::getReferencedBlueprintId)
                 .filter(Objects::nonNull)
                 .findFirst()
                 .orElse(null);

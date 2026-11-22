@@ -1,4 +1,4 @@
-package app.simplecloud.api.internal.update;
+package app.simplecloud.api.internal.util;
 
 import app.simplecloud.api.group.DeploymentConfig;
 import app.simplecloud.api.group.DeploymentStrategy;
@@ -8,9 +8,9 @@ import app.simplecloud.api.group.WorkflowWhen;
 import app.simplecloud.api.group.WorkflowsConfig;
 import org.jetbrains.annotations.Nullable;
 
-public final class ConfigMerger {
+public final class ConfigMergeUtil {
 
-    private ConfigMerger() {
+    private ConfigMergeUtil() {
     }
 
     public static @Nullable ScalingConfig merge(@Nullable ScalingConfig current, @Nullable ScalingConfig update) {

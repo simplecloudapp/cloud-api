@@ -4,11 +4,10 @@ import app.simplecloud.api.blueprint.CreateBlueprintRequest;
 import app.simplecloud.api.cache.QueryKey;
 import app.simplecloud.api.group.*;
 import app.simplecloud.api.internal.ApiContext;
-import app.simplecloud.api.internal.blueprint.InlineBlueprintSupport;
-import app.simplecloud.api.internal.create.CreateRequestDefaults;
-import app.simplecloud.api.internal.update.ConfigMerger;
+import app.simplecloud.api.internal.util.blueprint.InlineBlueprintManager;
+import app.simplecloud.api.internal.util.RequestDefaults;
+import app.simplecloud.api.internal.util.ConfigMergeUtil;
 import app.simplecloud.api.internal.persistentserver.PersistentServerImpl;
-import app.simplecloud.api.internal.workflow.WorkflowResults;
 import app.simplecloud.api.persistentserver.PersistentServer;
 import app.simplecloud.api.workflow.WorkflowExecutionResult;
 import app.simplecloud.api.internal.util.ModelConversionUtil;
@@ -32,17 +31,17 @@ import java.util.function.Predicate;
 public class GroupApiImpl implements GroupApi {
     private final ApiContext context;
     private final ServerGroupsApi serverGroupsApi;
-    private final InlineBlueprintSupport inlineBlueprintSupport;
-    private final CreateRequestDefaults createRequestDefaults = new CreateRequestDefaults();
+    private final InlineBlueprintManager inlineBlueprintManager;
+    private final RequestDefaults requestDefaults = new RequestDefaults();
 
     public GroupApiImpl(ApiContext context) {
-        this(context, context.api(ServerGroupsApi::new), new InlineBlueprintSupport(context.options(), context.api(BlueprintsApi::new)));
+        this(context, context.api(ServerGroupsApi::new), new InlineBlueprintManager(context.options(), context.api(BlueprintsApi::new)));
     }
 
-    GroupApiImpl(ApiContext context, ServerGroupsApi serverGroupsApi, InlineBlueprintSupport inlineBlueprintSupport) {
+    GroupApiImpl(ApiContext context, ServerGroupsApi serverGroupsApi, InlineBlueprintManager inlineBlueprintManager) {
         this.context = context;
         this.serverGroupsApi = serverGroupsApi;
-        this.inlineBlueprintSupport = inlineBlueprintSupport;
+        this.inlineBlueprintManager = inlineBlueprintManager;
     }
 
     @Override
@@ -115,36 +114,36 @@ public class GroupApiImpl implements GroupApi {
     @Override
     public CompletableFuture<Group> createGroup(CreateGroupRequest request) {
         return ApiCalls.supplyAsync(() -> {
-            WorkflowsConfig workflows = createRequestDefaults.defaultWorkflows(request.getWorkflows());
-            CreateBlueprintRequest createBlueprint = createRequestDefaults.defaultInlineBlueprint(request.getCreateBlueprint(), workflows);
-            GroupServerType type = createRequestDefaults.defaultType(request.getType());
+            WorkflowsConfig workflows = requestDefaults.defaultWorkflows(request.getWorkflows());
+            CreateBlueprintRequest createBlueprint = requestDefaults.defaultInlineBlueprint(request.getCreateBlueprint(), workflows);
+            GroupServerType type = requestDefaults.defaultType(request.getType());
 
             ModelsCreateServerGroupRequest apiRequest = new ModelsCreateServerGroupRequest();
             apiRequest.setName(request.getName());
             apiRequest.setType(ModelsCreateServerGroupRequest.TypeEnum.valueOf(type.name()));
             apiRequest.setMinMemory(request.getMinMemory());
             apiRequest.setMaxMemory(request.getMaxMemory());
-            apiRequest.setMaxPlayers(createRequestDefaults.defaultMaxPlayers(request.getMaxPlayers()));
-            apiRequest.setActive(createRequestDefaults.defaultActive(request.getActive()));
+            apiRequest.setMaxPlayers(requestDefaults.defaultMaxPlayers(request.getMaxPlayers()));
+            apiRequest.setActive(requestDefaults.defaultActive(request.getActive()));
             apiRequest.setPriority(request.getPriority());
-            apiRequest.setProperties(createRequestDefaults.defaultProperties(request.getProperties()));
-            apiRequest.setTags(createRequestDefaults.defaultTags(request.getName(), request.getTags()));
-            apiRequest.setDeployment(ModelConversionUtil.toModel(createRequestDefaults.defaultDeployment(request.getDeployment())));
-            apiRequest.setScaling(ModelConversionUtil.toModel(createRequestDefaults.defaultGroupScaling(request.getScaling())));
+            apiRequest.setProperties(requestDefaults.defaultProperties(request.getProperties()));
+            apiRequest.setTags(requestDefaults.defaultTags(request.getName(), request.getTags()));
+            apiRequest.setDeployment(ModelConversionUtil.toModel(requestDefaults.defaultDeployment(request.getDeployment())));
+            apiRequest.setScaling(ModelConversionUtil.toModel(requestDefaults.defaultGroupScaling(request.getScaling())));
             apiRequest.setWorkflows(ModelConversionUtil.toModel(workflows));
 
-            inlineBlueprintSupport.validateInlineBlueprintSource(createBlueprint, request.getSource());
-            String blueprintId = inlineBlueprintSupport.createBlueprint(request.getName(), createBlueprint);
+            inlineBlueprintManager.validateInlineBlueprintSource(createBlueprint, request.getSource());
+            String blueprintId = inlineBlueprintManager.createBlueprint(request.getName(), createBlueprint);
             if (blueprintId != null) {
-                InlineBlueprintSupport.invalidateCache(context.cache(), null);
+                InlineBlueprintManager.invalidateCache(context.cache(), null);
             }
-            apiRequest.setSource(ModelConversionUtil.toModel(inlineBlueprintSupport.resolveSource(request.getSource(), blueprintId)));
+            apiRequest.setSource(ModelConversionUtil.toModel(inlineBlueprintManager.resolveSource(request.getSource(), blueprintId)));
 
             ModelsCreateServerGroupResponse response;
             try {
                 response = serverGroupsApi.createServerGroup(context.networkId(), apiRequest);
             } catch (ApiException e) {
-                throw inlineBlueprintSupport.rollBackAfterCreateFailure(blueprintId, e);
+                throw inlineBlueprintManager.rollBackAfterCreateFailure(blueprintId, e);
             }
 
             invalidateLists();
@@ -171,15 +170,15 @@ public class GroupApiImpl implements GroupApi {
                     ? findCurrentGroup(id)
                     : null;
             apiRequest.setDeployment(ModelConversionUtil.toModel(
-                    ConfigMerger.merge(current != null ? current.getDeployment() : null, request.getDeployment())
+                    ConfigMergeUtil.merge(current != null ? current.getDeployment() : null, request.getDeployment())
             ));
-            ScalingConfig scaling = ConfigMerger.merge(current != null ? current.getScaling() : null, request.getScaling());
+            ScalingConfig scaling = ConfigMergeUtil.merge(current != null ? current.getScaling() : null, request.getScaling());
             if (scaling != null) {
-                apiRequest.setScaling(ModelConversionUtil.toModel(createRequestDefaults.defaultGroupScaling(scaling)));
+                apiRequest.setScaling(ModelConversionUtil.toModel(requestDefaults.defaultGroupScaling(scaling)));
             }
             apiRequest.setSource(ModelConversionUtil.toModel(request.getSource()));
             apiRequest.setWorkflows(ModelConversionUtil.toModel(
-                    ConfigMerger.merge(current != null ? current.getWorkflows() : null, request.getWorkflows())
+                    ConfigMergeUtil.merge(current != null ? current.getWorkflows() : null, request.getWorkflows())
             ));
 
             Group group = GroupImpl.from(serverGroupsApi.patchServerGroup(context.networkId(), id, apiRequest));
@@ -196,21 +195,21 @@ public class GroupApiImpl implements GroupApi {
             if (request.getCreateBlueprint() != null) {
                 throw new IllegalArgumentException("createBlueprint is not supported when replacing a group");
             }
-            GroupServerType type = createRequestDefaults.defaultType(request.getType());
+            GroupServerType type = requestDefaults.defaultType(request.getType());
 
             ModelsUpdateServerGroupRequest apiRequest = new ModelsUpdateServerGroupRequest();
             apiRequest.setName(request.getName());
             apiRequest.setType(ModelsUpdateServerGroupRequest.TypeEnum.valueOf(type.name()));
             apiRequest.setMinMemory(request.getMinMemory());
             apiRequest.setMaxMemory(request.getMaxMemory());
-            apiRequest.setMaxPlayers(createRequestDefaults.defaultMaxPlayers(request.getMaxPlayers()));
-            apiRequest.setActive(createRequestDefaults.defaultActive(request.getActive()));
+            apiRequest.setMaxPlayers(requestDefaults.defaultMaxPlayers(request.getMaxPlayers()));
+            apiRequest.setActive(requestDefaults.defaultActive(request.getActive()));
             apiRequest.setPriority(request.getPriority());
-            apiRequest.setProperties(createRequestDefaults.defaultProperties(request.getProperties()));
-            apiRequest.setTags(createRequestDefaults.defaultTags(request.getName(), request.getTags()));
-            apiRequest.setDeployment(ModelConversionUtil.toModel(createRequestDefaults.defaultDeployment(request.getDeployment())));
-            apiRequest.setScaling(ModelConversionUtil.toModel(createRequestDefaults.defaultGroupScaling(request.getScaling())));
-            apiRequest.setWorkflows(ModelConversionUtil.toModel(createRequestDefaults.defaultWorkflows(request.getWorkflows())));
+            apiRequest.setProperties(requestDefaults.defaultProperties(request.getProperties()));
+            apiRequest.setTags(requestDefaults.defaultTags(request.getName(), request.getTags()));
+            apiRequest.setDeployment(ModelConversionUtil.toModel(requestDefaults.defaultDeployment(request.getDeployment())));
+            apiRequest.setScaling(ModelConversionUtil.toModel(requestDefaults.defaultGroupScaling(request.getScaling())));
+            apiRequest.setWorkflows(ModelConversionUtil.toModel(requestDefaults.defaultWorkflows(request.getWorkflows())));
             apiRequest.setSource(ModelConversionUtil.toModel(request.getSource()));
 
             Group group = GroupImpl.from(serverGroupsApi.updateServerGroup(context.networkId(), id, apiRequest));
@@ -228,8 +227,8 @@ public class GroupApiImpl implements GroupApi {
             serverGroupsApi.deleteServerGroup(context.networkId(), id);
             invalidate(id);
 
-            inlineBlueprintSupport.deleteBlueprintOfDeletedResource(blueprintId);
-            InlineBlueprintSupport.invalidateCache(context.cache(), blueprintId);
+            inlineBlueprintManager.deleteBlueprintOfDeletedResource(blueprintId);
+            InlineBlueprintManager.invalidateCache(context.cache(), blueprintId);
         }, context.executor());
     }
 
@@ -300,7 +299,7 @@ public class GroupApiImpl implements GroupApi {
             ModelsExecuteManualWorkflowRequest request = new ModelsExecuteManualWorkflowRequest();
             request.setWorkflowId(workflowId);
             ModelsExecuteServerGroupWorkflowResponse response = serverGroupsApi.executeServerGroupWorkflow(context.networkId(), id, request);
-            return WorkflowResults.of(
+            return ModelConversionUtil.toWorkflowExecutionResult(
                     workflowId,
                     response.getWorkflowId(),
                     response.getTotalServers(),
@@ -389,7 +388,7 @@ public class GroupApiImpl implements GroupApi {
         return listGroups(null, groupId, null).stream()
                 .filter(group -> groupId.equals(group.getServerGroupId()))
                 .map(ModelsServerGroupSummary::getSource)
-                .map(inlineBlueprintSupport::getReferencedBlueprintId)
+                .map(inlineBlueprintManager::getReferencedBlueprintId)
                 .filter(Objects::nonNull)
                 .findFirst()
                 .orElse(null);

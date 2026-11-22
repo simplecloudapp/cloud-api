@@ -32,14 +32,14 @@ class ControllerTest {
         cloud.api().group().requestServerStart(lobby).join();
 
         GroupStartQueue queue = cloud.api().group().getServerStartQueue().join();
-        assertEquals(2, queue.getQueuedStarts());
-        assertEquals(2, queue.findByServerGroupName("lobby").getStarts().size());
+        assertEquals(2, queue.queuedStarts());
+        assertEquals(2, queue.findByServerGroupName("lobby").starts().size());
         assertTrue(lobby.getServers().isEmpty());
 
         List<TestServer> started = cloud.controller().processStartQueue();
 
         assertEquals(2, started.size());
-        assertEquals(0, cloud.controller().startQueue().getTotalStarts());
+        assertEquals(0, cloud.controller().startQueue().totalStarts());
     }
 
     @Test
@@ -52,8 +52,8 @@ class ControllerTest {
         cloud.controller().processStartQueue();
 
         GroupStartQueue queue = cloud.controller().startQueue();
-        assertEquals(1, queue.getFailedStarts());
-        assertEquals(GroupStartQueueItemStatus.FAILED, queue.getItems().getFirst().getStarts().getFirst().getStatus());
+        assertEquals(1, queue.failedStarts());
+        assertEquals(GroupStartQueueItemStatus.FAILED, queue.items().getFirst().starts().getFirst().status());
         assertTrue(lobby.getServers().isEmpty());
     }
 
@@ -65,6 +65,6 @@ class ControllerTest {
 
         cloud.api().group().clearServerStartQueue(lobby).join();
 
-        assertEquals(0, cloud.controller().startQueue().getTotalStarts());
+        assertEquals(0, cloud.controller().startQueue().totalStarts());
     }
 }

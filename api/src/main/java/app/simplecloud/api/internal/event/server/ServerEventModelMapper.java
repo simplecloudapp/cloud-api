@@ -216,7 +216,6 @@ final class ServerEventModelMapper {
                 return number.intValue();
             }
         } catch (ReflectiveOperationException ignored) {
-            // Older proto versions do not expose these runtime fields.
         }
         return fallback;
     }

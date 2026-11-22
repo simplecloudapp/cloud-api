@@ -34,9 +34,6 @@ public class PlayerSessionReporter {
         this.executor = executor;
     }
 
-    /**
-     * Notifies the controller that a player logged in.
-     */
     public CompletableFuture<LoginResult> reportLogin(PlayerLogin login) {
         return CompletableFuture.supplyAsync(() -> {
             try {
@@ -71,10 +68,6 @@ public class PlayerSessionReporter {
         }, executor);
     }
 
-    /**
-     * Notifies the controller that a player disconnected.
-     * Completes exceptionally if the controller rejects the request or no valid reply is received.
-     */
     public CompletableFuture<Void> reportDisconnect(UUID playerId) {
         return CompletableFuture.runAsync(() -> {
             try {
@@ -99,10 +92,6 @@ public class PlayerSessionReporter {
         }, executor);
     }
 
-    /**
-     * Notifies the controller that a player switched servers.
-     * Completes exceptionally if the controller rejects the request or no valid reply is received.
-     */
     public CompletableFuture<Void> reportServerSwitch(UUID playerId, String newServerName) {
         return CompletableFuture.runAsync(() -> {
             try {
@@ -129,10 +118,6 @@ public class PlayerSessionReporter {
         }, executor);
     }
 
-    /**
-     * Notifies the controller that a player's client settings changed.
-     * Completes exceptionally if the controller rejects the request or no valid reply is received.
-     */
     public CompletableFuture<Void> reportClientSettings(String sessionId, PlayerClientSettings settings) {
         return CompletableFuture.runAsync(() -> {
             try {

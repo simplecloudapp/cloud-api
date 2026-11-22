@@ -9,11 +9,6 @@ import java.net.SocketException;
 import java.util.logging.Level;
 import java.util.logging.Logger;
 
-/**
- * Presents recoverable NATS connection changes without making them look like
- * application failures. All other asynchronous client errors retain jnats'
- * default logging behavior.
- */
 final class SimpleCloudNatsListener extends ErrorListenerLoggerImpl implements ConnectionListener {
 
     private static final Logger LOGGER = Logger.getLogger(SimpleCloudNatsListener.class.getName());
@@ -36,8 +31,6 @@ final class SimpleCloudNatsListener extends ErrorListenerLoggerImpl implements C
             case DISCONNECTED -> LOGGER.fine("NATS connection interrupted; reconnecting automatically");
             case RECONNECTED -> LOGGER.fine("NATS connection restored");
             default -> {
-                // The connection manager already reports initial connections,
-                // permanent closures, and subscription rebinding.
             }
         }
     }

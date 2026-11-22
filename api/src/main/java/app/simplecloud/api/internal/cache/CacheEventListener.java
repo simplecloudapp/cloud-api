@@ -10,14 +10,6 @@ import java.util.List;
 import java.util.Set;
 import java.util.concurrent.*;
 
-/**
- * Automatically invalidates cache entries when NATS events arrive.
- * This provides automatic cache coherence without manual intervention.
- *
- * <p>Uses debouncing to coalesce multiple events within a short time window
- * into a single invalidation. This is particularly useful during rolling restarts
- * or bulk operations where many events may arrive in rapid succession.
- */
 public class CacheEventListener {
 
     private final QueryCache cache;
@@ -25,7 +17,6 @@ public class CacheEventListener {
     private final ScheduledExecutorService scheduler;
     private final long debounceMs;
 
-    // Pending invalidations - using concurrent sets for thread safety
     private final Set<QueryKey> pendingInvalidations = ConcurrentHashMap.newKeySet();
     private final Set<QueryKey> pendingPatternInvalidations = ConcurrentHashMap.newKeySet();
     private volatile ScheduledFuture<?> pendingFlush;
@@ -42,9 +33,6 @@ public class CacheEventListener {
         setupListeners(eventApi);
     }
 
-    /**
-     * Schedules a debounced invalidation for a specific key.
-     */
     private synchronized void scheduleInvalidation(QueryKey key) {
         if (shutdown) {
             return;
@@ -53,9 +41,6 @@ public class CacheEventListener {
         scheduleFlush();
     }
 
-    /**
-     * Schedules a debounced pattern invalidation (invalidateAll).
-     */
     private synchronized void schedulePatternInvalidation(QueryKey pattern) {
         if (shutdown) {
             return;
@@ -64,11 +49,6 @@ public class CacheEventListener {
         scheduleFlush();
     }
 
-    /**
-     * Schedules or reschedules the flush operation.
-     * Uses debouncing - if called multiple times within the debounce window,
-     * only one flush will occur after the window expires.
-     */
     private void scheduleFlush() {
         if (pendingFlush != null && !pendingFlush.isDone()) {
             pendingFlush.cancel(false);
@@ -76,17 +56,12 @@ public class CacheEventListener {
         pendingFlush = scheduler.schedule(this::flush, debounceMs, TimeUnit.MILLISECONDS);
     }
 
-    /**
-     * Flushes all pending invalidations.
-     */
     private synchronized void flush() {
-        // Process pattern invalidations first (they may cover individual keys)
         for (QueryKey pattern : pendingPatternInvalidations) {
             cache.invalidateAll(pattern);
         }
         pendingPatternInvalidations.clear();
 
-        // Process individual key invalidations
         for (QueryKey key : pendingInvalidations) {
             cache.invalidate(key);
         }
@@ -197,9 +172,6 @@ public class CacheEventListener {
         }));
     }
 
-    /**
-     * Shuts down the event listener by unsubscribing from all events.
-     */
     public void shutdown() {
         synchronized (this) {
             if (shutdown) {
@@ -226,7 +198,6 @@ public class CacheEventListener {
             Thread.currentThread().interrupt();
         }
 
-        // Flush anything that was queued before shutdown after the scheduler is stopped.
         flush();
     }
 }

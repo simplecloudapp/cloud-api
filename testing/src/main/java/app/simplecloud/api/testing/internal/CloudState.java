@@ -22,7 +22,7 @@ import app.simplecloud.api.group.SourceConfig;
 import app.simplecloud.api.group.SourceType;
 import app.simplecloud.api.group.UpdateGroupRequest;
 import app.simplecloud.api.group.WorkflowsConfig;
-import app.simplecloud.api.internal.create.CreateRequestDefaults;
+import app.simplecloud.api.internal.util.RequestDefaults;
 import app.simplecloud.api.persistentserver.CreatePersistentServerRequest;
 import app.simplecloud.api.persistentserver.PersistentServerQuery;
 import app.simplecloud.api.persistentserver.UpdatePersistentServerRequest;
@@ -115,7 +115,7 @@ public final class CloudState {
     private final Map<String, ServerData> servers = new LinkedHashMap<>();
     private final Map<String, PersistentServerData> persistentServers = new LinkedHashMap<>();
     private final Map<String, BlueprintData> blueprints = new LinkedHashMap<>();
-    private final CreateRequestDefaults defaults = new CreateRequestDefaults();
+    private final RequestDefaults defaults = new RequestDefaults();
     private final Map<UUID, PlayerData> players = new LinkedHashMap<>();
     private final List<QueuedStart> startQueue = new ArrayList<>();
     private final TestNetworkImpl network = new TestNetworkImpl();

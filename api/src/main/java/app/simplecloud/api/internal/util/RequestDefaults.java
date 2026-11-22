@@ -1,4 +1,4 @@
-package app.simplecloud.api.internal.create;
+package app.simplecloud.api.internal.util;
 
 import app.simplecloud.api.blueprint.CreateBlueprintRequest;
 import app.simplecloud.api.blueprint.RuntimeConfig;
@@ -20,9 +20,9 @@ import java.util.Map;
 import java.util.Objects;
 
 /**
- * Applies dashboard-aligned defaults to create requests before converting them to controller payloads.
+ * Applies dashboard defaults to create requests.
  */
-public final class CreateRequestDefaults {
+public final class RequestDefaults {
     private static final int DEFAULT_MAX_PLAYERS = 50;
     private static final int DEFAULT_MAX_SERVERS = 1;
     private static final double DEFAULT_PLAYER_THRESHOLD = 0.75d;
