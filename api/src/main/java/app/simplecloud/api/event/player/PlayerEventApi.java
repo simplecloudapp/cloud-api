@@ -55,4 +55,12 @@ public interface PlayerEventApi {
      * @return a subscription that can be closed to stop receiving events
      */
     Subscription onClientSettingsUpdated(Consumer<PlayerClientSettingsUpdatedEvent> handler);
+
+    /**
+     * Subscribes to player properties update events.
+     *
+     * @param handler the callback to invoke when a player's properties change
+     * @return a subscription that can be closed to stop receiving events
+     */
+    Subscription onPropertiesUpdated(Consumer<PlayerPropertiesUpdatedEvent> handler);
 }

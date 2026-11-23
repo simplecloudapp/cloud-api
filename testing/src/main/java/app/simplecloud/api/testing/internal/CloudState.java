@@ -53,6 +53,7 @@ import app.simplecloud.api.testing.internal.event.SimulatedEvents.PlayerDisconne
 import app.simplecloud.api.testing.internal.event.SimulatedEvents.PlayerKick;
 import app.simplecloud.api.testing.internal.event.SimulatedEvents.PlayerLogin;
 import app.simplecloud.api.testing.internal.event.SimulatedEvents.PlayerProfileChanged;
+import app.simplecloud.api.testing.internal.event.SimulatedEvents.PlayerPropertiesUpdated;
 import app.simplecloud.api.testing.internal.event.SimulatedEvents.PlayerServerSwitch;
 import app.simplecloud.api.testing.internal.event.SimulatedEvents.ServerStarted;
 import app.simplecloud.api.testing.internal.event.SimulatedEvents.ServerStateChanged;
@@ -1458,21 +1459,31 @@ public final class CloudState {
     }
 
     public Map<String, String> setPlayerProperties(UUID id, Map<String, String> properties) {
-        PlayerData player = modifyPlayer(id, data -> {
-            data.properties.clear();
-            data.properties.putAll(properties);
+        return changePlayerProperties(id, current -> {
+            current.clear();
+            current.putAll(properties);
         });
-        return read(() -> new LinkedHashMap<>(player.properties));
     }
 
     public Map<String, String> updatePlayerProperties(UUID id, Map<String, String> properties) {
-        PlayerData player = modifyPlayer(id, data -> data.properties.putAll(properties));
-        return read(() -> new LinkedHashMap<>(player.properties));
+        return changePlayerProperties(id, current -> current.putAll(properties));
     }
 
     public Map<String, String> deletePlayerProperties(UUID id, Collection<String> keys) {
-        PlayerData player = modifyPlayer(id, data -> keys.forEach(data.properties::remove));
-        return read(() -> new LinkedHashMap<>(player.properties));
+        return changePlayerProperties(id, current -> keys.forEach(current::remove));
+    }
+
+    private Map<String, String> changePlayerProperties(UUID id, Consumer<Map<String, String>> change) {
+        return mutate(events -> {
+            PlayerData player = requirePlayer(id);
+            Map<String, String> oldProperties = new LinkedHashMap<>(player.properties);
+            change.accept(player.properties);
+            if (!oldProperties.equals(player.properties)) {
+                events.add(new PlayerPropertiesUpdated(
+                        networkId, now.toString(), player.snapshot(playerApi, now), oldProperties, player.properties));
+            }
+            return new LinkedHashMap<>(player.properties);
+        });
     }
 
     public void login(UUID id, @Nullable String proxyId) {
