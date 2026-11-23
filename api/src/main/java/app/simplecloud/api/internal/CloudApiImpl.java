@@ -11,7 +11,6 @@ import app.simplecloud.api.internal.cache.NoOpQueryCache;
 import app.simplecloud.api.internal.cache.QueryCacheImpl;
 import app.simplecloud.api.internal.event.EventApiImpl;
 import app.simplecloud.api.internal.group.GroupApiImpl;
-import app.simplecloud.api.internal.nats.NatsFailoverConnectionManager;
 import app.simplecloud.api.internal.persistentserver.PersistentServerApiImpl;
 import app.simplecloud.api.internal.server.ServerApiImpl;
 import app.simplecloud.api.internal.player.PlayerApiImpl;
@@ -37,10 +36,9 @@ public class CloudApiImpl implements CloudApi {
     private static final Duration EXECUTOR_SHUTDOWN_TIMEOUT = Duration.ofSeconds(1);
 
     private final CloudApiOptions options;
-    private final ApiClient httpClient;
-
-    private final NatsFailoverConnectionManager natsConnectionManager;
-    private final Connection natsClient;
+    private final SharedRuntime runtime;
+    private final InstanceNatsConnection natsConnection;
+    private final ApiClient apiClient;
     private final QueryCache queryCache;
     private final CacheEventListener cacheEventListener;
     private final ServerApi serverApi;
@@ -54,38 +52,49 @@ public class CloudApiImpl implements CloudApi {
     public CloudApiImpl(CloudApiOptions options) {
         this.options = options;
 
-        this.natsConnectionManager = new NatsFailoverConnectionManager(
-                options.getNatsUrl(),
-                options.getNetworkId(),
-                options.getNetworkSecret(),
-                options.getNatsFailoverReconnectAfter()
-        );
-        this.natsClient = natsConnectionManager.getConnection();
+        this.runtime = SharedRuntime.acquire(options);
+        // Released again if a later step fails, or the shared runtime would stay open after its last user closed.
+        InstanceNatsConnection natsConnection = null;
+        QueryCache queryCache = null;
+        try {
+            natsConnection = new InstanceNatsConnection(runtime.natsConnectionManager().getConnection());
+            this.natsConnection = natsConnection;
 
-        // Initialize cache
-        CacheConfig cacheConfig = options.getCacheConfig();
-        if (cacheConfig.isEnabled()) {
-            this.queryCache = new QueryCacheImpl(cacheConfig, ApiClients.maxRequestDuration(options));
-        } else {
-            this.queryCache = new NoOpQueryCache();
+            // Initialize cache
+            CacheConfig cacheConfig = options.getCacheConfig();
+            if (cacheConfig.isEnabled()) {
+                queryCache = new QueryCacheImpl(cacheConfig, ApiClients.maxRequestDuration(options));
+            } else {
+                queryCache = new NoOpQueryCache();
+            }
+            this.queryCache = queryCache;
+
+            // Initialize APIs with cache
+            this.apiClient = ApiClients.create(options, runtime.httpClient());
+            this.playerApi = new PlayerApiImpl(options, natsConnection.asConnection(), apiClient, executor);
+            this.eventApi = new EventApiImpl(natsConnection.asConnection(), options.getNetworkId(), playerApi);
+            this.serverApi = new ServerApiImpl(options, queryCache, apiClient, executor);
+            this.groupApi = new GroupApiImpl(options, queryCache, apiClient, executor);
+            this.persistentServerApi = new PersistentServerApiImpl(options, queryCache, apiClient, executor);
+
+            // Setup event-based cache invalidation with debouncing
+            if (cacheConfig.isEnabled() && cacheConfig.isAutoInvalidateOnEvents()) {
+                long debounceMs = cacheConfig.getEventDebounceTime().toMillis();
+                this.cacheEventListener = new CacheEventListener(queryCache, eventApi, debounceMs);
+            } else {
+                this.cacheEventListener = null;
+            }
+        } catch (RuntimeException | Error e) {
+            if (natsConnection != null) {
+                natsConnection.close();
+            }
+            releaseRuntime();
+            if (queryCache instanceof QueryCacheImpl queryCacheImpl) {
+                queryCacheImpl.shutdown();
+            }
+            executor.shutdown();
+            throw e;
         }
-
-        // Initialize APIs with cache
-        this.httpClient = ApiClients.create(options);
-        this.playerApi = new PlayerApiImpl(options, natsClient, httpClient, executor);
-        this.eventApi = new EventApiImpl(natsClient, options.getNetworkId(), playerApi);
-        this.serverApi = new ServerApiImpl(options, queryCache, httpClient, executor);
-        this.groupApi = new GroupApiImpl(options, queryCache, httpClient, executor);
-        this.persistentServerApi = new PersistentServerApiImpl(options, queryCache, httpClient, executor);
-
-        // Setup event-based cache invalidation with debouncing
-        if (cacheConfig.isEnabled() && cacheConfig.isAutoInvalidateOnEvents()) {
-            long debounceMs = cacheConfig.getEventDebounceTime().toMillis();
-            this.cacheEventListener = new CacheEventListener(queryCache, eventApi, debounceMs);
-        } else {
-            this.cacheEventListener = null;
-        }
-
     }
 
     @Override
@@ -114,13 +123,14 @@ public class CloudApiImpl implements CloudApi {
     }
 
     /**
-     * Returns the underlying NATS connection.
+     * Returns this instance's NATS connection, on top of a connection it may share with other instances.
+     * Closing or draining it closes only the dispatchers and subscriptions this instance created.
      * This is for internal use by integration modules.
      *
-     * @return the NATS connection
+     * @return this instance's NATS connection
      */
     public Connection getNatsConnection() {
-        return natsClient;
+        return natsConnection.asConnection();
     }
 
     public Executor getExecutor() {
@@ -139,7 +149,8 @@ public class CloudApiImpl implements CloudApi {
 
     /**
      * Blocks for up to about two seconds more than the NATS close itself: up to one second for running tasks,
-     * then up to one second to send the NATS messages already queued.
+     * then up to one second to send the NATS messages already queued. The shared NATS connection closes only
+     * when this is the last open instance that uses it; otherwise close waits only for the running tasks.
      */
     @Override
     public void close() {
@@ -162,7 +173,7 @@ public class CloudApiImpl implements CloudApi {
             }
         }
         // Player session reports publish on NATS from this executor,
-        // so they get a short time to finish before NATS closes.
+        // so they get a short time to finish before this instance's NATS connection closes.
         executor.shutdown();
         try {
             if (!executor.awaitTermination(EXECUTOR_SHUTDOWN_TIMEOUT.toMillis(), TimeUnit.MILLISECONDS)) {
@@ -172,13 +183,15 @@ public class CloudApiImpl implements CloudApi {
         } catch (InterruptedException e) {
             Thread.currentThread().interrupt();
         }
-        try {
-            natsConnectionManager.shutdown();
-        } catch (RuntimeException e) {
-            LOGGER.log(Level.WARNING, "Failed to shutdown NATS connection", e);
-        }
-        httpClient.getHttpClient().dispatcher().executorService().shutdown();
-        httpClient.getHttpClient().connectionPool().evictAll();
+        natsConnection.close();
+        releaseRuntime();
     }
 
+    private void releaseRuntime() {
+        try {
+            runtime.release();
+        } catch (RuntimeException e) {
+            LOGGER.log(Level.WARNING, "Failed to close the connections this instance shared", e);
+        }
+    }
 }
