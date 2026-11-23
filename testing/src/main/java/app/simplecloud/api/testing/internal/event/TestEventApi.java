@@ -22,6 +22,7 @@ import app.simplecloud.api.event.player.PlayerEventApi;
 import app.simplecloud.api.event.player.PlayerKickEvent;
 import app.simplecloud.api.event.player.PlayerLoginEvent;
 import app.simplecloud.api.event.player.PlayerProfileChangedEvent;
+import app.simplecloud.api.event.player.PlayerPropertiesUpdatedEvent;
 import app.simplecloud.api.event.player.PlayerServerSwitchEvent;
 import app.simplecloud.api.event.server.ServerDeletedEvent;
 import app.simplecloud.api.event.server.ServerEventApi;
@@ -153,6 +154,11 @@ public final class TestEventApi implements EventApi {
             @Override
             public Subscription onClientSettingsUpdated(Consumer<PlayerClientSettingsUpdatedEvent> handler) {
                 return bus.subscribe(PlayerClientSettingsUpdatedEvent.class, handler);
+            }
+
+            @Override
+            public Subscription onPropertiesUpdated(Consumer<PlayerPropertiesUpdatedEvent> handler) {
+                return bus.subscribe(PlayerPropertiesUpdatedEvent.class, handler);
             }
         };
     }

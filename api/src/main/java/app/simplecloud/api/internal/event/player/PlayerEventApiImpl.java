@@ -7,6 +7,7 @@ import app.simplecloud.api.event.player.PlayerEventApi;
 import app.simplecloud.api.event.player.PlayerKickEvent;
 import app.simplecloud.api.event.player.PlayerLoginEvent;
 import app.simplecloud.api.event.player.PlayerProfileChangedEvent;
+import app.simplecloud.api.event.player.PlayerPropertiesUpdatedEvent;
 import app.simplecloud.api.event.player.PlayerServerSwitchEvent;
 import app.simplecloud.api.internal.event.EventSubscriber;
 import app.simplecloud.api.player.PlayerApi;
@@ -82,6 +83,17 @@ public class PlayerEventApiImpl implements PlayerEventApi {
                 "player.client-settings-updated",
                 data -> new PlayerClientSettingsUpdatedEventImpl(
                         build.buf.gen.simplecloud.player.v2.PlayerClientSettingsUpdatedEvent.parseFrom(data)),
+                handler);
+    }
+
+    @Override
+    public Subscription onPropertiesUpdated(Consumer<PlayerPropertiesUpdatedEvent> handler) {
+        return events.subscribe(
+                "player.properties-updated",
+                data -> new PlayerPropertiesUpdatedEventImpl(
+                        build.buf.gen.simplecloud.player.v2.PlayerPropertiesUpdatedEvent.parseFrom(data),
+                        playerApi,
+                        natsConnection),
                 handler);
     }
 }
