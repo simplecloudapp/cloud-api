@@ -26,6 +26,9 @@ runs {
 
 tasks.named<ShadowJar>("shadowJar") {
     configurations = listOf(shade)
+
+    // Bouncy Castle's service file names a class its jar lacks, and NeoForge refuses to boot on that.
+    exclude("META-INF/services/java.security.Provider")
 }
 
 tasks.withType<JavaExec>().configureEach {

@@ -2,6 +2,7 @@ package app.simplecloud.api.platform.velocity;
 
 import app.simplecloud.api.CloudApi;
 import app.simplecloud.api.internal.CloudApiImpl;
+import app.simplecloud.api.internal.integration.heap.HeapUsageReporter;
 import app.simplecloud.api.internal.integration.player.PlayerCommandHandler;
 import app.simplecloud.api.internal.integration.player.PlayerSessionReporter;
 import app.simplecloud.api.internal.integration.presence.ProxyPresenceResponder;
@@ -42,6 +43,7 @@ public class CloudApiVelocityPlugin implements ProxyPresencePlayerProvider {
     private final PlayerCommandHandler playerCommandHandler;
     private final ProxyPresenceTracker proxyPresenceTracker;
     private final ProxyPresenceResponder proxyPresenceResponder;
+    private final HeapUsageReporter heapUsageReporter;
     // Replaced while the proxy initializes, because LuckPerms only provides its API then.
     private LuckPermsSynchronizer luckPermsSynchronizer = LuckPermsSynchronizer.DISABLED;
 
@@ -63,6 +65,7 @@ public class CloudApiVelocityPlugin implements ProxyPresencePlayerProvider {
                 SimpleCloudRuntime.serverId(),
                 this
         );
+        this.heapUsageReporter = new HeapUsageReporter(cloudApi);
     }
 
     @Subscribe
@@ -78,12 +81,14 @@ public class CloudApiVelocityPlugin implements ProxyPresencePlayerProvider {
 
         playerCommandHandler.start();
         proxyPresenceResponder.start();
+        heapUsageReporter.start();
     }
 
     @Subscribe
     public void onProxyShutdown(ProxyShutdownEvent event) {
         logger.info("SimpleCloud v3 API provider uninitialized!");
         luckPermsSynchronizer.stop();
+        heapUsageReporter.stop();
         proxyPresenceResponder.stop();
         playerCommandHandler.stop();
         cloudApi.close();
