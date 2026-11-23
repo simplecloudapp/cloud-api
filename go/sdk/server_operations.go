@@ -6,17 +6,15 @@ import (
 )
 
 func (c *ServersClient) Stop(ctx context.Context, id string) (*ModelsStopServerResponse, *http.Response, error) {
-	return c.api.ServersAPI.V0ServersDelete(ctx).
+	return c.api.ServersAPI.StopServer(ctx).
 		XNetworkID(c.networkID).
-		XNetworkCredential(c.credential).
 		ServerId(id).
 		Execute()
 }
 
 func (c *ServersClient) Update(ctx context.Context, id string, input ModelsPatchServerRequest) (*Server, *http.Response, error) {
-	result, response, err := c.api.ServersAPI.V0ServersPatch(ctx).
+	result, response, err := c.api.ServersAPI.PatchServer(ctx).
 		XNetworkID(c.networkID).
-		XNetworkCredential(c.credential).
 		ServerId(id).
 		ModelsPatchServerRequest(input).
 		Execute()
@@ -27,29 +25,27 @@ func (c *ServersClient) Update(ctx context.Context, id string, input ModelsPatch
 }
 
 func (c *ServersClient) PatchProperties(ctx context.Context, id string, properties map[string]any) (map[string]any, *http.Response, error) {
-	input := ModelsPatchPropertiesRequest{Properties: properties}
-	result, response, err := c.api.ServersAPI.V0ServersPropertiesPatch(ctx).
+	input := ModelsPatchPropertiesRequest{Properties: toWireProperties(properties)}
+	result, response, err := c.api.ServersAPI.PatchServerProperties(ctx).
 		XNetworkID(c.networkID).
-		XNetworkCredential(c.credential).
 		ServerId(id).
 		ModelsPatchPropertiesRequest(input).
 		Execute()
 	if err != nil || result == nil {
 		return nil, response, err
 	}
-	return result.Properties, response, nil
+	return fromWireProperties(result.Properties), response, nil
 }
 
 func (c *ServersClient) DeleteProperties(ctx context.Context, id string, keys ...string) (map[string]any, *http.Response, error) {
 	input := ModelsDeletePropertiesRequest{Keys: keys}
-	result, response, err := c.api.ServersAPI.V0ServersPropertiesDelete(ctx).
+	result, response, err := c.api.ServersAPI.DeleteServerProperties(ctx).
 		XNetworkID(c.networkID).
-		XNetworkCredential(c.credential).
 		ServerId(id).
 		ModelsDeletePropertiesRequest(input).
 		Execute()
 	if err != nil || result == nil {
 		return nil, response, err
 	}
-	return result.Properties, response, nil
+	return fromWireProperties(result.Properties), response, nil
 }

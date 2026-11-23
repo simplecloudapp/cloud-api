@@ -7,7 +7,6 @@ import (
 	"github.com/nats-io/nats.go"
 )
 
-// NATS returns the lazily initialized NATS connection.
 func (c *Client) NATS() (*nats.Conn, error) {
 	c.natsMu.Lock()
 	defer c.natsMu.Unlock()
@@ -22,8 +21,6 @@ func (c *Client) NATS() (*nats.Conn, error) {
 		nats.Timeout(5 * time.Second),
 	}
 	options = append(options, c.options.NATSOptions...)
-	// Reply subjects must stay within this network, including when callers
-	// supply their own connection options.
 	options = append(options, nats.CustomInboxPrefix(c.options.NetworkID+"._INBOX"))
 	connection, err := nats.Connect(c.options.NATSURL, options...)
 	if err != nil {
@@ -33,7 +30,6 @@ func (c *Client) NATS() (*nats.Conn, error) {
 	return connection, nil
 }
 
-// Close drains and closes the optional NATS connection.
 func (c *Client) Close() error {
 	c.natsMu.Lock()
 	defer c.natsMu.Unlock()

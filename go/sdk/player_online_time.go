@@ -10,9 +10,8 @@ import (
 const maxPlayerOnlineTime = int64(1<<31 - 1)
 
 func (c *PlayersClient) OnlineTime(ctx context.Context, id string) (int64, *http.Response, error) {
-	result, response, err := c.api.PlayersAPI.V0PlayersOnlineTimeGet(ctx).
+	result, response, err := c.api.PlayersAPI.GetPlayerOnlineTime(ctx).
 		XNetworkID(c.networkID).
-		XNetworkCredential(c.credential).
 		PlayerId(id).
 		Execute()
 	if err != nil || result == nil {
@@ -57,9 +56,8 @@ func (c *PlayersClient) SetOnlineTime(ctx context.Context, id string, seconds in
 	}
 	value := int32(seconds)
 	input := ModelsPatchPlayerRequest{OnlineTimeSeconds: &value}
-	return c.api.PlayersAPI.V0PlayersPatch(ctx).
+	return c.api.PlayersAPI.PatchPlayer(ctx).
 		XNetworkID(c.networkID).
-		XNetworkCredential(c.credential).
 		PlayerId(id).
 		ModelsPatchPlayerRequest(input).
 		Execute()

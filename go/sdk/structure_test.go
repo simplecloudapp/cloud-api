@@ -14,7 +14,11 @@ func TestHandwrittenFilesStayFocused(t *testing.T) {
 	if err != nil {
 		t.Fatal(err)
 	}
-	files = append(files, "../simplecloud.go")
+	rootFiles, err := filepath.Glob("../*.go")
+	if err != nil {
+		t.Fatal(err)
+	}
+	files = append(files, rootFiles...)
 	for _, file := range files {
 		lineCount, err := countFileLines(file)
 		if err != nil {

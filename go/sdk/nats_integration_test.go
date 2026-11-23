@@ -9,7 +9,6 @@ import (
 
 const testNetworkID = "network-1"
 
-// Run against an isolated broker with NATS_TEST_URL=nats://127.0.0.1:4222.
 func TestNetworkScopedRequestInboxes(t *testing.T) {
 	url := os.Getenv("NATS_TEST_URL")
 	if url == "" {
@@ -46,7 +45,6 @@ func TestNetworkScopedRequestInboxes(t *testing.T) {
 	}
 }
 
-// startReplySubjectEchoResponder answers every request with the request's own reply subject.
 func startReplySubjectEchoResponder(t *testing.T, url string) string {
 	t.Helper()
 	responder, err := nats.Connect(url)
