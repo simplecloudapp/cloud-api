@@ -17,6 +17,7 @@ import app.simplecloud.api.event.player.PlayerDisconnectEvent;
 import app.simplecloud.api.event.player.PlayerKickEvent;
 import app.simplecloud.api.event.player.PlayerLoginEvent;
 import app.simplecloud.api.event.player.PlayerProfileChangedEvent;
+import app.simplecloud.api.event.player.PlayerPropertiesUpdatedEvent;
 import app.simplecloud.api.event.player.PlayerServerSwitchEvent;
 import app.simplecloud.api.event.server.ServerDeletedEvent;
 import app.simplecloud.api.event.server.ServerStartedEvent;
@@ -34,6 +35,7 @@ import app.simplecloud.api.testing.group.TestGroup;
 import app.simplecloud.api.testing.internal.event.SimulatedEvents;
 import app.simplecloud.api.testing.player.TestPlayer;
 import app.simplecloud.api.testing.server.TestServer;
+import java.util.Map;
 import java.util.UUID;
 import net.kyori.adventure.text.Component;
 import org.jetbrains.annotations.Nullable;
@@ -176,6 +178,13 @@ public final class TestEvents {
     public static PlayerClientSettingsUpdatedEvent playerClientSettingsUpdated(
             UUID playerId, @Nullable String sessionId, PlayerClientSettings settings) {
         return new SimulatedEvents.PlayerClientSettingsUpdated(null, null, playerId, sessionId, settings);
+    }
+
+    public static PlayerPropertiesUpdatedEvent playerPropertiesUpdated(
+            CloudPlayer player, Map<String, String> oldProperties) {
+        CloudPlayer snapshot = snapshot(player);
+        return new SimulatedEvents.PlayerPropertiesUpdated(
+                null, null, snapshot, oldProperties, snapshot.getProperties());
     }
 
     private static CloudPlayer snapshot(CloudPlayer player) {

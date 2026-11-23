@@ -13,6 +13,7 @@ import app.simplecloud.api.event.player.PlayerDisconnectEvent;
 import app.simplecloud.api.event.player.PlayerKickEvent;
 import app.simplecloud.api.event.player.PlayerLoginEvent;
 import app.simplecloud.api.event.player.PlayerProfileChangedEvent;
+import app.simplecloud.api.event.player.PlayerPropertiesUpdatedEvent;
 import app.simplecloud.api.event.player.PlayerServerSwitchEvent;
 import app.simplecloud.api.player.CloudPlayer;
 import app.simplecloud.api.player.CloudPlayer.ConnectResult;
@@ -315,6 +316,39 @@ class PlayerTest {
         players.deletePlayerProperty(steve.getUniqueId(), "rank").join();
 
         assertEquals(Map.of("coins", "10"), steve.getProperties());
+    }
+
+    @Test
+    void propertyChangesPublishOldAndNewProperties(TestCloud cloud) {
+        TestPlayer steve = cloud.createPlayer("Steve").setProperty("rank", "member");
+        PlayerApi players = cloud.api().player();
+        var updates = cloud.track(PlayerPropertiesUpdatedEvent.class);
+
+        players.updatePlayerProperty(steve.getUniqueId(), "rank", "admin").join();
+        players.setPlayerProperties(steve.getUniqueId(), Map.of("coins", "10")).join();
+        players.deletePlayerProperty(steve.getUniqueId(), "coins").join();
+
+        List<PlayerPropertiesUpdatedEvent> events = updates.events();
+        assertEquals(3, events.size());
+        assertEquals(Map.of("rank", "member"), events.get(0).getOldProperties());
+        assertEquals(Map.of("rank", "admin"), events.get(0).getProperties());
+        assertEquals(Map.of("rank", "admin"), events.get(0).getPlayer().getProperties());
+        assertEquals(Map.of("rank", "admin"), events.get(1).getOldProperties());
+        assertEquals(Map.of("coins", "10"), events.get(1).getProperties());
+        assertEquals(Map.of("coins", "10"), events.get(2).getOldProperties());
+        assertEquals(Map.of(), events.get(2).getProperties());
+    }
+
+    @Test
+    void propertyWritesWithoutChangePublishNothing(TestCloud cloud) {
+        TestPlayer steve = cloud.createPlayer("Steve").setProperty("rank", "admin");
+        PlayerApi players = cloud.api().player();
+        var updates = cloud.track(PlayerPropertiesUpdatedEvent.class);
+
+        players.updatePlayerProperty(steve.getUniqueId(), "rank", "admin").join();
+        players.deletePlayerProperty(steve.getUniqueId(), "missing").join();
+
+        updates.assertEmpty();
     }
 
     @Test

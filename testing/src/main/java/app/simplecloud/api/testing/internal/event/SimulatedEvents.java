@@ -17,6 +17,7 @@ import app.simplecloud.api.event.player.PlayerDisconnectEvent;
 import app.simplecloud.api.event.player.PlayerKickEvent;
 import app.simplecloud.api.event.player.PlayerLoginEvent;
 import app.simplecloud.api.event.player.PlayerProfileChangedEvent;
+import app.simplecloud.api.event.player.PlayerPropertiesUpdatedEvent;
 import app.simplecloud.api.event.player.PlayerServerSwitchEvent;
 import app.simplecloud.api.event.server.ServerDeletedEvent;
 import app.simplecloud.api.event.server.ServerStartedEvent;
@@ -29,6 +30,7 @@ import app.simplecloud.api.player.PlayerClientSettings;
 import app.simplecloud.api.player.PlayerProfile;
 import app.simplecloud.api.server.Server;
 import app.simplecloud.api.server.ServerState;
+import java.util.Map;
 import java.util.UUID;
 import net.kyori.adventure.text.Component;
 import org.jetbrains.annotations.Nullable;
@@ -648,6 +650,60 @@ public final class SimulatedEvents {
                     playerId,
                     sessionId,
                     settings);
+        }
+    }
+
+    public record PlayerPropertiesUpdated(
+            @Nullable String networkId,
+            @Nullable String timestamp,
+            CloudPlayer player,
+            Map<String, String> oldProperties,
+            Map<String, String> properties)
+            implements PlayerPropertiesUpdatedEvent, Stampable {
+
+        public PlayerPropertiesUpdated {
+            oldProperties = Map.copyOf(oldProperties);
+            properties = Map.copyOf(properties);
+        }
+
+        @Override
+        public String getNetworkId() {
+            return networkId;
+        }
+
+        @Override
+        public UUID getPlayerId() {
+            return player.getUniqueId();
+        }
+
+        @Override
+        public Map<String, String> getOldProperties() {
+            return oldProperties;
+        }
+
+        @Override
+        public Map<String, String> getProperties() {
+            return properties;
+        }
+
+        @Override
+        public CloudPlayer getPlayer() {
+            return player;
+        }
+
+        @Override
+        public String getTimestamp() {
+            return timestamp;
+        }
+
+        @Override
+        public PlayerPropertiesUpdated stamp(String networkId, String timestamp) {
+            return new PlayerPropertiesUpdated(
+                    orElse(this.networkId, networkId),
+                    orElse(this.timestamp, timestamp),
+                    player,
+                    oldProperties,
+                    properties);
         }
     }
 
