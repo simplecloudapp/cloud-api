@@ -10,7 +10,10 @@ import java.util.concurrent.atomic.AtomicReference;
  * <p>The proxy uses it to resolve connect requests that target a server by ID. It is fed by the server
  * connection plugin, which registers the servers on the proxy and knows which ID belongs to which name.
  * Only Velocity and BungeeCord proxies handle connect requests, so it has no effect on other platforms.
- * Without a registration, connects by server ID answer
+ * The controller sends the proxy only server IDs, so without a registration every connect that reaches the
+ * proxy through the controller ends with
+ * {@link app.simplecloud.api.player.ConnectStatus#SERVER_NOT_REGISTERED}, which the deprecated
+ * {@code connectToGroup} and {@code connectToPersistentServer} report as
  * {@link app.simplecloud.api.player.CloudPlayer.ConnectResult#SERVER_NOT_FOUND}.
  *
  * <p>The registry is process-wide rather than tied to a {@code CloudApi} instance, because the connection
@@ -57,8 +60,9 @@ public final class ProxyServerNames {
      * Finds the name under which this proxy registered a server.
      *
      * <p>It is called on the NATS dispatcher thread, concurrently with the code that registers servers,
-     * so it must be thread-safe, fast and must not throw. If it throws or returns {@code null}, the proxy
-     * answers {@link app.simplecloud.api.player.CloudPlayer.ConnectResult#CONNECTION_FAILED}.
+     * so it must be thread-safe, fast and must not throw. If it throws or returns {@code null}, the connect
+     * ends with {@link app.simplecloud.api.player.ConnectStatus#FAILED}, which the deprecated methods report
+     * as {@link app.simplecloud.api.player.CloudPlayer.ConnectResult#CONNECTION_FAILED}.
      *
      * <p>Several servers can resolve to the same proxy name, and the last one registered replaces the
      * others on the proxy. The lookup must only answer for the server that currently holds the name,

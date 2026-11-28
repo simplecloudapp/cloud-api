@@ -3,12 +3,15 @@ package app.simplecloud.api.internal.player;
 import app.simplecloud.api.CloudApiException;
 import app.simplecloud.api.internal.integration.adventure.RemoteAudience;
 import app.simplecloud.api.player.CloudPlayer;
+import app.simplecloud.api.player.ConnectOutcome;
+import app.simplecloud.api.player.ConnectTarget;
 import app.simplecloud.api.player.PlayerApi;
 import app.simplecloud.api.player.ServerSelectionMode;
 import io.nats.client.Connection;
 import net.kyori.adventure.audience.Audience;
 import net.kyori.adventure.audience.ForwardingAudience;
 import net.kyori.adventure.text.Component;
+import org.jetbrains.annotations.Nullable;
 import org.jspecify.annotations.NonNull;
 
 import java.util.Collections;
@@ -142,21 +145,30 @@ public class CloudPlayerImpl implements CloudPlayer, ForwardingAudience.Single {
     }
 
     @Override
-    public CompletableFuture<ConnectResult> connect(String serverName) {
-        return playerApi.connect(uniqueId, serverName);
+    public CompletableFuture<ConnectOutcome> connectTo(ConnectTarget target) {
+        return playerApi.connectTo(uniqueId, target);
     }
 
     @Override
+    @Deprecated
     public CompletableFuture<ConnectResult> connectDirect(String serverName) {
         return playerApi.connectDirect(uniqueId, serverName);
     }
 
     @Override
-    public CompletableFuture<ConnectResult> connectToGroup(String groupName, ServerSelectionMode selectionMode) {
+    @Deprecated
+    public CompletableFuture<ConnectResult> connect(String serverName) {
+        return playerApi.connect(uniqueId, serverName);
+    }
+
+    @Override
+    @Deprecated
+    public CompletableFuture<ConnectResult> connectToGroup(String groupName, @Nullable ServerSelectionMode selectionMode) {
         return playerApi.connectToGroup(uniqueId, groupName, selectionMode);
     }
 
     @Override
+    @Deprecated
     public CompletableFuture<ConnectResult> connectToPersistentServer(String persistentServerId) {
         return playerApi.connectToPersistentServer(uniqueId, persistentServerId);
     }
