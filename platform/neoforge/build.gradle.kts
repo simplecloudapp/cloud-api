@@ -10,10 +10,8 @@ val minecraftVersions = listOf("26.2", "26.3")
 
 dependencies {
     implementation(libs.neoforge)
-    implementation(project(":platform:shared"))
     implementation(project(":api"))
 
-    shade(project(":platform:shared"))
     shade(project(":api"))
 }
 
@@ -28,6 +26,9 @@ runs {
 
 tasks.named<ShadowJar>("shadowJar") {
     configurations = listOf(shade)
+
+    // Bouncy Castle's service file names a class its jar lacks, and NeoForge refuses to boot on that.
+    exclude("META-INF/services/java.security.Provider")
 }
 
 tasks.withType<JavaExec>().configureEach {

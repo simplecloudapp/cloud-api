@@ -31,6 +31,7 @@ import java.util.logging.Logger;
 public final class NatsFailoverConnectionManager {
 
     private static final Logger LOGGER = Logger.getLogger(NatsFailoverConnectionManager.class.getName());
+    private static final Duration FLUSH_BEFORE_CLOSE_TIMEOUT = Duration.ofSeconds(1);
 
     private final String natsUrl;
     private final String networkId;
@@ -48,6 +49,7 @@ public final class NatsFailoverConnectionManager {
 
     private final ScheduledExecutorService monitorExecutor;
     private final ScheduledExecutorService reconnectExecutor;
+    private final NatsThreads natsThreads;
 
     public NatsFailoverConnectionManager(
             String natsUrl,
@@ -55,10 +57,21 @@ public final class NatsFailoverConnectionManager {
             String networkSecret,
             Duration failoverReconnectAfter
     ) {
+        this(natsUrl, networkId, networkSecret, failoverReconnectAfter, NatsThreads.JNATS_DEFAULT);
+    }
+
+    private NatsFailoverConnectionManager(
+            String natsUrl,
+            String networkId,
+            String networkSecret,
+            Duration failoverReconnectAfter,
+            NatsThreads natsThreads
+    ) {
         this.natsUrl = natsUrl;
         this.networkId = networkId;
         this.networkSecret = networkSecret;
         this.failoverReconnectAfter = failoverReconnectAfter == null ? Duration.ofSeconds(30) : failoverReconnectAfter;
+        this.natsThreads = natsThreads;
         this.natsListener = new SimpleCloudNatsListener();
 
         this.connectionRef = new AtomicReference<>(null);
@@ -69,6 +82,20 @@ public final class NatsFailoverConnectionManager {
 
         scheduleReconnect("no NATS connection has been established", true);
         this.monitorExecutor.scheduleAtFixedRate(this::monitorConnection, 2, 2, TimeUnit.SECONDS);
+    }
+
+    /**
+     * For a connection that must not keep the JVM alive, because the platform may never close it.
+     */
+    public static NatsFailoverConnectionManager createOnDaemonThreads(
+            String natsUrl,
+            String networkId,
+            String networkSecret,
+            Duration failoverReconnectAfter
+    ) {
+        return new NatsFailoverConnectionManager(
+                natsUrl, networkId, networkSecret, failoverReconnectAfter, new DaemonNatsThreads()
+        );
     }
 
     public Connection getConnection() {
@@ -83,12 +110,40 @@ public final class NatsFailoverConnectionManager {
             shutdown = true;
             connection = connectionRef.get();
         }
-        if (connection != null) {
-            try {
-                connection.close();
-            } catch (InterruptedException e) {
-                throw new RuntimeException(e);
-            }
+        try {
+            flushAndClose(connection);
+        } finally {
+            natsThreads.shutdown();
+        }
+    }
+
+    private static void flushAndClose(Connection connection) {
+        if (connection == null) {
+            return;
+        }
+        flushIfConnected(connection);
+        try {
+            connection.close();
+        } catch (InterruptedException e) {
+            throw new RuntimeException(e);
+        }
+    }
+
+    /**
+     * jnats {@code close()} discards what still waits in the outgoing queue, so this pushes it out first.
+     * A connection that is down is skipped: jnats would wait up to the timeout for it to come back.
+     */
+    static void flushIfConnected(Connection connection) {
+        if (connection.getStatus() != Connection.Status.CONNECTED) {
+            return;
+        }
+        try {
+            connection.flush(FLUSH_BEFORE_CLOSE_TIMEOUT);
+        } catch (InterruptedException e) {
+            Thread.currentThread().interrupt();
+            LOGGER.warning("Interrupted while flushing NATS connection before close; unsent messages may be lost");
+        } catch (Exception e) {
+            LOGGER.warning("Failed to flush NATS connection before close; unsent messages may be lost: " + e);
         }
     }
 
@@ -175,6 +230,7 @@ public final class NatsFailoverConnectionManager {
                 // Draining flushes the old connection, which blocks while it is down, so it must not hold bindLock.
                 drainQuietly(previousDispatchers);
                 if (oldConnection != null && oldConnection != newConnection) {
+                    flushIfConnected(oldConnection);
                     oldConnection.close();
                 }
                 if (initialConnection) {
@@ -224,23 +280,25 @@ public final class NatsFailoverConnectionManager {
     }
 
     private Connection createConnection() throws IOException, InterruptedException {
-        return Nats.connect(createOptions(natsUrl, networkId, networkSecret, natsListener));
+        return Nats.connect(createOptions(natsUrl, networkId, networkSecret, natsListener, natsThreads));
     }
 
     static Options createOptions(
             String natsUrl,
             String networkId,
             String networkSecret,
-            SimpleCloudNatsListener listener
+            SimpleCloudNatsListener listener,
+            NatsThreads natsThreads
     ) {
-        return Options.builder()
+        Options.Builder optionsBuilder = Options.builder()
                 .server(natsUrl)
                 .userInfo(networkId, networkSecret)
                 .inboxPrefix(networkId + "._INBOX")
                 .maxReconnects(-1)
                 .errorListener(listener)
-                .connectionListener(listener)
-                .build();
+                .connectionListener(listener);
+        natsThreads.applyTo(optionsBuilder);
+        return optionsBuilder.build();
     }
 
     private Connection createConnectionProxy() {

@@ -28,11 +28,21 @@ public class UpdateServerRequest {
         return new Builder();
     }
 
+    /**
+     * @deprecated The player count is never sent with a server update. The controller takes it from the
+     *             server's status ping, so this field has no effect.
+     */
+    @Deprecated
     @Nullable
     public Integer getPlayerCount() {
         return playerCount;
     }
 
+    /**
+     * @deprecated The player count is never sent with a server update. The controller takes it from the
+     *             server's status ping, so this field has no effect.
+     */
+    @Deprecated
     public void setPlayerCount(@Nullable Integer playerCount) {
         this.playerCount = playerCount;
     }
@@ -90,6 +100,11 @@ public class UpdateServerRequest {
         private Integer maxMemory;
         private Integer maxPlayers;
 
+        /**
+         * @deprecated The player count is never sent with a server update. The controller takes it from the
+         *             server's status ping, so this field has no effect.
+         */
+        @Deprecated
         public Builder playerCount(Integer playerCount) {
             this.playerCount = playerCount;
             return this;

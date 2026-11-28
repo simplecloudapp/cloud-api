@@ -32,13 +32,12 @@ The official SDK for the SimpleCloud controller. Manage groups, servers, persist
 - [x] **Easy API Use**: Just add the plugin to your server and include the api as a provided artifact.
 - [x] **Supported Server Software**: Supports every major platform.
 - [x] **Easy API access**: Use every api method we provide, just from one interface.
-- [x] **Go SDK**: A standalone Go SDK for use outside of Minecraft servers.
+- [x] **Go SDK**: Use the API from Go services and tools.
 
 ## Server Installation
 
 - Put the Spigot, Paper, Folia, BungeeCord, and Velocity JAR in the server's `plugins` directory.
 - Put the Fabric/Quilt or NeoForge JAR in the server's `mods` directory.
-- The shared Fabric/Quilt build requires Fabric API.
 - Fabric, Quilt, and NeoForge support is server-side only, targets Minecraft 26.2 to 26.3, and does not require clients to install the mod.
 
 ## Usage
@@ -76,7 +75,11 @@ compileOnly 'app.simplecloud.api:api:VERSION'
 
 ### Go
 
-The standalone Go SDK lives in [`go/`](go/README.md). See the [Go SDK README](go/README.md) for installation and usage.
+> Requires Go 1.26 or newer. For usage and examples see the [Go SDK README](go/README.md).
+
+```sh
+go get github.com/simplecloudapp/cloud-api/go
+```
 
 ## Contributing
 

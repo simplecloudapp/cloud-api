@@ -10,13 +10,14 @@ import (
 	"github.com/simplecloudapp/cloud-api/go/generated"
 )
 
-// Client provides the handwritten facade and the complete generated API.
 type Client struct {
 	Raw               *generated.APIClient
 	Groups            *GroupsClient
 	Servers           *ServersClient
 	PersistentServers *PersistentServersClient
 	Players           *PlayersClient
+	Blueprints        *BlueprintsClient
+	Stats             *StatsClient
 	Events            *EventsClient
 
 	options Options
@@ -38,17 +39,22 @@ func NewClient(options Options) (*Client, error) {
 	if config.HTTPClient == nil {
 		config.HTTPClient = &http.Client{Timeout: 10 * time.Second}
 	}
+	if options.NetworkSecret != "" {
+		config.AddDefaultHeader("X-Network-Credential", options.NetworkSecret)
+	}
 	if strings.TrimSpace(options.Component) != "" {
 		config.AddDefaultHeader("X-SC-Component", options.Component)
 	}
 
 	raw := generated.NewAPIClient(config)
 	client := &Client{Raw: raw, options: options}
-	credentials := authenticatedClient{api: raw, networkID: options.NetworkID, credential: options.NetworkSecret}
-	client.Groups = &GroupsClient{authenticatedClient: credentials}
-	client.Servers = &ServersClient{authenticatedClient: credentials}
-	client.PersistentServers = &PersistentServersClient{authenticatedClient: credentials}
-	client.Players = &PlayersClient{authenticatedClient: credentials}
+	api := authenticatedClient{api: raw, networkID: options.NetworkID}
+	client.Groups = &GroupsClient{authenticatedClient: api}
+	client.Servers = &ServersClient{authenticatedClient: api}
+	client.PersistentServers = &PersistentServersClient{authenticatedClient: api}
+	client.Players = &PlayersClient{authenticatedClient: api, nats: client.NATS}
+	client.Blueprints = &BlueprintsClient{authenticatedClient: api}
+	client.Stats = &StatsClient{authenticatedClient: api}
 	client.Events = &EventsClient{client: client}
 	return client, nil
 }
@@ -60,7 +66,6 @@ func NewClientFromEnv() (*Client, error) { return NewClient(DefaultOptions()) }
 func (c *Client) NetworkID() string { return c.options.NetworkID }
 
 type authenticatedClient struct {
-	api        *generated.APIClient
-	networkID  string
-	credential string
+	api       *generated.APIClient
+	networkID string
 }

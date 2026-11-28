@@ -6,8 +6,6 @@ import (
 	"net/http"
 )
 
-// mapWireResponse adapts structurally equivalent generated response models to
-// the stable facade model exposed by this package.
 func mapWireResponse[T any](source any, response *http.Response, err error) (*T, *http.Response, error) {
 	if err != nil || source == nil {
 		return nil, response, err

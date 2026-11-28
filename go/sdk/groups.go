@@ -6,7 +6,6 @@ import (
 	"net/http"
 )
 
-// Group is the stable facade name for a generated server-group model.
 type Group = ModelsServerGroupSummary
 
 type GroupQuery struct {
@@ -24,9 +23,8 @@ type GroupQuery struct {
 type GroupsClient struct{ authenticatedClient }
 
 func (c *GroupsClient) List(ctx context.Context, query *GroupQuery) ([]Group, *http.Response, error) {
-	request := c.api.ServerGroupsAPI.V0ServerGroupsGet(ctx).
-		XNetworkID(c.networkID).
-		XNetworkCredential(c.credential)
+	request := c.api.ServerGroupsAPI.ListServerGroups(ctx).
+		XNetworkID(c.networkID)
 	if query != nil {
 		if value := stringQuery(query.IDs); value != "" {
 			request = request.ServerGroupId(value)
